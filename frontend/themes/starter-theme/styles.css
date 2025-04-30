@@ -1,0 +1,89 @@
+/*
+   CSS styling examples for the Vaadin app.
+   Visit https://vaadin.com/docs/latest/styling/application-theme and
+   https://vaadin.com/docs/latest/styling/lumo for more information.
+*/
+
+@import 'fonts/style.css';
+
+html{
+    /*--lumo-font-family: 'Chilanka';*/
+    --lumo-primary-text-color: hsl(209, 100%, 15%);
+    --lumo-primary-color-50pct: rgba(0, 40, 77, 0.5);
+    --lumo-primary-color-10pct: rgba(0, 40, 77, 0.1);
+    --lumo-primary-color: 	hsl(209, 100%, 15%);
+    --lumo-primary-contrast-color: 	hsl(48, 100%, 51%);
+    --lumo-base-color: #FFFFFF;
+    --lumo-shade-5pct: rgba(0, 40, 77, 0.05);
+    --lumo-shade-10pct: rgba(0, 40, 77, 0.1);
+    --lumo-shade-20pct: rgba(0, 40, 77, 0.2);
+    --lumo-shade-30pct: rgba(0, 40, 77, 0.3);
+    --lumo-shade-40pct: rgba(0, 40, 77, 0.4);
+    --lumo-shade-50pct: rgba(0, 40, 77, 0.5);
+    --lumo-shade-60pct: rgba(0, 40, 77, 0.6);
+    --lumo-shade-70pct: rgba(0, 40, 77, 0.7);
+    --lumo-shade-80pct: rgba(0, 40, 77, 0.8);
+    --lumo-shade-90pct: rgba(0, 40, 77, 0.9);
+    --lumo-shade: hsl(209, 100%, 15%);
+    --lumo-error-text-color: rgb(153, 51, 36);
+    --lumo-error-color-50pct: rgba(153, 51, 36, 0.5);
+    --lumo-error-color-10pct: rgba(153, 51, 36, 0.1);
+    --lumo-error-color: 	hsl(8, 62%, 37%);
+    --lumo-success-text-color: rgb(117, 153, 142);
+    --lumo-success-color-50pct: rgba(117, 153, 142, 0.5);
+    --lumo-success-color-10pct: rgba(117, 153, 142, 0.1);
+    --lumo-success-color: 	hsl(161, 15%, 53%);
+}
+
+.elicit-input-field::part(label) {
+    word-wrap: unset;
+    white-space: unset;
+    overflow: unset;
+}
+
+.review-section{
+    white-space: pre-line;
+}
+
+.review-item-question{
+    font-weight: bolder;
+    padding-left: 10px;
+}
+
+@keyframes flash {
+    0% { background-color: #FFFFFF; }
+    10% { background-color: rgba(77, 175, 255, 0.1); }
+    20% { background-color: rgba(77, 175, 255, 0.15); }
+    30% { background-color: rgba(77, 175, 255, 0.2); }
+    40% { background-color: rgba(77, 175, 255, 0.25); }
+    50% { background-color: rgba(77, 175, 255, 0.3); }
+    60% { background-color: rgba(77, 175, 255, 0.25); }
+    70% { background-color: rgba(77, 175, 255, 0.2); }
+    80% { background-color: rgba(77, 175, 255, 0.15); }
+    90% { background-color: rgba(77, 175, 255, 0.1); }
+    100% { background-color: #FFFFFF; }
+}
+
+.flash {
+    animation: flash 1.5s ease-in-out;
+}
+
+.scroller {
+    overflow: auto; /* Enables scrolling */
+    display: flex;
+    flex-direction: column;
+    height: 100vh; /* Full height to allow scrolling */
+    box-sizing: border-box;
+}
+
+.reviewCard {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Drop shadow */
+    border: 1px solid #e0e0e0; /* Light border */
+    border-radius: 4px; /* Optional: rounded corners */
+    padding: 16px; /* Optional: some padding inside the card */
+    background-color: #fff; /* Optional: background color */
+}
+
+.review-item-question{
+    font-weight: bold;
+}
