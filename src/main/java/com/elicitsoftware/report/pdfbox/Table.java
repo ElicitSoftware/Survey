@@ -11,10 +11,10 @@ package com.elicitsoftware.report.pdfbox;
  * ***LICENSE_END***
  */
 
-import java.util.List;
-
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDFont;
+
+import java.util.List;
 
 public class Table {
 

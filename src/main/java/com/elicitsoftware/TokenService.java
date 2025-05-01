@@ -209,7 +209,7 @@ public class TokenService {
         return user;
     }
 
-    public boolean isAutoRegister(){
+    public boolean isAutoRegister() {
         return autoRegister;
     }
 

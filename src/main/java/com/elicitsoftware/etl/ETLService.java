@@ -57,7 +57,6 @@ public class ETLService {
      * @param ev the startup event that triggers the initialization process
      */
     // void onStart(@Observes StartupEvent ev) {
-
     @Startup
     void init() {
 
@@ -65,7 +64,7 @@ public class ETLService {
         Query checkQuery = entityManager.createNativeQuery("SELECT COUNT(*) FROM surveyreport.dim_section");
 
         Long rows = (Long) checkQuery.getSingleResult();
-        if (rows == 0 ) {
+        if (rows == 0) {
             Log.info("ETL Service initialization.");
             Log.info("Initializing ETL");
             Log.info("Update Step Dimension Table: " + updateStepDimensionTable());

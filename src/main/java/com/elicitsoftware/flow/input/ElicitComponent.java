@@ -11,12 +11,12 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.model.Answer;
+import com.elicitsoftware.model.Question;
 import com.vaadin.flow.component.*;
 import com.vaadin.flow.component.shared.HasAllowedCharPattern;
 import com.vaadin.flow.component.shared.HasTooltip;
 import com.vaadin.flow.data.binder.Binder;
-import com.elicitsoftware.model.Answer;
-import com.elicitsoftware.model.Question;
 
 /**
  * The ElicitComponent class serves as an abstract base class for creating custom UI components

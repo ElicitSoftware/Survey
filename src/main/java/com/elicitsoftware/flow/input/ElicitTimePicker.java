@@ -11,10 +11,10 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
-import com.vaadin.flow.component.timepicker.TimePicker;
-import com.vaadin.flow.component.timepicker.TimePickerVariant;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
+import com.vaadin.flow.component.timepicker.TimePicker;
+import com.vaadin.flow.component.timepicker.TimePickerVariant;
 
 import java.time.LocalTime;
 

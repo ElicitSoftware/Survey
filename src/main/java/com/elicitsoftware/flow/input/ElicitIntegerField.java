@@ -11,12 +11,12 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.model.Answer;
+import com.elicitsoftware.model.Question;
 import com.vaadin.flow.component.textfield.IntegerField;
 import com.vaadin.flow.component.textfield.TextFieldVariant;
 import com.vaadin.flow.data.binder.ValidationResult;
 import com.vaadin.flow.data.binder.Validator;
-import com.elicitsoftware.model.Answer;
-import com.elicitsoftware.model.Question;
 
 /**
  * The ElicitIntegerField class is a specific implementation of the ElicitComponent

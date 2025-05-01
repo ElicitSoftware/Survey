@@ -11,9 +11,9 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
-import com.vaadin.flow.component.checkbox.Checkbox;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
+import com.vaadin.flow.component.checkbox.Checkbox;
 
 /**
  * The ElicitCheckbox class represents a specific implementation of the ElicitComponent
@@ -50,7 +50,7 @@ public class ElicitCheckbox extends ElicitComponent<Checkbox> {
 
     @Override
     void setBindings(Answer answer) {
-        Checkbox checkbox = (Checkbox) component;
+        Checkbox checkbox = component;
         //A single checkbox shouldn't have a required, max or min values.
     }
 

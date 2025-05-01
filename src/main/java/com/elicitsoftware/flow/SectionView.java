@@ -11,7 +11,12 @@ package com.elicitsoftware.flow;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.QuestionService;
 import com.elicitsoftware.flow.input.*;
+import com.elicitsoftware.model.Answer;
+import com.elicitsoftware.model.Respondent;
+import com.elicitsoftware.model.SelectItem;
+import com.elicitsoftware.response.NavResponse;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
@@ -23,12 +28,6 @@ import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.router.HasDynamicTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.VaadinSession;
-import com.elicitsoftware.QuestionService;
-import edu.umich.elicit.flow.input.*;
-import com.elicitsoftware.model.Answer;
-import com.elicitsoftware.model.Respondent;
-import com.elicitsoftware.model.SelectItem;
-import com.elicitsoftware.response.NavResponse;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 
@@ -132,7 +131,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                                 saveAnswer(answer, e.getValue().toString());
                             });
                             displayMap.put(answer.getDisplayKey(), checkbox.component);
-                            if(!binders.containsKey(answer.getDisplayKey())) {
+                            if (!binders.containsKey(answer.getDisplayKey())) {
                                 binders.put(answer.getDisplayKey(), checkbox.getBinder());
                             }
 
@@ -143,7 +142,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                                 saveAnswer(answer, e.getValue().toString());
                             });
                             displayMap.put(answer.getDisplayKey(), datePicker.component);
-                            if(!binders.containsKey(answer.getDisplayKey())) {
+                            if (!binders.containsKey(answer.getDisplayKey())) {
                                 binders.put(answer.getDisplayKey(), datePicker.getBinder());
                             }
                             break;
@@ -153,7 +152,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                                 saveAnswer(answer, e.getValue().toString());
                             });
                             displayMap.put(answer.getDisplayKey(), comboBox.component);
-                            if(!binders.containsKey(answer.getDisplayKey())) {
+                            if (!binders.containsKey(answer.getDisplayKey())) {
                                 binders.put(answer.getDisplayKey(), comboBox.getBinder());
                             }
                             break;
@@ -169,7 +168,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                                 saveAnswer(answer, String.valueOf(newValue));
                             });
                             displayMap.put(answer.getDisplayKey(), integerField.component);
-                            if(!binders.containsKey(answer.getDisplayKey())) {
+                            if (!binders.containsKey(answer.getDisplayKey())) {
                                 binders.put(answer.getDisplayKey(), integerField.getBinder());
                             }
                             break;
@@ -185,7 +184,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                                 saveAnswer(answer, e.getValue().toString());
                             });
                             displayMap.put(answer.getDisplayKey(), numberField.component);
-                            if(!binders.containsKey(answer.getDisplayKey())) {
+                            if (!binders.containsKey(answer.getDisplayKey())) {
                                 binders.put(answer.getDisplayKey(), numberField.getBinder());
                             }
                             break;
@@ -195,7 +194,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                                 saveAnswer(answer, e.getValue().codedValue);
                             });
                             displayMap.put(answer.getDisplayKey(), radio.component);
-                            if(!binders.containsKey(answer.getDisplayKey())) {
+                            if (!binders.containsKey(answer.getDisplayKey())) {
                                 binders.put(answer.getDisplayKey(), radio.getBinder());
                             }
                             break;
@@ -208,7 +207,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             });
 
                             displayMap.put(answer.getDisplayKey(), text.component);
-                            if(!binders.containsKey(answer.getDisplayKey())) {
+                            if (!binders.containsKey(answer.getDisplayKey())) {
                                 binders.put(answer.getDisplayKey(), text.getBinder());
                             }
                             break;
@@ -220,7 +219,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                                 saveAnswer(answer, e.getValue());
                             });
                             displayMap.put(answer.getDisplayKey(), textArea.component);
-                            if(!binders.containsKey(answer.getDisplayKey())) {
+                            if (!binders.containsKey(answer.getDisplayKey())) {
                                 binders.put(answer.getDisplayKey(), textArea.getBinder());
                             }
                             break;
@@ -237,7 +236,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                                 saveAnswer(answer, val.toString());
                             });
                             displayMap.put(answer.getDisplayKey(), multiSelect.component);
-                            if(!binders.containsKey(answer.getDisplayKey())) {
+                            if (!binders.containsKey(answer.getDisplayKey())) {
                                 binders.put(answer.getDisplayKey(), multiSelect.getBinder());
                             }
                             break;
@@ -254,7 +253,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                                 saveAnswer(answer, val.toString());
                             });
                             displayMap.put(answer.getDisplayKey(), checkboxGroup.component);
-                            if(!binders.containsKey(answer.getDisplayKey())) {
+                            if (!binders.containsKey(answer.getDisplayKey())) {
                                 binders.put(answer.getDisplayKey(), checkboxGroup.getBinder());
                             }
                             break;
@@ -264,7 +263,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                                 saveAnswer(answer, e.getValue().toString());
                             });
                             displayMap.put(answer.getDisplayKey(), dateTimePicker.component);
-                            if(!binders.containsKey(answer.getDisplayKey())) {
+                            if (!binders.containsKey(answer.getDisplayKey())) {
                                 binders.put(answer.getDisplayKey(), dateTimePicker.getBinder());
                             }
                             break;
@@ -276,7 +275,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                                 saveAnswer(answer, e.getValue());
                             });
                             displayMap.put(answer.getDisplayKey(), email.component);
-                            if(!binders.containsKey(answer.getDisplayKey())) {
+                            if (!binders.containsKey(answer.getDisplayKey())) {
                                 binders.put(answer.getDisplayKey(), email.getBinder());
                             }
                             break;
@@ -286,7 +285,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                                 saveAnswer(answer, e.getValue().toString());
                             });
                             displayMap.put(answer.getDisplayKey(), multiSelectComboBox.component);
-                            if(!binders.containsKey(answer.getDisplayKey())) {
+                            if (!binders.containsKey(answer.getDisplayKey())) {
                                 binders.put(answer.getDisplayKey(), multiSelectComboBox.getBinder());
                             }
                             break;
@@ -296,7 +295,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                                 saveAnswer(answer, e.getValue());
                             });
                             displayMap.put(answer.getDisplayKey(), password.component);
-                            if(!binders.containsKey(answer.getDisplayKey())) {
+                            if (!binders.containsKey(answer.getDisplayKey())) {
                                 binders.put(answer.getDisplayKey(), password.getBinder());
                             }
                             break;
@@ -306,7 +305,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                                 saveAnswer(answer, e.getValue().toString());
                             });
                             displayMap.put(answer.getDisplayKey(), timePicker.component);
-                            if(!binders.containsKey(answer.getDisplayKey())) {
+                            if (!binders.containsKey(answer.getDisplayKey())) {
                                 binders.put(answer.getDisplayKey(), timePicker.getBinder());
                             }
                             break;
@@ -406,16 +405,16 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         this.btnNext = btnNewNext;
     }
 
-/**
- * Validates all binders in the current section to ensure they meet the required criteria.
- *
- * <p>This method iterates through all binders and triggers their validation process.
- * If any binder fails validation, the section is considered invalid. The method
- * returns {@code true} if all binders are valid, otherwise {@code false}.</p>
- *
- * @return {@code true} if all binders are valid, {@code false} otherwise.
- */
-   private boolean validateSection() {
+    /**
+     * Validates all binders in the current section to ensure they meet the required criteria.
+     *
+     * <p>This method iterates through all binders and triggers their validation process.
+     * If any binder fails validation, the section is considered invalid. The method
+     * returns {@code true} if all binders are valid, otherwise {@code false}.</p>
+     *
+     * @return {@code true} if all binders are valid, {@code false} otherwise.
+     */
+    private boolean validateSection() {
         boolean valid = false;
         int inValidCount = 0;
         for (Binder binder : binders.values()) {

@@ -11,8 +11,8 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
-import com.vaadin.flow.component.html.Div;
 import com.elicitsoftware.model.Answer;
+import com.vaadin.flow.component.html.Div;
 
 /**
  * Represents a custom HTML component that is derived from the Div class.

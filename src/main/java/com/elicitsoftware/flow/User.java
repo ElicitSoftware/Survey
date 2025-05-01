@@ -21,7 +21,8 @@ public class User {
      * Default constructor for the User class.
      * Initializes a new instance of the User class with default values.
      */
-    public User() {}
+    public User() {
+    }
 
     /**
      * Constructs a new User with the specified token.

@@ -15,7 +15,8 @@ import org.apache.pdfbox.pdmodel.PDPage;
 
 public class PDFPage extends PDPage {
     public float cursorY = 0;
-   public PDFPage() {
-       super();
+
+    public PDFPage() {
+        super();
     }
 }

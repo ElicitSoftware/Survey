@@ -11,6 +11,10 @@ package com.elicitsoftware.flow;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.QuestionService;
+import com.elicitsoftware.response.NavResponse;
+import com.elicitsoftware.response.ReviewItem;
+import com.elicitsoftware.response.ReviewSection;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H4;
@@ -21,10 +25,6 @@ import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.server.VaadinSession;
-import com.elicitsoftware.QuestionService;
-import com.elicitsoftware.response.NavResponse;
-import com.elicitsoftware.response.ReviewItem;
-import com.elicitsoftware.response.ReviewSection;
 
 
 /**

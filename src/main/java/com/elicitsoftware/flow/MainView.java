@@ -11,6 +11,11 @@ package com.elicitsoftware.flow;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.QuestionService;
+import com.elicitsoftware.TokenService;
+import com.elicitsoftware.model.Respondent;
+import com.elicitsoftware.model.Survey;
+import com.elicitsoftware.response.NavResponse;
 import com.vaadin.flow.component.Direction;
 import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.UI;
@@ -26,11 +31,6 @@ import com.vaadin.flow.data.binder.Binder;
 import com.vaadin.flow.router.HasDynamicTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.VaadinSession;
-import com.elicitsoftware.QuestionService;
-import com.elicitsoftware.TokenService;
-import com.elicitsoftware.model.Respondent;
-import com.elicitsoftware.model.Survey;
-import com.elicitsoftware.response.NavResponse;
 import io.quarkus.logging.Log;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.Dependent;
@@ -219,7 +219,7 @@ public class MainView extends VerticalLayout implements HasDynamicTitle {
      * Logs in a respondent using the provided survey ID and token.
      *
      * @param surveyId the ID of the survey the respondent is attempting to access
-     * @param token the authentication token for the respondent
+     * @param token    the authentication token for the respondent
      * @return the {@link Respondent} object representing the logged-in user
      */
     private Respondent login(int surveyId, String token) {

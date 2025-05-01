@@ -81,7 +81,7 @@ public class NavResponse {
      *
      * @return An {@code ArrayList<String>} containing the display keys of all answers.
      */
-    public ArrayList<String> getDisplayKeys(){
+    public ArrayList<String> getDisplayKeys() {
         ArrayList<String> displayKeys = new ArrayList<>();
         for (Answer a : answers) {
             displayKeys.add(a.getDisplayKey());
@@ -95,9 +95,9 @@ public class NavResponse {
      * @param key the display key used to identify the desired Answer object.
      * @return the Answer object with the matching display key, or {@code null} if no match is found.
      */
-    public Answer getAnswerByKey(String key){
+    public Answer getAnswerByKey(String key) {
         for (Answer a : answers) {
-            if(a.getDisplayKey().equals(key)){
+            if (a.getDisplayKey().equals(key)) {
                 return a;
             }
         }
