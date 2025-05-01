@@ -12,7 +12,6 @@ package com.elicitsoftware;
  */
 
 import com.elicitsoftware.model.*;
-import edu.umich.elicit.model.*;
 import com.elicitsoftware.response.NavResponse;
 import com.elicitsoftware.response.NavigationItem;
 import io.quarkus.logging.Log;
