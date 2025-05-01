@@ -47,7 +47,7 @@ public class PDFTableGenerator {
     // Draws current page table grid and borderlines and content
     private void drawCurrentPage(PDDocument document, Table table, String[][] currentPageContent, PDPageContentStream contentStream)
             throws IOException {
-        PDPage page = document.getPage(document.getNumberOfPages() -1 );
+        PDPage page = document.getPage(document.getNumberOfPages() - 1);
         float tableTopY = table.isLandscape() ? table.getPageSize().getWidth() - table.getMargin() : table.getPageSize().getHeight() - table.getMargin();
 //        float tableTopY = 0;
 //        if (page.cursorY == 0) {
@@ -141,7 +141,7 @@ public class PDFTableGenerator {
 
     private PDPageContentStream generateContentStream(PDDocument document, Table table) throws IOException {
 
-        PDPageContentStream contentStream = new PDPageContentStream(document, document.getPage(document.getNumberOfPages()-1), PDPageContentStream.AppendMode.OVERWRITE, false);
+        PDPageContentStream contentStream = new PDPageContentStream(document, document.getPage(document.getNumberOfPages() - 1), PDPageContentStream.AppendMode.OVERWRITE, false);
         // User transformation matrix to change the reference when drawing.
         // This is necessary for the landscape position to draw correctly
         if (table.isLandscape()) {

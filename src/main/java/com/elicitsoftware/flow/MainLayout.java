@@ -11,6 +11,7 @@ package com.elicitsoftware.flow;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.model.Respondent;
 import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.applayout.AppLayout;
 import com.vaadin.flow.component.applayout.DrawerToggle;
@@ -23,7 +24,6 @@ import com.vaadin.flow.router.AfterNavigationEvent;
 import com.vaadin.flow.router.AfterNavigationListener;
 import com.vaadin.flow.server.VaadinSession;
 import com.vaadin.flow.theme.lumo.LumoUtility;
-import com.elicitsoftware.model.Respondent;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 

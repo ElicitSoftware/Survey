@@ -11,10 +11,10 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
-import com.vaadin.flow.component.datepicker.DatePicker;
-import com.vaadin.flow.component.datepicker.DatePickerVariant;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
+import com.vaadin.flow.component.datepicker.DatePicker;
+import com.vaadin.flow.component.datepicker.DatePickerVariant;
 
 import java.time.LocalDate;
 

@@ -11,10 +11,10 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
-import com.vaadin.flow.component.textfield.TextArea;
-import com.vaadin.flow.component.textfield.TextAreaVariant;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
+import com.vaadin.flow.component.textfield.TextArea;
+import com.vaadin.flow.component.textfield.TextAreaVariant;
 
 /**
  * ElicitTextArea is a UI component that represents a text area input field.

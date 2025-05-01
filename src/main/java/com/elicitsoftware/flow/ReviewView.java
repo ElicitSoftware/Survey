@@ -11,6 +11,12 @@ package com.elicitsoftware.flow;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.QuestionService;
+import com.elicitsoftware.model.Respondent;
+import com.elicitsoftware.model.Survey;
+import com.elicitsoftware.response.NavResponse;
+import com.elicitsoftware.response.ReviewResponse;
+import com.elicitsoftware.response.ReviewSection;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.html.Div;
@@ -19,12 +25,6 @@ import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.VaadinSession;
-import com.elicitsoftware.QuestionService;
-import com.elicitsoftware.model.Respondent;
-import com.elicitsoftware.model.Survey;
-import com.elicitsoftware.response.NavResponse;
-import com.elicitsoftware.response.ReviewResponse;
-import com.elicitsoftware.response.ReviewSection;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 

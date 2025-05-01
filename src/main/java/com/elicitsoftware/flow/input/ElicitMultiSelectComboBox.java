@@ -11,11 +11,11 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
-import com.vaadin.flow.component.combobox.MultiSelectComboBox;
-import com.vaadin.flow.component.combobox.MultiSelectComboBoxVariant;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
 import com.elicitsoftware.model.SelectItem;
+import com.vaadin.flow.component.combobox.MultiSelectComboBox;
+import com.vaadin.flow.component.combobox.MultiSelectComboBoxVariant;
 
 import java.util.HashSet;
 

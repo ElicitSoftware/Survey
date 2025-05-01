@@ -543,7 +543,7 @@ public class Answer extends PanacheEntityBase {
      * Converts the textValue field to an integer.
      *
      * @return The integer representation of the textValue field.
-     *         Returns 0 if the textValue cannot be parsed as an integer.
+     * Returns 0 if the textValue cannot be parsed as an integer.
      * @throws NumberFormatException if the textValue is not a valid integer format.
      */
     @Transient
@@ -570,8 +570,8 @@ public class Answer extends PanacheEntityBase {
      * based on the current text value of this answer.
      *
      * @return The {@link SelectItem} that matches the current text value if the
-     *         question type is either RADIO or CHECKBOX, or {@code null} if no
-     *         match is found or the conditions are not met.
+     * question type is either RADIO or CHECKBOX, or {@code null} if no
+     * match is found or the conditions are not met.
      */
     @Transient
     public SelectItem getSelectedItem() {
@@ -608,8 +608,8 @@ public class Answer extends PanacheEntityBase {
      * in the associated question's select group.
      *
      * @return A set of {@link SelectItem} objects that match the selected values in
-     *         the `textValue` field, or {@code null} if no items are selected or the
-     *         conditions are not met.
+     * the `textValue` field, or {@code null} if no items are selected or the
+     * conditions are not met.
      */
     public Set<SelectItem> getSelectedItems() {
         HashSet<SelectItem> selectedItems = new HashSet<>();

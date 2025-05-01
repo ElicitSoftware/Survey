@@ -11,7 +11,6 @@ package com.elicitsoftware;
  * ***LICENSE_END***
  */
 
-import com.vaadin.flow.server.VaadinSession;
 import com.elicitsoftware.etl.ETLService;
 import com.elicitsoftware.flow.SessionKeys;
 import com.elicitsoftware.model.Answer;
@@ -20,6 +19,7 @@ import com.elicitsoftware.response.NavResponse;
 import com.elicitsoftware.response.ReviewItem;
 import com.elicitsoftware.response.ReviewResponse;
 import com.elicitsoftware.response.ReviewSection;
+import com.vaadin.flow.server.VaadinSession;
 import io.quarkus.logging.Log;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -73,34 +73,22 @@ public class QuestionService {
      * The query uses the parameter `:respondentId` to filter answers specific to a given respondent.
      */
     private static final String reviewSQL = """
-            select *
-                from (SELECT a1.display_key, a1.display_text,
-                    CASE
-                        WHEN q.short_text = '' then a1.display_text
-                        ELSE q.short_text
-                    END AS short_display_text,
-                    CASE
-                        WHEN a1.text_value = '' THEN 'not reported'
-                        ELSE a1.text_value
-                    END AS display_value
-                FROM survey.answers a1
-                JOIN survey.questions q ON a1.question_id = q.id
-                WHERE a1.respondent_id = :respondentId
-                    AND a1.section != 0
-                    AND a1.deleted = false
-                    AND a1.section_question_id IS NOT NULL
-                UNION
-                SELECT a2.display_key, a2.display_text, a2.display_text AS short_display_text,
-                    CASE
-                        WHEN a2.text_value = '' THEN 'not reported'
-                        ELSE a2.text_value
-                    END AS display_value
-                FROM survey.answers a2
-                WHERE a2.respondent_id = :respondentId
-                    AND a2.section != 0
-                    AND a2.question_id IS NULL
-                ) a
-                order by a.display_key;
+            SELECT a.id,
+                a.respondent_id,
+                a.display_key,
+                a.display_text,
+                q.short_text,
+                COALESCE(NULLIF(q.short_text::text, ''::text), a.display_text::text) AS short_display_text,
+                COALESCE(i.display_text, a.text_value) AS display_value,
+                t.name AS question_type
+               FROM survey.answers a
+                 LEFT JOIN survey.questions q ON a.question_id = q.id
+                 LEFT JOIN survey.question_types t ON q.type_id = t.id
+                 LEFT JOIN survey.select_groups g ON q.select_group_id = g.id
+                 LEFT JOIN survey.select_items i ON g.id = i.group_id AND a.text_value::text = i.coded_value::text
+              WHERE a.deleted = false AND a.section_question_id IS NULL AND a.question_id IS NULL OR a.text_value IS NOT NULL
+              AND a.respondent_id = :respondentId
+              order by a.display_key;
             """;
 
     @Inject
@@ -166,11 +154,12 @@ public class QuestionService {
         String displayText;
         String shortDisplayText;
         String displayValue;
+
         for (Object[] result : results) {
-            displayKey = (String) result[0];
-            displayText = (String) result[1];
-            shortDisplayText = (String) result[2];
-            displayValue = (String) result[3];
+            displayKey = (String) result[2];
+            displayText = (String) result[3];
+            shortDisplayText = (String) result[5];
+            displayValue = (String) result[6];
 
             if (displayValue == null) {
                 if (!sectionTitle.equals(displayText)) {
@@ -183,7 +172,7 @@ public class QuestionService {
                     sectionDisplayKey = displayKey;
                 }
             } else {
-                if(shortDisplayText != null) {
+                if (shortDisplayText != null) {
                     items.add(new ReviewItem(shortDisplayText, displayValue));
                 } else {
                     items.add(new ReviewItem(displayText, displayValue));
@@ -244,14 +233,14 @@ public class QuestionService {
         if (a.getTextValue() != null && a.getTextValue().equals(answer.getTextValue())) {
             // the answer is the same -- don't do anything.
         } else {
-            a.setTextValue( answer.getTextValue());
+            a.setTextValue(answer.getTextValue());
             a.savedDt = (new Date());
 
             if (a.question != null
                     && "CHECKBOX".equals(a.question.questionType.name)
                     && !Boolean.parseBoolean(a.getTextValue())) {
                 // There really isn't a false only true and null
-                a.setTextValue( null);
+                a.setTextValue(null);
             }
 
             // The answer has changed. This can effect downstream questions.

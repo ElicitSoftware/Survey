@@ -31,7 +31,7 @@ public class ReportResponse {
     public String innerHTML;
     public PDFDocument pdf;
 
-    public ReportResponse(){
+    public ReportResponse() {
         super();
     }
 

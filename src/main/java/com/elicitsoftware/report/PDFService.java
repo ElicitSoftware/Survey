@@ -11,13 +11,13 @@ package com.elicitsoftware.report;
  * ***LICENSE_END***
  */
 
-import com.vaadin.flow.server.StreamResource;
-import de.rototor.pdfbox.graphics2d.PdfBoxGraphics2D;
-import de.rototor.pdfbox.graphics2d.PdfBoxGraphics2DFontTextDrawer;
 import com.elicitsoftware.report.pdf.Content;
 import com.elicitsoftware.report.pdfbox.Column;
 import com.elicitsoftware.report.pdfbox.Table;
 import com.elicitsoftware.report.pdfbox.TableBuilder;
+import com.vaadin.flow.server.StreamResource;
+import de.rototor.pdfbox.graphics2d.PdfBoxGraphics2D;
+import de.rototor.pdfbox.graphics2d.PdfBoxGraphics2DFontTextDrawer;
 import jakarta.enterprise.context.RequestScoped;
 import org.apache.batik.anim.dom.SAXSVGDocumentFactory;
 import org.apache.batik.bridge.BridgeContext;
@@ -410,7 +410,7 @@ public class PDFService {
     public static List<String> wrapText(String text, PDFont font, float fontSize, float maxWidth) throws IOException {
         List<String> lines = new ArrayList<>();
         String[] words = new String[0];
-        if(text != null && text.length() > 0) {
+        if (text != null && text.length() > 0) {
             words = text.split(" ");
         }
         StringBuilder currentLine = new StringBuilder();
