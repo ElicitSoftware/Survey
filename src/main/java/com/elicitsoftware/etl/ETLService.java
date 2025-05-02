@@ -73,10 +73,10 @@ public class ETLService {
             Log.info("Build Fact Respondents View: " + buildFactRespondentsView());
             Log.info("Build Fact Sections Table: " + buildFactSectionTable());
             Log.info("Build Dimension Tables: " + buildFactSectionView());
-            populateAllFactSectionsTable();
         } else {
             Log.info("ETL Service Init found records in surveyreport.dim_section, No initialization needed.");
         }
+        populateAllFactSectionsTable();
     }
 
     /**
