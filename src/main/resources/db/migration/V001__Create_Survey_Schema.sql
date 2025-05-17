@@ -14,6 +14,7 @@ SET TIMEZONE TO 'America/Detroit';
 --------------------------------
 CREATE SEQUENCE survey.surveys_seq INCREMENT 1 START 1;
 GRANT USAGE ON SEQUENCE survey.surveys_seq TO ${survey_user};
+GRANT USAGE ON SEQUENCE survey.surveys_seq TO ${surveyadmin_user};
 CREATE TABLE IF NOT EXISTS survey.surveys
 (
     id                  integer                NOT NULL,
@@ -28,6 +29,7 @@ CREATE TABLE IF NOT EXISTS survey.surveys
     CONSTRAINT surveys_display_order_un UNIQUE (display_order)
 );
 GRANT DELETE, UPDATE, INSERT, SELECT ON TABLE survey.surveys TO ${survey_user};
+GRANT DELETE, UPDATE, INSERT, SELECT ON TABLE survey.surveys TO ${surveyadmin_user};
 --------------------------------
 CREATE SEQUENCE survey.respondents_seq INCREMENT 1 START 1;
 GRANT USAGE ON SEQUENCE survey.respondents_seq TO ${survey_user};
