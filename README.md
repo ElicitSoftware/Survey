@@ -75,7 +75,7 @@ Here's a blank template to get started. To avoid retyping too much info, do a se
 ## Getting Started
 Elicit Survey runs in <a href=https://github.com/ElicitSoftware/>Elicit Software</a> a modular survey system for building and runing complex surveys. It is the module that present questions and records the answers of respondents.
 
-The easiest way to see Elicit Survey in action is to checkout the sample survey <a href=https://github.com/ElicitSoftware/Survey/>Family Health History Survey</a>.
+The easiest way to see Elicit Survey in action is to checkout the <a href=https://github.com/ElicitSoftware/Survey/>Family Health History Survey</a>.
 
 <!-- USAGE EXAMPLES -->
 ## Usage
