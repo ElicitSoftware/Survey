@@ -50,7 +50,7 @@
 <!-- ABOUT THE PROJECT -->
 ## About The Project
   <p align="left">
-    The Elcit Survey was designed and developed by <a href="https://www.michiganmedicine.org/">Michigan Medicine</a>. It is responsible for presenting questions and recording responses. It is not tied to any one survey. It is a decision support system that records the respondent's path through a decision tree.
+    The Elicit Survey was designed and developed by <a href="https://www.michiganmedicine.org/">Michigan Medicine</a>. It is responsible for presenting questions and recording responses. It is not tied to any one survey. It is a decision support system that records the respondent's path through a decision tree.
   </p>
 
 <!-- [![Product Name Screen Shot][product-screenshot]](https://example.com)
@@ -73,13 +73,13 @@ Here's a blank template to get started. To avoid retyping too much info, do a se
 
 <!-- GETTING STARTED -->
 ## Getting Started
-Elicit Survey runs in <a href=https://github.com/ElicitSoftware/>Elicit Software</a> a modular survey system for building and runing complex surveys. It is the module that present questions and records the answers of respondents.
+Elicit Survey runs in <a href=https://github.com/ElicitSoftware/>Elicit Software</a>, a modular survey system for building and running complex surveys. It is the module that presents questions and records the answers of respondents.
 
-The easiest way to see Elicit Survey in action is to checkout the <a href=https://github.com/ElicitSoftware/Survey/>Family Health History Survey</a>.
+The easiest way to see Elicit Survey in action is to check out the <a href=https://github.com/ElicitSoftware/Survey/>Family Health History Survey</a>.
 
 <!-- USAGE EXAMPLES -->
 ## Usage
-To use the Elicit System, download the Authoring tool (work in progress) and create a new survey, and publish it to the database. The Admin application is used to register subjects and generate unique tokens that are sent in an invitation email. Subjects will follow the link in the email and enter their tokens in the Elicit Survey to complete the questionnaire.
+To use the Elicit System, download the Authoring tool (work in progress), create a new survey, and publish it to the database. The Admin application is used to register subjects and generate unique tokens that are sent in an invitation email. Subjects will follow the link in the email and enter their tokens in the Elicit Survey to complete the questionnaire.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -123,7 +123,7 @@ Don't forget to give the project a star! Thanks again!
 <!-- LICENSE -->
 ## License
 
-Distributed under the PolyForm Noncommercial License 1.0.0. See `LICENSE.MD` for more information.
+Distributed under the PolyForm Noncommercial License 1.0.0. See `LICENSE.md` for more information.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
