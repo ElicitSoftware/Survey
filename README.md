@@ -79,7 +79,7 @@ The easiest way to see Elicit Survey in action is to checkout the <a href=https:
 
 <!-- USAGE EXAMPLES -->
 ## Usage
-To use the Elicit System download the Authoring tool (work in progress) and create a new survey. Then publish it to the database and use Elicit Survey to deliver it to your target audiance.
+To use the Elicit System, download the Authoring tool (work in progress) and create a new survey, and publish it to the database. The Admin application is used to register subjects and generate unique tokens that are sent in an invitation email. Subjects will follow the link in the email and enter their tokens in the Elicit Survey to complete the questionnaire.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
