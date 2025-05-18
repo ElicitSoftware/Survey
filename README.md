@@ -50,7 +50,7 @@
 <!-- ABOUT THE PROJECT -->
 ## About The Project
   <p align="left">
-    The Elcit Survey was designed and developed by <a href="https://www.michiganmedicine.org/">Michigan Medicine</a>. It is responsible for presenting questions and recording responses. It is not tied to any one survey. It is a decision support system that records the respondent's path through decision tree.
+    The Elcit Survey was designed and developed by <a href="https://www.michiganmedicine.org/">Michigan Medicine</a>. It is responsible for presenting questions and recording responses. It is not tied to any one survey. It is a decision support system that records the respondent's path through a decision tree.
   </p>
 
 <!-- [![Product Name Screen Shot][product-screenshot]](https://example.com)
