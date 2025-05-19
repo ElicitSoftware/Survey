@@ -28,16 +28,8 @@
 <details>
   <summary>Table of Contents</summary>
   <ol>
-    <li>
-      <a href="#built-with">Built With</a></li>
-    </li>
-    <li>
-      <a href="#getting-started">Getting Started</a>
-      <ul>
-        <li><a href="#prerequisites">Prerequisites</a></li>
-        <li><a href="#installation">Installation</a></li>
-      </ul>
-    </li>
+    <li><a href="#built-with">Built With</a></li></li>
+    <li><a href="#getting-started">Getting Started</a></li>
     <li><a href="#usage">Usage</a></li>
     <!-- <li><a href="#roadmap">Roadmap</a></li> -->
     <li><a href="#contributing">Contributing</a></li>
@@ -75,7 +67,7 @@ Here's a blank template to get started. To avoid retyping too much info, do a se
 ## Getting Started
 Elicit Survey runs in <a href=https://github.com/ElicitSoftware/>Elicit Software</a>, a modular survey system for building and running complex surveys. It is the module that presents questions and records the answers of respondents.
 
-The easiest way to see Elicit Survey in action is to check out the <a href=https://github.com/ElicitSoftware/Survey/>Family Health History Survey</a>.
+The easiest way to see Elicit Survey in action is to check out the <a href=https://github.com/ElicitSoftware/FHHS/>Family Health History Survey</a>.
 
 <!-- USAGE EXAMPLES -->
 ## Usage
@@ -144,7 +136,7 @@ Project Link: [https://github.com/ElicitSoftware/Survey](https://github.com/Elic
 <!-- ACKNOWLEDGMENTS -->
 ## Acknowledgments
 
-<a href="https://www.michiganmedicine.org"><img src="images/Rogel-Cancer_Logo-Horizontal-CMYK.png" height="30"></a><br/>
+<!-- <a href="https://www.michiganmedicine.org"><img src="images/Rogel-Cancer_Logo-Horizontal-CMYK.png" height="30"></a><br/> -->
 <br/>
 <a href="https://info.mightstudy.org"><img src="images/MiGHT-shortlogo.png" height="50"></a><br/>
 <br/>
