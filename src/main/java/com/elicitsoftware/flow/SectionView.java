@@ -21,6 +21,7 @@ import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.html.Paragraph;
+import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.data.binder.Binder;
 import com.vaadin.flow.data.binder.BinderValidationStatus;
@@ -427,6 +428,8 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         }
         if (inValidCount == 0) {
             valid = true;
+        } else {
+            Notification.show("Please fix validation errors", 3000, Notification.Position.MIDDLE);
         }
         return valid;
     }
