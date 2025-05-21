@@ -12,6 +12,7 @@ package com.elicitsoftware.flow;
  */
 
 import com.vaadin.flow.component.page.AppShellConfigurator;
+import com.vaadin.flow.server.AppShellSettings;
 import com.vaadin.flow.theme.Theme;
 
 /**
@@ -29,4 +30,9 @@ import com.vaadin.flow.theme.Theme;
  */
 @Theme("starter-theme")
 public class AppConfig implements AppShellConfigurator {
+    @Override
+    public void configurePage(AppShellSettings settings) {
+        settings.addLink("shortcut icon", "icons/favicon.ico");
+        settings.addFavIcon("icon", "/icons/favicon-32x32.png", "32x32");
+    }
 }
