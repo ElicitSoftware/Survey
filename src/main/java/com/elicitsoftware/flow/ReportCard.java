@@ -51,6 +51,7 @@ public class ReportCard extends Div {
         this.setClassName("reviewCard");
         this.setWidth("60%");
 
+
         VerticalLayout layout = new VerticalLayout();
         HorizontalLayout header = new HorizontalLayout();
         header.setWidthFull(); // Make layout full width
@@ -62,7 +63,24 @@ public class ReportCard extends Div {
         layout.add(header);
 
         Div reportDiv = new Div();
+        reportDiv.setWidthFull(); // Set reportDiv to full width
         reportDiv.getElement().setProperty("innerHTML", report.innerHTML);
+
+        // Center content if it contains SVG
+        if (report.innerHTML != null && report.innerHTML.toLowerCase().contains("<svg")) {
+            // Use CSS to center only the SVG while keeping text left-aligned
+            reportDiv.getStyle().set("text-align", "center");
+            reportDiv.getStyle().set("align", "center");
+            reportDiv.getElement().executeJs(
+                "this.querySelectorAll('svg').forEach(svg => {" +
+                "  svg.style.display = 'block';" +
+                "  svg.style.margin = '0 auto';" +
+                "  svg.style.width = '100%';" +
+                "  svg.style.height = 'auto';" +
+                "});"
+            );
+        }
+
         layout.add(reportDiv);
         add(layout);
     }
