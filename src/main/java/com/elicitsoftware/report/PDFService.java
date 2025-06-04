@@ -19,6 +19,8 @@ import com.vaadin.flow.server.StreamResource;
 import de.rototor.pdfbox.graphics2d.PdfBoxGraphics2D;
 import de.rototor.pdfbox.graphics2d.PdfBoxGraphics2DFontTextDrawer;
 import jakarta.enterprise.context.RequestScoped;
+import jakarta.inject.Inject;
+import jakarta.servlet.http.HttpServletRequest;
 import org.apache.batik.anim.dom.SAXSVGDocumentFactory;
 import org.apache.batik.bridge.BridgeContext;
 import org.apache.batik.bridge.GVTBuilder;
@@ -33,13 +35,15 @@ import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.util.Matrix;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.w3c.dom.svg.SVGDocument;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 
 import java.awt.*;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.StringReader;
+import java.io.*;
+import java.net.URL;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -50,7 +54,7 @@ public class PDFService {
     private static final PDRectangle PAGE_SIZE = PDRectangle.LETTER;
     static final float HEADER_MARGIN = 20f;
     static final float TEXT_MARGIN = 40f;
-    static final float PADDING = 20f;
+    static final float PADDING = 40f;
     // Font configuration
     static final PDFont TEXT_FONT = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
     static final float FONT_SIZE = 10f;
@@ -67,6 +71,9 @@ public class PDFService {
     float pageHeight;
     float pageWidth;
 
+    @Inject
+    HttpServletRequest request;
+
     public StreamResource generatePDF(ArrayList<ReportResponse> reportResponses) {
         try {
             // Create a new document
@@ -74,7 +81,7 @@ public class PDFService {
             page = new PDPage(PDRectangle.LETTER);
             document.addPage(page);
             contentStream = new PDPageContentStream(document, page);
-            contentStream.setFont(TEXT_FONT, FONT_SIZE); // Ensure font is set
+            contentStream.setFont(TEXT_FONT, FONT_SIZE);
 
             pageHeight = PDRectangle.LETTER.getHeight();
             pageWidth = PDRectangle.LETTER.getWidth();
@@ -83,8 +90,11 @@ public class PDFService {
             for (ReportResponse response : reportResponses) {
                 // Close the current content stream if a new page is needed
                 if (response.pdf.pageBreak) {
+                    contentStream.close();
                     page = new PDPage(PDRectangle.LETTER);
                     document.addPage(page);
+                    contentStream = new PDPageContentStream(document, page);
+                    contentStream.setFont(TEXT_FONT, FONT_SIZE);
                     yPosition = pageHeight - TEXT_MARGIN;
                 }
 
@@ -93,11 +103,15 @@ public class PDFService {
                 for (Content content : response.pdf.content) {
                     if (content == null) {
                         System.out.println("Content is null");
+                        continue;
                     }
                     // Close the current content stream if a new page is needed
                     if (yPosition < TEXT_MARGIN + FONT_SIZE) {
+                        contentStream.close();
                         page = new PDPage(PDRectangle.LETTER);
                         document.addPage(page);
+                        contentStream = new PDPageContentStream(document, page);
+                        contentStream.setFont(TEXT_FONT, FONT_SIZE);
                         yPosition = pageHeight - TEXT_MARGIN;
                     }
 
@@ -115,7 +129,7 @@ public class PDFService {
             addHeadersAndFooters();
 
             if (contentStream != null) {
-                contentStream.close(); // Ensure the stream is closed
+                contentStream.close();
             }
 
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -132,15 +146,15 @@ public class PDFService {
             //Add some space between the last item and the new title.
             yPosition -= HEADER_MARGIN;
             // Check if we need a new page
-            if (yPosition < FONT_SIZE) {
+            if (yPosition < FONT_SIZE + PADDING) {
                 page = new PDPage(PDRectangle.LETTER);
                 document.addPage(page);
                 contentStream.close();
                 contentStream = new PDPageContentStream(document, page);
                 contentStream.setFont(TEXT_FONT, FONT_SIZE); // Ensure font is set
+                yPosition = pageHeight - TEXT_MARGIN; // Reset yPosition for new page
             }
-            PDRectangle mediaBox = page.getMediaBox();
-            float width = mediaBox.getWidth() - 2 * PADDING;
+
             // Begin text
             contentStream.beginText();
             contentStream.setFont(TEXT_FONT, FONT_SIZE); // Ensure font is set before writing text
@@ -200,33 +214,55 @@ public class PDFService {
             SAXSVGDocumentFactory factory = new SAXSVGDocumentFactory(parser);
             SVGDocument svgDocument = factory.createSVGDocument(null, new StringReader(content.svg));
 
-            // Build GVT and calculate bounds
+            // Build GVT
             GVTBuilder builder = new GVTBuilder();
             BridgeContext ctx = new BridgeContext(new UserAgentAdapter());
             GraphicsNode graphicsNode = builder.build(ctx, svgDocument);
 
-            // Compute SVG dimensions
+            // Use actual computed bounds that include all rendered content
             Rectangle bounds = graphicsNode.getBounds().getBounds();
+            Rectangle primitiveBounds = graphicsNode.getPrimitiveBounds().getBounds();
+            Rectangle actualBounds = bounds.union(primitiveBounds);
 
-            // Calculate scale to fit
-            double scaleX = pageWidth / bounds.getWidth();
-            double scaleY = pageHeight / bounds.getHeight();
+            // Add explicit padding to ensure content that extends beyond computed bounds is captured
+            int padding = 30; // Add 30 pixels padding on all sides
+            Rectangle expandedBounds = new Rectangle(
+                actualBounds.x - padding,
+                actualBounds.y - padding,
+                actualBounds.width + (2 * padding),
+                actualBounds.height + (2 * padding)
+            );
+
+            // Calculate scale to fit using expanded bounds with margins
+            double availableWidth = pageWidth - (2 * TEXT_MARGIN);
+            double availableHeight = pageHeight - (2 * TEXT_MARGIN);
+
+            double scaleX = availableWidth / expandedBounds.getWidth();
+            double scaleY = availableHeight / expandedBounds.getHeight();
             double scale = Math.min(scaleX, scaleY); // Preserve aspect ratio
 
             graphics2D.scale(scale, scale);
 
-            // Optional: center the image
-            double translateX = (pageWidth / scale - bounds.getWidth()) / 2.0;
-            double translateY = (pageHeight / scale - bounds.getHeight()) / 2.0;
-            translateY += TEXT_MARGIN; // Add a margin to the top of the page
-            graphics2D.translate(translateX - bounds.getX(), translateY - bounds.getY());
+            // Center the image using expanded bounds within available space
+            double translateX = (availableWidth / scale - expandedBounds.getWidth()) / 2.0 + TEXT_MARGIN / scale;
+            double translateY = (availableHeight / scale - expandedBounds.getHeight()) / 2.0 + TEXT_MARGIN / scale;
+            graphics2D.translate(translateX - expandedBounds.getX(), translateY - expandedBounds.getY());
 
             graphicsNode.paint(graphics2D);
             graphics2D.dispose();
 
             contentStream.drawForm(graphics2D.getXFormObject());
+
+            // Reset color to black for subsequent content
+            contentStream.setNonStrokingColor(0f, 0f, 0f);
+
         } catch (IOException e) {
             throw new RuntimeException(e);
+        } finally {
+            // Ensure the content stream is closed after drawing
+            if (contentStream != null) {
+                contentStream.close();
+            }
         }
     }
 
@@ -236,13 +272,39 @@ public class PDFService {
         List<Column> columns = new ArrayList<>();
         int i = 0;
         for (String header : content.table.headers) {
-            columns.add(new Column(header, Float.valueOf(content.table.widths[i])));
+            float columnWidth;
+
+            // Set the first column (person) to auto width based on content
+            if (i == 0) {
+                // Calculate max width needed for the "person" column
+                float maxWidth = 0;
+                try {
+                    // Check header width
+                    float headerWidth = TEXT_FONT.getStringWidth(header) / 1000 * FONT_SIZE + (CELL_MARGIN * 2);
+                    maxWidth = Math.max(maxWidth, headerWidth);
+
+                    // Check all data in this column
+                    for (String[] row : content.table.body) {
+                        if (row.length > i && row[i] != null) {
+                            float cellWidth = TEXT_FONT.getStringWidth(row[i]) / 1000 * FONT_SIZE + (CELL_MARGIN * 2);
+                            maxWidth = Math.max(maxWidth, cellWidth);
+                        }
+                    }
+                    columnWidth = maxWidth + 10; // Add some padding
+                } catch (IOException e) {
+                    // Fallback to a reasonable width if font width calculation fails
+                    columnWidth = 120f;
+                }
+            } else {
+                columnWidth = Float.valueOf(content.table.widths[i]);
+            }
+
+            columns.add(new Column(header, columnWidth));
             i++;
         }
 
         String[][] tableContent = content.table.body;
 
-//        float tableHeight = content.landscape ? PAGE_SIZE.getWidth() - TEXT_MARGIN : PAGE_SIZE.getHeight() - TEXT_MARGIN;
         float tableHeight = PAGE_SIZE.getHeight() - TEXT_MARGIN;
 
         Table table = new TableBuilder()
@@ -271,18 +333,56 @@ public class PDFService {
                 float yTop = mediaBox.getHeight() - HEADER_MARGIN;
                 float yBottom = HEADER_MARGIN;
 
-                // Header
+                // Check if this is a landscape page
+                boolean isLandscape = mediaBox.getWidth() > mediaBox.getHeight();
+
+                // Header text - adjust positioning based on orientation
+                String headerText = "Family Health History Survey - Page " + (i + 1) + " of " + totalPages;
+                float headerTextWidth = TEXT_FONT.getStringWidth(headerText) / 1000 * 10;
+                float headerTextX;
+
+                if (isLandscape) {
+                    // For landscape, center the text considering the wider page
+                    headerTextX = (mediaBox.getWidth() - headerTextWidth) / 2;
+                } else {
+                    // For portrait, keep original positioning (to the right of image)
+                    headerTextX = PADDING + 150;
+                }
+
                 contentStream.beginText();
                 contentStream.setFont(TEXT_FONT, 10);
-                contentStream.newLineAtOffset(PADDING, yTop);
-                contentStream.showText("Document Header - Page " + (i + 1) + " of " + totalPages);
+                contentStream.newLineAtOffset(headerTextX, yTop - 10);
+                contentStream.showText(headerText);
                 contentStream.endText();
 
                 // Footer
+                // Date in the form of MM/DD/YYYY (far left)
+                String currentDate = LocalDate.now().format(DateTimeFormatter.ofPattern("MM/dd/yyyy"));
                 contentStream.beginText();
                 contentStream.setFont(TEXT_FONT, 10);
                 contentStream.newLineAtOffset(PADDING, yBottom - 10);
-                contentStream.showText("Confidential Footer - Page " + (i + 1) + " of " + totalPages);
+                contentStream.showText(currentDate);
+                contentStream.endText();
+
+                // Base URL (center) - constructed from request
+                String baseUrl = request.getScheme() + "://" + request.getServerName() +
+                               (request.getServerPort() != 80 && request.getServerPort() != 443 ?
+                                ":" + request.getServerPort() : "") + request.getContextPath();
+                float baseUrlWidth = TEXT_FONT.getStringWidth(baseUrl) / 1000 * 10;
+                float centerX = (mediaBox.getWidth() - baseUrlWidth) / 2;
+                contentStream.beginText();
+                contentStream.setFont(TEXT_FONT, 10);
+                contentStream.newLineAtOffset(centerX, yBottom - 10);
+                contentStream.showText(baseUrl);
+                contentStream.endText();
+
+                // Page numbers (far right)
+                String pageText = "Page " + (i + 1) + " of " + totalPages;
+                float pageTextWidth = TEXT_FONT.getStringWidth(pageText) / 1000 * 10;
+                contentStream.beginText();
+                contentStream.setFont(TEXT_FONT, 10);
+                contentStream.newLineAtOffset(mediaBox.getWidth() - PADDING - pageTextWidth, yBottom - 10);
+                contentStream.showText(pageText);
                 contentStream.endText();
             } catch (IOException e) {
                 throw new RuntimeException(e);
