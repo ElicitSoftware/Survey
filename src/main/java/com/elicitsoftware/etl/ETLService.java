@@ -16,6 +16,7 @@ import io.quarkus.runtime.Startup;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Query;
 import jakarta.transaction.Transactional;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -45,7 +46,7 @@ import java.util.List;
 @ApplicationScoped
 public class ETLService {
 
-    @Inject
+    @PersistenceContext(unitName = "owner")
     EntityManager entityManager;
 
     @ConfigProperty(name = "quarkus.flyway.owner.placeholders.surveyreport_user", defaultValue = "surveyreport_user")
