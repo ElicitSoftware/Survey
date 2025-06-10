@@ -52,9 +52,6 @@ import java.util.ArrayList;
 @Route(value = "report", layout = MainLayout.class)
 public class ReportView extends VerticalLayout {
 
-    @ConfigProperty(name = "fhhs.url")
-    String FHHSURL;
-
     VaadinSession session = VaadinSession.getCurrent();
     Respondent respondent;
 
@@ -146,7 +143,7 @@ public class ReportView extends VerticalLayout {
         try {
             ReportRequest request = new ReportRequest(respondent.id);
             ReportService reportService = RestClientBuilder.newBuilder()
-                    .baseUri(new URI(FHHSURL + rpt.url))
+                    .baseUri(new URI(rpt.url))
                     .build(ReportService.class);
             ReportResponse reportResponse = reportService.callReport(request);
             return reportResponse;
