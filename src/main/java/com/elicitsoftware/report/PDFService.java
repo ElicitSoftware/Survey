@@ -35,13 +35,13 @@ import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.util.Matrix;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.w3c.dom.svg.SVGDocument;
-import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 
 import java.awt.*;
-import java.io.*;
-import java.net.URL;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.StringReader;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -227,10 +227,10 @@ public class PDFService {
             // Add explicit padding to ensure content that extends beyond computed bounds is captured
             int padding = 30; // Add 30 pixels padding on all sides
             Rectangle expandedBounds = new Rectangle(
-                actualBounds.x - padding,
-                actualBounds.y - padding,
-                actualBounds.width + (2 * padding),
-                actualBounds.height + (2 * padding)
+                    actualBounds.x - padding,
+                    actualBounds.y - padding,
+                    actualBounds.width + (2 * padding),
+                    actualBounds.height + (2 * padding)
             );
 
             // Calculate scale to fit using expanded bounds with margins
@@ -366,7 +366,7 @@ public class PDFService {
 
                 // Base URL (center) - constructed from request
                 String baseUrl = request.getScheme() + "://" + request.getServerName() +
-                               (request.getServerPort() != 80 && request.getServerPort() != 443 ?
+                        (request.getServerPort() != 80 && request.getServerPort() != 443 ?
                                 ":" + request.getServerPort() : "") + request.getContextPath();
                 float baseUrlWidth = TEXT_FONT.getStringWidth(baseUrl) / 1000 * 10;
                 float centerX = (mediaBox.getWidth() - baseUrlWidth) / 2;
