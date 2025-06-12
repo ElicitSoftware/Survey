@@ -13,6 +13,7 @@ package com.elicitsoftware.flow;
 
 import com.elicitsoftware.model.Respondent;
 import com.vaadin.flow.component.AttachEvent;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.applayout.AppLayout;
 import com.vaadin.flow.component.applayout.DrawerToggle;
 import com.vaadin.flow.component.html.Anchor;
@@ -22,7 +23,6 @@ import com.vaadin.flow.component.sidenav.SideNav;
 import com.vaadin.flow.component.sidenav.SideNavItem;
 import com.vaadin.flow.router.AfterNavigationEvent;
 import com.vaadin.flow.router.AfterNavigationListener;
-import com.vaadin.flow.server.VaadinSession;
 import com.vaadin.flow.theme.lumo.LumoUtility;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
@@ -39,11 +39,6 @@ public class MainLayout extends AppLayout implements AfterNavigationListener {
 
     @Inject
     MainView mainView;
-
-    // Add configurable name for the main header. 
-    // Add configurable icon for the tab. 
-
-    VaadinSession session = VaadinSession.getCurrent();
 
     public MainLayout() {
     }
@@ -113,7 +108,7 @@ public class MainLayout extends AppLayout implements AfterNavigationListener {
      */
     private SideNav getsideNav() {
         SideNav sideNav = new SideNav();
-        Respondent respondent = (Respondent) session.getAttribute(SessionKeys.RESPONDENT);
+        Respondent respondent = (Respondent) UI.getCurrent().getSession().getAttribute(SessionKeys.RESPONDENT);
         sideNav.addItem(
                 new SideNavItem(getTranslation("sideNav.login"), "/",
                         VaadinIcon.USER.create()),

@@ -69,8 +69,6 @@ public class MainView extends VerticalLayout implements HasDynamicTitle {
     @Inject
     QuestionService questionService;
 
-    VaadinSession session = VaadinSession.getCurrent();
-
     private final User user = new User();
     private final Binder<User> binder = new Binder<>(User.class);
 
@@ -159,11 +157,12 @@ public class MainView extends VerticalLayout implements HasDynamicTitle {
         // Button click listeners can be defined as lambda expressions
         Button btnLogin = new Button(getTranslation("mainView.btnLogin"), e -> {
             if (binder.validate().isOk()) {
-                Respondent respondent = login((int) session.getAttribute(SessionKeys.SURVEY_ID), txtToken.getValue());
+
+                Respondent respondent = login((int) UI.getCurrent().getSession().getAttribute(SessionKeys.SURVEY_ID), txtToken.getValue());
                 if (respondent != null) {
-                    session.setAttribute(SessionKeys.RESPONDENT, respondent);
+                    UI.getCurrent().getSession().setAttribute(SessionKeys.RESPONDENT, respondent);
                     NavResponse navResponse = questionService.init(respondent.id, respondent.survey.initialDisplayKey);
-                    session.setAttribute(SessionKeys.NAV_RESPONSE, navResponse);
+                    UI.getCurrent().getSession().setAttribute(SessionKeys.NAV_RESPONSE, navResponse);
                     //if active they are still taking the survey
                     if (respondent.active) {
                         ui.navigate("section");
@@ -192,14 +191,14 @@ public class MainView extends VerticalLayout implements HasDynamicTitle {
         if (surveys.isEmpty()) {
             loginLayout.add(new Paragraph(getTranslation("mainView.surveys.isEmpty")));
         } else if (surveys.size() == 1) {
-            session.setAttribute(SessionKeys.SURVEY_ID, surveys.get(0).id.intValue());
+            UI.getCurrent().getSession().setAttribute(SessionKeys.SURVEY_ID, surveys.get(0).id.intValue());
         } else {
             ComboBox comboBox = new ComboBox<>(getTranslation("mainView.comboBox"));
             comboBox.setItems(tokenService.getSurveys().get("Surveys"));
             comboBox.setItemLabelGenerator(survey -> ((Survey) survey).name);
             comboBox.onEnabledStateChanged(true);
             comboBox.addValueChangeListener(e -> {
-                session.setAttribute(SessionKeys.SURVEY_ID, ((Survey) e.getValue()).id);
+                UI.getCurrent().getSession().setAttribute(SessionKeys.SURVEY_ID, ((Survey) e.getValue()).id);
             });
             loginLayout.add(comboBox);
         }

@@ -60,8 +60,6 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
     @Inject
     QuestionService service;
 
-    VaadinSession session = VaadinSession.getCurrent();
-
     // TODO make a HasMap that holds the ElicitComponents and HTML
     // Then you can replace some of these and only generate new components.
     LinkedHashMap<String, Component> displayMap = new LinkedHashMap<>();
@@ -92,8 +90,8 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
      */
     @PostConstruct
     public void init() {
-        navResponse = (NavResponse) session.getAttribute(SessionKeys.NAV_RESPONSE);
-        respondent = (Respondent) session.getAttribute(SessionKeys.RESPONDENT);
+        navResponse = (NavResponse) UI.getCurrent().getSession().getAttribute(SessionKeys.NAV_RESPONSE);
+        respondent = (Respondent) UI.getCurrent().getSession().getAttribute(SessionKeys.RESPONDENT);
         buildQuestions();
     }
 
@@ -465,7 +463,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
      */
     private void nextSection() {
         NavResponse newNavResponse = service.init(respondent.id, navResponse.getCurrentNavItem().getNext());
-        session.setAttribute(SessionKeys.NAV_RESPONSE, newNavResponse);
+        UI.getCurrent().getSession().setAttribute(SessionKeys.NAV_RESPONSE, newNavResponse);
         UI.getCurrent().getPage().reload();
     }
 
@@ -478,7 +476,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
      */
     private void previousSection() {
         NavResponse newNavResponse = service.init(respondent.id, navResponse.getCurrentNavItem().getPrevious());
-        session.setAttribute(SessionKeys.NAV_RESPONSE, newNavResponse);
+        UI.getCurrent().getSession().setAttribute(SessionKeys.NAV_RESPONSE, newNavResponse);
         UI.getCurrent().getPage().reload();
     }
 

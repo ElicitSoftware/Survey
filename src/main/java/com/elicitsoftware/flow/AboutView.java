@@ -12,10 +12,10 @@ package com.elicitsoftware.flow;
  */
 
 import com.elicitsoftware.model.Survey;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.Route;
-import com.vaadin.flow.server.VaadinSession;
 
 /**
  * The AboutView class represents a UI component responsible for displaying information
@@ -28,8 +28,6 @@ import com.vaadin.flow.server.VaadinSession;
 @Route(value = "about", layout = MainLayout.class)
 public class AboutView extends VerticalLayout {
 
-    VaadinSession session = VaadinSession.getCurrent();
-
     /**
      * Constructs the AboutView component that displays information about a survey.
      * <p>
@@ -39,7 +37,7 @@ public class AboutView extends VerticalLayout {
      * is displayed as a paragraph within this view.
      */
     public AboutView() {
-        Survey survey = Survey.findById(session.getAttribute(SessionKeys.SURVEY_ID));
+        Survey survey = Survey.findById(UI.getCurrent().getSession().getAttribute(SessionKeys.SURVEY_ID));
         if (survey != null) {
             Paragraph paragraph = new Paragraph(survey.description);
             add(paragraph);

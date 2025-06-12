@@ -39,7 +39,7 @@ public class ReviewCard extends Div {
 
     public ReviewCard(QuestionService service, ReviewSection section) {
         super();
-        VaadinSession session = VaadinSession.getCurrent();
+
         this.setClassName("reviewCard");
         this.setWidth("60%");
 
@@ -55,7 +55,7 @@ public class ReviewCard extends Div {
         Icon editIcon = new Icon(VaadinIcon.EDIT);
         editIcon.addClickListener(e -> {
             NavResponse newNavResponse = service.init(section.getDisplayKey());
-            session.setAttribute(SessionKeys.NAV_RESPONSE, newNavResponse);
+            UI.getCurrent().getSession().setAttribute(SessionKeys.NAV_RESPONSE, newNavResponse);
             UI.getCurrent().navigate("section");
         });
 

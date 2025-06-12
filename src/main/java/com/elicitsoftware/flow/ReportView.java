@@ -52,7 +52,6 @@ import java.util.ArrayList;
 @Route(value = "report", layout = MainLayout.class)
 public class ReportView extends VerticalLayout {
 
-    VaadinSession session = VaadinSession.getCurrent();
     Respondent respondent;
 
     @Inject
@@ -84,8 +83,8 @@ public class ReportView extends VerticalLayout {
     @PostConstruct
     public void init() {
         setSizeFull();
-        Survey survey = Survey.findById(session.getAttribute(SessionKeys.SURVEY_ID));
-        respondent = (Respondent) session.getAttribute(SessionKeys.RESPONDENT);
+        Survey survey = Survey.findById(UI.getCurrent().getSession().getAttribute(SessionKeys.SURVEY_ID));
+        respondent = (Respondent) UI.getCurrent().getSession().getAttribute(SessionKeys.RESPONDENT);
 
         Button pdfButton = new Button("Generate PDF", event -> {
             try {

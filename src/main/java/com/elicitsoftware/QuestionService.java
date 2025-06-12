@@ -19,7 +19,9 @@ import com.elicitsoftware.response.NavResponse;
 import com.elicitsoftware.response.ReviewItem;
 import com.elicitsoftware.response.ReviewResponse;
 import com.elicitsoftware.response.ReviewSection;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.server.VaadinSession;
+import com.vaadin.quarkus.annotation.UIScoped;
 import io.quarkus.logging.Log;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -52,7 +54,7 @@ import java.util.List;
  * This service relies on VaadinSession for maintaining session-specific attributes
  * like the current respondent.
  */
-@ApplicationScoped
+@UIScoped
 public class QuestionService {
 
     /**
@@ -100,7 +102,7 @@ public class QuestionService {
     @Inject
     ETLService etlService;
 
-    VaadinSession session = VaadinSession.getCurrent();
+//    VaadinSession session = VaadinSession.getCurrent();
 
     /**
      * Initializes the respondent's survey by generating initial answers for all sections
@@ -127,7 +129,7 @@ public class QuestionService {
      */
     @Transactional(Transactional.TxType.REQUIRES_NEW)
     public NavResponse init(String displaykey) {
-        Respondent respondent = (Respondent) session.getAttribute(SessionKeys.RESPONDENT);
+        Respondent respondent = (Respondent) UI.getCurrent().getSession().getAttribute(SessionKeys.RESPONDENT);
         return init(respondent.id, displaykey);
     }
 

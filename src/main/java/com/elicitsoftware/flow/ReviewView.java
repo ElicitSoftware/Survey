@@ -41,7 +41,6 @@ public class ReviewView extends VerticalLayout {
     final UI ui = UI.getCurrent();
     @Inject
     QuestionService service;
-    VaadinSession session = VaadinSession.getCurrent();
 
     NavResponse navResponse;
     Respondent respondent;
@@ -69,9 +68,9 @@ public class ReviewView extends VerticalLayout {
     @PostConstruct
     public void init() {
         setSizeFull();
-        Survey survey = Survey.findById(session.getAttribute(SessionKeys.SURVEY_ID));
-        respondent = (Respondent) session.getAttribute(SessionKeys.RESPONDENT);
-        navResponse = (NavResponse) session.getAttribute(SessionKeys.NAV_RESPONSE);
+        Survey survey = Survey.findById(UI.getCurrent().getSession().getAttribute(SessionKeys.SURVEY_ID));
+        respondent = (Respondent) UI.getCurrent().getSession().getAttribute(SessionKeys.RESPONDENT);
+        navResponse = (NavResponse) UI.getCurrent().getSession().getAttribute(SessionKeys.NAV_RESPONSE);
         Paragraph paragraph = new Paragraph();
         paragraph.add(new H5("Survey: " + survey.name));
         paragraph.add("Token: " + respondent.token);
@@ -151,7 +150,7 @@ public class ReviewView extends VerticalLayout {
      */
     private void previousSection() {
         NavResponse newNavResponse = service.init(respondent.id, navResponse.getCurrentNavItem().getPrevious());
-        session.setAttribute(SessionKeys.NAV_RESPONSE, newNavResponse);
+        UI.getCurrent().getSession().setAttribute(SessionKeys.NAV_RESPONSE, newNavResponse);
         UI.getCurrent().getPage().reload();
     }
 }
