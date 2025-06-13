@@ -1,6 +1,5 @@
 
-Lists of 15 third-party dependencies.
-     (Apache License 2.0) vaadin-cdi (com.vaadin:vaadin-cdi:15.1.0 - http://vaadin.com)
+Lists of 14 third-party dependencies.
      (Apache License Version 2.0) Vaadin Quarkus Extension (com.vaadin:vaadin-quarkus-extension:24.7.2 - https://vaadin.com/vaadin-quarkus-extension)
      (Apache License, Version 2.0) PDFBox-Graphics2d (de.rototor.pdfbox:graphics2d:3.0.2 - https://github.com/rototor/pdfbox-graphics2d/graphics2d)
      (Apache License, Version 2.0) Quarkus PDFBox - Runtime (io.quarkiverse.pdfbox:quarkus-pdfbox:1.1.0 - https://quarkiverse.io)
