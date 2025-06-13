@@ -47,10 +47,6 @@
             <artifactId>vaadin-quarkus-extension</artifactId>
             <version>${vaadin.version}</version>
         </dependency>
-        <dependency>
-            <groupId>com.vaadin</groupId>
-            <artifactId>vaadin-cdi</artifactId>
-        </dependency>
         <!-- setup and build -->
         <dependency>
             <groupId>io.quarkus</groupId>
