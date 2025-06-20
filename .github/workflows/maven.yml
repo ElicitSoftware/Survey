@@ -32,7 +32,7 @@ jobs:
       uses: docker/setup-buildx-action@v3
 
     - name: Maven package
-      run:  ./mvnw clean package -Dquarkus.container-image.build=true -Dmaven.test.skip=true
+      run:  ./mvnw clean package -X -Dquarkus.container-image.build=true -Dmaven.test.skip=true
 
     # Optional: Uploads the full dependency graph to GitHub to improve the quality of Dependabot alerts this repository can receive
     - name: Update dependency graph
