@@ -18,7 +18,7 @@
 <!-- Powered by Michigan -->
 <br />
 <div align="center">
-  <a href="https://github.com/elicitsoftware/elicit">
+  <a href="https://innovationpartnerships.umich.edu/">
     <img src="images/stacked.png" alt="Logo" width="15%" >
   </a>
 <h3 align="center">Elicit Survey</h3>
