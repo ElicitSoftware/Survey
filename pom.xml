@@ -228,6 +228,10 @@
                 <version>3.11.2</version>
                 <configuration>
                     <outputDirectory>${project.build.directory}/javadoc</outputDirectory>
+                    <failOnError>false</failOnError>
+                    <failOnWarnings>false</failOnWarnings>
+                    <additionalOptions>-Xdoclint:none</additionalOptions>
+                    <quiet>true</quiet>
 <!--                    <javadocDirectory>./docs/javadoc</javadocDirectory>-->
                 </configuration>
                 <executions>
@@ -285,6 +289,25 @@
                         </goals>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-site-plugin</artifactId>
+                <version>3.12.1</version>
+                <configuration>
+                    <generateReports>false</generateReports>
+                    <generateProjectInfo>false</generateProjectInfo>
+                    <generateSitemap>false</generateSitemap>
+                </configuration>
+            </plugin>
+            <!-- Add this plugin to explicitly control project info reports -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-project-info-reports-plugin</artifactId>
+                <version>3.7.0</version>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
             </plugin>
         </plugins>
     </build>
