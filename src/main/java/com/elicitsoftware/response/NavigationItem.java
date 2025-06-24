@@ -32,6 +32,15 @@ public class NavigationItem {
     private final boolean complete;
     private String next;
 
+    /**
+     * Constructs a NavigationItem with the specified properties.
+     *
+     * @param name the display name of the navigation item
+     * @param complete whether this navigation item is complete
+     * @param path the path/URL for this navigation item
+     * @param next the next navigation item identifier
+     * @param previous the previous navigation item identifier
+     */
     public NavigationItem(String name, boolean complete, String path, String next, String previous) {
 
         super();
@@ -42,26 +51,56 @@ public class NavigationItem {
         this.previous = previous;
     }
 
+    /**
+     * Gets the display name of this navigation item.
+     *
+     * @return the name of the navigation item
+     */
     public String getName() {
         return name;
     }
 
+    /**
+     * Checks if this navigation item is complete.
+     *
+     * @return true if the navigation item is complete, false otherwise
+     */
     public boolean isComplete() {
         return complete;
     }
 
+    /**
+     * Gets the path/URL for this navigation item.
+     *
+     * @return the path of the navigation item
+     */
     public String getPath() {
         return path;
     }
 
+    /**
+     * Gets the next navigation item identifier.
+     *
+     * @return the next navigation item identifier
+     */
     public String getNext() {
         return next;
     }
 
+    /**
+     * Sets the next navigation item identifier.
+     *
+     * @param next the next navigation item identifier to set
+     */
     public void setNext(String next) {
         this.next = next;
     }
 
+    /**
+     * Gets the previous navigation item identifier.
+     *
+     * @return the previous navigation item identifier
+     */
     public String getPrevious() {
         return previous;
     }

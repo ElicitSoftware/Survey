@@ -82,7 +82,7 @@ public class ReviewView extends VerticalLayout {
 
         if (response != null) {
             for (ReviewSection section : response.getSections()) {
-                add(new ReviewCard(service, section));
+                add(new ReviewCard(section));
             }
             Button btnPrevious = new Button(getTranslation("reviewView.btnPrevious"));
             btnPrevious.setDisableOnClick(true);

@@ -31,15 +31,18 @@ import jakarta.persistence.*;
 @Table(name = "action_types", schema = "survey")
 public class ActionType extends PanacheEntityBase {
 
+    /** The unique identifier for the action type. */
     @Id
     @SequenceGenerator(name = "ACTION_TYPES_ID_GENERATOR", schema = "survey", sequenceName = "action_types_seq", allocationSize = 1)
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "ACTION_TYPES_ID_GENERATOR")
     @Column(name = "id", unique = true, nullable = false, precision = 20)
     public Integer id;
 
+    /** An optional textual description of the action type. */
     @Column(name = "description", length = 255)
     public String description;
 
+    /** The name of the action type. */
     @Column(name = "name", length = 255)
     public String name;
 

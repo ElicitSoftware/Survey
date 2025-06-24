@@ -42,6 +42,12 @@ public class DisplayKey implements Comparable<DisplayKey> {
     private int question; //SectionQuestion Display order
     private int questionInstance;
 
+    /**
+     * Constructs a DisplayKey by parsing a key string.
+     * The key string should be in the format: "survey-step-stepInstance-section-sectionInstance-question-questionInstance"
+     *
+     * @param key the string representation of the display key to parse
+     */
     public DisplayKey(String key) {
         super();
         String[] keyStrings = key.split("-");
@@ -54,58 +60,128 @@ public class DisplayKey implements Comparable<DisplayKey> {
         this.questionInstance = Integer.parseInt(keyStrings[6]);
     }
 
+    /**
+     * Gets the survey ID.
+     *
+     * @return the survey ID
+     */
     public int getSurvey() {
         return survey;
     }
 
+    /**
+     * Sets the survey ID.
+     *
+     * @param survey the survey ID to set
+     */
     public void setSurvey(int survey) {
         this.survey = survey;
     }
 
+    /**
+     * Gets the step display order.
+     *
+     * @return the step display order
+     */
     public int getStep() {
         return step;
     }
 
+    /**
+     * Sets the step display order.
+     *
+     * @param step the step display order to set
+     */
     public void setStep(int step) {
         this.step = step;
     }
 
+    /**
+     * Gets the step instance.
+     *
+     * @return the step instance
+     */
     public int getStepInstance() {
         return stepInstance;
     }
 
+    /**
+     * Sets the step instance.
+     *
+     * @param stepInstance the step instance to set
+     */
     public void setStepInstance(int stepInstance) {
         this.stepInstance = stepInstance;
     }
 
+    /**
+     * Gets the section display order.
+     *
+     * @return the section display order
+     */
     public int getSection() {
         return section;
     }
 
+    /**
+     * Sets the section display order.
+     *
+     * @param section the section display order to set
+     */
     public void setSection(int section) {
         this.section = section;
     }
 
+    /**
+     * Gets the section instance.
+     *
+     * @return the section instance
+     */
     public int getSectionInstance() {
         return sectionInstance;
     }
 
+    /**
+     * Sets the section instance.
+     *
+     * @param sectionInstance the section instance to set
+     */
     public void setSectionInstance(int sectionInstance) {
         this.sectionInstance = sectionInstance;
     }
 
+    /**
+     * Gets the question display order.
+     *
+     * @return the question display order
+     */
     public int getQuestion() {
         return question;
     }
 
+    /**
+     * Sets the question display order.
+     *
+     * @param question the question display order to set
+     */
     public void setQuestion(int question) {
         this.question = question;
     }
 
+    /**
+     * Gets the question instance.
+     *
+     * @return the question instance
+     */
     public int getQuestionInstance() {
         return questionInstance;
     }
 
+    /**
+     * Sets the question instance.
+     *
+     * @param questionInstance the question instance to set
+     */
     public void setQuestionInstance(int questionInstance) {
         this.questionInstance = questionInstance;
     }

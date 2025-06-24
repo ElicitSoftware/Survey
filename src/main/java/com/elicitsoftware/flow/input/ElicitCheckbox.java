@@ -44,6 +44,13 @@ import com.vaadin.flow.component.checkbox.Checkbox;
  */
 public class ElicitCheckbox extends ElicitComponent<Checkbox> {
 
+    /**
+     * Constructs an ElicitCheckbox component for the given answer.
+     * The checkbox is initialized with the display text and checked state
+     * based on the boolean value parsed from the answer's text value.
+     *
+     * @param answer the answer object containing the data for this checkbox
+     */
     public ElicitCheckbox(Answer answer) {
         super(new Checkbox(answer.displayText, Boolean.parseBoolean(answer.getTextValue())), answer);
     }

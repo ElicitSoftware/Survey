@@ -31,15 +31,30 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class Content {
+    /** The textual content to be rendered within this element. */
     public String text;
+
+    /** A string representation of an SVG image to be included in the PDF. */
     public String svg;
+
+    /** A table to be included in the PDF content. */
     public Table table;
+
+    /** A reference to the style settings associated with this content. */
     public String style;
 
+    /**
+     * Default constructor for Content.
+     */
     public Content() {
         super();
     }
 
+    /**
+     * Constructor that initializes Content with a table.
+     *
+     * @param table the table to be included in this content
+     */
     public Content(Table table) {
         super();
         this.table = table;

@@ -39,6 +39,13 @@ import java.time.LocalDate;
  */
 public class ElcitDatePicker extends ElicitComponent<DatePicker> {
 
+    /**
+     * Constructs an ElcitDatePicker component for the given answer.
+     * The date picker is initialized with the display text from the answer,
+     * and if the answer has a text value, it's parsed and set as the initial value.
+     *
+     * @param answer the answer object containing the data for this date picker
+     */
     public ElcitDatePicker(Answer answer) {
         super(new DatePicker(answer.displayText), answer);
         if (answer.getTextValue() != null && !answer.getTextValue().isEmpty()) {

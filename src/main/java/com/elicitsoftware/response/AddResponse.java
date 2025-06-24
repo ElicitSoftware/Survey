@@ -28,26 +28,56 @@ public class AddResponse {
     private String token;
     private String error;
 
+    /**
+     * Gets the respondent ID associated with this response.
+     *
+     * @return the unique identifier of the respondent
+     */
     public int getRespondentId() {
         return respondentId;
     }
 
+    /**
+     * Sets the respondent ID for this response.
+     *
+     * @param respondentId the unique identifier of the respondent
+     */
     public void setRespondentId(int respondentId) {
         this.respondentId = respondentId;
     }
 
+    /**
+     * Gets the token associated with this response.
+     *
+     * @return the authentication or reference token
+     */
     public String getToken() {
         return token;
     }
 
+    /**
+     * Sets the token for this response.
+     *
+     * @param token the authentication or reference token
+     */
     public void setToken(String token) {
         this.token = token;
     }
 
+    /**
+     * Gets the error message if the operation encountered an issue.
+     *
+     * @return the error message, or null if no error occurred
+     */
     public String getError() {
         return error;
     }
 
+    /**
+     * Sets the error message for this response.
+     *
+     * @param error the error message to set
+     */
     public void setError(String error) {
         this.error = error;
     }

@@ -21,6 +21,13 @@ import com.vaadin.flow.component.html.Div;
  */
 public class ElicitHtml extends Div {
 
+    /**
+     * Constructs an ElicitHtml component for displaying HTML content from an answer.
+     * The component is initialized with the display text as HTML content and
+     * uses the answer's display key as its HTML ID.
+     *
+     * @param answer the answer object containing the HTML content to display
+     */
     public ElicitHtml(Answer answer) {
         super();
         this.setId(answer.getDisplayKey());

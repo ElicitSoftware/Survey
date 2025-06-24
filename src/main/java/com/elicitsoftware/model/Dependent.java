@@ -38,31 +38,50 @@ import java.util.List;
 })
 public class Dependent extends PanacheEntityBase {
 
+    /** The unique identifier for this dependent record. */
     @Id
     @SequenceGenerator(name = "DEPENDENTS_ID_GENERATOR", schema = "survey", sequenceName = "dependents_seq", allocationSize = 1)
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "DEPENDENTS_ID_GENERATOR")
     @Column(unique = true, nullable = false, precision = 20)
     public Integer id;
+
+    /** The ID of the respondent associated with this dependency relationship. */
     @Column(name = "respondent_id", nullable = false, precision = 20)
     public Integer respondentId;
-    // uni-directional many-to-one association to Answer
+
+    /** The upstream answer in the dependency relationship. */
     @ManyToOne
     @JoinColumn(name = "upstream_id", nullable = false)
     public Answer upstream;
-    // uni-directional many-to-one association to Answer
+
+    /** The downstream answer in the dependency relationship. */
     @ManyToOne
     @JoinColumn(name = "downstream_id", nullable = false)
     public Answer downstream;
-    // uni-directional many-to-one association to Relationship
+
+    /** The relationship type between the upstream and downstream answers. */
     @ManyToOne
     @JoinColumn(name = "relationship_id", nullable = false)
     public Relationship relationship;
+
+    /** Flag indicating whether this dependent record has been deleted. */
     @Column(name = "deleted")
     public Boolean deleted = false;
 
+    /**
+     * Default constructor for Dependent.
+     */
     public Dependent() {
     }
 
+    /**
+     * Constructor to create a Dependent with specified parameters.
+     *
+     * @param respondentId the ID of the respondent
+     * @param upstream the upstream answer
+     * @param downstream the downstream answer
+     * @param relationship the relationship between the answers
+     */
     public Dependent(Integer respondentId, Answer upstream, Answer downstream, Relationship relationship) {
         this.respondentId = respondentId;
         this.downstream = downstream;

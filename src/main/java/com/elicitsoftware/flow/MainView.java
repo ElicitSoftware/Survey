@@ -72,6 +72,11 @@ public class MainView extends VerticalLayout implements HasDynamicTitle {
     private final User user = new User();
     private final Binder<User> binder = new Binder<>(User.class);
 
+    /**
+     * Default constructor for MainView.
+     * The actual initialization is performed in the init() method
+     * which is called after dependency injection is complete.
+     */
     public MainView() {
 
     }

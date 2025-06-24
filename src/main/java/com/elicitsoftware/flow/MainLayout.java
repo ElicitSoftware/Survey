@@ -40,6 +40,11 @@ public class MainLayout extends AppLayout implements AfterNavigationListener {
     @Inject
     MainView mainView;
 
+    /**
+     * Default constructor for MainLayout.
+     * The actual initialization is performed in the init() method
+     * which is called after dependency injection is complete.
+     */
     public MainLayout() {
     }
 

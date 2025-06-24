@@ -14,9 +14,8 @@ package com.elicitsoftware;
 import com.elicitsoftware.model.*;
 import com.elicitsoftware.response.NavResponse;
 import com.elicitsoftware.response.NavigationItem;
-import com.vaadin.quarkus.annotation.UIScoped;
+import com.vaadin.quarkus.annotation.NormalUIScoped;
 import io.quarkus.logging.Log;
-import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
@@ -38,7 +37,7 @@ import java.util.TreeMap;
  * the relationships and hierarchical structure among them. It ensures the correct flow for both
  * repeated and dependent answers, along with creating navigation items for respondents.
  */
-@UIScoped
+@NormalUIScoped
 public class QuestionManager {
     @Inject
     EntityManager entityManager;

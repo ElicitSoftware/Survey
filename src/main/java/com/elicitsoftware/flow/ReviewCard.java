@@ -25,6 +25,7 @@ import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.server.VaadinSession;
+import jakarta.inject.Inject;
 
 
 /**
@@ -37,7 +38,10 @@ import com.vaadin.flow.server.VaadinSession;
  */
 public class ReviewCard extends Div {
 
-    public ReviewCard(QuestionService service, ReviewSection section) {
+    @Inject
+    QuestionService service;
+
+    public ReviewCard( ReviewSection section) {
         super();
 
         this.setClassName("reviewCard");

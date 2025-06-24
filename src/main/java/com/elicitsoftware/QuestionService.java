@@ -20,10 +20,8 @@ import com.elicitsoftware.response.ReviewItem;
 import com.elicitsoftware.response.ReviewResponse;
 import com.elicitsoftware.response.ReviewSection;
 import com.vaadin.flow.component.UI;
-import com.vaadin.flow.server.VaadinSession;
-import com.vaadin.quarkus.annotation.UIScoped;
+import com.vaadin.quarkus.annotation.NormalUIScoped;
 import io.quarkus.logging.Log;
-import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
@@ -54,7 +52,7 @@ import java.util.List;
  * This service relies on VaadinSession for maintaining session-specific attributes
  * like the current respondent.
  */
-@UIScoped
+@NormalUIScoped
 public class QuestionService {
 
     /**

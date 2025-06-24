@@ -86,7 +86,6 @@ CREATE TABLE IF NOT EXISTS surveyreport.fact_sections
     CONSTRAINT step_fk FOREIGN KEY (step_key) REFERENCES surveyreport.dim_step(id),
     CONSTRAINT section_fk FOREIGN KEY (section_key) REFERENCES surveyreport.dim_section(id)
 );
-ALTER TABLE surveyreport.fact_sections OWNER TO ${survey_user};
 CREATE INDEX fact_sections_respondent_id_idx ON surveyreport.fact_sections(respondent_id);
 GRANT USAGE ON SEQUENCE surveyreport.fact_sections_seq TO ${survey_user};
 GRANT INSERT, SELECT, UPDATE ON surveyreport.fact_sections TO ${survey_user};
@@ -108,7 +107,6 @@ CREATE TABLE IF NOT EXISTS surveyreport.fact_respondents
     CONSTRAINT fact_respondents_first_access_fk FOREIGN KEY (first_access_key) REFERENCES surveyreport.dim_date(datekey),
     CONSTRAINT fact_respondents_finalized_fk FOREIGN KEY (finalized_key) REFERENCES surveyreport.dim_date(datekey)
 );
-ALTER TABLE surveyreport.fact_respondents OWNER TO ${survey_user};
 GRANT INSERT, SELECT, UPDATE ON surveyreport.fact_respondents TO ${survey_user};
 GRANT SELECT ON surveyreport.fact_respondents TO ${surveyreport_user};
 --------------------------------
