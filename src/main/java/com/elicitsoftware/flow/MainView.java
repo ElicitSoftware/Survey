@@ -13,6 +13,7 @@ package com.elicitsoftware.flow;
 
 import com.elicitsoftware.QuestionService;
 import com.elicitsoftware.TokenService;
+import com.elicitsoftware.UISessionDataService;
 import com.elicitsoftware.model.Respondent;
 import com.elicitsoftware.model.Survey;
 import com.elicitsoftware.response.NavResponse;
@@ -30,7 +31,6 @@ import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.binder.Binder;
 import com.vaadin.flow.router.HasDynamicTitle;
 import com.vaadin.flow.router.Route;
-import com.vaadin.flow.server.VaadinSession;
 import io.quarkus.logging.Log;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.Dependent;
@@ -68,6 +68,9 @@ public class MainView extends VerticalLayout implements HasDynamicTitle {
 
     @Inject
     QuestionService questionService;
+
+    @Inject
+    UISessionDataService sessionDataService;
 
     private final User user = new User();
     private final Binder<User> binder = new Binder<>(User.class);
@@ -163,11 +166,11 @@ public class MainView extends VerticalLayout implements HasDynamicTitle {
         Button btnLogin = new Button(getTranslation("mainView.btnLogin"), e -> {
             if (binder.validate().isOk()) {
 
-                Respondent respondent = login((int) UI.getCurrent().getSession().getAttribute(SessionKeys.SURVEY_ID), txtToken.getValue());
+                Respondent respondent = login(sessionDataService.getSurveyId(), txtToken.getValue());
                 if (respondent != null) {
-                    UI.getCurrent().getSession().setAttribute(SessionKeys.RESPONDENT, respondent);
+                    sessionDataService.setRespondent(respondent);
                     NavResponse navResponse = questionService.init(respondent.id, respondent.survey.initialDisplayKey);
-                    UI.getCurrent().getSession().setAttribute(SessionKeys.NAV_RESPONSE, navResponse);
+                    sessionDataService.setNavResponse(navResponse);
                     //if active they are still taking the survey
                     if (respondent.active) {
                         ui.navigate("section");
@@ -196,14 +199,14 @@ public class MainView extends VerticalLayout implements HasDynamicTitle {
         if (surveys.isEmpty()) {
             loginLayout.add(new Paragraph(getTranslation("mainView.surveys.isEmpty")));
         } else if (surveys.size() == 1) {
-            UI.getCurrent().getSession().setAttribute(SessionKeys.SURVEY_ID, surveys.get(0).id.intValue());
+            sessionDataService.setSurveyId(surveys.get(0).id.intValue());
         } else {
-            ComboBox comboBox = new ComboBox<>(getTranslation("mainView.comboBox"));
+            ComboBox<Survey> comboBox = new ComboBox<>(getTranslation("mainView.comboBox"));
             comboBox.setItems(tokenService.getSurveys().get("Surveys"));
-            comboBox.setItemLabelGenerator(survey -> ((Survey) survey).name);
+            comboBox.setItemLabelGenerator(survey -> survey.name);
             comboBox.onEnabledStateChanged(true);
             comboBox.addValueChangeListener(e -> {
-                UI.getCurrent().getSession().setAttribute(SessionKeys.SURVEY_ID, ((Survey) e.getValue()).id);
+                sessionDataService.setSurveyId(e.getValue().id);
             });
             loginLayout.add(comboBox);
         }

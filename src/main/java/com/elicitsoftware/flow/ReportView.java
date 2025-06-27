@@ -11,6 +11,7 @@ package com.elicitsoftware.flow;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.UISessionDataService;
 import com.elicitsoftware.model.ReportDefinition;
 import com.elicitsoftware.model.Respondent;
 import com.elicitsoftware.model.Survey;
@@ -24,10 +25,8 @@ import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.StreamResource;
-import com.vaadin.flow.server.VaadinSession;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.rest.client.RestClientBuilder;
 
 import java.net.URI;
@@ -57,6 +56,9 @@ public class ReportView extends VerticalLayout {
     @Inject
     PDFService pdfService;
 
+    @Inject
+    UISessionDataService sessionDataService;
+
     ArrayList<ReportResponse> reportResponses = new ArrayList<>();
 
     public ReportView() {
@@ -66,25 +68,25 @@ public class ReportView extends VerticalLayout {
     /**
      * Initializes the ReportView component after dependency injection is completed.
      * This method sets up the layout and dynamically loads report cards based on the
-     * survey and respondent information from the current session.
+     * survey and respondent information from the current UI-scoped session service.
      * <p>
      * Key behaviors:
      * - Sets the layout to occupy the full available size.
-     * - Retrieves the associated survey using the SURVEY_ID session attribute.
-     * - Retrieves the respondent object from the RESPONDENT session attribute.
+     * - Retrieves the associated survey using the session service.
+     * - Retrieves the respondent object from the session service.
      * - Iterates through the list of reports associated with the survey.
      * - For each report, creates a ReportCard with the report name and content, and
      * adds it to the layout.
      * <p>
      * Preconditions:
-     * - The SURVEY_ID and RESPONDENT session attributes must be present and valid.
-     * - The Survey entity linked to the session SURVEY_ID must exist and contain report definitions.
+     * - The session service must contain valid survey ID and respondent data.
+     * - The Survey entity linked to the session survey ID must exist and contain report definitions.
      */
     @PostConstruct
     public void init() {
         setSizeFull();
-        Survey survey = Survey.findById(UI.getCurrent().getSession().getAttribute(SessionKeys.SURVEY_ID));
-        respondent = (Respondent) UI.getCurrent().getSession().getAttribute(SessionKeys.RESPONDENT);
+        Survey survey = Survey.findById(sessionDataService.getSurveyId());
+        respondent = sessionDataService.getRespondent();
 
         Button pdfButton = new Button("Generate PDF", event -> {
             try {

@@ -11,11 +11,12 @@ package com.elicitsoftware.flow;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.UISessionDataService;
 import com.elicitsoftware.model.Survey;
-import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.Route;
+import jakarta.inject.Inject;
 
 /**
  * The AboutView class represents a UI component responsible for displaying information
@@ -28,16 +29,18 @@ import com.vaadin.flow.router.Route;
 @Route(value = "about", layout = MainLayout.class)
 public class AboutView extends VerticalLayout {
 
+    @Inject
+    UISessionDataService sessionDataService;
+
     /**
      * Constructs the AboutView component that displays information about a survey.
      * <p>
-     * The constructor retrieves the survey ID stored in the session using the key defined in
-     * {@link SessionKeys#SURVEY_ID}. It then fetches the corresponding survey from the database
-     * using the {@link Survey#findById(Object)} method. If a survey is found, its description
-     * is displayed as a paragraph within this view.
+     * The constructor retrieves the survey ID stored in the UI-scoped session service
+     * and fetches the corresponding survey from the database using the {@link Survey#findById(Object)} method.
+     * If a survey is found, its description is displayed as a paragraph within this view.
      */
     public AboutView() {
-        Survey survey = Survey.findById(UI.getCurrent().getSession().getAttribute(SessionKeys.SURVEY_ID));
+        Survey survey = Survey.findById(sessionDataService.getSurveyId());
         if (survey != null) {
             Paragraph paragraph = new Paragraph(survey.description);
             add(paragraph);
