@@ -11,6 +11,7 @@ package com.elicitsoftware.flow;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.UISessionDataService;
 import com.elicitsoftware.model.Respondent;
 import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.applayout.AppLayout;
@@ -22,7 +23,6 @@ import com.vaadin.flow.component.sidenav.SideNav;
 import com.vaadin.flow.component.sidenav.SideNavItem;
 import com.vaadin.flow.router.AfterNavigationEvent;
 import com.vaadin.flow.router.AfterNavigationListener;
-import com.vaadin.flow.server.VaadinSession;
 import com.vaadin.flow.theme.lumo.LumoUtility;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
@@ -40,11 +40,14 @@ public class MainLayout extends AppLayout implements AfterNavigationListener {
     @Inject
     MainView mainView;
 
-    // Add configurable name for the main header. 
-    // Add configurable icon for the tab. 
+    @Inject
+    UISessionDataService sessionDataService;
 
-    VaadinSession session = VaadinSession.getCurrent();
-
+    /**
+     * Default constructor for MainLayout.
+     * The actual initialization is performed in the init() method
+     * which is called after dependency injection is complete.
+     */
     public MainLayout() {
     }
 
@@ -99,9 +102,8 @@ public class MainLayout extends AppLayout implements AfterNavigationListener {
      * Creates and returns a {@code SideNav} component configured with navigation items
      * and potentially a label based on session attributes.
      * <p>
-     * The method checks the current session for a {@code Respondent} object using the
-     * {@code SessionKeys.RESPONDENT} key. If a respondent exists, the {@code SideNav}'s
-     * label is set to the respondent's token value.
+     * The method retrieves the current respondent from the UI-scoped session service.
+     * If a respondent exists, the {@code SideNav}'s label is set to the respondent's token value.
      * <p>
      * The following navigation items are added to the {@code SideNav}:
      * - A "Login" link with a user icon and URL "/".
@@ -109,11 +111,14 @@ public class MainLayout extends AppLayout implements AfterNavigationListener {
      * - A "Logout" link with an unlink icon and no target URL.
      *
      * @return A {@code SideNav} component populated with navigation items and an
-     * optional label derived from the respondent details in the session.
+     * optional label derived from the respondent details in the session service.
      */
     private SideNav getsideNav() {
         SideNav sideNav = new SideNav();
-        Respondent respondent = (Respondent) session.getAttribute(SessionKeys.RESPONDENT);
+        Respondent respondent = sessionDataService.getRespondent();
+        if (respondent != null) {
+            sideNav.setLabel(respondent.token);
+        }
         sideNav.addItem(
                 new SideNavItem(getTranslation("sideNav.login"), "/",
                         VaadinIcon.USER.create()),

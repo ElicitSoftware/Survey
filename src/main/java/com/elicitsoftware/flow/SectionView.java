@@ -12,6 +12,7 @@ package com.elicitsoftware.flow;
  */
 
 import com.elicitsoftware.QuestionService;
+import com.elicitsoftware.UISessionDataService;
 import com.elicitsoftware.flow.input.*;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Respondent;
@@ -28,7 +29,6 @@ import com.vaadin.flow.data.binder.BinderValidationStatus;
 import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.router.HasDynamicTitle;
 import com.vaadin.flow.router.Route;
-import com.vaadin.flow.server.VaadinSession;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 
@@ -54,19 +54,21 @@ import java.util.LinkedHashMap;
  * This class integrates with the {@link MainLayout} and initializes its components after dependency injection.
  */
 @Route(value = "section", layout = MainLayout.class)
-public class SectionView extends VerticalLayout implements HasDynamicTitle {
-
-    final UI ui = UI.getCurrent();
+public class SectionView extends VerticalLayout implements HasDynamicTitle {    final UI ui = UI.getCurrent();
     @Inject
     QuestionService service;
 
-    VaadinSession session = VaadinSession.getCurrent();
+    @Inject
+    UISessionDataService sessionDataService;
+
+    @Inject
+    SessionMigrationService migrationService;
 
     // TODO make a HasMap that holds the ElicitComponents and HTML
     // Then you can replace some of these and only generate new components.
     LinkedHashMap<String, Component> displayMap = new LinkedHashMap<>();
     LinkedHashMap<String, Component> oldDisplayMap = new LinkedHashMap<>();
-    LinkedHashMap<String, Binder> binders = new LinkedHashMap<>();
+    LinkedHashMap<String, Binder<?>> binders = new LinkedHashMap<>();
 
     Button btnPrevious = null;
     Button btnNext = null;
@@ -87,13 +89,36 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
     /**
      * Initializes the section view after dependency injection.
      * <p>
-     * This method retrieves the navigation response and respondent data from the session
+     * This method retrieves the navigation response and respondent data from the UI-scoped session service
      * and builds the UI components for the current section.
      */
     @PostConstruct
     public void init() {
-        navResponse = (NavResponse) session.getAttribute(SessionKeys.NAV_RESPONSE);
-        respondent = (Respondent) session.getAttribute(SessionKeys.RESPONDENT);
+        // Ensure session data is migrated if needed
+        migrationService.migrate();
+
+        navResponse = sessionDataService.getNavResponse();
+        respondent = sessionDataService.getRespondent();
+
+        // Add null checks and handle missing data gracefully
+        if (respondent == null) {
+            Notification.show("Session expired. Please login again.", 3000, Notification.Position.MIDDLE);
+            UI.getCurrent().navigate("");
+            return;
+        }
+
+        if (navResponse == null) {
+            // Try to reinitialize if we have a respondent
+            try {
+                navResponse = service.init(respondent.id, respondent.survey.initialDisplayKey);
+                sessionDataService.setNavResponse(navResponse);
+            } catch (Exception e) {
+                Notification.show("Error loading survey. Please try again.", 3000, Notification.Position.MIDDLE);
+                UI.getCurrent().navigate("");
+                return;
+            }
+        }
+
         buildQuestions();
     }
 
@@ -318,7 +343,9 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         HashMap<String, Component> removedMap = map1MinusMap2(oldDisplayMap, displayMap);
         for (Component component : removedMap.values()) {
             this.remove(component);
-            binders.remove(component.getId());
+            if (component.getId().isPresent()) {
+                binders.remove(component.getId().get());
+            }
         }
 
         //Components to add
@@ -366,17 +393,26 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
      * </ul>
      */
     private void addButtons() {
+        // Add null checks for navResponse and getCurrentNavItem
+        if (navResponse == null || navResponse.getCurrentNavItem() == null) {
+            // If navigation data is not available, don't add buttons
+            return;
+        }
 
         Button btnNewPrevious = new Button(getTranslation("sectionView.btnPrevious"));
         btnNewPrevious.setDisableOnClick(true);
         btnNewPrevious.setEnabled(navResponse.getCurrentNavItem() != null && navResponse.getCurrentNavItem().getPrevious() != null);
         btnNewPrevious.addClickListener(e -> previousSection());
 
-        this.replace(btnPrevious, btnNewPrevious);
+        if (btnPrevious != null) {
+            this.replace(btnPrevious, btnNewPrevious);
+        } else {
+            this.add(btnNewPrevious);
+        }
         btnPrevious = btnNewPrevious;
 
         Button btnNewNext = new Button();
-        if (navResponse.getCurrentNavItem().getNext() != null) {
+        if (navResponse.getCurrentNavItem() != null && navResponse.getCurrentNavItem().getNext() != null) {
             btnNewNext.setText(getTranslation("sectionView.btnNext"));
             btnNewNext.setDisableOnClick(true);
             btnNewNext.setEnabled(navResponse.getCurrentNavItem().getNext() != null);
@@ -402,7 +438,11 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                 }
             });
         }
-        this.replace(btnNext, btnNewNext);
+        if (btnNext != null) {
+            this.replace(btnNext, btnNewNext);
+        } else {
+            this.add(btnNewNext);
+        }
         this.btnNext = btnNewNext;
     }
 
@@ -418,7 +458,8 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
     private boolean validateSection() {
         boolean valid = false;
         int inValidCount = 0;
-        for (Binder binder : binders.values()) {
+
+        for (Binder<?> binder : binders.values()) {
             // Trigger validation and retrieve status
             BinderValidationStatus<?> status = binder.validate();
             // Check if the validation failed
@@ -451,8 +492,16 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         if ((value != null && answer.getTextValue() == null) ||
                 (value != null && !answer.getTextValue().equals(value))) {
             answer.setTextValue(value);
-            navResponse = service.saveAnswer(answer);
-            buildQuestions();
+            try {
+                NavResponse newNavResponse = service.saveAnswer(answer);
+                if (newNavResponse != null) {
+                    navResponse = newNavResponse;
+                    sessionDataService.setNavResponse(navResponse);
+                    buildQuestions();
+                }
+            } catch (Exception e) {
+                Notification.show("Error saving answer. Please try again.", 3000, Notification.Position.MIDDLE);
+            }
         }
     }
 
@@ -460,26 +509,96 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
      * Navigates to the next section of the survey and updates the UI.
      * <p>
      * This method initializes the navigation response for the next section using the respondent's ID
-     * and the "next" property of the current navigation item. It updates the session with the new
-     * navigation response and reloads the page to reflect the changes.
+     * and the "next" property of the current navigation item. It updates the session service with the new
+     * navigation response and navigates directly to the section view.
      */
     private void nextSection() {
-        NavResponse newNavResponse = service.init(respondent.id, navResponse.getCurrentNavItem().getNext());
-        session.setAttribute(SessionKeys.NAV_RESPONSE, newNavResponse);
-        UI.getCurrent().getPage().reload();
+        // Add null checks before accessing navigation data
+        if (navResponse == null || navResponse.getCurrentNavItem() == null) {
+            Notification.show("Navigation data not available. Please refresh the page.", 3000, Notification.Position.MIDDLE);
+            return;
+        }
+
+        if (respondent == null) {
+            Notification.show("Session expired. Please login again.", 3000, Notification.Position.MIDDLE);
+            UI.getCurrent().navigate("");
+            return;
+        }
+
+        String nextKey = navResponse.getCurrentNavItem().getNext();
+        if (nextKey == null) {
+            Notification.show("No next section available.", 3000, Notification.Position.MIDDLE);
+            return;
+        }
+
+        try {
+            NavResponse newNavResponse = service.init(respondent.id, nextKey);
+            if (newNavResponse != null) {
+                navResponse = newNavResponse;
+                sessionDataService.setNavResponse(newNavResponse);
+                // Rebuild the questions in place instead of navigating
+                buildQuestions();
+            } else {
+                Notification.show("Error loading next section data.", 3000, Notification.Position.MIDDLE);
+                if (btnNext != null) {
+                    btnNext.setEnabled(true);
+                }
+            }
+        } catch (Exception e) {
+            Notification.show("Error navigating to next section. Please try again.", 3000, Notification.Position.MIDDLE);
+            // Re-enable the button if navigation fails
+            if (btnNext != null) {
+                btnNext.setEnabled(true);
+            }
+        }
     }
 
     /**
      * Navigates to the previous section of the survey and refreshes the UI.
      * <p>
      * This method initializes the navigation response for the previous section using the respondent's ID
-     * and the "previous" property of the current navigation item. It updates the session with the new
-     * navigation response and reloads the page to reflect the changes.
+     * and the "previous" property of the current navigation item. It updates the session service with the new
+     * navigation response and navigates directly to the section view.
      */
     private void previousSection() {
-        NavResponse newNavResponse = service.init(respondent.id, navResponse.getCurrentNavItem().getPrevious());
-        session.setAttribute(SessionKeys.NAV_RESPONSE, newNavResponse);
-        UI.getCurrent().getPage().reload();
+        // Add null checks before accessing navigation data
+        if (navResponse == null || navResponse.getCurrentNavItem() == null) {
+            Notification.show("Navigation data not available. Please refresh the page.", 3000, Notification.Position.MIDDLE);
+            return;
+        }
+
+        if (respondent == null) {
+            Notification.show("Session expired. Please login again.", 3000, Notification.Position.MIDDLE);
+            UI.getCurrent().navigate("");
+            return;
+        }
+
+        String previousKey = navResponse.getCurrentNavItem().getPrevious();
+        if (previousKey == null) {
+            Notification.show("No previous section available.", 3000, Notification.Position.MIDDLE);
+            return;
+        }
+
+        try {
+            NavResponse newNavResponse = service.init(respondent.id, previousKey);
+            if (newNavResponse != null) {
+                navResponse = newNavResponse;
+                sessionDataService.setNavResponse(newNavResponse);
+                // Rebuild the questions in place instead of navigating
+                buildQuestions();
+            } else {
+                Notification.show("Error loading previous section data.", 3000, Notification.Position.MIDDLE);
+                if (btnPrevious != null) {
+                    btnPrevious.setEnabled(true);
+                }
+            }
+        } catch (Exception e) {
+            Notification.show("Error navigating to previous section. Please try again.", 3000, Notification.Position.MIDDLE);
+            // Re-enable the button if navigation fails
+            if (btnPrevious != null) {
+                btnPrevious.setEnabled(true);
+            }
+        }
     }
 
     /**

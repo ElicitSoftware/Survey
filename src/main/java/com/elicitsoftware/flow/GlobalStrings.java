@@ -32,22 +32,55 @@ package com.elicitsoftware.flow;
  */
 public class GlobalStrings {
 
+    /** Question type constant for checkbox input fields. */
     public static final String QUESTION_TYPE_CHECKBOX = "CHECKBOX";
+
+    /** Question type constant for checkbox group input fields. */
     public static final String QUESTIION_TYPE_CHECKBOX_GROUP = "CHECKBOX_GROUP";
+
+    /** Question type constant for date picker input fields. */
     public static final String QUESTION_TYPE_DATE_PICKER = "DATE_PICKER";
+
+    /** Question type constant for date-time picker input fields. */
     public static final String QUESTIION_TYPE_DATE_TIME_PICKER = "DATE_TIME_PICKER";
+
+    /** Question type constant for double/floating-point number input fields. */
     public static final String QUESTION_TYPE_DOUBLE = "DOUBLE";
+
+    /** Question type constant for combobox/dropdown input fields. */
     public static final String QUESTION_TYPE_COMBOBOX = "COMBOBOX";
+
+    /** Question type constant for email input fields. */
     public static final String QUESTIION_TYPE_EMAIL = "EMAIL";
+
+    /** Question type constant for HTML content display. */
     public static final String QUESTION_TYPE_HTML = "HTML";
+
+    /** Question type constant for integer number input fields. */
     public static final String QUESTION_TYPE_INTEGER = "INTEGER";
+
+    /** Question type constant for modal dialog questions. */
     public static final String QUESTION_TYPE_MODAL = "MODAL";
+
+    /** Question type constant for multi-select input fields. */
     public static final String QUESTION_TYPE_MULTI_SELECT = "MULTI_SELECT";
+
+    /** Question type constant for multi-select combobox input fields. */
     public static final String QUESTIION_TYPE_MULTI_SELECT_COMBOBOX = "MULTI_SELECT_COMBOBOX";
+
+    /** Question type constant for radio button input fields. */
     public static final String QUESTION_TYPE_RADIO = "RADIO";
+
+    /** Question type constant for text input fields. */
     public static final String QUESTION_TYPE_TEXT = "TEXT";
+
+    /** Question type constant for textarea input fields. */
     public static final String QUESTION_TYPE_TEXTAREA = "TEXTAREA";
+
+    /** Question type constant for password input fields. */
     public static final String QUESTIION_TYPE_PASSWORD = "PASSWORD";
+
+    /** Question type constant for time picker input fields. */
     public static final String QUESTIION_TYPE_TIME_PICKER = "TIME_PICKER";
 
 }

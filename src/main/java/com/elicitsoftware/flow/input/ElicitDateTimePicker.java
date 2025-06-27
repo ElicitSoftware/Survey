@@ -32,10 +32,9 @@ import java.time.LocalTime;
 public class ElicitDateTimePicker extends ElicitComponent<DateTimePicker> {
 
     /**
-     * A custom date-time picker component for the Elicit application.
-     * This class extends a base picker and initializes it with a specific answer.
-     * If the provided answer has a non-empty text value, it sets the initial value
-     * of the picker accordingly.
+     * Constructs a new ElicitDateTimePicker for the given answer.
+     *
+     * @param answer the answer object to bind to this date-time picker
      */
     public ElicitDateTimePicker(Answer answer) {
         super(new DateTimePicker(answer.displayText), answer);

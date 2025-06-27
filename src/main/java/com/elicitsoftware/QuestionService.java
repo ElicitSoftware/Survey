@@ -12,16 +12,14 @@ package com.elicitsoftware;
  */
 
 import com.elicitsoftware.etl.ETLService;
-import com.elicitsoftware.flow.SessionKeys;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Respondent;
 import com.elicitsoftware.response.NavResponse;
 import com.elicitsoftware.response.ReviewItem;
 import com.elicitsoftware.response.ReviewResponse;
 import com.elicitsoftware.response.ReviewSection;
-import com.vaadin.flow.server.VaadinSession;
+import com.vaadin.quarkus.annotation.NormalUIScoped;
 import io.quarkus.logging.Log;
-import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
@@ -52,7 +50,7 @@ import java.util.List;
  * This service relies on VaadinSession for maintaining session-specific attributes
  * like the current respondent.
  */
-@ApplicationScoped
+@NormalUIScoped
 public class QuestionService {
 
     /**
@@ -100,7 +98,8 @@ public class QuestionService {
     @Inject
     ETLService etlService;
 
-    VaadinSession session = VaadinSession.getCurrent();
+    @Inject
+    UISessionDataService sessionDataService;
 
     /**
      * Initializes the respondent's survey by generating initial answers for all sections
@@ -118,7 +117,7 @@ public class QuestionService {
     }
 
     /**
-     * Initializes the respondent's survey session based on the current session attribute and
+     * Initializes the respondent's survey session based on the current UI-scoped session service and
      * navigates to the step associated with the specified display key.
      *
      * @param displaykey the display key representing the specific survey section to initialize
@@ -127,7 +126,7 @@ public class QuestionService {
      */
     @Transactional(Transactional.TxType.REQUIRES_NEW)
     public NavResponse init(String displaykey) {
-        Respondent respondent = (Respondent) session.getAttribute(SessionKeys.RESPONDENT);
+        Respondent respondent = sessionDataService.getRespondent();
         return init(respondent.id, displaykey);
     }
 
@@ -146,6 +145,7 @@ public class QuestionService {
 
         Query query = entityManager.createNativeQuery(reviewSQL);
         query.setParameter("respondentId", respondent_id);
+        @SuppressWarnings("unchecked")
         List<Object[]> results = query.getResultList();
         String sectionTitle = "";
         String sectionDisplayKey = "";

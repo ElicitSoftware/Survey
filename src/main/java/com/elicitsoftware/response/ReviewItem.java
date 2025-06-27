@@ -20,6 +20,9 @@ package com.elicitsoftware.response;
  * <p>
  * The label is intended to describe or identify the item, while the value contains
  * the associated data or description for that label.
+ *
+ * @param label the descriptive text that identifies or describes the item
+ * @param value the associated data or description for the label
  */
 public record ReviewItem(String label, String value) {
 }

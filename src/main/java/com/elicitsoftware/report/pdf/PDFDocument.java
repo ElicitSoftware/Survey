@@ -30,9 +30,18 @@ import java.util.Map;
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class PDFDocument {
+    /** An array of content elements that make up the PDF document. */
     public Content[] content;
+
+    /** Flag indicating whether a page break should be inserted. */
     public boolean pageBreak = false;
+
+    /** Flag indicating whether the document should be in landscape orientation. */
     public boolean landscape = false;
+
+    /** The title of the PDF document. */
     public String title;
+
+    /** A map of styles keyed by their identifiers for formatting content. */
     public Map<String, Style> styles;
 }

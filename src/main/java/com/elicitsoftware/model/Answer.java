@@ -193,10 +193,20 @@ public class Answer extends PanacheEntityBase {
     @Column(name = "text_value", length = 255)
     private String textValue;
 
+    /**
+     * Gets the text value of this answer.
+     *
+     * @return the text value
+     */
     public String getTextValue() {
         return textValue;
     }
 
+    /**
+     * Sets the text value of this answer.
+     *
+     * @param textValue the text value to set
+     */
     public void setTextValue(String textValue) {
         this.textValue = textValue;
     }
@@ -463,6 +473,11 @@ public class Answer extends PanacheEntityBase {
         Answer.delete("#Answer.purgeDeleted", Parameters.with("respondentId", respondentId));
     }
 
+    /**
+     * Gets the display key for this answer.
+     *
+     * @return the display key as a string
+     */
     @Column(name = "display_key", length = 34)
     public String getDisplayKey() {
         return this.displayKey;
@@ -652,7 +667,7 @@ public class Answer extends PanacheEntityBase {
      * Converts the text value of this answer to a {@link LocalDate}.
      *
      * @return the {@link LocalDate} representation of the text value.
-     * @throws DateTimeParseException if the text value cannot be parsed into a valid {@link LocalDate}.
+     * @throws java.time.format.DateTimeParseException if the text value cannot be parsed into a valid {@link LocalDate}.
      */
     @Transient
     public LocalDate getLocalDate() {
@@ -673,7 +688,7 @@ public class Answer extends PanacheEntityBase {
      * Converts the text value of this object to a {@link LocalDateTime}.
      *
      * @return a {@link LocalDateTime} object parsed from the text value.
-     * @throws DateTimeParseException if the text value cannot be parsed into a valid {@link LocalDateTime}.
+     * @throws java.time.format.DateTimeParseException if the text value cannot be parsed into a valid {@link LocalDateTime}.
      */
     @Transient
     public LocalDateTime getLocalDateTime() {

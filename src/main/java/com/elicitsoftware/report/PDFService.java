@@ -48,6 +48,24 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * Service for generating PDF documents and reports.
+ * This class provides functionality to create PDF documents with text, tables, and SVG graphics.
+ * It uses Apache PDFBox for PDF generation and supports various content types including
+ * formatted text, tables with custom styling, and embedded SVG graphics.
+ *
+ * <p>The service is request-scoped, meaning a new instance is created for each HTTP request,
+ * ensuring thread safety and preventing state leakage between requests.
+ *
+ * <p>Key features:
+ * <ul>
+ *   <li>PDF document creation with custom page layouts</li>
+ *   <li>Text rendering with font and styling support</li>
+ *   <li>Table generation with customizable columns and data</li>
+ *   <li>SVG graphics embedding and rendering</li>
+ *   <li>Stream resource generation for web download</li>
+ * </ul>
+ */
 @RequestScoped
 public class PDFService {
 
@@ -166,6 +184,14 @@ public class PDFService {
         }
     }
 
+    /**
+     * Adds a text block to the current PDF page.
+     * This method handles text wrapping, page breaks, and proper positioning.
+     * If the text doesn't fit on the current page, a new page is created.
+     *
+     * @param text the text content to add to the PDF
+     * @throws IOException if an error occurs while writing to the PDF
+     */
     public void addTextBlock(String text) throws IOException {
         // Check if we need a new page
         if (yPosition < PADDING + FONT_SIZE) {

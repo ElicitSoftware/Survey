@@ -25,6 +25,7 @@ import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.server.VaadinSession;
+import jakarta.inject.Inject;
 
 
 /**
@@ -37,9 +38,12 @@ import com.vaadin.flow.server.VaadinSession;
  */
 public class ReviewCard extends Div {
 
-    public ReviewCard(QuestionService service, ReviewSection section) {
+    @Inject
+    QuestionService service;
+
+    public ReviewCard( ReviewSection section) {
         super();
-        VaadinSession session = VaadinSession.getCurrent();
+
         this.setClassName("reviewCard");
         this.setWidth("60%");
 
@@ -55,7 +59,7 @@ public class ReviewCard extends Div {
         Icon editIcon = new Icon(VaadinIcon.EDIT);
         editIcon.addClickListener(e -> {
             NavResponse newNavResponse = service.init(section.getDisplayKey());
-            session.setAttribute(SessionKeys.NAV_RESPONSE, newNavResponse);
+            UI.getCurrent().getSession().setAttribute(SessionKeys.NAV_RESPONSE, newNavResponse);
             UI.getCurrent().navigate("section");
         });
 

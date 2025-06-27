@@ -12,6 +12,7 @@ package com.elicitsoftware.flow;
  */
 
 import com.elicitsoftware.QuestionService;
+import com.elicitsoftware.UISessionDataService;
 import com.elicitsoftware.model.Respondent;
 import com.elicitsoftware.model.Survey;
 import com.elicitsoftware.response.NavResponse;
@@ -22,9 +23,9 @@ import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H5;
 import com.vaadin.flow.component.html.Paragraph;
+import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.Route;
-import com.vaadin.flow.server.VaadinSession;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 
@@ -41,7 +42,12 @@ public class ReviewView extends VerticalLayout {
     final UI ui = UI.getCurrent();
     @Inject
     QuestionService service;
-    VaadinSession session = VaadinSession.getCurrent();
+
+    @Inject
+    UISessionDataService sessionDataService;
+
+    @Inject
+    SessionMigrationService migrationService;
 
     NavResponse navResponse;
     Respondent respondent;
@@ -69,9 +75,21 @@ public class ReviewView extends VerticalLayout {
     @PostConstruct
     public void init() {
         setSizeFull();
-        Survey survey = Survey.findById(session.getAttribute(SessionKeys.SURVEY_ID));
-        respondent = (Respondent) session.getAttribute(SessionKeys.RESPONDENT);
-        navResponse = (NavResponse) session.getAttribute(SessionKeys.NAV_RESPONSE);
+
+        // Ensure session data is migrated if needed
+        migrationService.migrate();
+
+        Survey survey = Survey.findById(sessionDataService.getSurveyId());
+        respondent = sessionDataService.getRespondent();
+        navResponse = sessionDataService.getNavResponse();
+
+        // Add null checks
+        if (respondent == null || survey == null) {
+            Notification.show("Session expired. Please login again.", 3000, Notification.Position.MIDDLE);
+            UI.getCurrent().navigate("");
+            return;
+        }
+
         Paragraph paragraph = new Paragraph();
         paragraph.add(new H5("Survey: " + survey.name));
         paragraph.add("Token: " + respondent.token);
@@ -83,7 +101,7 @@ public class ReviewView extends VerticalLayout {
 
         if (response != null) {
             for (ReviewSection section : response.getSections()) {
-                add(new ReviewCard(service, section));
+                add(new ReviewCard(section));
             }
             Button btnPrevious = new Button(getTranslation("reviewView.btnPrevious"));
             btnPrevious.setDisableOnClick(true);
@@ -140,19 +158,40 @@ public class ReviewView extends VerticalLayout {
     /**
      * Navigates to the previous section in the survey workflow. This method updates the navigation
      * state to the previous step using the respondent's unique identifier and the current navigation
-     * item's "previous" key. After updating the navigation response in the session, it reloads
-     * the current page to reflect the changes.
+     * item's "previous" key. After updating the navigation response in the session service, it navigates
+     * directly to the section view.
      * <p>
      * The method retrieves the respondent's next navigation state by invoking the `service.init`
      * method with the respondent ID and the "previous" navigation key of the current navigation item.
-     * The updated {@code NavResponse} is stored in the session under the {@code SessionKeys.NAV_RESPONSE} key.
-     * <p>
-     * Finally, the method triggers a page reload to refresh the user interface with the updated navigation state.
+     * The updated {@code NavResponse} is stored in the session service.
      */
     private void previousSection() {
-        NavResponse newNavResponse = service.init(respondent.id, navResponse.getCurrentNavItem().getPrevious());
-        session.setAttribute(SessionKeys.NAV_RESPONSE, newNavResponse);
-        UI.getCurrent().getPage().reload();
+        // Add null checks before accessing navigation data
+        if (navResponse == null || navResponse.getCurrentNavItem() == null) {
+            Notification.show("Navigation data not available. Please refresh the page.", 3000, Notification.Position.MIDDLE);
+            return;
+        }
+
+        if (respondent == null) {
+            Notification.show("Session expired. Please login again.", 3000, Notification.Position.MIDDLE);
+            UI.getCurrent().navigate("");
+            return;
+        }
+
+        String previousKey = navResponse.getCurrentNavItem().getPrevious();
+        if (previousKey == null) {
+            Notification.show("No previous section available.", 3000, Notification.Position.MIDDLE);
+            return;
+        }
+
+        try {
+            NavResponse newNavResponse = service.init(respondent.id, previousKey);
+            sessionDataService.setNavResponse(newNavResponse);
+            // Use direct navigation instead of page reload
+            UI.getCurrent().navigate("section");
+        } catch (Exception e) {
+            Notification.show("Error navigating to previous section. Please try again.", 3000, Notification.Position.MIDDLE);
+        }
     }
 }
 

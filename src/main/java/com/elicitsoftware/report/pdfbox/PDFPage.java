@@ -13,9 +13,19 @@ package com.elicitsoftware.report.pdfbox;
 
 import org.apache.pdfbox.pdmodel.PDPage;
 
+/**
+ * Extended PDPage class that adds cursor tracking functionality for PDF generation.
+ * This class extends the standard PDFBox PDPage and adds a Y-coordinate cursor
+ * to track the current vertical position when adding content to the page.
+ */
 public class PDFPage extends PDPage {
+    /** The current Y-coordinate cursor position on the page for content placement. */
     public float cursorY = 0;
 
+    /**
+     * Default constructor that creates a new PDFPage.
+     * Initializes the cursor position to 0.
+     */
     public PDFPage() {
         super();
     }
