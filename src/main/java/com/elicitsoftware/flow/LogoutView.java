@@ -12,6 +12,7 @@ package com.elicitsoftware.flow;
  */
 
 import com.elicitsoftware.UISessionDataService;
+import com.vaadin.quarkus.annotation.NormalUIScoped;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.server.VaadinSession;
 import jakarta.inject.Inject;
@@ -29,6 +30,7 @@ import jakarta.inject.Inject;
  * This class simplifies the process of securely logging out users by handling all session
  * management and cleaning up resources before redirecting.
  */
+@NormalUIScoped
 public class LogoutView extends VerticalLayout {
 
     VaadinSession session = VaadinSession.getCurrent();

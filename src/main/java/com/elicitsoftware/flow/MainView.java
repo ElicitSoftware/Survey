@@ -33,7 +33,7 @@ import com.vaadin.flow.router.HasDynamicTitle;
 import com.vaadin.flow.router.Route;
 import io.quarkus.logging.Log;
 import jakarta.annotation.PostConstruct;
-import jakarta.enterprise.context.Dependent;
+import com.vaadin.quarkus.annotation.NormalUIScoped;
 import jakarta.inject.Inject;
 
 import java.util.List;
@@ -60,7 +60,7 @@ import java.util.List;
  * - Accessibility and enhanced user experience with theme variants, tooltips, and keyboard shortcuts.
  */
 @Route(value = "", layout = MainLayout.class)
-@Dependent
+@NormalUIScoped
 public class MainView extends VerticalLayout implements HasDynamicTitle {
 
     @Inject

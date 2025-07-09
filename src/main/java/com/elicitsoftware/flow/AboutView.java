@@ -16,6 +16,7 @@ import com.elicitsoftware.model.Survey;
 import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.Route;
+import com.vaadin.quarkus.annotation.NormalUIScoped;
 import jakarta.inject.Inject;
 
 /**
@@ -25,8 +26,11 @@ import jakarta.inject.Inject;
  * This view is mapped to the "about" route and is embedded within the MainLayout.
  * Upon initialization, it retrieves the survey information associated with the current
  * session and displays its description.
+ * <p>
+ * This view is UI-scoped to prevent data leakage between browser tabs.
  */
 @Route(value = "about", layout = MainLayout.class)
+@NormalUIScoped
 public class AboutView extends VerticalLayout {
 
     @Inject
