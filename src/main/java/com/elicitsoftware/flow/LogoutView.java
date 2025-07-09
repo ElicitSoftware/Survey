@@ -11,6 +11,7 @@ package com.elicitsoftware.flow;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.UISessionDataService;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.server.VaadinSession;
 import jakarta.inject.Inject;
@@ -33,7 +34,7 @@ public class LogoutView extends VerticalLayout {
     VaadinSession session = VaadinSession.getCurrent();
 
     @Inject
-    SessionMigrationService migrationService;
+    UISessionDataService sessionDataService;
 
     /**
      * The `LogoutView` class is responsible for handling the user logout process in the application.
@@ -52,10 +53,10 @@ public class LogoutView extends VerticalLayout {
     }
 
     /**
-     * Invalidates the current user session and clears both VaadinSession and UI-scoped session data.
+     * Invalidates the current user session and clears UI-scoped session data.
      * <p>
      * This method is used to log out the current user by:
-     * 1. Clearing all UI-scoped session data through the migration service.
+     * 1. Clearing all UI-scoped session data through the session data service.
      * 2. Invalidating the current HTTP session, ensuring all session attributes are cleared on the server.
      * 3. Setting the current session to null to remove the session reference in the application.
      * <p>
@@ -64,8 +65,8 @@ public class LogoutView extends VerticalLayout {
      */
     private void logout() {
         // Clear UI-scoped session data first
-        if (migrationService != null) {
-            migrationService.clearAll();
+        if (sessionDataService != null) {
+            sessionDataService.clear();
         }
 
         // Then invalidate the underlying session

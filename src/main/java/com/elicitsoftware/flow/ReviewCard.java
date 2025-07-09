@@ -12,6 +12,7 @@ package com.elicitsoftware.flow;
  */
 
 import com.elicitsoftware.QuestionService;
+import com.elicitsoftware.UISessionDataService;
 import com.elicitsoftware.response.NavResponse;
 import com.elicitsoftware.response.ReviewItem;
 import com.elicitsoftware.response.ReviewSection;
@@ -24,7 +25,6 @@ import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
-import com.vaadin.flow.server.VaadinSession;
 import jakarta.inject.Inject;
 
 
@@ -40,6 +40,9 @@ public class ReviewCard extends Div {
 
     @Inject
     QuestionService service;
+
+    @Inject
+    UISessionDataService sessionDataService;
 
     public ReviewCard( ReviewSection section) {
         super();
@@ -59,7 +62,7 @@ public class ReviewCard extends Div {
         Icon editIcon = new Icon(VaadinIcon.EDIT);
         editIcon.addClickListener(e -> {
             NavResponse newNavResponse = service.init(section.getDisplayKey());
-            UI.getCurrent().getSession().setAttribute(SessionKeys.NAV_RESPONSE, newNavResponse);
+            sessionDataService.setNavResponse(newNavResponse);
             UI.getCurrent().navigate("section");
         });
 

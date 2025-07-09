@@ -61,9 +61,6 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {    
     @Inject
     UISessionDataService sessionDataService;
 
-    @Inject
-    SessionMigrationService migrationService;
-
     // TODO make a HasMap that holds the ElicitComponents and HTML
     // Then you can replace some of these and only generate new components.
     LinkedHashMap<String, Component> displayMap = new LinkedHashMap<>();
@@ -94,9 +91,6 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {    
      */
     @PostConstruct
     public void init() {
-        // Ensure session data is migrated if needed
-        migrationService.migrate();
-
         navResponse = sessionDataService.getNavResponse();
         respondent = sessionDataService.getRespondent();
 

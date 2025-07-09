@@ -46,9 +46,6 @@ public class ReviewView extends VerticalLayout {
     @Inject
     UISessionDataService sessionDataService;
 
-    @Inject
-    SessionMigrationService migrationService;
-
     NavResponse navResponse;
     Respondent respondent;
 
@@ -75,9 +72,6 @@ public class ReviewView extends VerticalLayout {
     @PostConstruct
     public void init() {
         setSizeFull();
-
-        // Ensure session data is migrated if needed
-        migrationService.migrate();
 
         Survey survey = Survey.findById(sessionDataService.getSurveyId());
         respondent = sessionDataService.getRespondent();
