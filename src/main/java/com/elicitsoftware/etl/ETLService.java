@@ -14,7 +14,6 @@ package com.elicitsoftware.etl;
 import io.quarkus.logging.Log;
 import io.quarkus.runtime.Startup;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Query;
@@ -55,7 +54,6 @@ public class ETLService {
     /**
      * Handles the application startup event and initializes the ETL process.
      *
-     * @param ev the startup event that triggers the initialization process
      */
     // void onStart(@Observes StartupEvent ev) {
     @Startup
@@ -393,20 +391,6 @@ public class ETLService {
         } catch (Exception e) {
             return e.getCause().getMessage();
         }
-    }
-
-    /**
-     * Retrieves a list of identifiers for new respondents who have completed their surveys.
-     * The results are limited to the specified maximum number.
-     *
-     * @param limit the maximum number of results to retrieve
-     * @return a list of respondent identifiers (Long) who have completed their surveys
-     */
-    private List<Long> fineNewRespondents(Integer limit) {
-        //First find all the respondents that have finished their surveys
-        Query respondentsQuery = entityManager.createNativeQuery(Sql.NEW_RESPONDENTS_SQL);
-        respondentsQuery.setMaxResults(limit);
-        return respondentsQuery.getResultList();
     }
 
     /**

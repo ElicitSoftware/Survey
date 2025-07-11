@@ -26,6 +26,7 @@ import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.Route;
+import com.vaadin.quarkus.annotation.NormalUIScoped;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 
@@ -35,8 +36,10 @@ import jakarta.inject.Inject;
  * and finalize the survey submission process.
  * <p>
  * This view is mapped to the "review" route and is enclosed in the MainLayout framework.
+ * This view is UI-scoped to prevent data leakage between browser tabs.
  */
 @Route(value = "review", layout = MainLayout.class)
+@NormalUIScoped
 public class ReviewView extends VerticalLayout {
 
     final UI ui = UI.getCurrent();
@@ -45,9 +48,6 @@ public class ReviewView extends VerticalLayout {
 
     @Inject
     UISessionDataService sessionDataService;
-
-    @Inject
-    SessionMigrationService migrationService;
 
     NavResponse navResponse;
     Respondent respondent;
@@ -76,9 +76,6 @@ public class ReviewView extends VerticalLayout {
     public void init() {
         setSizeFull();
 
-        // Ensure session data is migrated if needed
-        migrationService.migrate();
-
         Survey survey = Survey.findById(sessionDataService.getSurveyId());
         respondent = sessionDataService.getRespondent();
         navResponse = sessionDataService.getNavResponse();
@@ -101,7 +98,7 @@ public class ReviewView extends VerticalLayout {
 
         if (response != null) {
             for (ReviewSection section : response.getSections()) {
-                add(new ReviewCard(section));
+                add(new ReviewCard(section, service, sessionDataService));
             }
             Button btnPrevious = new Button(getTranslation("reviewView.btnPrevious"));
             btnPrevious.setDisableOnClick(true);

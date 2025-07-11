@@ -24,6 +24,7 @@ import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.Route;
+import com.vaadin.quarkus.annotation.NormalUIScoped;
 import com.vaadin.flow.server.StreamResource;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
@@ -47,8 +48,11 @@ import java.util.ArrayList;
  * - Loads and sets up a layout to host individual report cards.
  * - Invokes a remote report generation service to generate the content of each report.
  * - Displays the generated report content in the form of dynamically created ReportCards.
+ * <p>
+ * This view is UI-scoped to prevent data leakage between browser tabs.
  */
 @Route(value = "report", layout = MainLayout.class)
+@NormalUIScoped
 public class ReportView extends VerticalLayout {
 
     Respondent respondent;

@@ -28,12 +28,10 @@ import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
-import com.vaadin.flow.data.binder.Binder;
 import com.vaadin.flow.router.HasDynamicTitle;
 import com.vaadin.flow.router.Route;
-import io.quarkus.logging.Log;
 import jakarta.annotation.PostConstruct;
-import jakarta.enterprise.context.Dependent;
+import com.vaadin.quarkus.annotation.NormalUIScoped;
 import jakarta.inject.Inject;
 
 import java.util.List;
@@ -60,7 +58,7 @@ import java.util.List;
  * - Accessibility and enhanced user experience with theme variants, tooltips, and keyboard shortcuts.
  */
 @Route(value = "", layout = MainLayout.class)
-@Dependent
+@NormalUIScoped
 public class MainView extends VerticalLayout implements HasDynamicTitle {
 
     @Inject
@@ -72,8 +70,8 @@ public class MainView extends VerticalLayout implements HasDynamicTitle {
     @Inject
     UISessionDataService sessionDataService;
 
-    private final User user = new User();
-    private final Binder<User> binder = new Binder<>(User.class);
+    // Simple field-level validation without bean binding
+    private boolean isTokenValid = false;
 
     /**
      * Default constructor for MainView.
@@ -126,7 +124,6 @@ public class MainView extends VerticalLayout implements HasDynamicTitle {
      */
     @PostConstruct
     public void init() {
-        Log.info("MainView init");
         //Set up the I18n
         final UI ui = UI.getCurrent();
         if (ui.getLocale().getLanguage().equals("ar")) {
@@ -144,28 +141,54 @@ public class MainView extends VerticalLayout implements HasDynamicTitle {
             this.add(autoRegisterInstructions);
         }
 
+        // Add guidance about single tab usage
+        Div usageGuidance = new Div();
+        usageGuidance.getElement().setProperty("innerHTML", 
+            "<div style='background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 12px; margin: 10px 0; border-radius: 4px;'>" +
+            "<strong>Important:</strong> Please use this survey in a single browser tab only. " +
+            "Opening multiple tabs may require you to log in again for security reasons." +
+            "</div>");
+        this.add(usageGuidance);
+
         //Create a layout for the textbox and buttons.
         VerticalLayout loginLayout = new VerticalLayout();
         loginLayout.setAlignItems(Alignment.CENTER);
 
-        // Use TextField for standard text input
+        // Use TextField for standard text input with validation
         TextField txtToken = new TextField(getTranslation("mainView.txtToken"));
         txtToken.setTooltipText(getTranslation("mainView.txtToken.tooltip"));
         txtToken.addThemeName("bordered");
         txtToken.setAutofocus(true);
 
-        // Bind and add validation
-        binder.forField(txtToken)
-                .asRequired("Token cannot be empty")
-                .withValidator(token -> token.length() >= 5, "Token must be at least 5 characters")
-                .withValidator(token -> token.length() <= 12, "Token must be at most 12 characters")
-                .bind(User::getToken, User::setToken);
+        // Add validation directly to the field
+        txtToken.addValueChangeListener(e -> {
+            String token = e.getValue();
+            if (token == null || token.trim().isEmpty()) {
+                txtToken.setErrorMessage("Token cannot be empty");
+                txtToken.setInvalid(true);
+                isTokenValid = false;
+            } else if (token.length() < 5) {
+                txtToken.setErrorMessage("Token must be at least 5 characters");
+                txtToken.setInvalid(true);
+                isTokenValid = false;
+            } else if (token.length() > 12) {
+                txtToken.setErrorMessage("Token must be at most 12 characters");
+                txtToken.setInvalid(true);
+                isTokenValid = false;
+            } else {
+                txtToken.setInvalid(false);
+                txtToken.setErrorMessage(null);
+                isTokenValid = true;
+            }
+        });
 
 
         // Button click listeners can be defined as lambda expressions
         Button btnLogin = new Button(getTranslation("mainView.btnLogin"), e -> {
-            if (binder.validate().isOk()) {
-
+            // Trigger validation by setting the value to itself
+            txtToken.setValue(txtToken.getValue());
+            
+            if (isTokenValid && txtToken.getValue() != null && !txtToken.getValue().trim().isEmpty()) {
                 Respondent respondent = login(sessionDataService.getSurveyId(), txtToken.getValue());
                 if (respondent != null) {
                     sessionDataService.setRespondent(respondent);
@@ -180,7 +203,7 @@ public class MainView extends VerticalLayout implements HasDynamicTitle {
                         ui.navigate("report");
                     }
                 } else {
-                    Log.info("Respondent is null");
+                    Notification.show("Invalid token. Please check your token and try again.");
                 }
             } else {
                 Notification.show("Please correct the errors before logging in.");

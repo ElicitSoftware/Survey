@@ -11,7 +11,7 @@ package com.elicitsoftware;
  * ***LICENSE_END***
  */
 
-import com.elicitsoftware.etl.ETLService;
+import com.elicitsoftware.etl.ETLRespondentService;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Respondent;
 import com.elicitsoftware.response.NavResponse;
@@ -96,7 +96,7 @@ public class QuestionService {
     QuestionManager questionManager;
 
     @Inject
-    ETLService etlService;
+    ETLRespondentService etlRespondentService;
 
     @Inject
     UISessionDataService sessionDataService;
@@ -197,7 +197,7 @@ public class QuestionService {
         setActiveFalse(respondentId);
         questionManager.removeDeleted(respondentId);
         //I need to set the respondent active to false.
-        String etl = etlService.populateFactSectionTable(respondentId);
+        String etl = etlRespondentService.populateFactSectionTable(respondentId);
         Date endDt = new Date();
         Duration duration = Duration.between(startDt.toInstant(), endDt.toInstant());
         Log.debug(System.lineSeparator() + etl + " etl took " + duration.getSeconds() + " seconds" + System.lineSeparator());

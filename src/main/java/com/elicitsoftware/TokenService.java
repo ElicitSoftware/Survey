@@ -14,7 +14,6 @@ package com.elicitsoftware;
 import com.elicitsoftware.model.Respondent;
 import com.elicitsoftware.model.Survey;
 import com.elicitsoftware.response.AddResponse;
-import io.quarkus.logging.Log;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.QueryParam;
@@ -182,9 +181,6 @@ public class TokenService {
      */
     @Transactional
     public Respondent login(int surveyId, String token) {
-        Log.info(String.format("autoRegister = ", autoRegister));
-        Log.info(String.format("Login attempt: %s", token));
-
         Respondent user = getUser(surveyId, token);
 
         Survey survey = Survey.findById(surveyId);

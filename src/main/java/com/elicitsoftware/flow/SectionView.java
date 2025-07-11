@@ -29,6 +29,7 @@ import com.vaadin.flow.data.binder.BinderValidationStatus;
 import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.router.HasDynamicTitle;
 import com.vaadin.flow.router.Route;
+import com.vaadin.quarkus.annotation.NormalUIScoped;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 
@@ -52,17 +53,16 @@ import java.util.LinkedHashMap;
  * </ul>
  * <p>
  * This class integrates with the {@link MainLayout} and initializes its components after dependency injection.
+ * This view is UI-scoped to prevent data leakage between browser tabs.
  */
 @Route(value = "section", layout = MainLayout.class)
+@NormalUIScoped
 public class SectionView extends VerticalLayout implements HasDynamicTitle {    final UI ui = UI.getCurrent();
     @Inject
     QuestionService service;
 
     @Inject
     UISessionDataService sessionDataService;
-
-    @Inject
-    SessionMigrationService migrationService;
 
     // TODO make a HasMap that holds the ElicitComponents and HTML
     // Then you can replace some of these and only generate new components.
@@ -94,9 +94,6 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {    
      */
     @PostConstruct
     public void init() {
-        // Ensure session data is migrated if needed
-        migrationService.migrate();
-
         navResponse = sessionDataService.getNavResponse();
         respondent = sessionDataService.getRespondent();
 

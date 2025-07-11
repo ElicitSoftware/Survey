@@ -24,6 +24,7 @@ import com.vaadin.flow.component.sidenav.SideNavItem;
 import com.vaadin.flow.router.AfterNavigationEvent;
 import com.vaadin.flow.router.AfterNavigationListener;
 import com.vaadin.flow.theme.lumo.LumoUtility;
+import com.vaadin.quarkus.annotation.NormalUIScoped;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 
@@ -34,11 +35,11 @@ import jakarta.inject.Inject;
  * This class extends {@code AppLayout} and implements {@code AfterNavigationListener}
  * to provide a container framework for the application's UI and handle navigation events
  * for improved user experience.
+ * <p>
+ * This layout is UI-scoped to prevent data leakage between browser tabs.
  */
+@NormalUIScoped
 public class MainLayout extends AppLayout implements AfterNavigationListener {
-
-    @Inject
-    MainView mainView;
 
     @Inject
     UISessionDataService sessionDataService;
@@ -58,13 +59,11 @@ public class MainLayout extends AppLayout implements AfterNavigationListener {
      * automatically after the dependency injection is completed. It performs the following actions:
      * - Creates and configures the header section of the layout by calling {@code createHeader()}.
      * - Creates and adds a navigation bar to the drawer section of the layout using {@code createNavBar()}.
-     * - Configures and sets the main content area using the {@code mainView} field.
      */
     @PostConstruct
     public void init() {
         createHeader();
         createNavBar();
-        setContent(mainView);
     }
 
     /**
