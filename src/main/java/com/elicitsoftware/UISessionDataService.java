@@ -67,16 +67,16 @@ public class UISessionDataService {
     /**
      * Gets the respondent for the current session.
      *
-     * @return the current respondent, or null if no respondent is set
+     * @return the current respondent, or null if no valid session exists
      */
     public Respondent getRespondent() {
         return respondent;
     }
 
     /**
-     * Sets the respondent for the current session.
+     * Sets the respondent for this session.
      *
-     * @param respondent the respondent to set
+     * @param respondent the respondent to set for this session
      */
     public void setRespondent(Respondent respondent) {
         this.respondent = respondent;
