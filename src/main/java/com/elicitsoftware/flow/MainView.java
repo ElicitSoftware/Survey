@@ -141,15 +141,6 @@ public class MainView extends VerticalLayout implements HasDynamicTitle {
             this.add(autoRegisterInstructions);
         }
 
-        // Add guidance about single tab usage
-        Div usageGuidance = new Div();
-        usageGuidance.getElement().setProperty("innerHTML", 
-            "<div style='background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 12px; margin: 10px 0; border-radius: 4px;'>" +
-            "<strong>Important:</strong> Please use this survey in a single browser tab only. " +
-            "Opening multiple tabs may require you to log in again for security reasons." +
-            "</div>");
-        this.add(usageGuidance);
-
         //Create a layout for the textbox and buttons.
         VerticalLayout loginLayout = new VerticalLayout();
         loginLayout.setAlignItems(Alignment.CENTER);
