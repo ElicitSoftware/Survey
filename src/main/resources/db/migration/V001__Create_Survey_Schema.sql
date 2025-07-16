@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS survey.surveys
     name                character varying(255) NOT NULL,
     display_order       integer                NOT NULL,
     title               character varying(255) NOT NULL,
-    description         character varying(255),
+    description         character varying(2000),
     initial_display_key character varying(255),
     post_survey_url     character varying(255),
     CONSTRAINT surveys_pk PRIMARY KEY (id),

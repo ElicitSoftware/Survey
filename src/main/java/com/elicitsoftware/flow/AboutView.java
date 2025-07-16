@@ -11,13 +11,13 @@ package com.elicitsoftware.flow;
  * ***LICENSE_END***
  */
 
-import com.elicitsoftware.UISessionDataService;
 import com.elicitsoftware.model.Survey;
-import com.vaadin.flow.component.html.Paragraph;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.Route;
 import com.vaadin.quarkus.annotation.NormalUIScoped;
-import jakarta.inject.Inject;
+
+import java.util.List;
 
 /**
  * The AboutView class represents a UI component responsible for displaying information
@@ -33,9 +33,6 @@ import jakarta.inject.Inject;
 @NormalUIScoped
 public class AboutView extends VerticalLayout {
 
-    @Inject
-    UISessionDataService sessionDataService;
-
     /**
      * Constructs the AboutView component that displays information about a survey.
      * <p>
@@ -44,10 +41,11 @@ public class AboutView extends VerticalLayout {
      * If a survey is found, its description is displayed as a paragraph within this view.
      */
     public AboutView() {
-        Survey survey = Survey.findById(sessionDataService.getSurveyId());
-        if (survey != null) {
-            Paragraph paragraph = new Paragraph(survey.description);
-            add(paragraph);
+        List<Survey> surveys = Survey.findAll().list();
+        for (Survey survey : surveys) {
+            Div aboutSurvey = new Div();
+            aboutSurvey.getElement().setProperty("innerHTML", ("<h4>" + survey.name + "</h4>" + survey.description));
+            add(aboutSurvey);
         }
     }
 }
