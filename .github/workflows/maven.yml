@@ -42,5 +42,5 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Maven package
-        run:  ./mvnw -X -B clean package -Dquarkus.container-image.build=true -Dmaven.test.skip=true
+      - name: Build and Push Multi-Platform Image
+        run: mvn -X -B clean package -Dquarkus.container-image.build=true -Dquarkus.container-image.push=true -Dmaven.test.skip=true
