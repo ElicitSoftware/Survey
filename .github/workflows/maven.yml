@@ -11,7 +11,8 @@ name: Java CI with Maven
 on:
   workflow_dispatch:
   push:
-    branches: [ 'main' ]
+    tags:
+      - 'v*'
 
 jobs:
   build:
@@ -24,6 +25,15 @@ jobs:
     steps:
       - name: Check out repo
         uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          VERSION=${TAG#v}
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "major_minor=$(echo $VERSION | cut -d. -f1,2)" >> $GITHUB_OUTPUT
 
       - name: Setup Java 21
         uses: actions/setup-java@v4
@@ -48,4 +58,10 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and Push Multi-Platform Image
-        run: mvn -X -B clean package -Dquarkus.container-image.build=true -Dquarkus.container-image.push=true -Dmaven.test.skip=true
+        run: |
+          mvn -X -B clean package \
+            -Dquarkus.container-image.build=true \
+            -Dquarkus.container-image.push=true \
+            -Dquarkus.container-image.tag=${{ steps.version.outputs.version }} \
+            -Dquarkus.container-image.additional-tags=${{ steps.version.outputs.major_minor }},latest \
+            -Dmaven.test.skip=true
