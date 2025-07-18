@@ -60,6 +60,7 @@ jobs:
       - name: Build and Push Multi-Platform Image
         run: |
           mvn -X -B clean package \
+            -Dquarkus.docker.buildx.platform=linux/amd64,linux/arm64 \
             -Dquarkus.container-image.build=true \
             -Dquarkus.container-image.push=true \
             -Dquarkus.container-image.tag=${{ steps.version.outputs.version }} \
