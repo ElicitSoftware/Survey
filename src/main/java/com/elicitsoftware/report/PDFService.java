@@ -15,7 +15,7 @@ import com.elicitsoftware.report.pdf.Content;
 import com.elicitsoftware.report.pdfbox.Column;
 import com.elicitsoftware.report.pdfbox.Table;
 import com.elicitsoftware.report.pdfbox.TableBuilder;
-import com.vaadin.flow.server.StreamResource;
+
 import de.rototor.pdfbox.graphics2d.PdfBoxGraphics2D;
 import de.rototor.pdfbox.graphics2d.PdfBoxGraphics2DFontTextDrawer;
 import jakarta.enterprise.context.RequestScoped;
@@ -38,7 +38,6 @@ import org.apache.pdfbox.util.Matrix;
 import org.w3c.dom.svg.SVGDocument;
 
 import java.awt.*;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.StringReader;
@@ -92,7 +91,7 @@ public class PDFService {
     @Inject
     HttpServletRequest request;
 
-    public StreamResource generatePDF(ArrayList<ReportResponse> reportResponses) {
+    public byte[] generatePDF(ArrayList<ReportResponse> reportResponses) {
         try {
             // Create a new document
             document = new PDDocument();
@@ -152,8 +151,8 @@ public class PDFService {
 
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             document.save(outputStream);
-            ByteArrayInputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
-            return new StreamResource("family_history_report.pdf", () -> inputStream);
+            document.close();
+            return outputStream.toByteArray();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
