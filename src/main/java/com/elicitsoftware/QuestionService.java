@@ -196,12 +196,13 @@ public class QuestionService {
         Date startDt = new Date();
         setActiveFalse(respondentId);
         questionManager.removeDeleted(respondentId);
-        //I need to set the respondent active to false.
         String etl = etlRespondentService.populateFactSectionTable(respondentId);
         Date endDt = new Date();
         Duration duration = Duration.between(startDt.toInstant(), endDt.toInstant());
         Log.debug(System.lineSeparator() + etl + " etl took " + duration.getSeconds() + " seconds" + System.lineSeparator());
+        Log.debug("Post survey actions:");
     }
+
 
     /**
      * Marks the respondent as inactive by updating the `active` column to false and setting
