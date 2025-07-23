@@ -497,3 +497,21 @@ CREATE TABLE survey.post_survey_actions
     CONSTRAINT post_survey_actions_un UNIQUE (survey_id, name)
 );
 GRANT DELETE, INSERT, SELECT, UPDATE ON survey.post_survey_actions TO ${survey_user};
+--------------------------------
+CREATE SEQUENCE survey.post_survey_actions_seq INCREMENT 1 START 1;
+GRANT USAGE ON SEQUENCE survey.post_survey_actions_seq TO ${survey_user};
+CREATE TABLE survey.respondent_psa
+(
+    id                      integer       NOT NULL,
+    respondent_id           integer       NOT NULL,
+    post_survey_action_id   integer       NOT NULL,
+    status 					varchar(255) NOT NULL,
+    error_msg				varchar(255),
+    created_dt              timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    finished_dt				timestamp with time zone,
+    CONSTRAINT respondent_psa_pk PRIMARY KEY (id),
+    CONSTRAINT respondent_psa_respondent_fk FOREIGN KEY (post_survey_action_id) REFERENCES survey.post_survey_actions (id),
+    CONSTRAINT respondent_psa_psa_fk FOREIGN KEY (respondent_id) REFERENCES survey.respondents (id),
+    CONSTRAINT respondent_psa_un UNIQUE (respondent_id, post_survey_action_id)
+);
+GRANT DELETE, INSERT, SELECT, UPDATE ON survey.respondent_psa TO ${survey_user};

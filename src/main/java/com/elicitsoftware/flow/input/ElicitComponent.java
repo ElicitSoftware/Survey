@@ -111,7 +111,6 @@ public abstract class ElicitComponent<T extends Component> {
         public Binder<Answer> getBinder() {
             return binder;
         }
-
         /**
          * Sets the value of this component using the provided answer.
          *
