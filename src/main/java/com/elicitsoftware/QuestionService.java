@@ -13,7 +13,9 @@ package com.elicitsoftware;
 
 import com.elicitsoftware.etl.ETLRespondentService;
 import com.elicitsoftware.model.Answer;
+import com.elicitsoftware.model.PostSurveyAction;
 import com.elicitsoftware.model.Respondent;
+import com.elicitsoftware.model.RespondentPSA;
 import com.elicitsoftware.response.NavResponse;
 import com.elicitsoftware.response.ReviewItem;
 import com.elicitsoftware.response.ReviewResponse;
@@ -100,6 +102,9 @@ public class QuestionService {
 
     @Inject
     UISessionDataService sessionDataService;
+
+    @Inject
+    QuestionService self;
 
     /**
      * Initializes the respondent's survey by generating initial answers for all sections
@@ -196,12 +201,14 @@ public class QuestionService {
         Date startDt = new Date();
         setActiveFalse(respondentId);
         questionManager.removeDeleted(respondentId);
-        //I need to set the respondent active to false.
         String etl = etlRespondentService.populateFactSectionTable(respondentId);
         Date endDt = new Date();
         Duration duration = Duration.between(startDt.toInstant(), endDt.toInstant());
         Log.debug(System.lineSeparator() + etl + " etl took " + duration.getSeconds() + " seconds" + System.lineSeparator());
+        Log.debug("Post survey actions:");
+        PostSurveyActions(respondentId);
     }
+
 
     /**
      * Marks the respondent as inactive by updating the `active` column to false and setting
@@ -257,5 +264,73 @@ public class QuestionService {
 
         // Now build a new set of Answers and return it.
         return questionManager.navigate(a.respondentId, a.getDisplayKey());
+    }
+
+    @Transactional(Transactional.TxType.REQUIRES_NEW)
+    public void PostSurveyActions(int respondentId) {
+        Respondent respondent = Respondent.findById(respondentId);
+        if (respondent != null) {
+            if (respondent.survey.postSurveyActions != null && !respondent.survey.postSurveyActions.isEmpty()) {
+                for (PostSurveyAction psa : respondent.survey.postSurveyActions) {
+                    RespondentPSA respondentPSA = RespondentPSA.find("respondentId=?1 and id = ?2", respondentId, psa.id).firstResult();
+                    if (respondentPSA == null) {
+                        respondentPSA = new RespondentPSA();
+                        respondentPSA.psaId = psa.id;
+                        respondentPSA.respondentId = respondentId;
+                        respondentPSA.status = "PENDING";
+                    } else {
+                        respondentPSA.status = "RESENDING";
+                        respondentPSA.error = "";
+                        respondentPSA.finishedDt = null;
+                    }
+                    try {
+                        CallPostSurveyAction(psa, respondentId);
+                        respondentPSA.persist();
+                        Log.debug("Post survey action " + psa.name + " completed successfully for respondent " + respondentId);
+                    }
+                    catch (Exception e) {
+                        respondentPSA.status = "FAILED";
+                        respondentPSA.error = e.getMessage();
+                        respondentPSA.persist();
+                        Log.error("Post survey action " + psa.name + " failed for respondent " + respondentId + ": " + e.getMessage(), e);
+                    }
+                }
+            }
+        }
+    }
+
+    private String CallPostSurveyAction(PostSurveyAction psa, int respondentId) throws Exception {
+        if (psa.url == null || psa.url.trim().isEmpty()) {
+            throw new Exception("Post survey action URL is null or empty");
+        }
+
+        try {
+            // Create a simple HTTP client using Java 11+ HttpClient
+            java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
+            
+            // Create the JSON payload
+            String jsonPayload = "{\"id\":" + respondentId + "}";
+            
+            // Build the HTTP request
+            java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create(psa.url))
+                    .header("Content-Type", "application/json")
+                    .POST(java.net.http.HttpRequest.BodyPublishers.ofString(jsonPayload))
+                    .build();
+            
+            // Send the request and get response
+            java.net.http.HttpResponse<String> response = client.send(request, 
+                    java.net.http.HttpResponse.BodyHandlers.ofString());
+            
+            // Check if the response was successful (2xx status codes)
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                return response.body();
+            } else {
+                throw new Exception("HTTP " + response.statusCode() + ": " + response.body());
+            }
+            
+        } catch (java.io.IOException | InterruptedException e) {
+            throw new Exception("Failed to call post survey action URL: " + e.getMessage(), e);
+        }
     }
 }

@@ -49,6 +49,7 @@ public class Survey extends PanacheEntityBase {
     @Column(name = "initial_display_key")
     public String initialDisplayKey;
 
+    // This is the URL to redirect after the survey is over.
     @Column(name = "post_survey_url")
     public String postSurveyURL;
 
@@ -56,6 +57,8 @@ public class Survey extends PanacheEntityBase {
     @OrderBy("displayOrder ASC")
     public Set<ReportDefinition> reports;
 
+    // These restful actions are to be called after the survey is over.
+    // e.g. export pdf, print, notify etc... 
     @OneToMany(mappedBy = "survey", fetch = FetchType.EAGER)
     @OrderBy("executionOrder ASC")
     public Set<PostSurveyAction> postSurveyActions;

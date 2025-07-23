@@ -14,7 +14,6 @@ package com.elicitsoftware.flow;
 import com.elicitsoftware.UISessionDataService;
 import com.elicitsoftware.model.ReportDefinition;
 import com.elicitsoftware.model.Respondent;
-import com.elicitsoftware.model.Survey;
 import com.elicitsoftware.report.PDFService;
 import com.elicitsoftware.report.ReportRequest;
 import com.elicitsoftware.report.ReportResponse;
@@ -24,8 +23,8 @@ import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.Route;
+import com.vaadin.flow.server.VaadinSession;
 import com.vaadin.quarkus.annotation.NormalUIScoped;
-import com.vaadin.flow.server.StreamResource;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.rest.client.RestClientBuilder;
@@ -89,16 +88,20 @@ public class ReportView extends VerticalLayout {
     @PostConstruct
     public void init() {
         setSizeFull();
-        Survey survey = Survey.findById(sessionDataService.getSurveyId());
+//        Survey survey = Survey.findById(sessionDataService.getSurveyId());
         respondent = sessionDataService.getRespondent();
 
         Button pdfButton = new Button("Generate PDF", event -> {
             try {
                 // Generate the PDF using the pdfService
-                StreamResource pdfContent = pdfService.generatePDF(this.reportResponses);
+                byte[] pdfContent = pdfService.generatePDF(this.reportResponses);
 
-                // Register the StreamResource and get its URL
-                String pdfUrl = UI.getCurrent().getSession().getResourceRegistry().registerResource(pdfContent).getResourceUri().toString();
+                // Create a unique session attribute to store the PDF
+                String pdfKey = "pdf_" + System.currentTimeMillis();
+                VaadinSession.getCurrent().getSession().setAttribute(pdfKey, pdfContent);
+
+                // Create URL for the PDF download endpoint
+                String pdfUrl = "./pdf-download/family_history_report.pdf?key=" + pdfKey;
 
                 // Open the PDF in a new browser tab
                 UI.getCurrent().getPage().open(pdfUrl, "_blank");
@@ -113,11 +116,19 @@ public class ReportView extends VerticalLayout {
         //Make sure this is empty
         this.reportResponses.clear();
         ReportResponse reportResponse;
-        for (ReportDefinition rpt : survey.reports) {
+        for (ReportDefinition rpt : this.respondent.survey.reports) {
             reportResponse = callReport(rpt);
             reportResponses.add(reportResponse);
             ReportCard reportCard = new ReportCard(rpt.name, reportResponse);
             this.add(reportCard);
+        }
+
+
+        if (this.respondent.survey.postSurveyURL != null) {
+            Button btnNext = new Button("Next", event -> {
+                getUI().ifPresent(ui -> ui.getPage().open(this.respondent.survey.postSurveyURL, "_self"));
+            });
+            this.add(btnNext);
         }
     }
 
