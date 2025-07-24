@@ -57,7 +57,8 @@ import java.util.LinkedHashMap;
  */
 @Route(value = "section", layout = MainLayout.class)
 @NormalUIScoped
-public class SectionView extends VerticalLayout implements HasDynamicTitle {    final UI ui = UI.getCurrent();
+public class SectionView extends VerticalLayout implements HasDynamicTitle {
+    final UI ui = UI.getCurrent();
     @Inject
     QuestionService service;
 
@@ -77,6 +78,8 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {    
     Respondent respondent;
 
     private String pageTitle = "";
+
+    private boolean flash;
 
     public SectionView() {
     }
@@ -351,7 +354,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {    
         for (Component component : displayMap.values()) {
             if (addMap.containsValue(component)) {
                 // Add the flash class for the effect only if this is not the first time adding components
-                if (!oldDisplayMap.isEmpty()) {
+                if (flash && !oldDisplayMap.isEmpty()) {
                     component.addClassName("flash");
                 }
                 this.addComponentAtIndex(index, component);
@@ -399,7 +402,10 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {    
         Button btnNewPrevious = new Button(getTranslation("sectionView.btnPrevious"));
         btnNewPrevious.setDisableOnClick(true);
         btnNewPrevious.setEnabled(navResponse.getCurrentNavItem() != null && navResponse.getCurrentNavItem().getPrevious() != null);
-        btnNewPrevious.addClickListener(e -> previousSection());
+        btnNewPrevious.addClickListener(e -> {
+            flash = false;
+            previousSection();
+        });
 
         if (btnPrevious != null) {
             this.replace(btnPrevious, btnNewPrevious);
@@ -417,6 +423,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {    
                 // Handle the mouseover event
             });
             btnNewNext.addClickListener(e -> {
+                        flash = false;
                         if (validateSection()) {
                             nextSection();
                         } else {
@@ -428,6 +435,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {    
             btnNewNext.setText(getTranslation("sectionView.btnReview"));
             btnNewNext.setDisableOnClick(true);
             btnNewNext.addClickListener(e -> {
+                flash = false;
                 if (validateSection()) {
                     review();
                 } else {
@@ -483,7 +491,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {    
      * @param answer the answer object representing the user's response to a question
      */
     private void saveAnswer(Answer answer, String value) {
-
+        flash = true;
         //check if this is the first time and textValue is null
         // Or if it has changed.
         if ((value != null && answer.getTextValue() == null) ||
