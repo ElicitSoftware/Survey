@@ -13,8 +13,9 @@ package com.elicitsoftware.flow;
 
 import com.elicitsoftware.UISessionDataService;
 import com.vaadin.quarkus.annotation.NormalUIScoped;
+import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
-import com.vaadin.flow.server.VaadinSession;
+import com.vaadin.flow.router.Route;
 import jakarta.inject.Inject;
 
 /**
@@ -23,56 +24,59 @@ import jakarta.inject.Inject;
  * application's default view.
  * <p>
  * Core Behavior:
- * - Upon construction, the `LogoutView` triggers the logout process automatically, invalidating
- * the user session and clearing relevant session data.
- * - After successfully logging out, it navigates the user to the root view of the application.
+ * - When the view is attached to the UI, it automatically triggers the logout process
+ * - Clears the UI-scoped session data through UISessionDataService
+ * - Redirects the user to the root view (login page) using JavaScript for a clean page reload
  * <p>
- * This class simplifies the process of securely logging out users by handling all session
- * management and cleaning up resources before redirecting.
+ * This approach avoids session invalidation timing issues and provides a smooth logout experience.
  */
+@Route("logout")
 @NormalUIScoped
 public class LogoutView extends VerticalLayout {
 
-    VaadinSession session = VaadinSession.getCurrent();
-
+    /** The UI-scoped session data service for clearing respondent session information during logout. */
     @Inject
     UISessionDataService sessionDataService;
 
     /**
-     * The `LogoutView` class is responsible for handling the user logout process in the application.
-     * It extends `VerticalLayout` to provide a layout structure and automatically performs logout actions
-     * and navigation upon initialization.
+     * Default constructor for LogoutView.
      * <p>
-     * When constructed, this view:
-     * 1. Invokes the `logout` method to invalidate the current session and performs cleanup.
-     * 2. Navigates the user to the application's root view after successfully logging out.
+     * The constructor is intentionally empty as the logout logic is performed
+     * in the {@link #onAttach(AttachEvent)} method to ensure proper UI attachment
+     * before executing the logout process.
      */
     public LogoutView() {
-        logout();
-        getUI().ifPresent(ui ->
-                ui.navigate(""));
-
+        // Constructor intentionally empty - logout logic happens in onAttach
     }
-
+    
     /**
-     * Invalidates the current user session and clears UI-scoped session data.
+     * Performs the logout process when the view is attached to the UI.
      * <p>
-     * This method is used to log out the current user by:
-     * 1. Clearing all UI-scoped session data through the session data service.
-     * 2. Invalidating the current HTTP session, ensuring all session attributes are cleared on the server.
-     * 3. Setting the current session to null to remove the session reference in the application.
+     * This method is called automatically when the LogoutView is attached to the UI
+     * and executes the following logout sequence:
+     * <ol>
+     * <li>Clears the UI-scoped session data through {@code UISessionDataService}</li>
+     * <li>Redirects the user to the root URL ("/") using JavaScript for a clean page reload</li>
+     * </ol>
      * <p>
-     * It ensures that session-related data is securely erased and prevents further user interaction
-     * until a new session is established.
+     * Using JavaScript redirection avoids session timing issues and provides a smooth
+     * logout experience without "Session expired" error messages.
+     *
+     * @param attachEvent the event fired when this view is attached to the UI
      */
-    private void logout() {
+    @Override
+    protected void onAttach(AttachEvent attachEvent) {
+        super.onAttach(attachEvent);
+        
         // Clear UI-scoped session data first
         if (sessionDataService != null) {
             sessionDataService.clear();
         }
-
-        // Then invalidate the underlying session
-        VaadinSession.getCurrent().getSession().invalidate();
-        VaadinSession.setCurrent(null);
+        
+        // Use JavaScript to redirect to root with a full page reload
+        // This avoids the "Session expired" message by not invalidating session during navigation
+        getUI().ifPresent(ui -> {
+            ui.getPage().executeJs("window.location.href = '/';");
+        });
     }
 }
