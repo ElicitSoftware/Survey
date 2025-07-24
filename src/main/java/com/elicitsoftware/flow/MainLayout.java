@@ -120,8 +120,8 @@ public class MainLayout extends AppLayout implements AfterNavigationListener {
      * based on the current login state.
      * <p>
      * The method retrieves the current respondent from the UI-scoped session service.
-     * If a respondent exists, the {@code SideNav}'s label is set to the respondent's token value
-     * and shows "About" and "Logout" options. If no respondent exists, it shows "About" and "Login" options.
+     * If a respondent exists, it shows "About" and "Logout" options. If no respondent exists, 
+     * it shows "About" and "Login" options.
      * <p>
      * The logout functionality clears the UI session data and redirects to the login page.
      *
@@ -135,8 +135,7 @@ public class MainLayout extends AppLayout implements AfterNavigationListener {
         sideNav.addItem(new SideNavItem(getTranslation("sideNav.about"), "/about", VaadinIcon.INFO.create()));
         
         if (respondent != null) {
-            // User is logged in - show token and logout option
-            sideNav.setLabel(respondent.token);
+            // User is logged in - show logout option
             sideNav.addItem(new SideNavItem(getTranslation("sideNav.logout"), "/logout", VaadinIcon.UNLINK.create()));
         } else {
             // User is not logged in - show login option
