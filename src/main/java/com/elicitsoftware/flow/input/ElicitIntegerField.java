@@ -87,7 +87,12 @@ public class ElicitIntegerField extends ElicitComponent<IntegerField> {
      */
     @Override
     void setValue(Answer answer) {
-        component.setValue(Integer.parseInt(answer.getTextValue()));
+        String textValue = answer.getTextValue();
+        if (textValue != null && !textValue.isEmpty() && !textValue.equals("null")) {
+            component.setValue(Integer.parseInt(textValue));
+        } else {
+            component.setValue(null);
+        }
     }
 
     /**

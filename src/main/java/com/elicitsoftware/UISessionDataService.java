@@ -14,6 +14,7 @@ package com.elicitsoftware;
 import com.elicitsoftware.model.Respondent;
 import com.elicitsoftware.response.NavResponse;
 import com.vaadin.quarkus.annotation.NormalUIScoped;
+import jakarta.inject.Inject;
 
 /**
  * Service class for managing UI session-specific data in a Vaadin application.
@@ -37,6 +38,10 @@ import com.vaadin.quarkus.annotation.NormalUIScoped;
  */
 @NormalUIScoped
 public class UISessionDataService {
+    
+    @Inject
+    SessionPersistenceService sessionPersistenceService;
+    
     /** The ID of the survey currently being taken by the respondent. */
     private Integer surveyId;
 
@@ -57,11 +62,13 @@ public class UISessionDataService {
 
     /**
      * Sets the survey ID for the current session.
+     * Automatically persists the session data for browser refresh recovery.
      *
      * @param surveyId the survey ID to set
      */
     public void setSurveyId(Integer surveyId) {
         this.surveyId = surveyId;
+        persistSessionData();
     }
 
     /**
@@ -75,11 +82,13 @@ public class UISessionDataService {
 
     /**
      * Sets the respondent for this session.
+     * Automatically persists the session data for browser refresh recovery.
      *
      * @param respondent the respondent to set for this session
      */
     public void setRespondent(Respondent respondent) {
         this.respondent = respondent;
+        persistSessionData();
     }
 
     /**
@@ -93,11 +102,13 @@ public class UISessionDataService {
 
     /**
      * Sets the navigation response for the current session.
+     * Automatically persists the session data for browser refresh recovery.
      *
      * @param navResponse the navigation response to set
      */
     public void setNavResponse(NavResponse navResponse) {
         this.navResponse = navResponse;
+        persistSessionData();
     }
 
     /**
@@ -109,6 +120,35 @@ public class UISessionDataService {
         this.surveyId = null;
         this.respondent = null;
         this.navResponse = null;
+        // Clear persisted session data as well
+        sessionPersistenceService.clearSessionData();
+    }
+    
+    /**
+     * Attempts to restore session data from the HTTP session.
+     * This method should be called when a new UI is created after a browser refresh.
+     * 
+     * @return true if session data was successfully restored, false otherwise
+     */
+    public boolean restoreFromSession() {
+        SessionPersistenceService.SessionData sessionData = sessionPersistenceService.restoreSessionData();
+        if (sessionData != null) {
+            this.surveyId = sessionData.getSurveyId();
+            this.respondent = sessionData.getRespondent();
+            this.navResponse = sessionData.getNavResponse();
+            return true;
+        }
+        return false;
+    }
+    
+    /**
+     * Persists current session data to the HTTP session.
+     * This is called automatically when session data changes.
+     */
+    private void persistSessionData() {
+        if (sessionPersistenceService != null) {
+            sessionPersistenceService.persistSessionData(surveyId, respondent, navResponse);
+        }
     }
 
     /**

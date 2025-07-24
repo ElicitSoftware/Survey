@@ -116,7 +116,12 @@ public class ElicitDoubleField extends ElicitComponent<NumberField> {
      */
     @Override
     void setValue(Answer answer) {
-        component.setValue(Double.parseDouble(answer.getTextValue()));
+        String textValue = answer.getTextValue();
+        if (textValue != null && !textValue.isEmpty() && !textValue.equals("null")) {
+            component.setValue(Double.parseDouble(textValue));
+        } else {
+            component.setValue(null);
+        }
     }
 
 
