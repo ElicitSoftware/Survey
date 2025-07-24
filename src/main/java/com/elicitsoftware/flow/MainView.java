@@ -124,6 +124,37 @@ public class MainView extends VerticalLayout implements HasDynamicTitle {
      */
     @PostConstruct
     public void init() {
+        // Only try to restore session data if we have complete session state
+        // This prevents interference with fresh logins
+        if (sessionDataService.getSurveyId() == null && sessionDataService.getRespondent() == null && sessionDataService.getNavResponse() == null) {
+            boolean restored = sessionDataService.restoreFromSession();
+            if (restored) {
+                // If session was restored and user is logged in, navigate to appropriate page
+                Respondent respondent = sessionDataService.getRespondent();
+                if (respondent != null) {
+                    final UI ui = UI.getCurrent();
+                    if (respondent.active) {
+                        ui.navigate("section");
+                    } else {
+                        ui.navigate("report");
+                    }
+                    return; // Exit early since user is already logged in
+                }
+            }
+        } else if (sessionDataService.getSurveyId() != null && sessionDataService.getRespondent() != null && sessionDataService.getNavResponse() != null) {
+            // If we already have complete session data, navigate to appropriate page
+            Respondent respondent = sessionDataService.getRespondent();
+            if (respondent != null) {
+                final UI ui = UI.getCurrent();
+                if (respondent.active) {
+                    ui.navigate("section");
+                } else {
+                    ui.navigate("report");
+                }
+                return; // Exit early since user is already logged in
+            }
+        }
+        
         //Set up the I18n
         final UI ui = UI.getCurrent();
         if (ui.getLocale().getLanguage().equals("ar")) {
@@ -180,6 +211,17 @@ public class MainView extends VerticalLayout implements HasDynamicTitle {
             txtToken.setValue(txtToken.getValue());
             
             if (isTokenValid && txtToken.getValue() != null && !txtToken.getValue().trim().isEmpty()) {
+                // Store survey ID before clearing session data to preserve it for login
+                Integer currentSurveyId = sessionDataService.getSurveyId();
+                
+                // Clear any existing session data before fresh login to prevent interference
+                sessionDataService.clear();
+                
+                // Restore survey ID after clearing
+                if (currentSurveyId != null) {
+                    sessionDataService.setSurveyId(currentSurveyId);
+                }
+                
                 Respondent respondent = login(sessionDataService.getSurveyId(), txtToken.getValue());
                 if (respondent != null) {
                     sessionDataService.setRespondent(respondent);

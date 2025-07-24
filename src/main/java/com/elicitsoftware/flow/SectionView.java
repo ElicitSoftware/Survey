@@ -93,13 +93,28 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
     /**
      * Initializes the section view after dependency injection.
      * <p>
-     * This method retrieves the navigation response and respondent data from the UI-scoped session service
-     * and builds the UI components for the current section.
+     * This method retrieves the navigation response and respondent data from the UI-scoped session service.
+     * If session data is missing (e.g., after browser refresh), it attempts to restore from HTTP session.
+     * Finally, it builds the UI components for the current section.
      */
     @PostConstruct
     public void init() {
         navResponse = sessionDataService.getNavResponse();
         respondent = sessionDataService.getRespondent();
+
+        // If session data is missing, try to restore from HTTP session (browser refresh scenario)
+        if (respondent == null || navResponse == null) {
+            boolean restored = sessionDataService.restoreFromSession();
+            if (restored) {
+                navResponse = sessionDataService.getNavResponse();
+                respondent = sessionDataService.getRespondent();
+                // Log successful restoration
+                if (navResponse != null && navResponse.getCurrentNavItem() != null) {
+                    String currentPath = navResponse.getCurrentNavItem().getPath();
+                    System.out.println("Session restored successfully to path: " + currentPath);
+                }
+            }
+        }
 
         // Add null checks and handle missing data gracefully
         if (respondent == null) {
@@ -139,6 +154,8 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
      * </ul>
      */
     private void buildQuestions() {
+        System.out.println("Starting buildQuestions() method");
+        
         //Save a copy of the display map
         oldDisplayMap = getDisplayComponents();
 
@@ -146,6 +163,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         displayMap.clear();
 
         if (navResponse != null) {
+            System.out.println("Processing " + navResponse.getAnswers().size() + " answers in navResponse");
             for (Answer answer : navResponse.getAnswers()) {
                 if (answer.question == null && answer.sectionInstance == 0) {
                     // this is a section title.
@@ -363,6 +381,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
             index++;
         }
         addButtons();
+        System.out.println("Completed buildQuestions() method successfully");
     }
 
     /**
@@ -462,28 +481,47 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
      * @return {@code true} if all binders are valid, {@code false} otherwise.
      */
     private boolean validateSection() {
-        boolean valid = false;
-        int inValidCount = 0;
+        boolean valid = true;
         Component firstInvalidComponent = null;
 
-        for (Map.Entry<String, Binder<?>> entry : binders.entrySet()) {
-            String binderKey = entry.getKey();
-            Binder<?> binder = entry.getValue();
-            // Trigger validation and retrieve status
-            BinderValidationStatus<?> status = binder.validate();
-            // Check if the validation failed
-            if (!status.isOk()) {
-                if (firstInvalidComponent == null) {
-                     firstInvalidComponent = oldDisplayMap.get(binderKey);
+        // Iterate through displayMap in order to find the topmost invalid component
+        for (Map.Entry<String, Component> displayEntry : displayMap.entrySet()) {
+            String componentKey = displayEntry.getKey();
+            Component component = displayEntry.getValue();
+            
+            // Check if this component has a corresponding binder
+            if (binders.containsKey(componentKey)) {
+                Binder<?> binder = binders.get(componentKey);
+                // Trigger validation and retrieve status
+                BinderValidationStatus<?> status = binder.validate();
+                // Check if the validation failed
+                if (!status.isOk()) {
+                    valid = false;
+                    // Capture the first (topmost) invalid component
+                    if (firstInvalidComponent == null) {
+                        firstInvalidComponent = component;
+                    }
                 }
-                inValidCount++;
             }
         }
-        if (inValidCount == 0) {
-            valid = true;
-        } else {
-            if (firstInvalidComponent != null) {
-                firstInvalidComponent.scrollIntoView();
+        
+        if (!valid) {
+            // Make the component reference final for use in lambda
+            final Component componentToScrollTo = firstInvalidComponent;
+            if (componentToScrollTo != null) {
+                // Schedule the scroll operation to happen after the current server round-trip
+                UI.getCurrent().getPage().executeJs(
+                    "setTimeout(() => { " +
+                    "const element = document.getElementById($0); " +
+                    "if (element) { " +
+                    "console.log('Scrolling to validation error element:', element.id); " +
+                    "element.scrollIntoView({behavior: 'smooth', block: 'start', inline: 'nearest'}); " +
+                    "} else { " +
+                    "console.log('Element not found for scrolling:', $0); " +
+                    "} " +
+                    "}, 200);", 
+                    componentToScrollTo.getId().orElse("unknown")
+                );
             }
             Notification.show("Please fix validation errors", 3000, Notification.Position.MIDDLE);
         }
@@ -547,19 +585,24 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         }
 
         try {
+            System.out.println("Attempting to navigate to next section with key: " + nextKey + " for respondent: " + respondent.id);
             NavResponse newNavResponse = service.init(respondent.id, nextKey);
             if (newNavResponse != null) {
+                System.out.println("Successfully loaded next section data");
                 navResponse = newNavResponse;
                 sessionDataService.setNavResponse(newNavResponse);
                 // Rebuild the questions in place instead of navigating
                 buildQuestions();
             } else {
+                System.out.println("Navigation service returned null response for key: " + nextKey);
                 Notification.show("Error loading next section data.", 3000, Notification.Position.MIDDLE);
                 if (btnNext != null) {
                     btnNext.setEnabled(true);
                 }
             }
         } catch (Exception e) {
+            System.out.println("Exception during navigation to next section: " + e.getMessage());
+            e.printStackTrace();
             Notification.show("Error navigating to next section. Please try again.", 3000, Notification.Position.MIDDLE);
             // Re-enable the button if navigation fails
             if (btnNext != null) {
@@ -595,19 +638,24 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         }
 
         try {
+            System.out.println("Attempting to navigate to previous section with key: " + previousKey + " for respondent: " + respondent.id);
             NavResponse newNavResponse = service.init(respondent.id, previousKey);
             if (newNavResponse != null) {
+                System.out.println("Successfully loaded previous section data");
                 navResponse = newNavResponse;
                 sessionDataService.setNavResponse(newNavResponse);
                 // Rebuild the questions in place instead of navigating
                 buildQuestions();
             } else {
+                System.out.println("Navigation service returned null response for key: " + previousKey);
                 Notification.show("Error loading previous section data.", 3000, Notification.Position.MIDDLE);
                 if (btnPrevious != null) {
                     btnPrevious.setEnabled(true);
                 }
             }
         } catch (Exception e) {
+            System.out.println("Exception during navigation to previous section: " + e.getMessage());
+            e.printStackTrace();
             Notification.show("Error navigating to previous section. Please try again.", 3000, Notification.Position.MIDDLE);
             // Re-enable the button if navigation fails
             if (btnPrevious != null) {
