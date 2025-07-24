@@ -35,6 +35,7 @@ import jakarta.inject.Inject;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.Map;
 
 
 /**
@@ -463,18 +464,27 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
     private boolean validateSection() {
         boolean valid = false;
         int inValidCount = 0;
+        Component firstInvalidComponent = null;
 
-        for (Binder<?> binder : binders.values()) {
+        for (Map.Entry<String, Binder<?>> entry : binders.entrySet()) {
+            String binderKey = entry.getKey();
+            Binder<?> binder = entry.getValue();
             // Trigger validation and retrieve status
             BinderValidationStatus<?> status = binder.validate();
             // Check if the validation failed
             if (!status.isOk()) {
+                if (firstInvalidComponent == null) {
+                     firstInvalidComponent = oldDisplayMap.get(binderKey);
+                }
                 inValidCount++;
             }
         }
         if (inValidCount == 0) {
             valid = true;
         } else {
+            if (firstInvalidComponent != null) {
+                firstInvalidComponent.scrollIntoView();
+            }
             Notification.show("Please fix validation errors", 3000, Notification.Position.MIDDLE);
         }
         return valid;
