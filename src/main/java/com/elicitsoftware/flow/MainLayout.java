@@ -41,8 +41,15 @@ import jakarta.inject.Inject;
 @NormalUIScoped
 public class MainLayout extends AppLayout implements AfterNavigationListener {
 
+    /** The UI-scoped session data service for managing respondent session information. */
     @Inject
     UISessionDataService sessionDataService;
+    
+    /** The current side navigation component displayed in the drawer. */
+    private SideNav currentSideNav;
+    
+    /** The scroller component that wraps the side navigation for scrollable functionality. */
+    private Scroller navScroller;
 
     /**
      * Default constructor for MainLayout.
@@ -85,59 +92,88 @@ public class MainLayout extends AppLayout implements AfterNavigationListener {
     /**
      * Creates and adds a navigation bar to the drawer section of the layout.
      * <p>
-     * This method initializes a {@code SideNav} component using the {@code getsideNav} method,
+     * This method initializes a {@code SideNav} component using the {@code getSideNav} method,
      * wraps it with a {@code Scroller} for scrollable functionality, and applies a small padding
      * style using {@code LumoUtility.Padding.SMALL}. The resulting scroller is then added to the
      * layout drawer.
      */
     private void createNavBar() {
-        SideNav nav = getsideNav();
-        Scroller navScroller = new Scroller(nav);
+        currentSideNav = getSideNav();
+        navScroller = new Scroller(currentSideNav);
         navScroller.setClassName(LumoUtility.Padding.SMALL);
         addToDrawer(navScroller);
+    }
+    
+    /**
+     * Refreshes the navigation bar based on the current session state.
+     * This method is called when the session state changes (e.g., after login/logout).
+     */
+    private void refreshNavBar() {
+        if (navScroller != null) {
+            remove(navScroller);
+        }
+        createNavBar();
     }
 
     /**
      * Creates and returns a {@code SideNav} component configured with navigation items
-     * and potentially a label based on session attributes.
+     * based on the current login state.
      * <p>
      * The method retrieves the current respondent from the UI-scoped session service.
-     * If a respondent exists, the {@code SideNav}'s label is set to the respondent's token value.
+     * If a respondent exists, it shows "About" and "Logout" options. If no respondent exists, 
+     * it shows "About" and "Login" options.
      * <p>
-     * The following navigation items are added to the {@code SideNav}:
-     * - A "Login" link with a user icon and URL "/".
-     * - An "About" link with an info icon and URL "/about".
-     * - A "Logout" link with an unlink icon and no target URL.
+     * The logout functionality clears the UI session data and redirects to the login page.
      *
-     * @return A {@code SideNav} component populated with navigation items and an
-     * optional label derived from the respondent details in the session service.
+     * @return A {@code SideNav} component populated with navigation items based on login state.
      */
-    private SideNav getsideNav() {
+    private SideNav getSideNav() {
         SideNav sideNav = new SideNav();
         Respondent respondent = sessionDataService.getRespondent();
+        
+        // Always add About item
+        sideNav.addItem(new SideNavItem(getTranslation("sideNav.about"), "/about", VaadinIcon.INFO.create()));
+        
         if (respondent != null) {
-            sideNav.setLabel(respondent.token);
+            // User is logged in - show logout option
+            sideNav.addItem(new SideNavItem(getTranslation("sideNav.logout"), "/logout", VaadinIcon.UNLINK.create()));
+        } else {
+            // User is not logged in - show login option
+            sideNav.addItem(new SideNavItem(getTranslation("sideNav.login"), "/", VaadinIcon.USER.create()));
         }
-        sideNav.addItem(
-                new SideNavItem(getTranslation("sideNav.login"), "/",
-                        VaadinIcon.USER.create()),
-                new SideNavItem(getTranslation("sideNav.about"), "/about", VaadinIcon.INFO.create()),
-                // TODO remove respondent form the session.
-                new SideNavItem(getTranslation("sideNav.logout"), "",
-                        VaadinIcon.UNLINK.create())
-        );
+        
         return sideNav;
     }
 
-    //These two functions were added to make sure the top of the page is in view after navigation
+    /**
+     * Attaches an after-navigation listener to the UI when this layout is attached.
+     * <p>
+     * This method ensures that the top of the page is in view after navigation
+     * and that the navigation bar is refreshed to reflect the current session state.
+     *
+     * @param attachEvent the event fired when this component is attached to the UI
+     */
     @Override
     protected void onAttach(AttachEvent attachEvent) {
         getUI().ifPresent(ui -> ui.addAfterNavigationListener(this));
     }
 
+    /**
+     * Handles post-navigation actions to ensure proper page display and navigation state.
+     * <p>
+     * This method is called after every navigation event and performs two key actions:
+     * <ul>
+     * <li>Scrolls the page content to the top for better user experience</li>
+     * <li>Refreshes the navigation bar to reflect the current session state (login/logout)</li>
+     * </ul>
+     *
+     * @param event the navigation event containing information about the completed navigation
+     */
     @Override
     public void afterNavigation(AfterNavigationEvent event) {
         getContent().scrollIntoView();
+        // Refresh the navigation bar to reflect current session state
+        refreshNavBar();
     }
 
 }
