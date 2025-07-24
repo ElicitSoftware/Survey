@@ -18,6 +18,7 @@ import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Respondent;
 import com.elicitsoftware.model.SelectItem;
 import com.elicitsoftware.response.NavResponse;
+import com.elicitsoftware.service.NavigationEventService;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
@@ -65,6 +66,9 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
 
     @Inject
     UISessionDataService sessionDataService;
+    
+    @Inject
+    NavigationEventService navigationEventService;
 
     // TODO make a HasMap that holds the ElicitComponents and HTML
     // Then you can replace some of these and only generate new components.
@@ -533,6 +537,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
      * <p>
      * This method attempts to save the given answer using the service layer. If the save
      * operation is successful, it rebuilds the UI components based on the updated navigation response.
+     * It also fires a navigation update event to refresh the section navigation tree grid.
      * <p>
      * In case of an exception, the error is logged for troubleshooting.
      *
@@ -551,6 +556,11 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                     navResponse = newNavResponse;
                     sessionDataService.setNavResponse(navResponse);
                     buildQuestions();
+                    
+                    // Fire navigation update event to refresh section tree grid
+                    if (respondent != null) {
+                        navigationEventService.fireNavigationUpdateEvent(respondent.id);
+                    }
                 }
             } catch (Exception e) {
                 Notification.show("Error saving answer. Please try again.", 3000, Notification.Position.MIDDLE);

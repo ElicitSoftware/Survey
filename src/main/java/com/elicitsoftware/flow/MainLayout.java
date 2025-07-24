@@ -12,13 +12,16 @@ package com.elicitsoftware.flow;
  */
 
 import com.elicitsoftware.UISessionDataService;
+import com.elicitsoftware.flow.component.SectionNavigationTreeGrid;
 import com.elicitsoftware.model.Respondent;
+import com.elicitsoftware.service.NavigationEventService;
 import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.applayout.AppLayout;
 import com.vaadin.flow.component.applayout.DrawerToggle;
 import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.Scroller;
+import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.sidenav.SideNav;
 import com.vaadin.flow.component.sidenav.SideNavItem;
 import com.vaadin.flow.router.AfterNavigationEvent;
@@ -45,11 +48,22 @@ public class MainLayout extends AppLayout implements AfterNavigationListener {
     @Inject
     UISessionDataService sessionDataService;
     
+    /** The section navigation tree grid for displaying section hierarchy. */
+    @Inject
+    SectionNavigationTreeGrid sectionNavigationTreeGrid;
+    
+    /** The navigation event service for coordinating navigation updates. */
+    @Inject
+    NavigationEventService navigationEventService;
+    
     /** The current side navigation component displayed in the drawer. */
     private SideNav currentSideNav;
     
     /** The scroller component that wraps the side navigation for scrollable functionality. */
     private Scroller navScroller;
+    
+    /** The container for the main navigation and section tree grid. */
+    private VerticalLayout drawerContent;
 
     /**
      * Default constructor for MainLayout.
@@ -66,11 +80,13 @@ public class MainLayout extends AppLayout implements AfterNavigationListener {
      * automatically after the dependency injection is completed. It performs the following actions:
      * - Creates and configures the header section of the layout by calling {@code createHeader()}.
      * - Creates and adds a navigation bar to the drawer section of the layout using {@code createNavBar()}.
+     * - Sets up event listeners for navigation updates.
      */
     @PostConstruct
     public void init() {
         createHeader();
         createNavBar();
+        setupNavigationEventListeners();
     }
 
     /**
@@ -95,13 +111,27 @@ public class MainLayout extends AppLayout implements AfterNavigationListener {
      * This method initializes a {@code SideNav} component using the {@code getSideNav} method,
      * wraps it with a {@code Scroller} for scrollable functionality, and applies a small padding
      * style using {@code LumoUtility.Padding.SMALL}. The resulting scroller is then added to the
-     * layout drawer.
+     * layout drawer along with the section navigation tree grid.
      */
     private void createNavBar() {
         currentSideNav = getSideNav();
         navScroller = new Scroller(currentSideNav);
         navScroller.setClassName(LumoUtility.Padding.SMALL);
-        addToDrawer(navScroller);
+        
+        // Create container for drawer content
+        drawerContent = new VerticalLayout();
+        drawerContent.setPadding(false);
+        drawerContent.setSpacing(true);
+        
+        // Add main navigation
+        drawerContent.add(navScroller);
+        
+        // Add section navigation tree grid for logged-in users
+        if (shouldShowSectionNavigation()) {
+            drawerContent.add(sectionNavigationTreeGrid);
+        }
+        
+        addToDrawer(drawerContent);
     }
     
     /**
@@ -109,10 +139,23 @@ public class MainLayout extends AppLayout implements AfterNavigationListener {
      * This method is called when the session state changes (e.g., after login/logout).
      */
     private void refreshNavBar() {
-        if (navScroller != null) {
-            remove(navScroller);
+        if (drawerContent != null) {
+            remove(drawerContent);
         }
         createNavBar();
+    }
+    
+    /**
+     * Sets up event listeners for navigation updates.
+     * This method registers a listener to refresh the section navigation tree grid
+     * when navigation data is updated.
+     */
+    private void setupNavigationEventListeners() {
+        navigationEventService.addNavigationUpdateListener(event -> {
+            if (sectionNavigationTreeGrid != null) {
+                sectionNavigationTreeGrid.refreshData();
+            }
+        });
     }
 
     /**
@@ -143,6 +186,17 @@ public class MainLayout extends AppLayout implements AfterNavigationListener {
         }
         
         return sideNav;
+    }
+    
+    /**
+     * Checks if the section navigation tree grid should be shown.
+     * The tree grid is only shown when a user is logged in.
+     *
+     * @return true if the tree grid should be shown, false otherwise
+     */
+    private boolean shouldShowSectionNavigation() {
+        Respondent respondent = sessionDataService.getRespondent();
+        return respondent != null;
     }
 
     /**
