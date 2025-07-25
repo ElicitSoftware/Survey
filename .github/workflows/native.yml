@@ -49,7 +49,7 @@ jobs:
 
       # 1. Compile & build native image
       - name: Build Quarkus Native Image
-        run: run: mvn -B package -Pproduction -Dquarkus.package.type=native -Dquarkus.native.additional-build-args="-H:IncludeResourceBundles=yasson-messages -H:+UnlockExperimentalVMOptions"
+        run: mvn -B package -Pproduction -Dquarkus.package.type=native -Dquarkus.native.additional-build-args="-H:IncludeResourceBundles=yasson-messages -H:+UnlockExperimentalVMOptions"
 
       # 2. List contents of /target
       - name: List contents of target directory
