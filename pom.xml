@@ -168,6 +168,9 @@
                     <additionalBuildArgs>
                         --initialize-at-run-time=oshi.software.os.unix.freebsd.FreeBsdOperatingSystem
                     </additionalBuildArgs>
+                    <nativeArgs>
+                        --initialize-at-run-time=oshi.software.os.unix.freebsd.FreeBsdOperatingSystem
+                    </nativeArgs>
                 </configuration>
                 <executions>
                     <execution>
