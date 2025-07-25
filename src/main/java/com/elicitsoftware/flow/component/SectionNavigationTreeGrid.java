@@ -140,8 +140,8 @@ public class SectionNavigationTreeGrid extends TreeGrid<SectionNavigationItem> {
 
             dataProvider.refreshAll();
             
-            // Expand all parent nodes by default
-            expandAll();
+            // Keep all nodes collapsed by default
+            collapseAll();
             
         } catch (Exception e) {
             System.err.println("Error loading section navigation data: " + e.getMessage());

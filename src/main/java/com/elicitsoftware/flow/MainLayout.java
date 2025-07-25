@@ -107,6 +107,9 @@ public class MainLayout extends SplitLayout implements AfterNavigationListener, 
      */
     @PostConstruct
     public void init() {
+        // Disable the default SplitLayout splitter since we're creating our own layout
+        setSplitterPosition(0);
+        
         createSplitLayout();
         createHeader();
         createNavBar();
@@ -181,74 +184,88 @@ public class MainLayout extends SplitLayout implements AfterNavigationListener, 
      * Adds JavaScript to make the sidebar resizable with constraints.
      */
     private void addResizableFeature() {
-        // Add JavaScript to make sidebar resizable
         getElement().executeJs(
-            "const sidebar = this.querySelector('.sidebar-layout');" +
-            "const container = this.querySelector('.horizontal-container');" +
-            "if (sidebar && container) {" +
-            "  sidebar.style.position = 'relative';" +
-            "  sidebar.style.borderRight = '2px solid var(--lumo-contrast-10pct)';" +
-            "  sidebar.style.cursor = 'default';" +
+            "var style = document.createElement('style');" +
+            "style.id = 'custom-resize-styles';" +
+            "style.textContent = `" +
+            "  vaadin-split-layout > div[part='splitter'] { display: none !important; }" +
+            "  .sidebar-layout { " +
+            "    position: relative !important; " +
+            "  }" +
+            "  .custom-resize-handle { " +
+            "    position: absolute !important; " +
+            "    top: 0 !important; " +
+            "    right: -3px !important; " +
+            "    width: 6px !important; " +
+            "    height: 100% !important; " +
+            "    background: transparent !important; " +
+            "    cursor: col-resize !important; " +
+            "    z-index: 1000 !important; " +
+            "    pointer-events: auto !important; " +
+            "  }" +
+            "  .custom-resize-handle:hover { " +
+            "    background: rgba(0, 120, 212, 0.2) !important; " +
+            "  }" +
+            "`;" +
+            "if (document.getElementById('custom-resize-styles')) {" +
+            "  document.getElementById('custom-resize-styles').remove();" +
+            "}" +
+            "document.head.appendChild(style);" +
             
-            "  // Create resize handle" +
-            "  const resizeHandle = document.createElement('div');" +
-            "  resizeHandle.style.position = 'absolute';" +
-            "  resizeHandle.style.top = '0';" +
-            "  resizeHandle.style.right = '-2px';" +
-            "  resizeHandle.style.width = '4px';" +
-            "  resizeHandle.style.height = '100%';" +
-            "  resizeHandle.style.background = 'var(--lumo-contrast-10pct)';" +
-            "  resizeHandle.style.cursor = 'col-resize';" +
-            "  resizeHandle.style.zIndex = '1000';" +
+            "function createResizeHandle() {" +
+            "  var sidebar = document.querySelector('.sidebar-layout');" +
+            "  if (!sidebar) return false;" +
             
-            "  resizeHandle.addEventListener('mouseenter', () => {" +
-            "    resizeHandle.style.background = 'var(--lumo-contrast-20pct)';" +
-            "  });" +
+            "  var existing = sidebar.querySelectorAll('.custom-resize-handle');" +
+            "  existing.forEach(function(h) { h.remove(); });" +
             
-            "  resizeHandle.addEventListener('mouseleave', () => {" +
-            "    if (!resizeHandle.isResizing) {" +
-            "      resizeHandle.style.background = 'var(--lumo-contrast-10pct)';" +
-            "    }" +
-            "  });" +
+            "  var handle = document.createElement('div');" +
+            "  handle.className = 'custom-resize-handle';" +
+            "  handle.title = 'Drag to resize';" +
             
-            "  let isResizing = false;" +
-            "  let startX = 0;" +
-            "  let startWidth = 0;" +
+            "  var isResizing = false;" +
+            "  var startX = 0;" +
+            "  var startWidth = 0;" +
             
-            "  resizeHandle.addEventListener('mousedown', (e) => {" +
-            "    isResizing = true;" +
-            "    resizeHandle.isResizing = true;" +
-            "    startX = e.clientX;" +
-            "    startWidth = parseInt(window.getComputedStyle(sidebar).width, 10);" +
-            "    resizeHandle.style.background = 'var(--lumo-primary-color-50pct)';" +
-            "    document.body.style.cursor = 'col-resize';" +
+            "  handle.addEventListener('mousedown', function(e) {" +
             "    e.preventDefault();" +
+            "    isResizing = true;" +
+            "    startX = e.clientX;" +
+            "    startWidth = sidebar.offsetWidth;" +
+            "    document.body.style.cursor = 'col-resize';" +
+            "    document.body.style.userSelect = 'none';" +
             "  });" +
             
-            "  document.addEventListener('mousemove', (e) => {" +
+            "  document.addEventListener('mousemove', function(e) {" +
             "    if (!isResizing) return;" +
-            "    const deltaX = e.clientX - startX;" +
-            "    const newWidth = startWidth + deltaX;" +
-            "    const containerWidth = container.offsetWidth;" +
-            "    const minWidth = Math.max(200, containerWidth * 0.1);" +
-            "    const maxWidth = containerWidth * 0.5;" +
-            
-            "    if (newWidth >= minWidth && newWidth <= maxWidth) {" +
+            "    var newWidth = startWidth + (e.clientX - startX);" +
+            "    if (newWidth >= 200 && newWidth <= window.innerWidth * 0.6) {" +
             "      sidebar.style.width = newWidth + 'px';" +
             "    }" +
             "  });" +
             
-            "  document.addEventListener('mouseup', () => {" +
+            "  document.addEventListener('mouseup', function() {" +
             "    if (isResizing) {" +
             "      isResizing = false;" +
-            "      resizeHandle.isResizing = false;" +
-            "      resizeHandle.style.background = 'var(--lumo-contrast-10pct)';" +
             "      document.body.style.cursor = 'default';" +
+            "      document.body.style.userSelect = 'auto';" +
             "    }" +
             "  });" +
             
-            "  sidebar.appendChild(resizeHandle);" +
-            "}"
+            "  sidebar.appendChild(handle);" +
+            "  return true;" +
+            "}" +
+            
+            "var attempts = 0;" +
+            "function tryCreate() {" +
+            "  attempts++;" +
+            "  if (createResizeHandle()) {" +
+            "    return;" +
+            "  } else if (attempts < 5) {" +
+            "    setTimeout(tryCreate, 100);" +
+            "  }" +
+            "}" +
+            "tryCreate();"
         );
     }
 
@@ -409,6 +426,63 @@ public class MainLayout extends SplitLayout implements AfterNavigationListener, 
     @Override
     protected void onAttach(AttachEvent attachEvent) {
         getUI().ifPresent(ui -> ui.addAfterNavigationListener(this));
+        
+        // Add resize functionality when component is attached
+        addResizableFeatureOnAttach();
+    }
+
+    /**
+     * Adds resize functionality when the component is attached to ensure DOM is ready.
+     */
+    private void addResizableFeatureOnAttach() {
+        getElement().executeJs(
+            "var sidebar = document.querySelector('.sidebar-layout');" +
+            "if (sidebar) {" +
+            "  sidebar.style.position = 'relative';" +
+            
+            "  var handle = document.createElement('div');" +
+            "  handle.style.position = 'absolute';" +
+            "  handle.style.top = '0';" +
+            "  handle.style.right = '-3px';" +
+            "  handle.style.width = '6px';" +
+            "  handle.style.height = '100%';" +
+            "  handle.style.cursor = 'col-resize';" +
+            "  handle.style.zIndex = '1000';" +
+            "  handle.style.backgroundColor = 'transparent';" +
+            "  handle.title = 'Drag to resize sidebar';" +
+            
+            "  var isResizing = false;" +
+            "  var startX = 0;" +
+            "  var startWidth = 0;" +
+            
+            "  handle.addEventListener('mousedown', function(e) {" +
+            "    isResizing = true;" +
+            "    startX = e.clientX;" +
+            "    startWidth = sidebar.offsetWidth;" +
+            "    document.body.style.cursor = 'col-resize';" +
+            "    document.body.style.userSelect = 'none';" +
+            "    e.preventDefault();" +
+            "  });" +
+            
+            "  document.addEventListener('mousemove', function(e) {" +
+            "    if (!isResizing) return;" +
+            "    var newWidth = startWidth + (e.clientX - startX);" +
+            "    if (newWidth >= 200 && newWidth <= window.innerWidth * 0.6) {" +
+            "      sidebar.style.width = newWidth + 'px';" +
+            "    }" +
+            "  });" +
+            
+            "  document.addEventListener('mouseup', function() {" +
+            "    if (isResizing) {" +
+            "      isResizing = false;" +
+            "      document.body.style.cursor = 'default';" +
+            "      document.body.style.userSelect = 'auto';" +
+            "    }" +
+            "  });" +
+            
+            "  sidebar.appendChild(handle);" +
+            "}"
+        );
     }
 
     /**
