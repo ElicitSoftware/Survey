@@ -91,6 +91,8 @@ public class SectionNavigationTreeGrid extends TreeGrid<SectionNavigationItem> {
         
         // Improve tree hierarchy indentation
         getStyle().set("--vaadin-grid-tree-toggle-level-offset", "1rem");
+        // Set smaller font size for the tree grid
+        getStyle().set("font-size", "0.85rem");
     }
 
     /**
