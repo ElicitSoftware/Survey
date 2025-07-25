@@ -49,7 +49,7 @@ jobs:
 
       # 1. Compile & build native image
       - name: Build Quarkus Native Image
-        run: mvn -X -B package -Pproduction -Pnative -Dquarkus.package.type=native -Dmaven.test.skip=true -Dquarkus.native.additional-build-args="--initialize-at-run-time=oshi.software.os.unix.freebsd.FreeBsdOperatingSystem,oshi.software.os.unix.solaris.SolarisOperatingSystem"
+        run: mvn -X -B package -Pproduction -Dnative -Dquarkus.package.type=native -Dmaven.test.skip=true -Dquarkus.native.additional-build-args="--initialize-at-run-time=oshi.software.os.unix.freebsd.FreeBsdOperatingSystem,oshi.software.os.unix.solaris.SolarisOperatingSystem"
 
       # 2. List contents of /target
       - name: List contents of target directory
