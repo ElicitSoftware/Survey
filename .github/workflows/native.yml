@@ -47,5 +47,13 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # 1. Compile & build native image
+      - name: Build Quarkus Native Image
+        run: mvn -X -B package -Dquarkus.package.type=native -Dmaven.test.skip=true
+
+      # 2. List contents of /target
+      - name: List contents of target directory
+        run: ls -lh target
+
       - name: Build and Push Multi-Platform Image
-        run: mvn -X -B package -Dquarkus.package.type=native -Dquarkus.container-image.build=true -Dquarkus.container-image.push=true -Dmaven.test.skip=true -Dquarkus.native.additional-build-args="--initialize-at-run-time=oshi.software.os.unix.freebsd.FreeBsdOperatingSystem,oshi.software.os.unix.solaris.SolarisOperatingSystem"
+        run: mvn -X -B -Dquarkus.container-image.build=true -Dquarkus.container-image.push=true -Dmaven.test.skip=true -Dquarkus.native.additional-build-args="--initialize-at-run-time=oshi.software.os.unix.freebsd.FreeBsdOperatingSystem,oshi.software.os.unix.solaris.SolarisOperatingSystem"
