@@ -163,6 +163,12 @@
                 <artifactId>quarkus-maven-plugin</artifactId>
                 <version>${quarkus.platform.version}</version>
                 <extensions>true</extensions>
+                <configuration>
+                    <native-image-xmx>4G</native-image-xmx>
+                    <native-image-additional-args>
+                    --initialize-at-run-time=oshi.software.os.unix.solaris.SolarisOperatingSystem
+                    </native-image-additional-args>
+                </configuration>
                 <executions>
                     <execution>
                         <goals>
