@@ -5,6 +5,7 @@
 */
 
 @import 'fonts/style.css';
+@import 'components/split-layout.css';
 
 html{
     /*--lumo-font-family: 'Chilanka';*/

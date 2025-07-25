@@ -1,0 +1,75 @@
+/* Split Layout Styles */
+.main-split-layout {
+    height: 100%;
+    width: 100%;
+    display: flex;
+    flex-direction: row !important;
+}
+
+/* Force the split layout to be horizontal (side-by-side) */
+.main-split-layout[orientation="vertical"] {
+    flex-direction: row !important;
+}
+
+/* Splitter styling for vertical orientation (left/right split with vertical splitter) */
+.main-split-layout vaadin-split-layout-splitter {
+    background-color: var(--lumo-contrast-10pct);
+    border-left: 1px solid var(--lumo-contrast-20pct);
+    border-right: 1px solid var(--lumo-contrast-20pct);
+    cursor: col-resize;
+    width: 4px;
+    min-width: 4px;
+    max-width: 4px;
+}
+
+.main-split-layout vaadin-split-layout-splitter:hover {
+    background-color: var(--lumo-contrast-20pct);
+}
+
+.main-split-layout vaadin-split-layout-splitter:active {
+    background-color: var(--lumo-primary-color-50pct);
+}
+
+/* Sidebar layout styling */
+.sidebar-layout {
+    background-color: var(--lumo-base-color);
+    border-right: 1px solid var(--lumo-contrast-10pct);
+    overflow: auto;
+    min-width: 200px;
+}
+
+/* Content area styling */
+.content-area {
+    background-color: var(--lumo-base-color);
+    overflow: auto;
+    flex: 1;
+}
+
+/* Header layout styling */
+.header-layout {
+    background-color: var(--lumo-base-color);
+    border-bottom: 1px solid var(--lumo-contrast-10pct);
+    z-index: 1000;
+}
+
+/* Responsive behavior */
+@media (max-width: 768px) {
+    .sidebar-layout {
+        min-width: 150px;
+    }
+}
+
+/* Ensure proper splitter visibility and interaction */
+.main-split-layout[orientation="vertical"] vaadin-split-layout-splitter {
+    cursor: col-resize;
+    width: 4px;
+    height: 100%;
+}
+
+/* Make sure the splitter is draggable */
+.main-split-layout vaadin-split-layout-splitter {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}

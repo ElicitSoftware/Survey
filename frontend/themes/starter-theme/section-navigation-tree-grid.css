@@ -1,0 +1,61 @@
+/* Section Navigation Tree Grid Styles */
+.section-navigation-tree-grid {
+    background: var(--lumo-contrast-5pct);
+    border: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.section-navigation-tree-grid .vaadin-grid-cell-content {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.section-navigation-tree-grid vaadin-grid-tree-toggle {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Ensure drawer content doesn't wrap text */
+vaadin-drawer-toggle {
+    white-space: nowrap;
+}
+
+/* Header and title text wrapping prevention */
+.header-content {
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.header-content a {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 0;
+    min-width: 0;
+}
+
+/* Prevent title text wrapping globally */
+vaadin-horizontal-layout a {
+    white-space: nowrap !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 0;
+}
+
+/* Ensure the header layout itself doesn't cause wrapping */
+vaadin-horizontal-layout {
+    flex-wrap: nowrap !important;
+}
+
+/* Specific styles for the software name anchor */
+a[href="/"] {
+    white-space: nowrap !important;
+    overflow: visible;
+    text-overflow: unset;
+    flex-shrink: 0;
+}
