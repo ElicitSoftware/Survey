@@ -171,6 +171,9 @@
                     <nativeArgs>
                         --initialize-at-run-time=oshi.software.os.unix.freebsd.FreeBsdOperatingSystem
                     </nativeArgs>
+                    <nativeImageOptions>
+                    <nativeImageOption>--initialize-at-run-time=oshi.software.os.unix.freebsd.FreeBsdOperatingSystem</nativeImageOption>
+                    </nativeImageOptions>
                 </configuration>
                 <executions>
                     <execution>
