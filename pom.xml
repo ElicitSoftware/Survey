@@ -172,7 +172,8 @@
                         --initialize-at-run-time=oshi.software.os.unix.freebsd.FreeBsdOperatingSystem
                     </nativeArgs>
                     <nativeImageOptions>
-                    <nativeImageOption>--initialize-at-run-time=oshi.software.os.unix.freebsd.FreeBsdOperatingSystem</nativeImageOption>
+                        <nativeImageOption>--initialize-at-run-time=oshi.software.os.unix.freebsd.FreeBsdOperatingSystem</nativeImageOption>
+                        <nativeImageOption>--initialize-at-run-time=oshi.software.os.unix.solaris.SolarisOperatingSystem</nativeImageOption>
                     </nativeImageOptions>
                 </configuration>
                 <executions>
