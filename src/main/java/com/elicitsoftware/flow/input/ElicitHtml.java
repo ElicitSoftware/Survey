@@ -31,11 +31,11 @@ public class ElicitHtml extends Div {
     public ElicitHtml(Answer answer) {
         super();
         this.setId(answer.getDisplayKey());
-        System.out.println("Creating ElicitHtml component with ID: " + answer.getDisplayKey() + " and content: " + answer.displayText);
+        // ...existing code...
         getElement().setProperty("innerHTML", answer.displayText);
         
         // Ensure the content is visible with minimal styling
         this.getStyle().set("min-height", "20px");
-        System.out.println("ElicitHtml component configured successfully");
+        // ...existing code...
     }
 }

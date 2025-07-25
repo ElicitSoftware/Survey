@@ -120,8 +120,7 @@ public class SectionNavigationTreeGrid extends TreeGrid<SectionNavigationItem> {
             Map<SectionNavigationItem, List<SectionNavigationItem>> navigationMap = 
                 navigationService.getSectionNavigationData(respondentId);
 
-            System.out.println("Loading section navigation data for respondent " + respondentId + 
-                             ", found " + navigationMap.size() + " parent sections");
+            // ...existing code...
 
             for (Map.Entry<SectionNavigationItem, List<SectionNavigationItem>> entry : navigationMap.entrySet()) {
                 SectionNavigationItem parent = entry.getKey();
@@ -129,14 +128,12 @@ public class SectionNavigationTreeGrid extends TreeGrid<SectionNavigationItem> {
 
                 // Add parent to tree data
                 treeData.addItem(null, parent);
-                System.out.println("Added parent section: " + parent.getDisplayText() + 
-                                 " with " + children.size() + " children");
+                // ...existing code...
 
                 // Add children to tree data
                 for (SectionNavigationItem child : children) {
                     treeData.addItem(parent, child);
-                    System.out.println("  Added child: " + child.getDisplayText() + 
-                                     " (key: " + child.getDisplayKey() + ")");
+                    // ...existing code...
                 }
             }
 
@@ -146,8 +143,7 @@ public class SectionNavigationTreeGrid extends TreeGrid<SectionNavigationItem> {
             collapseAll();
             
         } catch (Exception e) {
-            System.err.println("Error loading section navigation data: " + e.getMessage());
-            e.printStackTrace();
+            // ...existing code...
             clearData();
         }
     }

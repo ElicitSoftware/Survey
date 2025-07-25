@@ -70,7 +70,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
     @Inject
     NavigationEventService navigationEventService;
 
-    // TODO make a HasMap that holds the ElicitComponents and HTML
+    // ...existing code...
     // Then you can replace some of these and only generate new components.
     LinkedHashMap<String, Component> displayMap = new LinkedHashMap<>();
     LinkedHashMap<String, Component> oldDisplayMap = new LinkedHashMap<>();
@@ -114,8 +114,8 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                 respondent = sessionDataService.getRespondent();
                 // Log successful restoration
                 if (navResponse != null && navResponse.getCurrentNavItem() != null) {
-                    String currentPath = navResponse.getCurrentNavItem().getPath();
-                    System.out.println("Session restored successfully to path: " + currentPath);
+                    // ...existing code...
+                    // ...existing code...
                 }
             }
         }
@@ -158,7 +158,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
      * </ul>
      */
     private void buildQuestions() {
-        System.out.println("Starting buildQuestions() method");
+        // ...existing code...
         
         //Save a copy of the display map
         oldDisplayMap = getDisplayComponents();
@@ -167,13 +167,13 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         displayMap.clear();
 
         if (navResponse != null) {
-            System.out.println("Processing " + navResponse.getAnswers().size() + " answers in navResponse");
+            // ...existing code...
             for (Answer answer : navResponse.getAnswers()) {
                 if (answer.question == null && answer.sectionInstance == 0) {
                     // this is a section title.
                     pageTitle = answer.displayText;
                 } else {
-                    System.out.println("Processing question: " + answer.getDisplayKey() + ", type: " + answer.question.questionType.name + ", text: " + answer.displayText);
+                    // ...existing code...
                     switch (answer.question.questionType.name) {
                         case GlobalStrings.QUESTION_TYPE_CHECKBOX:
                             ElicitCheckbox checkbox = new ElicitCheckbox(answer);
@@ -207,10 +207,10 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTION_TYPE_HTML:
-                            System.out.println("Processing HTML question: " + answer.getDisplayKey() + " with text: " + answer.displayText);
+                            // ...existing code...
                             ElicitHtml htmlComponent = new ElicitHtml(answer);
                             displayMap.put(answer.getDisplayKey(), htmlComponent);
-                            System.out.println("Added HTML component to displayMap with key: " + answer.getDisplayKey());
+                            // ...existing code...
                             break;
                         case GlobalStrings.QUESTION_TYPE_INTEGER:
                             ElicitIntegerField integerField = new ElicitIntegerField(answer);
@@ -226,7 +226,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTION_TYPE_MODAL:
-                            //TODO
+                            // ...existing code...
                             displayMap.put(answer.getDisplayKey(), new Paragraph(GlobalStrings.QUESTION_TYPE_MODAL));
                             break;
                         case GlobalStrings.QUESTION_TYPE_DOUBLE:
@@ -378,10 +378,10 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         //Components to add
         HashMap<String, Component> addMap = map1MinusMap2(displayMap, oldDisplayMap);
         int index = 0;
-        System.out.println("Adding " + addMap.size() + " new components to layout");
+        // ...existing code...
         for (Component component : displayMap.values()) {
             if (addMap.containsValue(component)) {
-                System.out.println("Adding component at index " + index + " with ID: " + (component.getId().isPresent() ? component.getId().get() : "NO_ID") + " of type: " + component.getClass().getSimpleName());
+                // ...existing code...
                 // Add the flash class for the effect only if this is not the first time adding components
                 if (flash && !oldDisplayMap.isEmpty()) {
                     component.addClassName("flash");
@@ -391,7 +391,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
             index++;
         }
         addButtons();
-        System.out.println("Completed buildQuestions() method successfully");
+        // ...existing code...
     }
 
     /**
@@ -524,10 +524,10 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                     "setTimeout(() => { " +
                     "const element = document.getElementById($0); " +
                     "if (element) { " +
-                    "console.log('Scrolling to validation error element:', element.id); " +
+                    // ...existing code...
                     "element.scrollIntoView({behavior: 'smooth', block: 'start', inline: 'nearest'}); " +
                     "} else { " +
-                    "console.log('Element not found for scrolling:', $0); " +
+                    // ...existing code...
                     "} " +
                     "}, 200);", 
                     componentToScrollTo.getId().orElse("unknown")
@@ -601,23 +601,23 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         }
 
         try {
-            System.out.println("Attempting to navigate to next section with key: " + nextKey + " for respondent: " + respondent.id);
+            // ...existing code...
             NavResponse newNavResponse = service.init(respondent.id, nextKey);
             if (newNavResponse != null) {
-                System.out.println("Successfully loaded next section data");
+                // ...existing code...
                 navResponse = newNavResponse;
                 sessionDataService.setNavResponse(newNavResponse);
                 // Rebuild the questions in place instead of navigating
                 buildQuestions();
             } else {
-                System.out.println("Navigation service returned null response for key: " + nextKey);
+                // ...existing code...
                 Notification.show("Error loading next section data.", 3000, Notification.Position.MIDDLE);
                 if (btnNext != null) {
                     btnNext.setEnabled(true);
                 }
             }
         } catch (Exception e) {
-            System.out.println("Exception during navigation to next section: " + e.getMessage());
+            // ...existing code...
             e.printStackTrace();
             Notification.show("Error navigating to next section. Please try again.", 3000, Notification.Position.MIDDLE);
             // Re-enable the button if navigation fails
@@ -654,23 +654,23 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         }
 
         try {
-            System.out.println("Attempting to navigate to previous section with key: " + previousKey + " for respondent: " + respondent.id);
+            // ...existing code...
             NavResponse newNavResponse = service.init(respondent.id, previousKey);
             if (newNavResponse != null) {
-                System.out.println("Successfully loaded previous section data");
+                // ...existing code...
                 navResponse = newNavResponse;
                 sessionDataService.setNavResponse(newNavResponse);
                 // Rebuild the questions in place instead of navigating
                 buildQuestions();
             } else {
-                System.out.println("Navigation service returned null response for key: " + previousKey);
+                // ...existing code...
                 Notification.show("Error loading previous section data.", 3000, Notification.Position.MIDDLE);
                 if (btnPrevious != null) {
                     btnPrevious.setEnabled(true);
                 }
             }
         } catch (Exception e) {
-            System.out.println("Exception during navigation to previous section: " + e.getMessage());
+            // ...existing code...
             e.printStackTrace();
             Notification.show("Error navigating to previous section. Please try again.", 3000, Notification.Position.MIDDLE);
             // Re-enable the button if navigation fails
