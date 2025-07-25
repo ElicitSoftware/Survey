@@ -147,7 +147,7 @@ public class MainLayout extends SplitLayout implements AfterNavigationListener, 
         sidebarLayout = new VerticalLayout();
         sidebarLayout.setPadding(false);
         sidebarLayout.setSpacing(true);
-        sidebarLayout.setHeightFull();
+        sidebarLayout.setSizeFull(); // Make sidebar fill available space
         sidebarLayout.addClassName("sidebar-layout");
         sidebarLayout.setWidth("300px"); // Fixed width for now, we'll make it resizable with JavaScript
         sidebarLayout.getStyle().set("min-width", "200px");
@@ -318,13 +318,15 @@ public class MainLayout extends SplitLayout implements AfterNavigationListener, 
         drawerContent.setSpacing(true);
         drawerContent.addClassName("drawer-content");
         drawerContent.setDefaultHorizontalComponentAlignment(FlexComponent.Alignment.STRETCH);
+        drawerContent.setSizeFull(); // Make drawer content fill the sidebar
         
-        // Add main navigation
+        // Add main navigation (this should not expand)
         drawerContent.add(navScroller);
         
         // Add section navigation tree grid for logged-in users
         if (shouldShowSectionNavigation()) {
-            drawerContent.add(sectionNavigationTreeGrid);
+            // Make the tree grid expand to fill remaining space
+            drawerContent.addAndExpand(sectionNavigationTreeGrid);
         }
         
         // Add drawer content to sidebar

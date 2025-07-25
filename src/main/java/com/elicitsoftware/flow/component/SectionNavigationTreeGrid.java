@@ -80,8 +80,7 @@ public class SectionNavigationTreeGrid extends TreeGrid<SectionNavigationItem> {
      * Sets up the styling for the tree grid.
      */
     private void setupStyling() {
-        setMaxHeight("400px");
-        setWidthFull();
+        setSizeFull(); // Make the tree grid take up all available space
         addClassName("section-navigation-tree");
         
         // Remove default grid borders and padding for cleaner look
