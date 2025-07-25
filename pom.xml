@@ -163,6 +163,11 @@
                 <artifactId>quarkus-maven-plugin</artifactId>
                 <version>${quarkus.platform.version}</version>
                 <extensions>true</extensions>
+                <configuration>
+                <native-image-args>
+                    --initialize-at-run-time=oshi.software.os.unix.freebsd.FreeBsdOperatingSystem
+                </native-image-args>
+                </configuration>
                 <executions>
                     <execution>
                         <goals>
