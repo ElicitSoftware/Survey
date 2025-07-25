@@ -165,10 +165,9 @@
                 <extensions>true</extensions>
                 <configuration>
                     <native-image-xmx>4G</native-image-xmx>
-                    <native-image-additional-args>
-                    --initialize-at-run-time=oshi.software.os.unix.solaris.SolarisOperatingSystem
-                    --initialize-at-run-time=oshi.software.os.unix.freebsd.FreeBsdOperatingSystem
-                    </native-image-additional-args>
+                    <nativeImageBuildArgs>
+                        <arg>--initialize-at-run-time=oshi.software.os.unix.freebsd.FreeBsdOperatingSystem,oshi.software.os.unix.solaris.SolarisOperatingSystem</arg>
+                    </nativeImageBuildArgs>
                 </configuration>
                 <executions>
                     <execution>
