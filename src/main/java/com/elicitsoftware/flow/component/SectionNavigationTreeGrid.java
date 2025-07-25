@@ -72,7 +72,7 @@ public class SectionNavigationTreeGrid extends TreeGrid<SectionNavigationItem> {
     private void setupColumns() {
         removeAllColumns();
         addHierarchyColumn(SectionNavigationItem::getDisplayText)
-                .setHeader("Section Navigation")
+                .setHeader("Survey Sections")
                 .setFlexGrow(1);
     }
     
