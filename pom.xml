@@ -166,7 +166,7 @@
                 <configuration>
                     <native-image-xmx>4G</native-image-xmx>
                     <additionalBuildArgs>
-                        --initialize-at-run-time=oshi.software.os.unix.freebsd.FreeBsdOperatingSystem
+                        --initialize-at-run-time=oshi.software.os.unix.freebsd.FreeBsdOperatingSystem,oshi.software.os.unix.solaris.SolarisOperatingSystem
                     </additionalBuildArgs>
                     <nativeArgs>
                         --initialize-at-run-time=oshi.software.os.unix.freebsd.FreeBsdOperatingSystem
