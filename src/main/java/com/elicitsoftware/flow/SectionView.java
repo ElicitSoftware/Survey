@@ -173,6 +173,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                     // this is a section title.
                     pageTitle = answer.displayText;
                 } else {
+                    System.out.println("Processing question: " + answer.getDisplayKey() + ", type: " + answer.question.questionType.name + ", text: " + answer.displayText);
                     switch (answer.question.questionType.name) {
                         case GlobalStrings.QUESTION_TYPE_CHECKBOX:
                             ElicitCheckbox checkbox = new ElicitCheckbox(answer);
@@ -206,7 +207,10 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTION_TYPE_HTML:
-                            displayMap.put(answer.getDisplayKey(), new ElicitHtml(answer));
+                            System.out.println("Processing HTML question: " + answer.getDisplayKey() + " with text: " + answer.displayText);
+                            ElicitHtml htmlComponent = new ElicitHtml(answer);
+                            displayMap.put(answer.getDisplayKey(), htmlComponent);
+                            System.out.println("Added HTML component to displayMap with key: " + answer.getDisplayKey());
                             break;
                         case GlobalStrings.QUESTION_TYPE_INTEGER:
                             ElicitIntegerField integerField = new ElicitIntegerField(answer);
@@ -374,8 +378,10 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         //Components to add
         HashMap<String, Component> addMap = map1MinusMap2(displayMap, oldDisplayMap);
         int index = 0;
+        System.out.println("Adding " + addMap.size() + " new components to layout");
         for (Component component : displayMap.values()) {
             if (addMap.containsValue(component)) {
+                System.out.println("Adding component at index " + index + " with ID: " + (component.getId().isPresent() ? component.getId().get() : "NO_ID") + " of type: " + component.getClass().getSimpleName());
                 // Add the flash class for the effect only if this is not the first time adding components
                 if (flash && !oldDisplayMap.isEmpty()) {
                     component.addClassName("flash");

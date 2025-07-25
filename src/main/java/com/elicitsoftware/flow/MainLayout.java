@@ -27,7 +27,6 @@ import com.vaadin.flow.component.orderedlayout.Scroller;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.sidenav.SideNav;
 import com.vaadin.flow.component.sidenav.SideNavItem;
-import com.vaadin.flow.component.splitlayout.SplitLayout;
 import com.vaadin.flow.router.AfterNavigationEvent;
 import com.vaadin.flow.router.AfterNavigationListener;
 import com.vaadin.flow.router.RouterLayout;
@@ -49,7 +48,7 @@ import jakarta.inject.Inject;
 @CssImport("./css/section-navigation.css")
 @CssImport("./themes/starter-theme/section-navigation-tree-grid.css")
 @NormalUIScoped
-public class MainLayout extends SplitLayout implements AfterNavigationListener, RouterLayout {
+public class MainLayout extends VerticalLayout implements AfterNavigationListener, RouterLayout {
 
     /** The UI-scoped session data service for managing respondent session information. */
     @Inject
@@ -72,9 +71,6 @@ public class MainLayout extends SplitLayout implements AfterNavigationListener, 
     /** The container for the main navigation and section tree grid. */
     private VerticalLayout drawerContent;
     
-    /** The split layout that divides the sidebar and main content area. */
-    private SplitLayout splitLayout;
-    
     /** The header layout containing the navigation toggle and title. */
     private VerticalLayout headerLayout;
     
@@ -91,6 +87,8 @@ public class MainLayout extends SplitLayout implements AfterNavigationListener, 
      */
     public MainLayout() {
         setSizeFull();
+        setPadding(false);
+        setSpacing(false);
         getStyle().set("background", "white");
         getStyle().set("background-color", "white");
     }
@@ -107,9 +105,6 @@ public class MainLayout extends SplitLayout implements AfterNavigationListener, 
      */
     @PostConstruct
     public void init() {
-        // Disable the default SplitLayout splitter since we're creating our own layout
-        setSplitterPosition(0);
-        
         createSplitLayout();
         createHeader();
         createNavBar();
@@ -174,7 +169,8 @@ public class MainLayout extends SplitLayout implements AfterNavigationListener, 
         mainContainer.addAndExpand(horizontalContainer);
         
         // Add main container to this layout
-        addToPrimary(mainContainer);
+        add(mainContainer);
+        expand(mainContainer);
         
         // Add JavaScript to make sidebar resizable
         addResizableFeature();
@@ -309,10 +305,8 @@ public class MainLayout extends SplitLayout implements AfterNavigationListener, 
     private void toggleSidebar() {
         if (sidebarLayout.isVisible()) {
             sidebarLayout.setVisible(false);
-            splitLayout.setSplitterPosition(0);
         } else {
             sidebarLayout.setVisible(true);
-            splitLayout.setSplitterPosition(20);
         }
     }
 
