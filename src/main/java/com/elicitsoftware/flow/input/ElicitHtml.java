@@ -31,11 +31,6 @@ public class ElicitHtml extends Div {
     public ElicitHtml(Answer answer) {
         super();
         this.setId(answer.getDisplayKey());
-        // ...existing code...
         getElement().setProperty("innerHTML", answer.displayText);
-        
-        // Ensure the content is visible with minimal styling
-        this.getStyle().set("min-height", "20px");
-        // ...existing code...
     }
 }
