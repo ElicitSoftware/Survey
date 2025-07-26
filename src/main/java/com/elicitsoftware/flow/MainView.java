@@ -30,8 +30,6 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.HasDynamicTitle;
 import com.vaadin.flow.router.Route;
-import com.vaadin.flow.router.BeforeEnterObserver;
-import com.vaadin.flow.router.BeforeEnterEvent;
 import jakarta.annotation.PostConstruct;
 import com.vaadin.quarkus.annotation.NormalUIScoped;
 import jakarta.inject.Inject;
@@ -61,7 +59,7 @@ import java.util.List;
  */
 @Route(value = "", layout = MainLayout.class)
 @NormalUIScoped
-public class MainView extends VerticalLayout implements HasDynamicTitle, BeforeEnterObserver {
+public class MainView extends VerticalLayout implements HasDynamicTitle {
 
     @Inject
     TokenService tokenService;
@@ -82,49 +80,6 @@ public class MainView extends VerticalLayout implements HasDynamicTitle, BeforeE
      */
     public MainView() {
 
-    }
-
-    /**
-     * Handles the beforeEnter event to process query parameters.
-     * This method is called before the view is entered and checks for a 'token' query parameter.
-     * If found, it attempts to automatically log in the user with that token.
-     *
-     * @param event The BeforeEnterEvent containing query parameters and navigation information
-     */
-    @Override
-    public void beforeEnter(BeforeEnterEvent event) {
-        // Check for token query parameter
-        List<String> tokenParams = event.getLocation().getQueryParameters().getParameters().get("token");
-        if (tokenParams != null && !tokenParams.isEmpty()) {
-            String token = tokenParams.get(0);
-            if (token != null && !token.trim().isEmpty()) {
-                // Set up survey ID if not already set
-                if (sessionDataService.getSurveyId() == null) {
-                    List<Survey> surveys = tokenService.getSurveys().get("Surveys");
-                    if (!surveys.isEmpty()) {
-                        sessionDataService.setSurveyId(surveys.get(0).id.intValue());
-                    }
-                }
-                
-                // Attempt to login with the token
-                if (sessionDataService.getSurveyId() != null) {
-                    Respondent respondent = login(sessionDataService.getSurveyId(), token);
-                    if (respondent != null) {
-                        sessionDataService.setRespondent(respondent);
-                        NavResponse navResponse = questionService.init(respondent.id, respondent.survey.initialDisplayKey);
-                        sessionDataService.setNavResponse(navResponse);
-                        
-                        // Navigate to appropriate page based on respondent status
-                        if (respondent.active) {
-                            event.forwardTo("section");
-                        } else {
-                            event.forwardTo("report");
-                        }
-                        return; // Don't continue with normal initialization
-                    }
-                }
-            }
-        }
     }
 
     /**
