@@ -196,7 +196,24 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         }
 
         System.out.println("DEBUG: About to build questions with NavResponse: " + (navResponse != null ? "present" : "null"));
+        if (navResponse != null && navResponse.getCurrentNavItem() != null) {
+            System.out.println("DEBUG: Current NavItem path: " + navResponse.getCurrentNavItem().getPath());
+            System.out.println("DEBUG: Current NavItem: " + navResponse.getCurrentNavItem().toString());
+        }
         buildQuestions();
+        
+        // Also trigger navigation update here to ensure tree sync, even if buildQuestions has issues
+        if (respondent != null) {
+            System.out.println("DEBUG: Triggering navigation update from init() for respondent: " + respondent.id);
+            try {
+                java.nio.file.Files.write(
+                    java.nio.file.Paths.get("/tmp/sectionview_debug.log"), 
+                    ("Triggering navigation update from init() at " + java.time.Instant.now() + "\n").getBytes(),
+                    java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND
+                );
+            } catch (Exception e) { /* ignore */ }
+            navigationEventService.fireNavigationUpdateEvent(respondent.id);
+        }
     }
 
     /**
@@ -468,6 +485,19 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
             index++;
         }
         addButtons();
+        
+        // Trigger navigation update event to sync the tree grid
+        if (respondent != null) {
+            System.out.println("DEBUG: Triggering navigation update event for respondent: " + respondent.id);
+            try {
+                java.nio.file.Files.write(
+                    java.nio.file.Paths.get("/tmp/sectionview_debug.log"), 
+                    ("Triggering navigation update event at " + java.time.Instant.now() + "\n").getBytes(),
+                    java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND
+                );
+            } catch (Exception e) { /* ignore */ }
+            navigationEventService.fireNavigationUpdateEvent(respondent.id);
+        }
         // ...existing code...
     }
 

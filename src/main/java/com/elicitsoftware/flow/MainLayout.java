@@ -364,6 +364,8 @@ public class MainLayout extends VerticalLayout implements AfterNavigationListene
         navigationEventService.addNavigationUpdateListener(event -> {
             if (sectionNavigationTreeGrid != null) {
                 sectionNavigationTreeGrid.refreshData();
+                // Also update the current section highlighting after refreshing data
+                sectionNavigationTreeGrid.updateCurrentSectionFromSession();
             }
         });
     }

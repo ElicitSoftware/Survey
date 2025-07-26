@@ -146,6 +146,15 @@ public class SectionNavigationTreeGrid extends TreeGrid<SectionNavigationItem> {
                 String currentPath = navResponse.getCurrentNavItem().getPath();
                 System.out.println("DEBUG: Current path from session: " + currentPath);
                 
+                // Write debug info to file as well
+                try {
+                    java.nio.file.Files.write(
+                        java.nio.file.Paths.get("/tmp/sectionview_debug.log"), 
+                        ("TreeGrid: Current path from session: " + currentPath + " at " + java.time.Instant.now() + "\n").getBytes(),
+                        java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND
+                    );
+                } catch (Exception e) { /* ignore */ }
+                
                 // The path should contain the display key (e.g., "0001-0001-0000-0001-0000-0000-0000")
                 if (currentPath != null && !currentPath.isEmpty()) {
                     updateCurrentSection(currentPath);
