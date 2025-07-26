@@ -497,6 +497,36 @@ public class MainLayout extends VerticalLayout implements AfterNavigationListene
         }
         // Refresh the navigation bar to reflect current session state
         refreshNavBar();
+        
+        // Update current section selection in the tree grid
+        updateCurrentSectionInTreeGrid(event);
+    }
+    
+    /**
+     * Updates the current section selection in the tree grid based on navigation.
+     *
+     * @param event the navigation event
+     */
+    private void updateCurrentSectionInTreeGrid(AfterNavigationEvent event) {
+        if (sectionNavigationTreeGrid == null) {
+            System.out.println("DEBUG: sectionNavigationTreeGrid is null");
+            return;
+        }
+        
+        // Extract the current section information from the URL or route parameters
+        String location = event.getLocation().getPath();
+        System.out.println("DEBUG: Navigation location: " + location);
+        
+        // Check if this is a section view - use session data instead of URL parsing
+        if (location.startsWith("section") || location.equals("")) {
+            // For section views, get current section from session data
+            System.out.println("DEBUG: On section view, updating from session data");
+            sectionNavigationTreeGrid.updateCurrentSectionFromSession();
+        } else {
+            // Clear selection if not on a section page
+            System.out.println("DEBUG: Not on section view, clearing current section selection");
+            sectionNavigationTreeGrid.updateCurrentSection(null);
+        }
     }
 
     @Override

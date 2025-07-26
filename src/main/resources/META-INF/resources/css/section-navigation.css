@@ -49,6 +49,24 @@
     cursor: pointer;
 }
 
+/* Current section styling */
+.section-navigation-tree .current-section,
+.section-navigation-tree vaadin-grid-cell-content:has-text("★") {
+    font-weight: bold !important;
+    color: var(--lumo-primary-text-color) !important;
+    background-color: var(--lumo-primary-color-10pct);
+}
+
+/* Alternative approach - target any cell content that starts with a star */
+.section-navigation-tree vaadin-grid-cell-content {
+    font-weight: normal;
+}
+
+.section-navigation-tree vaadin-grid-cell-content[title*="★"] {
+    font-weight: bold !important;
+    color: var(--lumo-primary-text-color) !important;
+}
+
 /* Tree toggle styling */
 .section-navigation-tree vaadin-grid-tree-toggle {
     color: var(--lumo-primary-color);

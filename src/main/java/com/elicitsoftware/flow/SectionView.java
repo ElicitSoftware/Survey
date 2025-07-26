@@ -87,6 +87,17 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
     private boolean flash;
 
     public SectionView() {
+        System.out.println("DEBUG: SectionView constructor called");
+        try {
+            java.nio.file.Files.write(
+                java.nio.file.Paths.get("/tmp/sectionview_debug.log"), 
+                ("SectionView constructor called at " + java.time.Instant.now() + "\n").getBytes(),
+                java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND
+            );
+        } catch (Exception e) { /* ignore */ }
+        
+        // Add a visible indicator that the constructor was called
+        add(new com.vaadin.flow.component.html.Div("SectionView constructor called at " + java.time.Instant.now()));
     }
 
     @Override
@@ -103,42 +114,88 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
      */
     @PostConstruct
     public void init() {
+        System.out.println("DEBUG: SectionView init() called");
+        try {
+            java.nio.file.Files.write(
+                java.nio.file.Paths.get("/tmp/sectionview_debug.log"), 
+                ("SectionView init() called at " + java.time.Instant.now() + "\n").getBytes(),
+                java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND
+            );
+        } catch (Exception e) { /* ignore */ }
         navResponse = sessionDataService.getNavResponse();
         respondent = sessionDataService.getRespondent();
+        
+        System.out.println("DEBUG: Initial session data - Respondent: " + (respondent != null ? respondent.id : "null") + 
+                          ", NavResponse: " + (navResponse != null ? "present" : "null"));
 
         // If session data is missing, try to restore from HTTP session (browser refresh scenario)
         if (respondent == null || navResponse == null) {
+            System.out.println("DEBUG: Session data missing, attempting to restore from HTTP session");
             boolean restored = sessionDataService.restoreFromSession();
+            System.out.println("DEBUG: Session restoration result: " + restored);
             if (restored) {
                 navResponse = sessionDataService.getNavResponse();
                 respondent = sessionDataService.getRespondent();
+                System.out.println("DEBUG: After restoration - Respondent: " + (respondent != null ? respondent.id : "null") + 
+                                  ", NavResponse: " + (navResponse != null ? "present" : "null"));
                 // Log successful restoration
                 if (navResponse != null && navResponse.getCurrentNavItem() != null) {
-                    // ...existing code...
-                    // ...existing code...
+                    System.out.println("DEBUG: Session restored with current path: " + navResponse.getCurrentNavItem().getPath());
                 }
             }
         }
 
         // Add null checks and handle missing data gracefully
         if (respondent == null) {
-            Notification.show("Session expired. Please login again.", 3000, Notification.Position.MIDDLE);
-            UI.getCurrent().navigate("");
+            System.out.println("DEBUG: Respondent is null, attempting delayed check");
+            // Capture UI reference for background thread
+            final UI currentUI = UI.getCurrent();
+            if (currentUI != null) {
+                // Use a short delay to allow session data to be set after navigation
+                new Thread(() -> {
+                    try {
+                        Thread.sleep(100); // Short delay
+                        currentUI.access(() -> {
+                            Respondent delayedRespondent = sessionDataService.getRespondent();
+                            if (delayedRespondent != null) {
+                                System.out.println("DEBUG: Found respondent after delay: " + delayedRespondent.id);
+                                this.respondent = delayedRespondent;
+                                this.navResponse = sessionDataService.getNavResponse();
+                                buildQuestions();
+                            } else {
+                                System.out.println("DEBUG: Still no respondent after delay, redirecting to login");
+                                Notification.show("Session expired. Please login again.", 3000, Notification.Position.MIDDLE);
+                                currentUI.navigate("");
+                            }
+                        });
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }).start();
+            } else {
+                System.out.println("DEBUG: UI.getCurrent() is null, redirecting immediately");
+                Notification.show("Session expired. Please login again.", 3000, Notification.Position.MIDDLE);
+                UI.getCurrent().navigate("");
+            }
             return;
         }
 
         if (navResponse == null) {
+            System.out.println("DEBUG: NavResponse is null, trying to reinitialize");
             // Try to reinitialize if we have a respondent
             try {
                 navResponse = service.init(respondent.id, respondent.survey.initialDisplayKey);
                 sessionDataService.setNavResponse(navResponse);
+                System.out.println("DEBUG: Successfully reinitialized NavResponse");
             } catch (Exception e) {
+                System.out.println("DEBUG: Failed to reinitialize NavResponse: " + e.getMessage());
                 Notification.show("Error loading survey. Please try again.", 3000, Notification.Position.MIDDLE);
                 UI.getCurrent().navigate("");
                 return;
             }
         }
 
+        System.out.println("DEBUG: About to build questions with NavResponse: " + (navResponse != null ? "present" : "null"));
         buildQuestions();
     }
 
@@ -158,6 +215,26 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
      * </ul>
      */
     private void buildQuestions() {
+        System.out.println("DEBUG: buildQuestions() started");
+        try {
+            java.nio.file.Files.write(
+                java.nio.file.Paths.get("/tmp/sectionview_debug.log"), 
+                ("buildQuestions() started at " + java.time.Instant.now() + "\n").getBytes(),
+                java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND
+            );
+        } catch (Exception e) { /* ignore */ }
+        
+        if (navResponse == null) {
+            System.out.println("DEBUG: buildQuestions() - navResponse is null, cannot build questions");
+            return;
+        }
+        
+        if (navResponse.getAnswers() == null) {
+            System.out.println("DEBUG: buildQuestions() - navResponse.getAnswers() is null");
+            return;
+        }
+        
+        System.out.println("DEBUG: buildQuestions() - Processing " + navResponse.getAnswers().size() + " answers");
         // ...existing code...
         
         //Save a copy of the display map

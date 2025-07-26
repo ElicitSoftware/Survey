@@ -49,6 +49,46 @@
     cursor: pointer;
 }
 
+/* Current section styling */
+.section-navigation-tree .current-section,
+.section-navigation-tree vaadin-grid-cell-content:has-text("★") {
+    font-weight: bold !important;
+    color: var(--lumo-primary-text-color) !important;
+    background-color: var(--lumo-primary-color-10pct);
+}
+
+/* Enhanced approach - target any cell content that contains a star */
+.section-navigation-tree vaadin-grid-cell-content {
+    font-weight: normal;
+}
+
+/* Style cells that start with a star using CSS pseudo-selectors */
+.section-navigation-tree vaadin-grid-cell-content[title*="★"],
+.section-navigation-tree .vaadin-grid-cell-content:before {
+    font-weight: bold !important;
+    color: var(--lumo-primary-text-color) !important;
+}
+
+/* CSS part styling for current section rows */
+.section-navigation-tree::part(current-section-row) {
+    font-weight: bold !important;
+    color: var(--lumo-primary-text-color) !important;
+    background-color: var(--lumo-primary-color-10pct) !important;
+}
+
+.section-navigation-tree-grid::part(current-section-row) {
+    font-weight: bold !important;
+    color: var(--lumo-primary-text-color) !important;
+    background-color: var(--lumo-primary-color-10pct) !important;
+}
+
+/* Alternative direct approach - style rows with current section part */
+vaadin-tree-grid::part(current-section-row) {
+    font-weight: bold !important;
+    color: var(--lumo-primary-text-color) !important;
+    background-color: var(--lumo-primary-color-10pct) !important;
+}
+
 /* Tree toggle styling */
 .section-navigation-tree vaadin-grid-tree-toggle {
     color: var(--lumo-primary-color);

@@ -71,9 +71,22 @@ public class SectionNavigationTreeGrid extends TreeGrid<SectionNavigationItem> {
      */
     private void setupColumns() {
         removeAllColumns();
-        addHierarchyColumn(SectionNavigationItem::getDisplayText)
+        addHierarchyColumn(item -> {
+            if (item.isCurrent()) {
+                return "★ " + item.getDisplayText(); // Add a star to indicate current section
+            }
+            return item.getDisplayText();
+        })
                 .setHeader("Survey Sections")
                 .setFlexGrow(1);
+                
+        // Add a part name generator to apply CSS classes to current section rows
+        setPartNameGenerator(item -> {
+            if (item.isCurrent()) {
+                return "current-section-row";
+            }
+            return null;
+        });
     }
     
     /**
@@ -82,6 +95,7 @@ public class SectionNavigationTreeGrid extends TreeGrid<SectionNavigationItem> {
     private void setupStyling() {
         setSizeFull(); // Make the tree grid take up all available space
         addClassName("section-navigation-tree");
+        addClassName("section-navigation-tree-grid"); // Add the class that matches the CSS
         
         // Remove default grid borders and padding for cleaner look
         getStyle().set("border", "none");
@@ -93,6 +107,122 @@ public class SectionNavigationTreeGrid extends TreeGrid<SectionNavigationItem> {
         getStyle().set("--vaadin-grid-tree-toggle-level-offset", "1rem");
         // Set smaller font size for the tree grid
         getStyle().set("font-size", "0.85rem");
+    }
+    
+    /**
+     * Updates the current section selection in the tree grid.
+     *
+     * @param currentDisplayKey the display key of the current section
+     */
+    public void updateCurrentSection(String currentDisplayKey) {
+        System.out.println("DEBUG: updateCurrentSection called with: " + currentDisplayKey);
+        
+        // Clear all current selections
+        clearCurrentSelections();
+        
+        if (currentDisplayKey != null) {
+            // Find and mark the current section and its parent
+            markCurrentSection(currentDisplayKey);
+        }
+        
+        // Refresh the grid to apply styling changes
+        dataProvider.refreshAll();
+        System.out.println("DEBUG: Grid refreshed after current section update");
+    }
+    
+    /**
+     * Updates the current section based on session data.
+     * This method extracts the current section from the session's navigation response.
+     */
+    public void updateCurrentSectionFromSession() {
+        try {
+            // Ensure tree data is loaded first
+            refreshData();
+            
+            // Get current navigation response from session
+            com.elicitsoftware.response.NavResponse navResponse = sessionDataService.getNavResponse();
+            
+            if (navResponse != null && navResponse.getCurrentNavItem() != null) {
+                String currentPath = navResponse.getCurrentNavItem().getPath();
+                System.out.println("DEBUG: Current path from session: " + currentPath);
+                
+                // The path should contain the display key (e.g., "0001-0001-0000-0001-0000-0000-0000")
+                if (currentPath != null && !currentPath.isEmpty()) {
+                    updateCurrentSection(currentPath);
+                } else {
+                    System.out.println("DEBUG: Current path is null or empty");
+                    updateCurrentSection(null);
+                }
+            } else {
+                System.out.println("DEBUG: NavResponse or currentNavItem is null");
+                updateCurrentSection(null);
+            }
+        } catch (Exception e) {
+            System.err.println("ERROR: Failed to update current section from session: " + e.getMessage());
+            e.printStackTrace();
+            updateCurrentSection(null);
+        }
+    }
+    
+    /**
+     * Clears all current section markings.
+     */
+    private void clearCurrentSelections() {
+        treeData.getRootItems().forEach(this::clearCurrentRecursively);
+    }
+    
+    /**
+     * Recursively clears current markings from items and their children.
+     *
+     * @param item the item to clear
+     */
+    private void clearCurrentRecursively(SectionNavigationItem item) {
+        item.setCurrent(false);
+        treeData.getChildren(item).forEach(this::clearCurrentRecursively);
+    }
+    
+    /**
+     * Marks the current section and its parent as current.
+     *
+     * @param currentDisplayKey the display key to mark as current
+     */
+    private void markCurrentSection(String currentDisplayKey) {
+        System.out.println("DEBUG: markCurrentSection searching for: " + currentDisplayKey);
+        
+        if (treeData == null) {
+            System.out.println("DEBUG: treeData is null!");
+            return;
+        }
+        
+        try {
+            System.out.println("DEBUG: Tree has " + treeData.getRootItems().size() + " root items");
+        } catch (Exception e) {
+            System.out.println("DEBUG: Exception getting root items: " + e.getMessage());
+            return;
+        }
+        
+        // Search in all items (both parents and children)
+        for (SectionNavigationItem parent : treeData.getRootItems()) {
+            System.out.println("DEBUG: Checking parent: " + parent.getDisplayKey());
+            if (currentDisplayKey.equals(parent.getDisplayKey())) {
+                parent.setCurrent(true);
+                System.out.println("DEBUG: Marked parent as current: " + parent.getDisplayKey());
+                return;
+            }
+            
+            // Check children
+            for (SectionNavigationItem child : treeData.getChildren(parent)) {
+                System.out.println("DEBUG: Checking child: " + child.getDisplayKey());
+                if (currentDisplayKey.equals(child.getDisplayKey())) {
+                    child.setCurrent(true);
+                    parent.setCurrent(true); // Also mark parent as current
+                    System.out.println("DEBUG: Marked child as current: " + child.getDisplayKey());
+                    System.out.println("DEBUG: Also marked parent as current: " + parent.getDisplayKey());
+                    return;
+                }
+            }
+        }
+        System.out.println("DEBUG: No matching section found for: " + currentDisplayKey);
     }
 
     /**
@@ -120,20 +250,16 @@ public class SectionNavigationTreeGrid extends TreeGrid<SectionNavigationItem> {
             Map<SectionNavigationItem, List<SectionNavigationItem>> navigationMap = 
                 navigationService.getSectionNavigationData(respondentId);
 
-            // ...existing code...
-
             for (Map.Entry<SectionNavigationItem, List<SectionNavigationItem>> entry : navigationMap.entrySet()) {
                 SectionNavigationItem parent = entry.getKey();
                 List<SectionNavigationItem> children = entry.getValue();
 
                 // Add parent to tree data
                 treeData.addItem(null, parent);
-                // ...existing code...
 
                 // Add children to tree data
                 for (SectionNavigationItem child : children) {
                     treeData.addItem(parent, child);
-                    // ...existing code...
                 }
             }
 
@@ -143,7 +269,8 @@ public class SectionNavigationTreeGrid extends TreeGrid<SectionNavigationItem> {
             collapseAll();
             
         } catch (Exception e) {
-            // ...existing code...
+            System.err.println("Error loading navigation data: " + e.getMessage());
+            e.printStackTrace();
             clearData();
         }
     }

@@ -24,6 +24,7 @@ public class SectionNavigationItem {
     private String displayText;
     private String displayKey;
     private boolean isParent;
+    private boolean isCurrent;
     
     /**
      * Constructor for creating a section navigation item.
@@ -112,6 +113,24 @@ public class SectionNavigationItem {
         this.isParent = isParent;
     }
     
+    /**
+     * Checks if this item is the current section being viewed.
+     *
+     * @return true if this is the current section, false otherwise
+     */
+    public boolean isCurrent() {
+        return isCurrent;
+    }
+    
+    /**
+     * Sets whether this item is the current section being viewed.
+     *
+     * @param isCurrent true if this is the current section
+     */
+    public void setCurrent(boolean isCurrent) {
+        this.isCurrent = isCurrent;
+    }
+    
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
@@ -133,6 +152,7 @@ public class SectionNavigationItem {
                 ", displayText='" + displayText + '\'' +
                 ", displayKey='" + displayKey + '\'' +
                 ", isParent=" + isParent +
+                ", isCurrent=" + isCurrent +
                 '}';
     }
 }
