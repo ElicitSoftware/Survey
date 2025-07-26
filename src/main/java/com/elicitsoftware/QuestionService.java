@@ -20,6 +20,7 @@ import com.elicitsoftware.response.NavResponse;
 import com.elicitsoftware.response.ReviewItem;
 import com.elicitsoftware.response.ReviewResponse;
 import com.elicitsoftware.response.ReviewSection;
+import com.elicitsoftware.util.DatabaseRetryUtil;
 import com.vaadin.quarkus.annotation.NormalUIScoped;
 import io.quarkus.logging.Log;
 import jakarta.inject.Inject;
@@ -218,9 +219,11 @@ public class QuestionService {
      */
     @Transactional
     public void setActiveFalse(int respondentId) {
-        Query activeQuery = entityManager.createNativeQuery("UPDATE survey.respondents set active = false, finalized_dt = CURRENT_TIMESTAMP where id = :respondentId");
-        activeQuery.setParameter("respondentId", respondentId);
-        activeQuery.executeUpdate();
+        DatabaseRetryUtil.executeWithRetry(() -> {
+            Query activeQuery = entityManager.createNativeQuery("UPDATE survey.respondents set active = false, finalized_dt = CURRENT_TIMESTAMP where id = :respondentId");
+            activeQuery.setParameter("respondentId", respondentId);
+            activeQuery.executeUpdate();
+        }, "setting respondent " + respondentId + " to inactive");
     }
 
     /**
@@ -273,25 +276,33 @@ public class QuestionService {
             if (respondent.survey.postSurveyActions != null && !respondent.survey.postSurveyActions.isEmpty()) {
                 for (PostSurveyAction psa : respondent.survey.postSurveyActions) {
                     RespondentPSA respondentPSA = RespondentPSA.find("respondentId=?1 and id = ?2", respondentId, psa.id).firstResult();
+                    final RespondentPSA finalRespondentPSA;
                     if (respondentPSA == null) {
-                        respondentPSA = new RespondentPSA();
-                        respondentPSA.psaId = psa.id;
-                        respondentPSA.respondentId = respondentId;
-                        respondentPSA.status = "PENDING";
+                        finalRespondentPSA = new RespondentPSA();
+                        finalRespondentPSA.psaId = psa.id;
+                        finalRespondentPSA.respondentId = respondentId;
+                        finalRespondentPSA.status = "PENDING";
                     } else {
-                        respondentPSA.status = "RESENDING";
-                        respondentPSA.error = "";
-                        respondentPSA.finishedDt = null;
+                        finalRespondentPSA = respondentPSA;
+                        finalRespondentPSA.status = "RESENDING";
+                        finalRespondentPSA.error = "";
+                        finalRespondentPSA.finishedDt = null;
                     }
                     try {
                         CallPostSurveyAction(psa, respondentId);
-                        respondentPSA.persist();
+                        DatabaseRetryUtil.executeWithRetry(
+                            () -> finalRespondentPSA.persist(),
+                            "saving successful post-survey action for respondent " + respondentId
+                        );
                         Log.debug("Post survey action " + psa.name + " completed successfully for respondent " + respondentId);
                     }
                     catch (Exception e) {
-                        respondentPSA.status = "FAILED";
-                        respondentPSA.error = e.getMessage();
-                        respondentPSA.persist();
+                        finalRespondentPSA.status = "FAILED";
+                        finalRespondentPSA.error = e.getMessage();
+                        DatabaseRetryUtil.executeWithRetry(
+                            () -> finalRespondentPSA.persist(),
+                            "saving failed post-survey action for respondent " + respondentId
+                        );
                         Log.error("Post survey action " + psa.name + " failed for respondent " + respondentId + ": " + e.getMessage(), e);
                     }
                 }

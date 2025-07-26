@@ -14,6 +14,7 @@ package com.elicitsoftware;
 import com.elicitsoftware.model.Respondent;
 import com.elicitsoftware.model.Survey;
 import com.elicitsoftware.response.AddResponse;
+import com.elicitsoftware.util.DatabaseRetryUtil;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.QueryParam;
@@ -126,7 +127,10 @@ public class TokenService {
         Respondent respondent = new Respondent();
         respondent.token = token;
         respondent.survey = survey;
-        respondent.persist();
+        DatabaseRetryUtil.executeWithRetry(
+            () -> respondent.persist(),
+            "adding new respondent for survey " + surveyId
+        );
         ar.setToken(respondent.token);
         ar.setRespondentId(respondent.id);
         return ar;
@@ -187,11 +191,15 @@ public class TokenService {
         //Check for a valid survey id
         if (user == null) {
             if (autoRegister) {
-                user = new Respondent();
-                user.active = true;
-                user.survey = survey;
-                user.token = token;
-                user.persistAndFlush();
+                final Respondent newUser = new Respondent();
+                newUser.active = true;
+                newUser.survey = survey;
+                newUser.token = token;
+                DatabaseRetryUtil.executeWithRetry(
+                    () -> newUser.persistAndFlush(),
+                    "auto-registering new user for survey " + surveyId
+                );
+                user = newUser;
             }
         } else {
             if (user.active) {
@@ -199,7 +207,11 @@ public class TokenService {
                 if (user.firstAccessDt == null) {
                     user.firstAccessDt = OffsetDateTime.now();
                 }
-                user.persistAndFlush();
+                final Respondent finalUser = user;
+                DatabaseRetryUtil.executeWithRetry(
+                    () -> finalUser.persistAndFlush(),
+                    "updating login info for user " + finalUser.id
+                );
             }
         }
         return user;
@@ -252,7 +264,10 @@ public class TokenService {
             if (user.finalizedDt == null) {
                 user.finalizedDt = OffsetDateTime.now();
             }
-            user.persistAndFlush();
+            DatabaseRetryUtil.executeWithRetry(
+                () -> user.persistAndFlush(),
+                "deactivating user " + respondentId
+            );
         }
         return user;
     }

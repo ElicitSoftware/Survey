@@ -11,6 +11,7 @@ package com.elicitsoftware.etl;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.util.DatabaseRetryUtil;
 import io.quarkus.logging.Log;
 import io.quarkus.runtime.Startup;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -87,8 +88,10 @@ public class ETLService {
      */
     @Transactional
     public int updateStepDimensionTable() {
-        Query query = entityManager.createNativeQuery(Sql.UPDATE_STEPS_DIMENSION_TABLE_SQL);
-        return query.executeUpdate();
+        return DatabaseRetryUtil.executeWithRetry(() -> {
+            Query query = entityManager.createNativeQuery(Sql.UPDATE_STEPS_DIMENSION_TABLE_SQL);
+            return query.executeUpdate();
+        }, "updating step dimension table");
     }
 
     /**
@@ -98,8 +101,10 @@ public class ETLService {
      */
     @Transactional
     public int updateSectionDimensionTable() {
-        Query query = entityManager.createNativeQuery(Sql.UPDATE_SECTIONS_DIMENSION_TABLE_SQL);
-        return query.executeUpdate();
+        return DatabaseRetryUtil.executeWithRetry(() -> {
+            Query query = entityManager.createNativeQuery(Sql.UPDATE_SECTIONS_DIMENSION_TABLE_SQL);
+            return query.executeUpdate();
+        }, "updating section dimension table");
     }
 
     /**
@@ -132,10 +137,12 @@ public class ETLService {
      * @return the number of rows affected by the SQL execution
      */
     private int buildDimension(String dimensionName) {
-        String script = Sql.CREATE_NEW_DIMENSION_TABLE_SQL.replaceAll("<TABLE_NAME>", dimensionName);
-        script = script.replaceAll("<REPORT_USER>", REPORT_USER);
-        Query query = entityManager.createNativeQuery(script);
-        return query.executeUpdate();
+        return DatabaseRetryUtil.executeWithRetry(() -> {
+            String script = Sql.CREATE_NEW_DIMENSION_TABLE_SQL.replaceAll("<TABLE_NAME>", dimensionName);
+            script = script.replaceAll("<REPORT_USER>", REPORT_USER);
+            Query query = entityManager.createNativeQuery(script);
+            return query.executeUpdate();
+        }, "building dimension table for " + dimensionName);
     }
 
     /**
@@ -193,15 +200,17 @@ public class ETLService {
      */
     @Transactional
     public String populateDimensionTables(Integer respondentId) {
-        Query query = entityManager.createNativeQuery(Sql.FIND_DIMENSTION_VALUES_SQL);
-        query.setParameter("respondentId", respondentId);
-        List<Object[]> results = query.getResultList();
-        for (Object[] result : results) {
-            String dimension = (String) result[0];
-            String value = (String) result[1];
-            insertDimensionValue(dimension, value);
-        }
-        return "Populated Dimesions tables = " + results.size();
+        return DatabaseRetryUtil.executeWithRetry(() -> {
+            Query query = entityManager.createNativeQuery(Sql.FIND_DIMENSTION_VALUES_SQL);
+            query.setParameter("respondentId", respondentId);
+            List<Object[]> results = query.getResultList();
+            for (Object[] result : results) {
+                String dimension = (String) result[0];
+                String value = (String) result[1];
+                insertDimensionValue(dimension, value);
+            }
+            return "Populated Dimesions tables = " + results.size();
+        }, "populating dimension tables for respondent " + respondentId);
     }
 
     /**
@@ -385,11 +394,14 @@ public class ETLService {
     @Transactional
     public String buildFactRespondentsView() {
         try {
-            Query query = entityManager.createNativeQuery(Sql.CREATE_FACT_RESPONDENTS_VIEW_SQL.replace("<REPORT_USER>", REPORT_USER));
-            query.executeUpdate();
+            DatabaseRetryUtil.executeWithRetry(() -> {
+                Query query = entityManager.createNativeQuery(Sql.CREATE_FACT_RESPONDENTS_VIEW_SQL.replace("<REPORT_USER>", REPORT_USER));
+                query.executeUpdate();
+                return null;
+            }, "building fact respondents view");
             return "Created surveyreport.fact_respondents_view";
         } catch (Exception e) {
-            return e.getCause().getMessage();
+            return e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
         }
     }
 
