@@ -521,8 +521,14 @@ public class MainLayout extends VerticalLayout implements AfterNavigationListene
         if (location.startsWith("section") || location.equals("")) {
             // For section views, get current section from session data
             sectionNavigationTreeGrid.updateCurrentSectionFromSession();
+        } else if (location.equals("review")) {
+            // Highlight the Review item in the tree
+            sectionNavigationTreeGrid.updateCurrentSectionForSpecialPage("review");
+        } else if (location.equals("report")) {
+            // Highlight the Report item in the tree
+            sectionNavigationTreeGrid.updateCurrentSectionForSpecialPage("report");
         } else {
-            // Clear selection if not on a section page
+            // Clear selection if not on a section, review, or report page
             sectionNavigationTreeGrid.updateCurrentSection(null);
         }
     }

@@ -159,6 +159,24 @@ public class SectionNavigationTreeGrid extends TreeGrid<SectionNavigationItem> {
     }
     
     /**
+     * Updates the current section selection for special pages like review and report.
+     *
+     * @param pageKey the key identifying the special page ("review" or "report")
+     */
+    public void updateCurrentSectionForSpecialPage(String pageKey) {
+        try {
+            // Ensure tree data is loaded first
+            refreshData();
+            
+            // Update current section highlighting for the special page
+            updateCurrentSection(pageKey);
+        } catch (Exception e) {
+            System.err.println("ERROR: Failed to update current section for special page: " + e.getMessage());
+            updateCurrentSection(null);
+        }
+    }
+    
+    /**
      * Clears all current section markings.
      */
     private void clearCurrentSelections() {
@@ -242,6 +260,13 @@ public class SectionNavigationTreeGrid extends TreeGrid<SectionNavigationItem> {
                     treeData.addItem(parent, child);
                 }
             }
+
+            // Add Review and Report items as root items (without parents)
+            SectionNavigationItem reviewItem = new SectionNavigationItem(0, "Review", "review");
+            SectionNavigationItem reportItem = new SectionNavigationItem(0, "Report", "report");
+            
+            treeData.addItem(null, reviewItem);
+            treeData.addItem(null, reportItem);
 
             dataProvider.refreshAll();
             
