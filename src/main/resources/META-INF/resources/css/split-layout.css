@@ -1,0 +1,169 @@
+/*-
+ * ***LICENSE_START***
+ * Elicit Survey
+ * %%
+ * Copyright (C) 2025 The Regents of the University of Michigan - Rogel Cancer Center
+ * %%
+ * PolyForm Noncommercial License 1.0.0
+ * <https://polyformproject.org/licenses/noncommercial/1.0.0>
+ * ***LICENSE_END***
+ */
+
+/* Split Layout Styling for Adjustable Sidebar */
+.main-split-layout {
+    --vaadin-split-layout-splitter-background: var(--lumo-contrast-20pct);
+    --vaadin-split-layout-splitter-handle-background: var(--lumo-primary-color);
+}
+
+.main-split-layout::part(splitter) {
+    min-width: 6px;
+    background: var(--lumo-contrast-20pct);
+    cursor: col-resize;
+    transition: background-color 0.2s ease;
+}
+
+.main-split-layout::part(splitter):hover {
+    background: var(--lumo-contrast-30pct);
+}
+
+.main-split-layout::part(splitter):active {
+    background: var(--lumo-primary-color-50pct);
+}
+
+/* Sidebar styling */
+.sidebar-layout {
+    background: var(--lumo-base-color);
+    border-right: 1px solid var(--lumo-contrast-20pct);
+    min-width: 10%;
+    max-width: 50%;
+}
+
+/* Global background override - force everything to be white except header */
+* {
+    --lumo-base-color: white !important;
+    --lumo-contrast-5pct: white !important;
+}
+
+/* Content area styling */
+.content-area {
+    background: white !important;
+    background-color: white !important;
+    overflow: auto;
+}
+
+/* Main container styling */
+.v-vertical-layout {
+    background: white !important;
+}
+
+/* Horizontal container styling */
+.horizontal-container {
+    background: white !important;
+}
+
+/* Override any default Vaadin gray backgrounds */
+vaadin-app-layout,
+vaadin-app-layout main,
+vaadin-vertical-layout,
+vaadin-horizontal-layout,
+.v-layout,
+.v-component,
+vaadin-form-layout,
+vaadin-form-item,
+vaadin-text-field,
+vaadin-checkbox,
+vaadin-button,
+.lumo-contrast-5pct,
+body,
+html {
+    background: white !important;
+    background-color: white !important;
+}
+
+/* Ensure all page content has white background */
+[slot="content"],
+.content,
+.page-content,
+.survey-content,
+.form-content {
+    background: white !important;
+    background-color: white !important;
+}
+
+/* Force white background on all layout components */
+div,
+section,
+main,
+article {
+    background: white !important;
+    background-color: white !important;
+}
+
+/* Header styling - only for the top header area - MUST COME AFTER GLOBAL OVERRIDES */
+.header-layout,
+.header-layout *,
+.header-layout .v-horizontal-layout,
+.header-layout .v-horizontal-layout * {
+    background: var(--lumo-contrast-5pct) !important;
+    background-color: #f5f5f5 !important;
+    z-index: 100;
+}
+
+/* Ensure sidebar content has white background */
+.sidebar-layout,
+.sidebar-layout .v-vertical-layout,
+.sidebar-layout .drawer-content {
+    background: var(--lumo-base-color) !important;
+}
+
+/* Section Navigation Tree Styling */
+.section-navigation-tree {
+    margin-top: var(--lumo-space-m);
+    border-top: 1px solid var(--lumo-contrast-10pct);
+    padding-top: var(--lumo-space-s);
+}
+
+.section-navigation-tree vaadin-grid-cell-content {
+    padding: var(--lumo-space-xs) var(--lumo-space-s);
+    line-height: 1.4;
+}
+
+.section-navigation-tree vaadin-grid-tree-toggle {
+    margin-right: var(--lumo-space-xs);
+}
+
+/* Sidebar content spacing */
+.sidebar-layout .v-vertical-layout {
+    gap: var(--lumo-space-s);
+    padding: var(--lumo-space-s);
+}
+
+/* Navigation list item spacing */
+.sidebar-layout vaadin-list-box vaadin-item {
+    padding: var(--lumo-space-xs) var(--lumo-space-s);
+    margin-bottom: var(--lumo-space-xs);
+    border-radius: var(--lumo-border-radius-m);
+}
+
+.sidebar-layout vaadin-list-box vaadin-item:hover {
+    background-color: var(--lumo-contrast-5pct);
+}
+
+/* Drawer content spacing improvements */
+.sidebar-layout .drawer-content {
+    padding: var(--lumo-space-s);
+    gap: var(--lumo-space-m);
+}
+
+/* Responsive behavior */
+@media (max-width: 768px) {
+    .sidebar-layout {
+        min-width: 250px;
+        max-width: 80%;
+    }
+    
+    .sidebar-layout .v-vertical-layout {
+        padding: var(--lumo-space-xs);
+        gap: var(--lumo-space-xs);
+    }
+}
