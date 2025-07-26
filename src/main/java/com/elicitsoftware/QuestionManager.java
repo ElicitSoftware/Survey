@@ -14,6 +14,7 @@ package com.elicitsoftware;
 import com.elicitsoftware.model.*;
 import com.elicitsoftware.response.NavResponse;
 import com.elicitsoftware.response.NavigationItem;
+import com.elicitsoftware.util.DatabaseRetryUtil;
 import com.vaadin.quarkus.annotation.NormalUIScoped;
 import io.quarkus.logging.Log;
 import jakarta.inject.Inject;
@@ -1072,22 +1073,30 @@ public class QuestionManager {
     private Answer saveAnswer(Answer answer, HashMap<Integer, Dependent> dependents) {
 
         Answer existing = getAnswerByDisplayKey(answer.respondentId, answer.getDisplayKey(), true);
+        final Answer finalAnswer;
         if (existing == null) {
             // Save the answer so we have an id
-            answer.persistAndFlush();
+            DatabaseRetryUtil.executeWithRetry(
+                () -> answer.persistAndFlush(),
+                "saving new answer for respondent " + answer.respondentId
+            );
+            finalAnswer = answer;
         } else {
             // They already have an ID so it must be an undelete
-            answer = existing;
-            answer.deleted = false;
-            answer.persistAndFlush();
+            finalAnswer = existing;
+            finalAnswer.deleted = false;
+            DatabaseRetryUtil.executeWithRetry(
+                () -> finalAnswer.persistAndFlush(),
+                "updating existing answer for respondent " + finalAnswer.respondentId
+            );
 
-            List<Dependent> deps = Dependent.findByDownstream(answer.id, answer.respondentId);
+            List<Dependent> deps = Dependent.findByDownstream(finalAnswer.id, finalAnswer.respondentId);
             for (Dependent dependent : deps) {
                 dependent.deleted = false;
                 saveDependent(dependent);
             }
-            if (answer.getTextValue() != null) {
-                buildDownstreamQuestions(answer);
+            if (finalAnswer.getTextValue() != null) {
+                buildDownstreamQuestions(finalAnswer);
             }
         }
 
@@ -1095,7 +1104,7 @@ public class QuestionManager {
             Dependent newDependent;
             for (Entry<Integer, Dependent> entry : dependents.entrySet()) {
                 newDependent = entry.getValue().shallowCopy();
-                newDependent.downstream = answer;
+                newDependent.downstream = finalAnswer;
                 if (newDependent.isComplete()
                         && newDependent.relationship.evaluateOperator(newDependent.upstream)) {
                     saveDependent(newDependent);
@@ -1105,15 +1114,21 @@ public class QuestionManager {
 
         // make sure the dependents are in the database.
         if (entityManager.isJoinedToTransaction()) {
-            entityManager.flush();
+            DatabaseRetryUtil.executeWithRetry(
+                () -> entityManager.flush(),
+                "flushing dependents for respondent " + finalAnswer.respondentId
+            );
         }
         // The dependents need to be saved before we build the display text
 
-        buildDipslayText(answer);
+        buildDipslayText(finalAnswer);
 
         // Save the answer again so we have the correct display text
-        answer.persistAndFlush();
-        return answer;
+        DatabaseRetryUtil.executeWithRetry(
+            () -> finalAnswer.persistAndFlush(),
+            "saving answer with display text for respondent " + finalAnswer.respondentId
+        );
+        return finalAnswer;
     }
 
     /**
@@ -1185,7 +1200,10 @@ public class QuestionManager {
 
         // if this has an ID it came from the database.
         if (dependent.id != null) {
-            dependent.persistAndFlush();
+            DatabaseRetryUtil.executeWithRetry(
+                () -> dependent.persistAndFlush(),
+                "updating existing dependent with ID " + dependent.id
+            );
             return;
         }
 
@@ -1200,7 +1218,10 @@ public class QuestionManager {
         if (existing == null) {
             // Dependent passed in is not in the database and we didn't find an existing one.
             // Save the entity passed in.
-            dependent.persistAndFlush();
+            DatabaseRetryUtil.executeWithRetry(
+                () -> dependent.persistAndFlush(),
+                "saving new dependent for respondent " + dependent.respondentId
+            );
         }
     }
 
