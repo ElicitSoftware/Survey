@@ -78,7 +78,8 @@ public class SectionNavigationTreeGrid extends TreeGrid<SectionNavigationItem> {
             return item.getDisplayText();
         })
                 .setHeader("Survey Sections")
-                .setFlexGrow(1);
+                .setFlexGrow(1)
+                .setSortable(false); // Disable sorting to maintain correct order
                 
         // Add a part name generator to apply CSS classes to current section rows
         setPartNameGenerator(item -> {
@@ -115,8 +116,6 @@ public class SectionNavigationTreeGrid extends TreeGrid<SectionNavigationItem> {
      * @param currentDisplayKey the display key of the current section
      */
     public void updateCurrentSection(String currentDisplayKey) {
-        System.out.println("DEBUG: updateCurrentSection called with: " + currentDisplayKey);
-        
         // Clear all current selections
         clearCurrentSelections();
         
@@ -127,7 +126,6 @@ public class SectionNavigationTreeGrid extends TreeGrid<SectionNavigationItem> {
         
         // Refresh the grid to apply styling changes
         dataProvider.refreshAll();
-        System.out.println("DEBUG: Grid refreshed after current section update");
     }
     
     /**
@@ -144,31 +142,18 @@ public class SectionNavigationTreeGrid extends TreeGrid<SectionNavigationItem> {
             
             if (navResponse != null && navResponse.getCurrentNavItem() != null) {
                 String currentPath = navResponse.getCurrentNavItem().getPath();
-                System.out.println("DEBUG: Current path from session: " + currentPath);
-                
-                // Write debug info to file as well
-                try {
-                    java.nio.file.Files.write(
-                        java.nio.file.Paths.get("/tmp/sectionview_debug.log"), 
-                        ("TreeGrid: Current path from session: " + currentPath + " at " + java.time.Instant.now() + "\n").getBytes(),
-                        java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND
-                    );
-                } catch (Exception e) { /* ignore */ }
                 
                 // The path should contain the display key (e.g., "0001-0001-0000-0001-0000-0000-0000")
                 if (currentPath != null && !currentPath.isEmpty()) {
                     updateCurrentSection(currentPath);
                 } else {
-                    System.out.println("DEBUG: Current path is null or empty");
                     updateCurrentSection(null);
                 }
             } else {
-                System.out.println("DEBUG: NavResponse or currentNavItem is null");
                 updateCurrentSection(null);
             }
         } catch (Exception e) {
             System.err.println("ERROR: Failed to update current section from session: " + e.getMessage());
-            e.printStackTrace();
             updateCurrentSection(null);
         }
     }
@@ -196,42 +181,28 @@ public class SectionNavigationTreeGrid extends TreeGrid<SectionNavigationItem> {
      * @param currentDisplayKey the display key to mark as current
      */
     private void markCurrentSection(String currentDisplayKey) {
-        System.out.println("DEBUG: markCurrentSection searching for: " + currentDisplayKey);
-        
         if (treeData == null) {
-            System.out.println("DEBUG: treeData is null!");
-            return;
-        }
-        
-        try {
-            System.out.println("DEBUG: Tree has " + treeData.getRootItems().size() + " root items");
-        } catch (Exception e) {
-            System.out.println("DEBUG: Exception getting root items: " + e.getMessage());
             return;
         }
         
         // Search in all items (both parents and children)
         for (SectionNavigationItem parent : treeData.getRootItems()) {
-            System.out.println("DEBUG: Checking parent: " + parent.getDisplayKey());
             if (currentDisplayKey.equals(parent.getDisplayKey())) {
                 parent.setCurrent(true);
-                System.out.println("DEBUG: Marked parent as current: " + parent.getDisplayKey());
                 return;
             }
             
             // Check children
             for (SectionNavigationItem child : treeData.getChildren(parent)) {
-                System.out.println("DEBUG: Checking child: " + child.getDisplayKey());
                 if (currentDisplayKey.equals(child.getDisplayKey())) {
                     child.setCurrent(true);
                     parent.setCurrent(true); // Also mark parent as current
-                    System.out.println("DEBUG: Marked child as current: " + child.getDisplayKey());
-                    System.out.println("DEBUG: Also marked parent as current: " + parent.getDisplayKey());
+                    // Expand all parent nodes to make the highlighted child visible
+                    expandParentsOf(child);
                     return;
                 }
             }
         }
-        System.out.println("DEBUG: No matching section found for: " + currentDisplayKey);
     }
 
     /**
@@ -279,7 +250,6 @@ public class SectionNavigationTreeGrid extends TreeGrid<SectionNavigationItem> {
             
         } catch (Exception e) {
             System.err.println("Error loading navigation data: " + e.getMessage());
-            e.printStackTrace();
             clearData();
         }
     }
@@ -324,6 +294,24 @@ public class SectionNavigationTreeGrid extends TreeGrid<SectionNavigationItem> {
     private void collapseRecursively(SectionNavigationItem item) {
         collapse(item);
         treeData.getChildren(item).forEach(child -> collapseRecursively(child));
+    }
+
+    /**
+     * Expands all parent nodes of a given item to ensure it's visible in the tree.
+     * This is useful when highlighting a specific item that might be nested.
+     *
+     * @param targetItem the item whose parents should be expanded
+     */
+    private void expandParentsOf(SectionNavigationItem targetItem) {
+        // Find the parent of the target item
+        for (SectionNavigationItem parent : treeData.getRootItems()) {
+            if (treeData.getChildren(parent).contains(targetItem)) {
+                expand(parent);
+                // If there are deeper levels, recursively expand parents
+                expandParentsOf(parent);
+                break;
+            }
+        }
     }
 
     /**

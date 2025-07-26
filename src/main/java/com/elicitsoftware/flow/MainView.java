@@ -93,14 +93,6 @@ public class MainView extends VerticalLayout implements HasDynamicTitle, BeforeE
      */
     @Override
     public void beforeEnter(BeforeEnterEvent event) {
-        System.out.println("DEBUG: MainView beforeEnter called with location: " + event.getLocation().getPath());
-        try {
-            java.nio.file.Files.write(
-                java.nio.file.Paths.get("/tmp/sectionview_debug.log"), 
-                ("MainView beforeEnter called at " + java.time.Instant.now() + " with path: " + event.getLocation().getPath() + "\n").getBytes(),
-                java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND
-            );
-        } catch (Exception e) { /* ignore */ }
         // Check for token query parameter
         List<String> tokenParams = event.getLocation().getQueryParameters().getParameters().get("token");
         if (tokenParams != null && !tokenParams.isEmpty()) {

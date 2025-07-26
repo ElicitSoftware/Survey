@@ -87,17 +87,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
     private boolean flash;
 
     public SectionView() {
-        System.out.println("DEBUG: SectionView constructor called");
-        try {
-            java.nio.file.Files.write(
-                java.nio.file.Paths.get("/tmp/sectionview_debug.log"), 
-                ("SectionView constructor called at " + java.time.Instant.now() + "\n").getBytes(),
-                java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND
-            );
-        } catch (Exception e) { /* ignore */ }
-        
-        // Add a visible indicator that the constructor was called
-        add(new com.vaadin.flow.component.html.Div("SectionView constructor called at " + java.time.Instant.now()));
+        // Constructor - initialization happens in init() method
     }
 
     @Override
@@ -114,40 +104,20 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
      */
     @PostConstruct
     public void init() {
-        System.out.println("DEBUG: SectionView init() called");
-        try {
-            java.nio.file.Files.write(
-                java.nio.file.Paths.get("/tmp/sectionview_debug.log"), 
-                ("SectionView init() called at " + java.time.Instant.now() + "\n").getBytes(),
-                java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND
-            );
-        } catch (Exception e) { /* ignore */ }
         navResponse = sessionDataService.getNavResponse();
         respondent = sessionDataService.getRespondent();
-        
-        System.out.println("DEBUG: Initial session data - Respondent: " + (respondent != null ? respondent.id : "null") + 
-                          ", NavResponse: " + (navResponse != null ? "present" : "null"));
 
         // If session data is missing, try to restore from HTTP session (browser refresh scenario)
         if (respondent == null || navResponse == null) {
-            System.out.println("DEBUG: Session data missing, attempting to restore from HTTP session");
             boolean restored = sessionDataService.restoreFromSession();
-            System.out.println("DEBUG: Session restoration result: " + restored);
             if (restored) {
                 navResponse = sessionDataService.getNavResponse();
                 respondent = sessionDataService.getRespondent();
-                System.out.println("DEBUG: After restoration - Respondent: " + (respondent != null ? respondent.id : "null") + 
-                                  ", NavResponse: " + (navResponse != null ? "present" : "null"));
-                // Log successful restoration
-                if (navResponse != null && navResponse.getCurrentNavItem() != null) {
-                    System.out.println("DEBUG: Session restored with current path: " + navResponse.getCurrentNavItem().getPath());
-                }
             }
         }
 
         // Add null checks and handle missing data gracefully
         if (respondent == null) {
-            System.out.println("DEBUG: Respondent is null, attempting delayed check");
             // Capture UI reference for background thread
             final UI currentUI = UI.getCurrent();
             if (currentUI != null) {
@@ -158,12 +128,10 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                         currentUI.access(() -> {
                             Respondent delayedRespondent = sessionDataService.getRespondent();
                             if (delayedRespondent != null) {
-                                System.out.println("DEBUG: Found respondent after delay: " + delayedRespondent.id);
                                 this.respondent = delayedRespondent;
                                 this.navResponse = sessionDataService.getNavResponse();
                                 buildQuestions();
                             } else {
-                                System.out.println("DEBUG: Still no respondent after delay, redirecting to login");
                                 Notification.show("Session expired. Please login again.", 3000, Notification.Position.MIDDLE);
                                 currentUI.navigate("");
                             }
@@ -173,7 +141,6 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                     }
                 }).start();
             } else {
-                System.out.println("DEBUG: UI.getCurrent() is null, redirecting immediately");
                 Notification.show("Session expired. Please login again.", 3000, Notification.Position.MIDDLE);
                 UI.getCurrent().navigate("");
             }
@@ -181,37 +148,21 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         }
 
         if (navResponse == null) {
-            System.out.println("DEBUG: NavResponse is null, trying to reinitialize");
             // Try to reinitialize if we have a respondent
             try {
                 navResponse = service.init(respondent.id, respondent.survey.initialDisplayKey);
                 sessionDataService.setNavResponse(navResponse);
-                System.out.println("DEBUG: Successfully reinitialized NavResponse");
             } catch (Exception e) {
-                System.out.println("DEBUG: Failed to reinitialize NavResponse: " + e.getMessage());
                 Notification.show("Error loading survey. Please try again.", 3000, Notification.Position.MIDDLE);
                 UI.getCurrent().navigate("");
                 return;
             }
         }
 
-        System.out.println("DEBUG: About to build questions with NavResponse: " + (navResponse != null ? "present" : "null"));
-        if (navResponse != null && navResponse.getCurrentNavItem() != null) {
-            System.out.println("DEBUG: Current NavItem path: " + navResponse.getCurrentNavItem().getPath());
-            System.out.println("DEBUG: Current NavItem: " + navResponse.getCurrentNavItem().toString());
-        }
         buildQuestions();
         
-        // Also trigger navigation update here to ensure tree sync, even if buildQuestions has issues
+        // Also trigger navigation update here to ensure tree sync
         if (respondent != null) {
-            System.out.println("DEBUG: Triggering navigation update from init() for respondent: " + respondent.id);
-            try {
-                java.nio.file.Files.write(
-                    java.nio.file.Paths.get("/tmp/sectionview_debug.log"), 
-                    ("Triggering navigation update from init() at " + java.time.Instant.now() + "\n").getBytes(),
-                    java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND
-                );
-            } catch (Exception e) { /* ignore */ }
             navigationEventService.fireNavigationUpdateEvent(respondent.id);
         }
     }
@@ -232,27 +183,13 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
      * </ul>
      */
     private void buildQuestions() {
-        System.out.println("DEBUG: buildQuestions() started");
-        try {
-            java.nio.file.Files.write(
-                java.nio.file.Paths.get("/tmp/sectionview_debug.log"), 
-                ("buildQuestions() started at " + java.time.Instant.now() + "\n").getBytes(),
-                java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND
-            );
-        } catch (Exception e) { /* ignore */ }
-        
         if (navResponse == null) {
-            System.out.println("DEBUG: buildQuestions() - navResponse is null, cannot build questions");
             return;
         }
         
         if (navResponse.getAnswers() == null) {
-            System.out.println("DEBUG: buildQuestions() - navResponse.getAnswers() is null");
             return;
         }
-        
-        System.out.println("DEBUG: buildQuestions() - Processing " + navResponse.getAnswers().size() + " answers");
-        // ...existing code...
         
         //Save a copy of the display map
         oldDisplayMap = getDisplayComponents();
@@ -488,14 +425,6 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         
         // Trigger navigation update event to sync the tree grid
         if (respondent != null) {
-            System.out.println("DEBUG: Triggering navigation update event for respondent: " + respondent.id);
-            try {
-                java.nio.file.Files.write(
-                    java.nio.file.Paths.get("/tmp/sectionview_debug.log"), 
-                    ("Triggering navigation update event at " + java.time.Instant.now() + "\n").getBytes(),
-                    java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND
-                );
-            } catch (Exception e) { /* ignore */ }
             navigationEventService.fireNavigationUpdateEvent(respondent.id);
         }
         // ...existing code...
@@ -724,8 +653,6 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                 }
             }
         } catch (Exception e) {
-            // ...existing code...
-            e.printStackTrace();
             Notification.show("Error navigating to next section. Please try again.", 3000, Notification.Position.MIDDLE);
             // Re-enable the button if navigation fails
             if (btnNext != null) {
@@ -777,8 +704,6 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                 }
             }
         } catch (Exception e) {
-            // ...existing code...
-            e.printStackTrace();
             Notification.show("Error navigating to previous section. Please try again.", 3000, Notification.Position.MIDDLE);
             // Re-enable the button if navigation fails
             if (btnPrevious != null) {
