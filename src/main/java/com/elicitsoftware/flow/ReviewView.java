@@ -89,7 +89,6 @@ public class ReviewView extends VerticalLayout {
 
         Paragraph paragraph = new Paragraph();
         paragraph.add(new H5("Survey: " + survey.name));
-        paragraph.add("Token: " + respondent.token);
         add(paragraph);
         Div thankYouDiv = getThankYouDiv();
         add(thankYouDiv);

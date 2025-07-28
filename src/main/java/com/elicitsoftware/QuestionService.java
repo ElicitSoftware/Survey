@@ -73,23 +73,39 @@ public class QuestionService {
      * <p>
      * The query uses the parameter `:respondentId` to filter answers specific to a given respondent.
      */
-    private static final String reviewSQL = """
-            SELECT a.id,
-                a.respondent_id,
+    private static final String reviewSQL = """ 
+            select c.*
+             from (SELECT a.id,
+             a.respondent_id,
                 a.display_key,
                 a.display_text,
                 q.short_text,
                 COALESCE(NULLIF(q.short_text::text, ''::text), a.display_text::text) AS short_display_text,
                 COALESCE(i.display_text, a.text_value) AS display_value,
                 t.name AS question_type
-               FROM survey.answers a
-                 JOIN survey.questions q ON a.question_id = q.id
-                 LEFT JOIN survey.question_types t ON q.type_id = t.id
-                 LEFT JOIN survey.select_groups g ON q.select_group_id = g.id
-                 LEFT JOIN survey.select_items i ON g.id = i.group_id AND a.text_value::text = i.coded_value::text
-              WHERE a.deleted = false AND a.section_question_id IS NULL AND a.question_id IS NULL OR a.text_value IS NOT NULL
-              AND a.respondent_id = :respondentId
-              order by a.display_key;
+             FROM survey.answers a
+             JOIN survey.questions q ON a.question_id = q.id
+             LEFT JOIN survey.question_types t ON q.type_id = t.id
+             LEFT JOIN survey.select_groups g ON q.select_group_id = g.id
+             LEFT JOIN survey.select_items i ON g.id = i.group_id AND a.text_value::text = i.coded_value::text
+             WHERE a.respondent_id = :respondentId
+                AND a.deleted = false
+                AND a.text_value IS NOT NULL
+             UNION\s
+             SELECT a1.id,
+                a1.respondent_id,
+                a1.display_key,
+                a1.display_text,
+                q1.short_text,
+                COALESCE(NULLIF(q1.short_text::text, ''::text), a1.display_text::text) AS short_display_text,
+                null AS display_value,
+                null AS question_type
+             FROM survey.answers a1
+             LEFT JOIN survey.questions q1 ON a1.question_id = q1.id
+             WHERE a1.respondent_id = :respondentId
+                AND a1.deleted = false
+                AND a1.section_question_id IS NULL) c
+             order by c.display_key;
             """;
 
     @Inject
