@@ -83,7 +83,7 @@ public class QuestionService {
                 COALESCE(i.display_text, a.text_value) AS display_value,
                 t.name AS question_type
                FROM survey.answers a
-                 LEFT JOIN survey.questions q ON a.question_id = q.id
+                 JOIN survey.questions q ON a.question_id = q.id
                  LEFT JOIN survey.question_types t ON q.type_id = t.id
                  LEFT JOIN survey.select_groups g ON q.select_group_id = g.id
                  LEFT JOIN survey.select_items i ON g.id = i.group_id AND a.text_value::text = i.coded_value::text
