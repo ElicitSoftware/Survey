@@ -498,8 +498,8 @@ CREATE TABLE survey.post_survey_actions
 );
 GRANT DELETE, INSERT, SELECT, UPDATE ON survey.post_survey_actions TO ${survey_user};
 --------------------------------
-CREATE SEQUENCE survey.post_survey_actions_seq INCREMENT 1 START 1;
-GRANT USAGE ON SEQUENCE survey.post_survey_actions_seq TO ${survey_user};
+CREATE SEQUENCE survey.respondent_psa_seq INCREMENT 1 START 1;
+GRANT USAGE ON SEQUENCE survey.respondent_psa_seq TO ${survey_user};
 CREATE TABLE survey.respondent_psa
 (
     id                      integer       NOT NULL,
