@@ -291,7 +291,7 @@ public class QuestionService {
         if (respondent != null) {
             if (respondent.survey.postSurveyActions != null && !respondent.survey.postSurveyActions.isEmpty()) {
                 for (PostSurveyAction psa : respondent.survey.postSurveyActions) {
-                    RespondentPSA respondentPSA = RespondentPSA.find("respondentId=?1 and id = ?2", respondentId, psa.id).firstResult();
+                    RespondentPSA respondentPSA = RespondentPSA.find("respondentId=?1 and psaId = ?2", respondentId, psa.id).firstResult();
                     final RespondentPSA finalRespondentPSA;
                     if (respondentPSA == null) {
                         finalRespondentPSA = new RespondentPSA();
