@@ -12,8 +12,6 @@ package com.elicitsoftware.etl;
  */
 
 import com.vaadin.quarkus.annotation.NormalUIScoped;
-import io.quarkus.logging.Log;
-import io.quarkus.runtime.Startup;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Query;
@@ -98,7 +96,7 @@ public class ETLRespondentService {
      */
     private String saveSectionFacts(Integer respondentId) {
         return "Addeded respondent " + respondentId + " to fact_sections:" + System.lineSeparator() +
-                respondentId + ": " + addRespondentFactSections(respondentId) + " keys";
+                respondentId + ": " + addOrUpdateRespondentFactSections(respondentId) + " keys";
     }
 
     /**
@@ -125,7 +123,7 @@ public class ETLRespondentService {
      * @return the total count of fact section updates made as a String
      */
     @Transactional
-    public String addRespondentFactSections(Integer respondent_id) {
+    public String addOrUpdateRespondentFactSections(Integer respondent_id) {
 
         //Add the base fact rows without the dimensional data
         Query factSectionQuery = entityManager.createNativeQuery(Sql.INSERT_MISSING_FACT_SECTION_SQL);
@@ -153,6 +151,7 @@ public class ETLRespondentService {
             sql = sql.replaceAll("<DIM>", dim);
             sql = sql.replaceAll("<VAL>", val);
             sql = sql.replaceAll("<FACT_ID>", String.valueOf(fact_id));
+            sql = sql.replaceAll("<RESPONDENT_ID>", String.valueOf(respondent_id));
             updateFactQuery = entityManager.createNativeQuery(sql);
             updateFactQuery.executeUpdate();
             item++;

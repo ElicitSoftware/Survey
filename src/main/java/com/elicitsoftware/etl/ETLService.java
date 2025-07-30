@@ -279,6 +279,7 @@ public class ETLService {
             sql = sql.replaceAll("<DIM>", dim);
             sql = sql.replaceAll("<VAL>", val);
             sql = sql.replaceAll("<FACT_ID>", String.valueOf(fact_id));
+            sql = sql.replaceAll("<RESPONDENT_ID>", String.valueOf(respondent_id));
             updateFactQuery = entityManager.createNativeQuery(sql);
             updateFactQuery.executeUpdate();
             item++;
