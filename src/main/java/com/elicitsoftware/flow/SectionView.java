@@ -81,6 +81,9 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
     private String pageTitle = "";
 
     private boolean flash;
+    
+    // Track pending save operations
+    private int pendingSaveOperations = 0;
 
     public SectionView() {
     }
@@ -419,7 +422,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
             return;
         }
 
-        Button btnNewPrevious = new Button(getTranslation("sectionView.btnPrevious"));
+        Button btnNewPrevious = new Button("Previous");
         btnNewPrevious.setDisableOnClick(true);
         btnNewPrevious.setEnabled(navResponse.getCurrentNavItem() != null && navResponse.getCurrentNavItem().getPrevious() != null);
         btnNewPrevious.addClickListener(e -> {
@@ -436,7 +439,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
 
         Button btnNewNext = new Button();
         if (navResponse.getCurrentNavItem() != null && navResponse.getCurrentNavItem().getNext() != null) {
-            btnNewNext.setText(getTranslation("sectionView.btnNext"));
+            btnNewNext.setText("Next");
             btnNewNext.setDisableOnClick(true);
             btnNewNext.setEnabled(navResponse.getCurrentNavItem().getNext() != null);
             btnNewNext.getElement().addEventListener("mouseover", event -> {
@@ -452,7 +455,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                     }
             );
         } else if (navResponse.getCurrentNavItem() != null && navResponse.getCurrentNavItem().getNext() == null) {
-            btnNewNext.setText(getTranslation("sectionView.btnReview"));
+            btnNewNext.setText("Review");
             btnNewNext.setDisableOnClick(true);
             btnNewNext.addClickListener(e -> {
                 flash = false;
@@ -545,6 +548,10 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         if ((value != null && answer.getTextValue() == null) ||
                 (value != null && !answer.getTextValue().equals(value))) {
             answer.setTextValue(value);
+            
+            // Increment pending operations counter
+            pendingSaveOperations++;
+            
             try {
                 NavResponse newNavResponse = service.saveAnswer(answer);
                 if (newNavResponse != null) {
@@ -554,6 +561,38 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                 }
             } catch (Exception e) {
                 Notification.show("Error saving answer. Please try again.", 3000, Notification.Position.MIDDLE);
+            } finally {
+                // Decrement pending operations counter
+                pendingSaveOperations--;
+            }
+        }
+    }
+
+    /**
+     * Waits for all pending save operations to complete before proceeding.
+     * This method blocks until all save operations are finished.
+     */
+    private void waitForPendingSaveOperations() {
+        if (pendingSaveOperations > 0) {
+            Notification.show("Saving changes...", 1000, Notification.Position.MIDDLE);
+            
+            // Simple polling approach - wait for saves to complete
+            int maxWaitTime = 5000; // Maximum 5 seconds wait
+            int waitInterval = 100; // Check every 100ms
+            int totalWaited = 0;
+            
+            while (pendingSaveOperations > 0 && totalWaited < maxWaitTime) {
+                try {
+                    Thread.sleep(waitInterval);
+                    totalWaited += waitInterval;
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+            
+            if (pendingSaveOperations > 0) {
+                System.out.println("Warning: Navigation proceeded with " + pendingSaveOperations + " pending save operations");
             }
         }
     }
@@ -566,6 +605,9 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
      * navigation response and navigates directly to the section view.
      */
     private void nextSection() {
+        // Wait for any pending save operations to complete first
+        waitForPendingSaveOperations();
+        
         // Add null checks before accessing navigation data
         if (navResponse == null || navResponse.getCurrentNavItem() == null) {
             Notification.show("Navigation data not available. Please refresh the page.", 3000, Notification.Position.MIDDLE);
@@ -619,6 +661,9 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
      * navigation response and navigates directly to the section view.
      */
     private void previousSection() {
+        // Wait for any pending save operations to complete first
+        waitForPendingSaveOperations();
+        
         // Add null checks before accessing navigation data
         if (navResponse == null || navResponse.getCurrentNavItem() == null) {
             Notification.show("Navigation data not available. Please refresh the page.", 3000, Notification.Position.MIDDLE);
@@ -670,6 +715,8 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
      * This method directs the user to the review section by updating the UI navigation state.
      */
     private void review() {
+        // Wait for any pending save operations to complete first
+        waitForPendingSaveOperations();
         ui.navigate("review");
     }
 

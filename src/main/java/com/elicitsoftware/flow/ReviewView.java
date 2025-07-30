@@ -99,13 +99,13 @@ public class ReviewView extends VerticalLayout {
             for (ReviewSection section : response.getSections()) {
                 add(new ReviewCard(section, service, sessionDataService));
             }
-            Button btnPrevious = new Button(getTranslation("reviewView.btnPrevious"));
+            Button btnPrevious = new Button("Previous");
             btnPrevious.setDisableOnClick(true);
             btnPrevious.setEnabled(navResponse.getCurrentNavItem().getPrevious() != null);
             btnPrevious.addClickListener(e -> previousSection());
             add(btnPrevious);
 
-            Button btnFinish = new Button(getTranslation("reviewView.btnFinish"));
+            Button btnFinish = new Button("Finish");
             btnFinish.setDisableOnClick(true);
             btnFinish.setEnabled(navResponse.getCurrentNavItem().getPrevious() != null);
             btnFinish.addClickListener(e -> deactivate());

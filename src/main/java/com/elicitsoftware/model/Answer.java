@@ -275,7 +275,7 @@ public class Answer extends PanacheEntityBase {
      */
     @Temporal(TemporalType.TIMESTAMP)
     @Column(name = "created_dt")
-    public Date createdDt;
+    public Date createdDt = new Date();
 
     /**
      * Represents the timestamp when the associated entity was last saved or updated.

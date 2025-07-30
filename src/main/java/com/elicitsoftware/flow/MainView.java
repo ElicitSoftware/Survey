@@ -177,8 +177,8 @@ public class MainView extends VerticalLayout implements HasDynamicTitle {
         loginLayout.setAlignItems(Alignment.CENTER);
 
         // Use TextField for standard text input with validation
-        TextField txtToken = new TextField(getTranslation("mainView.txtToken"));
-        txtToken.setTooltipText(getTranslation("mainView.txtToken.tooltip"));
+        TextField txtToken = new TextField("Entery your login token");
+        txtToken.setTooltipText("Token is case-sensitive");
         txtToken.addThemeName("bordered");
         txtToken.setAutofocus(true);
 
@@ -206,7 +206,7 @@ public class MainView extends VerticalLayout implements HasDynamicTitle {
 
 
         // Button click listeners can be defined as lambda expressions
-        Button btnLogin = new Button(getTranslation("mainView.btnLogin"), e -> {
+        Button btnLogin = new Button("Login", e -> {
             // Trigger validation by setting the value to itself
             txtToken.setValue(txtToken.getValue());
             
@@ -253,11 +253,11 @@ public class MainView extends VerticalLayout implements HasDynamicTitle {
 
         List<Survey> surveys = tokenService.getSurveys().get("Surveys");
         if (surveys.isEmpty()) {
-            loginLayout.add(new Paragraph(getTranslation("mainView.surveys.isEmpty")));
+            loginLayout.add(new Paragraph("There are no surveys to login"));
         } else if (surveys.size() == 1) {
             sessionDataService.setSurveyId(surveys.get(0).id.intValue());
         } else {
-            ComboBox<Survey> comboBox = new ComboBox<>(getTranslation("mainView.comboBox"));
+            ComboBox<Survey> comboBox = new ComboBox<>("Surveys");
             comboBox.setItems(tokenService.getSurveys().get("Surveys"));
             comboBox.setItemLabelGenerator(survey -> survey.name);
             comboBox.onEnabledStateChanged(true);
@@ -297,6 +297,6 @@ public class MainView extends VerticalLayout implements HasDynamicTitle {
      */
     @Override
     public String getPageTitle() {
-        return getTranslation("mainView.pageTitle");
+        return "Login";
     }
 }
