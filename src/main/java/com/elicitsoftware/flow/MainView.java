@@ -79,7 +79,7 @@ public class MainView extends VerticalLayout implements HasDynamicTitle {
      * which is called after dependency injection is complete.
      */
     public MainView() {
-
+        UI.getCurrent().setLocale(java.util.Locale.US);
     }
 
     /**
