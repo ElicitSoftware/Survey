@@ -276,7 +276,16 @@ public final class Sql {
             and a.saved_dt is not null
             and r.finalized_dt is not null
             and a.survey_id = 1
-            and a.respondent_id = :respondent_id;
+            and a.respondent_id = :respondent_id
+            AND NOT EXISTS (
+                SELECT 1 FROM surveyreport.fact_sections fs 
+                WHERE fs.survey_id = a.survey_id
+                AND fs.respondent_id = a.respondent_id
+                AND fs.step_key = a.step
+                AND fs.step_instance = a.step_instance
+                AND fs.section_key = a.section
+                AND fs.section_instance = a.section_instance
+            );
             """;
 
     public static final String INSERT_ALL_RESPONDENTS_INTO_FACT_RESPONDENTS_SQL = """
@@ -590,7 +599,8 @@ public final class Sql {
             UPDATE surveyreport.fact_sections a
             SET <KEY> = x.id
             FROM (SELECT d.id FROM surveyreport.<DIM> d WHERE d.value = '<VAL>') x
-            WHERE a.id=<FACT_ID>;
+            WHERE a.id=<FACT_ID>
+            AND a.respondent_id=<RESPONDENT_ID>;
             """;
 
 
