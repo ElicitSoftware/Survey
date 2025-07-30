@@ -83,7 +83,7 @@ public class MainLayout extends AppLayout implements AfterNavigationListener {
      */
     private void createHeader() {
         DrawerToggle toggle = new DrawerToggle();
-        Anchor title = new Anchor("/", getTranslation("software.name"));
+        Anchor title = new Anchor("/", "Elicit");
         title.getStyle().set("font-size", "var(--lumo-font-size-l)")
                 .set("margin", "0");
         addToNavbar(toggle, title);
@@ -132,14 +132,14 @@ public class MainLayout extends AppLayout implements AfterNavigationListener {
         Respondent respondent = sessionDataService.getRespondent();
         
         // Always add About item
-        sideNav.addItem(new SideNavItem(getTranslation("sideNav.about"), "/about", VaadinIcon.INFO.create()));
+        sideNav.addItem(new SideNavItem("About", "/about", VaadinIcon.INFO.create()));
         
         if (respondent != null) {
             // User is logged in - show logout option
-            sideNav.addItem(new SideNavItem(getTranslation("sideNav.logout"), "/logout", VaadinIcon.UNLINK.create()));
+            sideNav.addItem(new SideNavItem("Logout", "/logout", VaadinIcon.UNLINK.create()));
         } else {
             // User is not logged in - show login option
-            sideNav.addItem(new SideNavItem(getTranslation("sideNav.login"), "/", VaadinIcon.USER.create()));
+            sideNav.addItem(new SideNavItem("Login", "/", VaadinIcon.USER.create()));
         }
         
         return sideNav;
