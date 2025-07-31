@@ -195,6 +195,10 @@ public class TokenService {
                 newUser.active = true;
                 newUser.survey = survey;
                 newUser.token = token;
+                newUser.logins = newUser.logins + 1;
+                if (newUser.firstAccessDt == null) {
+                    newUser.firstAccessDt = OffsetDateTime.now();
+                }
                 DatabaseRetryUtil.executeWithRetry(
                     () -> newUser.persistAndFlush(),
                     "auto-registering new user for survey " + surveyId

@@ -17,6 +17,8 @@ import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import io.quarkus.logging.Log;
 import io.quarkus.panache.common.Parameters;
 import jakarta.persistence.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -274,7 +276,8 @@ public class Answer extends PanacheEntityBase {
      * to specify that it should store both date and time information.
      */
     @Temporal(TemporalType.TIMESTAMP)
-    @Column(name = "created_dt")
+    @CreationTimestamp
+    @Column(name = "created_dt", nullable = false)
     public Date createdDt = new Date();
 
     /**
