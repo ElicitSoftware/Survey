@@ -82,7 +82,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
 
     private boolean flash;
     
-    private int valueChangeTimeout = 900; // Default value change timeout in milliseconds
+    private int valueChangeTimeout = 900; // Default value change timeout in milliseconds 
     // Track pending save operations
     private int pendingSaveOperations = 0;
 
