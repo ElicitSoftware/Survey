@@ -322,7 +322,7 @@ CREATE TABLE IF NOT EXISTS survey.answers
     display_text           character varying(8000) NOT NULL,
     text_value             character varying(255),
     deleted                boolean                 NOT NULL DEFAULT false,
-    created_dt             timestamp with time zone         DEFAULT CURRENT_TIMESTAMP,
+    created_dt             timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     saved_dt               timestamp with time zone,
     CONSTRAINT answers_pk PRIMARY KEY (id),
     CONSTRAINT answers_un UNIQUE (respondent_id, display_key),

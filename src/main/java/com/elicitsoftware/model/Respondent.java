@@ -59,7 +59,7 @@ public class Respondent extends PanacheEntityBase {
     @Column(name = "id", unique = true, nullable = false, precision = 20)
     public Integer id;
 
-    @Column(name = "created_dt")
+    @Column(name = "created_dt", nullable = false)
     @CreationTimestamp
     public OffsetDateTime createdDt;
 
@@ -70,6 +70,7 @@ public class Respondent extends PanacheEntityBase {
     @Temporal(TemporalType.TIMESTAMP)
     @Column(name = "finalized_dt")
     public OffsetDateTime finalizedDt;
+
     public boolean active;
     public int logins;
 
