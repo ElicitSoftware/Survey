@@ -82,6 +82,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
 
     private boolean flash;
     
+    private int valueChangeTimeout = 900; // Default value change timeout in milliseconds 
     // Track pending save operations
     private int pendingSaveOperations = 0;
 
@@ -249,7 +250,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                         case GlobalStrings.QUESTION_TYPE_TEXT:
                             ElicitTextField text = new ElicitTextField(answer);
                             text.component.setValueChangeMode(ValueChangeMode.LAZY);
-                            text.component.setValueChangeTimeout(300);
+                            text.component.setValueChangeTimeout(valueChangeTimeout);
                             text.component.addValueChangeListener(e -> {
                                 saveAnswer(answer, e.getValue());
                             });
@@ -262,7 +263,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                         case GlobalStrings.QUESTION_TYPE_TEXTAREA:
                             ElicitTextArea textArea = new ElicitTextArea(answer);
                             textArea.component.setValueChangeMode(ValueChangeMode.LAZY);
-                            textArea.component.setValueChangeTimeout(300);
+                            textArea.component.setValueChangeTimeout(valueChangeTimeout);
                             textArea.component.addValueChangeListener(e -> {
                                 saveAnswer(answer, e.getValue());
                             });
@@ -318,7 +319,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                         case GlobalStrings.QUESTIION_TYPE_EMAIL:
                             ElicitEmailField email = new ElicitEmailField(answer);
                             email.component.setValueChangeMode(ValueChangeMode.LAZY);
-                            email.component.setValueChangeTimeout(300);
+                            email.component.setValueChangeTimeout(valueChangeTimeout);
                             email.component.addValueChangeListener(e -> {
                                 saveAnswer(answer, e.getValue());
                             });
