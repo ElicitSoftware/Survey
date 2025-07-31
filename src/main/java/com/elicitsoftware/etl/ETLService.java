@@ -59,24 +59,54 @@ public class ETLService {
     // void onStart(@Observes StartupEvent ev) {
     @Startup
     void init() {
+        // Add delay to allow database connections to stabilize
+        try {
+            Thread.sleep(5000); // 5 second delay
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
 
-        // Replace this SQL with the appropriate SQL for checking table existence for your DB
-        Query checkQuery = entityManager.createNativeQuery("SELECT COUNT(*) FROM surveyreport.dim_section");
-
-        Long rows = (Long) checkQuery.getSingleResult();
-        if (rows == 0) {
-            Log.info("ETL Service initialization.");
-            Log.info("Initializing ETL");
+        try {
+            // Test connection first
+            Query testQuery = entityManager.createNativeQuery("SELECT 1");
+            testQuery.getSingleResult();
+            
+            // Always ensure dimension tables are up to date
+            Log.info("ETL Service: Updating dimension tables");
             Log.info("Update Step Dimension Table: " + updateStepDimensionTable());
             Log.info("Update Section Dimension Table: " + updateSectionDimensionTable());
-            Log.info("Build Dimension Tables: " + buildDimensionTables());
-            Log.info("Build Fact Respondents View: " + buildFactRespondentsView());
-            Log.info("Build Fact Sections Table: " + buildFactSectionTable());
-            Log.info("Build Dimension Tables: " + buildFactSectionView());
-        } else {
-            Log.info("ETL Service Init found records in surveyreport.dim_section, No initialization needed.");
+            
+            // Check if full initialization is needed
+            Query checkQuery = entityManager.createNativeQuery("SELECT COUNT(*) FROM surveyreport.dim_section");
+            Long rows = (Long) checkQuery.getSingleResult();
+            
+            if (rows == 0) {
+                Log.info("ETL Service: Full initialization needed.");
+                initializeETLTables();
+            } else {
+                Log.info("ETL Service: Found records in surveyreport.dim_section, skipping full initialization.");
+                // Still need to build any missing dimension tables and views
+                Log.info("Build Dimension Tables: " + buildDimensionTables());
+                Log.info("Build Fact Sections Table: " + buildFactSectionTable());
+                Log.info("Build Fact Section View: " + buildFactSectionView());
+            }
+            
+            populateAllFactSectionsTable();
+            
+        } catch (Exception e) {
+            Log.error("Failed to initialize ETL Service", e);
+            // Consider whether to rethrow or handle gracefully
         }
-        populateAllFactSectionsTable();
+    }
+
+    private void initializeETLTables() {
+        Log.info("Initializing ETL");
+        Log.info("Update Step Dimension Table: " + updateStepDimensionTable());
+        Log.info("Update Section Dimension Table: " + updateSectionDimensionTable());
+        Log.info("Build Dimension Tables: " + buildDimensionTables());
+        Log.info("Build Fact Respondents View: " + buildFactRespondentsView());
+        Log.info("Build Fact Sections Table: " + buildFactSectionTable());
+        Log.info("Build Dimension Tables: " + buildFactSectionView());
     }
 
     /**
