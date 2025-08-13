@@ -15,6 +15,7 @@ import com.elicitsoftware.model.Respondent;
 import com.elicitsoftware.model.Survey;
 import com.elicitsoftware.response.AddResponse;
 import com.elicitsoftware.util.DatabaseRetryUtil;
+import io.quarkus.logging.Log;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.QueryParam;
@@ -128,8 +129,8 @@ public class TokenService {
         respondent.token = token;
         respondent.survey = survey;
         DatabaseRetryUtil.executeWithRetry(
-            () -> respondent.persist(),
-            "adding new respondent for survey " + surveyId
+                () -> respondent.persist(),
+                "adding new respondent for survey " + surveyId
         );
         ar.setToken(respondent.token);
         ar.setRespondentId(respondent.id);
@@ -185,40 +186,45 @@ public class TokenService {
      */
     @Transactional
     public Respondent login(int surveyId, String token) {
-        Respondent user = getUser(surveyId, token);
+        long start = System.currentTimeMillis();
+        try {
+            Respondent user = getUser(surveyId, token);
 
-        Survey survey = Survey.findById(surveyId);
-        //Check for a valid survey id
-        if (user == null) {
-            if (autoRegister) {
-                final Respondent newUser = new Respondent();
-                newUser.active = true;
-                newUser.survey = survey;
-                newUser.token = token;
-                newUser.logins = newUser.logins + 1;
-                if (newUser.firstAccessDt == null) {
-                    newUser.firstAccessDt = OffsetDateTime.now();
+            Survey survey = Survey.findById(surveyId);
+            //Check for a valid survey id
+            if (user == null) {
+                if (autoRegister) {
+                    final Respondent newUser = new Respondent();
+                    newUser.active = true;
+                    newUser.survey = survey;
+                    newUser.token = token;
+                    newUser.logins = newUser.logins + 1;
+                    if (newUser.firstAccessDt == null) {
+                        newUser.firstAccessDt = OffsetDateTime.now();
+                    }
+                    DatabaseRetryUtil.executeWithRetry(
+                            () -> newUser.persistAndFlush(),
+                            "auto-registering new user for survey " + surveyId
+                    );
+                    user = newUser;
                 }
-                DatabaseRetryUtil.executeWithRetry(
-                    () -> newUser.persistAndFlush(),
-                    "auto-registering new user for survey " + surveyId
-                );
-                user = newUser;
-            }
-        } else {
-            if (user.active) {
-                user.logins = user.logins + 1;
-                if (user.firstAccessDt == null) {
-                    user.firstAccessDt = OffsetDateTime.now();
+            } else {
+                if (user.active) {
+                    user.logins = user.logins + 1;
+                    if (user.firstAccessDt == null) {
+                        user.firstAccessDt = OffsetDateTime.now();
+                    }
+                    final Respondent finalUser = user;
+                    DatabaseRetryUtil.executeWithRetry(
+                            () -> finalUser.persistAndFlush(),
+                            "updating login info for user " + finalUser.id
+                    );
                 }
-                final Respondent finalUser = user;
-                DatabaseRetryUtil.executeWithRetry(
-                    () -> finalUser.persistAndFlush(),
-                    "updating login info for user " + finalUser.id
-                );
             }
+            return user;
+        } finally {
+            Log.info("Token login took: " + (System.currentTimeMillis() - start) + "ms");
         }
-        return user;
     }
 
     public boolean isAutoRegister() {
@@ -269,8 +275,8 @@ public class TokenService {
                 user.finalizedDt = OffsetDateTime.now();
             }
             DatabaseRetryUtil.executeWithRetry(
-                () -> user.persistAndFlush(),
-                "deactivating user " + respondentId
+                    () -> user.persistAndFlush(),
+                    "deactivating user " + respondentId
             );
         }
         return user;
