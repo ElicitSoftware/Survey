@@ -63,11 +63,9 @@ public class Respondent extends PanacheEntityBase {
     @CreationTimestamp
     public OffsetDateTime createdDt;
 
-    @Temporal(TemporalType.TIMESTAMP)
     @Column(name = "first_access_dt")
     public OffsetDateTime firstAccessDt;
 
-    @Temporal(TemporalType.TIMESTAMP)
     @Column(name = "finalized_dt")
     public OffsetDateTime finalizedDt;
 

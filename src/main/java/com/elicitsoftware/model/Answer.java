@@ -272,10 +272,8 @@ public class Answer extends PanacheEntityBase {
      * Represents the timestamp when the answer was created.
      * This field is mapped to the "created_dt" column in the database
      * and stores the date and time of the answer's creation.
-     * The field uses the `@Temporal` annotation with `TemporalType.TIMESTAMP`
      * to specify that it should store both date and time information.
      */
-    @Temporal(TemporalType.TIMESTAMP)
     @CreationTimestamp
     @Column(name = "created_dt", nullable = false)
     public Date createdDt = new Date();
@@ -288,7 +286,6 @@ public class Answer extends PanacheEntityBase {
      * This field is managed by the application to keep track of the last save/update
      * event for this entity. It is primarily used for auditing or tracking changes.
      */
-    @Temporal(TemporalType.TIMESTAMP)
     @Column(name = "saved_dt")
     public Date savedDt;
 
