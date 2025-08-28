@@ -61,6 +61,9 @@ public class RespondentPSA extends PanacheEntityBase {
     @Column(name = "post_survey_action_id")
     public long psaId;
 
+    @Column(name = "tries")
+    public long tries;
+
     @Column(name = "status")
     public String status;
 
@@ -71,8 +74,7 @@ public class RespondentPSA extends PanacheEntityBase {
     @CreationTimestamp
     public OffsetDateTime createdDt;
 
-    @Temporal(TemporalType.TIMESTAMP)
-    @Column(name = "finished_dt")
-    public OffsetDateTime finishedDt;
+    @Column(name = "uploaded_dt")
+    public OffsetDateTime uploadedDt;
 
 }
