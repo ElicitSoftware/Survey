@@ -302,7 +302,7 @@ public class QuestionService {
                         finalRespondentPSA = respondentPSA;
                         finalRespondentPSA.status = "RESENDING";
                         finalRespondentPSA.error = "";
-                        finalRespondentPSA.finishedDt = null;
+                        finalRespondentPSA.uploadedDt = null;
                     }
                     try {
                         CallPostSurveyAction(psa, respondentId);
