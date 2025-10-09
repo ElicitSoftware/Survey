@@ -23,10 +23,24 @@ import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
  * This interface represents a REST client that can consume a JSON payload through a POST request
  * to retrieve a report in the form of a {@link ReportResponse}. It is designed to interact with
  * an external service that generates and provides report-related data.
+ * <p>
+ * Error handling:
+ * The service implementations may throw {@link jakarta.ws.rs.WebApplicationException} for various
+ * error conditions including validation errors, database errors, and service communication failures.
+ * These exceptions contain detailed error messages that should be handled appropriately by calling services.
+ * 
+ * @throws jakarta.ws.rs.WebApplicationException for validation errors, service errors, or communication failures
  */
 @Path("/")
 @RegisterRestClient
 public interface ReportService {
+    /**
+     * Calls the external report service to generate a report based on the provided request.
+     * 
+     * @param request The report request containing parameters for report generation
+     * @return ReportResponse containing the generated report data
+     * @throws jakarta.ws.rs.WebApplicationException if validation fails, service errors occur, or communication fails
+     */
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
     ReportResponse callReport(ReportRequest request);

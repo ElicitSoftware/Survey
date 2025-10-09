@@ -135,7 +135,6 @@ public class ReportView extends VerticalLayout {
     private ArrayList<ReportCard> getCards() {
         ArrayList<ReportCard> cards = new ArrayList<>();
 
-        StringBuilder htmlBuilder = new StringBuilder();
         for (var component : this.getChildren().toList()) {
             if (component instanceof ReportCard) {
                 cards.add((ReportCard) component);
@@ -146,14 +145,20 @@ public class ReportView extends VerticalLayout {
 
     /**
      * Calls the report generation service using the provided report definition and returns the result.
-     * The method sends a POST request to the report service with the respondent ID and retrieves
-     * the HTML content of the generated report. If an error occurs during the process, it returns
-     * the exception message.
+     * <p>
+     * This method sends a POST request to the report service with the respondent ID and retrieves
+     * the generated report content. It includes comprehensive error handling to provide meaningful
+     * feedback when service calls fail.
+     * <p>
+     * Error handling includes:
+     * - WebApplicationException handling for service-specific errors
+     * - Detailed error message extraction and formatting
+     * - Fallback error responses for all exception types
+     * - License validation error detection and user guidance
      *
      * @param rpt the {@link ReportDefinition} containing the details of the report,
      *            including the URL for the report service.
-     * @return the HTML content of the report if the report service call is successful,
-     * or the exception message if an error occurs.
+     * @return the ReportResponse containing report data if successful, or error information if failed
      */
     private ReportResponse callReport(ReportDefinition rpt) {
         try {
@@ -163,9 +168,64 @@ public class ReportView extends VerticalLayout {
                     .build(ReportService.class);
             ReportResponse reportResponse = reportService.callReport(request);
             return reportResponse;
-        } catch (Exception e) {
+        } catch (jakarta.ws.rs.WebApplicationException e) {
+            // Handle license validation errors and other HTTP errors specifically
+            String errorMessage = "Service error: " + e.getMessage();
+            
+            // Try to extract more detailed error information
+            if (e.getResponse() != null) {
+                int status = e.getResponse().getStatus();
+                
+                // Try to read the response entity if it exists and hasn't been consumed
+                if (e.getResponse().hasEntity()) {
+                    try {
+                        String responseBody = e.getResponse().readEntity(String.class);
+                        if (responseBody != null && !responseBody.trim().isEmpty()) {
+                            errorMessage = responseBody;
+                        }
+                    } catch (Exception readException) {
+                        // Response may have already been consumed, fall back to status-based message
+                        if (status == 403) {
+                            errorMessage = "Access forbidden - License validation may have failed. Please check your license configuration.";
+                        } else {
+                            errorMessage = "Service error (HTTP " + status + "): " + e.getMessage();
+                        }
+                    }
+                } else {
+                    // No response entity, provide status-based error message
+                    if (status == 403) {
+                        errorMessage = "Access forbidden - License validation may have failed. Please check your license configuration.";
+                    } else {
+                        errorMessage = "Service error (HTTP " + status + "): " + e.getMessage();
+                    }
+                }
+            }
+            
+            // Check if the exception message contains clues about license validation
+            if (e.getMessage() != null && e.getMessage().toLowerCase().contains("forbidden")) {
+                if (!errorMessage.toLowerCase().contains("license")) {
+                    errorMessage = "License validation failed - " + errorMessage;
+                }
+            }
+            
             ReportResponse reportResponse = new ReportResponse();
-            reportResponse.innerHTML = e.getMessage();
+            reportResponse.title = "Error - " + rpt.name;
+            reportResponse.innerHTML = "<div style='color: red; padding: 20px; border: 1px solid red; background-color: #ffe6e6;'>" +
+                    "<h3>Report Generation Error</h3>" +
+                    "<p><strong>Service:</strong> " + rpt.name + "</p>" +
+                    "<p><strong>Error:</strong> " + errorMessage + "</p>" +
+                    "<p><em>If this is a license error, please ensure your PREMM5 license is valid and properly configured.</em></p>" +
+                    "</div>";
+            return reportResponse;
+        } catch (Exception e) {
+            // Handle other exceptions (network issues, URI parsing, etc.)
+            ReportResponse reportResponse = new ReportResponse();
+            reportResponse.title = "Error - " + rpt.name;
+            reportResponse.innerHTML = "<div style='color: red; padding: 20px; border: 1px solid red; background-color: #ffe6e6;'>" +
+                    "<h3>Report Generation Error</h3>" +
+                    "<p><strong>Service:</strong> " + rpt.name + "</p>" +
+                    "<p><strong>Error:</strong> " + e.getMessage() + "</p>" +
+                    "</div>";
             return reportResponse;
         }
     }
