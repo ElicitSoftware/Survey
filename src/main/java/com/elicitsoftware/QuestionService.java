@@ -326,9 +326,32 @@ public class QuestionService {
         }
     }
 
+    /**
+     * Executes a post-survey action by calling the specified URL with the respondent ID.
+     * <p>
+     * This method performs an HTTP POST request to the post-survey action URL with a JSON payload
+     * containing the respondent ID. It includes comprehensive error handling to provide meaningful
+     * error messages for various failure scenarios.
+     * <p>
+     * Error handling includes:
+     * - URL validation to ensure the action URL is properly configured
+     * - HTTP status code validation with specific error messages
+     * - Network and communication error handling
+     * - Detailed error message extraction from response bodies
+     * - License validation error detection for service-specific failures
+     *
+     * @param psa the PostSurveyAction containing the URL and configuration
+     * @param respondentId the ID of the respondent for whom the action is being executed
+     * @return the response body from the post-survey action service
+     * @throws Exception if the action fails due to configuration, network, or service errors
+     */
     private String CallPostSurveyAction(PostSurveyAction psa, int respondentId) throws Exception {
         if (psa.url == null || psa.url.trim().isEmpty()) {
-            throw new Exception("Post survey action URL is null or empty");
+            throw new Exception("Post Survey Action '" + psa.name + "' Error: URL is null or empty - please check the action configuration");
+        }
+
+        if (respondentId <= 0) {
+            throw new Exception("Post Survey Action '" + psa.name + "' Error: Invalid respondent ID (" + respondentId + ") - ID must be a positive number");
         }
 
         try {
@@ -353,11 +376,68 @@ public class QuestionService {
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
                 return response.body();
             } else {
-                throw new Exception("HTTP " + response.statusCode() + ": " + response.body());
+                // Handle different error status codes with appropriate messages
+                String errorMessage;
+                String responseBody = response.body();
+                
+                // Try to extract meaningful error message from response body
+                if (responseBody != null && !responseBody.trim().isEmpty()) {
+                    // Check for license-related errors
+                    if (response.statusCode() == 403 || responseBody.toLowerCase().contains("license")) {
+                        errorMessage = "Post Survey Action '" + psa.name + "' Error: License validation failed - " + responseBody;
+                        if (!errorMessage.toLowerCase().contains("premm5") && psa.url.toLowerCase().contains("premm5")) {
+                            errorMessage += " - Please ensure your PREMM5 license is valid and properly configured.";
+                        }
+                    } else {
+                        errorMessage = "Post Survey Action '" + psa.name + "' Error: HTTP " + response.statusCode() + " - " + responseBody;
+                    }
+                } else {
+                    // No response body, provide status-based error message
+                    switch (response.statusCode()) {
+                        case 400:
+                            errorMessage = "Post Survey Action '" + psa.name + "' Error: Bad Request (400) - Invalid request data for respondent ID " + respondentId;
+                            break;
+                        case 401:
+                            errorMessage = "Post Survey Action '" + psa.name + "' Error: Unauthorized (401) - Authentication required";
+                            break;
+                        case 403:
+                            errorMessage = "Post Survey Action '" + psa.name + "' Error: Forbidden (403) - License validation may have failed. Please check your license configuration.";
+                            break;
+                        case 404:
+                            errorMessage = "Post Survey Action '" + psa.name + "' Error: Not Found (404) - Service endpoint not available at " + psa.url;
+                            break;
+                        case 500:
+                            errorMessage = "Post Survey Action '" + psa.name + "' Error: Internal Server Error (500) - The service encountered an internal error";
+                            break;
+                        case 502:
+                            errorMessage = "Post Survey Action '" + psa.name + "' Error: Bad Gateway (502) - Service is temporarily unavailable";
+                            break;
+                        case 503:
+                            errorMessage = "Post Survey Action '" + psa.name + "' Error: Service Unavailable (503) - Service is temporarily down for maintenance";
+                            break;
+                        default:
+                            errorMessage = "Post Survey Action '" + psa.name + "' Error: HTTP " + response.statusCode() + " - Service returned an error status";
+                            break;
+                    }
+                }
+                
+                throw new Exception(errorMessage);
             }
             
-        } catch (java.io.IOException | InterruptedException e) {
-            throw new Exception("Failed to call post survey action URL: " + e.getMessage(), e);
+        } catch (java.net.URISyntaxException e) {
+            throw new Exception("Post Survey Action '" + psa.name + "' Error: Invalid URL format '" + psa.url + "' - " + e.getMessage(), e);
+        } catch (java.io.IOException e) {
+            throw new Exception("Post Survey Action '" + psa.name + "' Error: Network communication failed when calling " + psa.url + " - " + e.getMessage(), e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt(); // Restore interrupted status
+            throw new Exception("Post Survey Action '" + psa.name + "' Error: Request was interrupted - " + e.getMessage(), e);
+        } catch (Exception e) {
+            // Re-throw our own exceptions, wrap others
+            if (e.getMessage() != null && e.getMessage().startsWith("Post Survey Action")) {
+                throw e;
+            } else {
+                throw new Exception("Post Survey Action '" + psa.name + "' Error: Unexpected error - " + e.getMessage(), e);
+            }
         }
     }
 }
