@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
 <groupId>com.elicitsoftware</groupId>
     <artifactId>survey</artifactId>
-    <version>1.0.3-SNAPSHOT</version>
+    <version>1.0.4-SNAPSHOT</version>
 
     <properties>
         <compiler-plugin.version>3.14.0</compiler-plugin.version>
