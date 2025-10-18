@@ -28,8 +28,12 @@ import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.router.BeforeEvent;
 import com.vaadin.flow.router.HasDynamicTitle;
+import com.vaadin.flow.router.HasUrlParameter;
+import com.vaadin.flow.router.OptionalParameter;
 import com.vaadin.flow.router.Route;
+import com.vaadin.flow.router.RouteAlias;
 import jakarta.annotation.PostConstruct;
 import com.vaadin.quarkus.annotation.NormalUIScoped;
 import jakarta.inject.Inject;
@@ -58,8 +62,9 @@ import java.util.List;
  * - Accessibility and enhanced user experience with theme variants, tooltips, and keyboard shortcuts.
  */
 @Route(value = "", layout = MainLayout.class)
+@RouteAlias(value = "login", layout = MainLayout.class)
 @NormalUIScoped
-public class MainView extends VerticalLayout implements HasDynamicTitle {
+public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrlParameter<String> {
 
     @Inject
     TokenService tokenService;
@@ -72,6 +77,7 @@ public class MainView extends VerticalLayout implements HasDynamicTitle {
 
     // Simple field-level validation without bean binding
     private boolean isTokenValid = false;
+    private TextField txtToken; // Make txtToken a field so it can be accessed from setParameter
 
     /**
      * Default constructor for MainView.
@@ -177,7 +183,7 @@ public class MainView extends VerticalLayout implements HasDynamicTitle {
         loginLayout.setAlignItems(Alignment.CENTER);
 
         // Use TextField for standard text input with validation
-        TextField txtToken = new TextField("Entery your login token");
+        txtToken = new TextField("Entery your login token");
         txtToken.setTooltipText("Token is case-sensitive");
         txtToken.addThemeName("bordered");
         txtToken.setAutofocus(true);
@@ -287,6 +293,24 @@ public class MainView extends VerticalLayout implements HasDynamicTitle {
      */
     private Respondent login(int surveyId, String token) {
         return tokenService.login(surveyId, token);
+    }
+    /**
+     * Sets the URL parameter for the token when navigating to /login/{token}.
+     * This method is called by Vaadin when the URL contains a parameter.
+     * The parameter is optional, so /login works without a parameter.
+     * Only fills in the token if the URL path starts with "login".
+     * Since this is called before UI initialization, we store the token
+     * and apply it after the txtToken field is created.
+     *
+     * @param event The before event
+     * @param token The token parameter from the URL (can be null)
+     */
+    @Override
+    public void setParameter(BeforeEvent event, @OptionalParameter String token) {
+        String location = event.getLocation().getPath();
+        if (token != null && !token.trim().isEmpty() && location.startsWith("login")) {
+            this.txtToken.setValue(token);
+        }
     }
 
     /**
