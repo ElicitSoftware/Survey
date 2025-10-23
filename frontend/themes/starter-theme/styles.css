@@ -4,35 +4,66 @@
    https://vaadin.com/docs/latest/styling/lumo for more information.
 */
 
+/* Import local fonts as fallback */
 @import 'fonts/style.css';
 
+/* Define brand color variables with fallback values */
+:root {
+  /* Brand Colors - These will be overridden by external brand CSS if available */
+  --brand-primary: #00284D;
+  --brand-primary-hsl: 209, 100%, 15%;
+  --brand-primary-contrast: #FFD733;
+  --brand-base: #FFFFFF;
+  --brand-error: #993324;
+  --brand-error-hsl: 8, 62%, 37%;
+  --brand-success: #75998E;
+  --brand-success-hsl: 161, 15%, 53%;
+  --brand-interactive: #4DAFFF;
+  --brand-interactive-rgb: 77, 175, 255;
+  
+  /* Typography Variables */
+  --brand-font-primary: "ibm_plex_sansregular", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+/* Apply brand variables to Lumo theme */
 html{
-    /*--lumo-font-family: 'Chilanka';*/
-    --lumo-primary-text-color: hsl(209, 100%, 15%);
-    --lumo-primary-color-50pct: rgba(0, 40, 77, 0.5);
-    --lumo-primary-color-10pct: rgba(0, 40, 77, 0.1);
-    --lumo-primary-color: 	hsl(209, 100%, 15%);
-    --lumo-primary-contrast-color: 	hsl(48, 100%, 51%);
-    --lumo-base-color: #FFFFFF;
-    --lumo-shade-5pct: rgba(0, 40, 77, 0.05);
-    --lumo-shade-10pct: rgba(0, 40, 77, 0.1);
-    --lumo-shade-20pct: rgba(0, 40, 77, 0.2);
-    --lumo-shade-30pct: rgba(0, 40, 77, 0.3);
-    --lumo-shade-40pct: rgba(0, 40, 77, 0.4);
-    --lumo-shade-50pct: rgba(0, 40, 77, 0.5);
-    --lumo-shade-60pct: rgba(0, 40, 77, 0.6);
-    --lumo-shade-70pct: rgba(0, 40, 77, 0.7);
-    --lumo-shade-80pct: rgba(0, 40, 77, 0.8);
-    --lumo-shade-90pct: rgba(0, 40, 77, 0.9);
-    --lumo-shade: hsl(209, 100%, 15%);
-    --lumo-error-text-color: rgb(153, 51, 36);
-    --lumo-error-color-50pct: rgba(153, 51, 36, 0.5);
-    --lumo-error-color-10pct: rgba(153, 51, 36, 0.1);
-    --lumo-error-color: 	hsl(8, 62%, 37%);
-    --lumo-success-text-color: rgb(117, 153, 142);
-    --lumo-success-color-50pct: rgba(117, 153, 142, 0.5);
-    --lumo-success-color-10pct: rgba(117, 153, 142, 0.1);
-    --lumo-success-color: 	hsl(161, 15%, 53%);
+    /* Typography */
+    --lumo-font-family: var(--brand-font-primary);
+    
+    /* Primary Colors */
+    --lumo-primary-text-color: var(--brand-primary);
+    --lumo-primary-color: var(--brand-primary);
+    --lumo-primary-contrast-color: var(--brand-primary-contrast);
+    --lumo-base-color: var(--brand-base);
+    
+    /* Primary Color Variants */
+    --lumo-primary-color-50pct: hsla(var(--brand-primary-hsl), 0.5);
+    --lumo-primary-color-10pct: hsla(var(--brand-primary-hsl), 0.1);
+    
+    /* Shade Variants */
+    --lumo-shade-5pct: hsla(var(--brand-primary-hsl), 0.05);
+    --lumo-shade-10pct: hsla(var(--brand-primary-hsl), 0.1);
+    --lumo-shade-20pct: hsla(var(--brand-primary-hsl), 0.2);
+    --lumo-shade-30pct: hsla(var(--brand-primary-hsl), 0.3);
+    --lumo-shade-40pct: hsla(var(--brand-primary-hsl), 0.4);
+    --lumo-shade-50pct: hsla(var(--brand-primary-hsl), 0.5);
+    --lumo-shade-60pct: hsla(var(--brand-primary-hsl), 0.6);
+    --lumo-shade-70pct: hsla(var(--brand-primary-hsl), 0.7);
+    --lumo-shade-80pct: hsla(var(--brand-primary-hsl), 0.8);
+    --lumo-shade-90pct: hsla(var(--brand-primary-hsl), 0.9);
+    --lumo-shade: var(--brand-primary);
+    
+    /* Error Color Variants */
+    --lumo-error-color: var(--brand-error);
+    --lumo-error-text-color: var(--brand-error);
+    --lumo-error-color-50pct: hsla(var(--brand-error-hsl), 0.5);
+    --lumo-error-color-10pct: hsla(var(--brand-error-hsl), 0.1);
+    
+    /* Success Color Variants */
+    --lumo-success-color: var(--brand-success);
+    --lumo-success-text-color: var(--brand-success);
+    --lumo-success-color-50pct: hsla(var(--brand-success-hsl), 0.5);
+    --lumo-success-color-10pct: hsla(var(--brand-success-hsl), 0.1);
 }
 
 .elicit-input-field::part(label) {
@@ -51,17 +82,17 @@ html{
 }
 
 @keyframes flash {
-    0% { background-color: #FFFFFF; }
-    10% { background-color: rgba(77, 175, 255, 0.1); }
-    20% { background-color: rgba(77, 175, 255, 0.15); }
-    30% { background-color: rgba(77, 175, 255, 0.2); }
-    40% { background-color: rgba(77, 175, 255, 0.25); }
-    50% { background-color: rgba(77, 175, 255, 0.3); }
-    60% { background-color: rgba(77, 175, 255, 0.25); }
-    70% { background-color: rgba(77, 175, 255, 0.2); }
-    80% { background-color: rgba(77, 175, 255, 0.15); }
-    90% { background-color: rgba(77, 175, 255, 0.1); }
-    100% { background-color: #FFFFFF; }
+    0% { background-color: var(--brand-base); }
+    10% { background-color: rgba(var(--brand-interactive-rgb), 0.1); }
+    20% { background-color: rgba(var(--brand-interactive-rgb), 0.15); }
+    30% { background-color: rgba(var(--brand-interactive-rgb), 0.2); }
+    40% { background-color: rgba(var(--brand-interactive-rgb), 0.25); }
+    50% { background-color: rgba(var(--brand-interactive-rgb), 0.3); }
+    60% { background-color: rgba(var(--brand-interactive-rgb), 0.25); }
+    70% { background-color: rgba(var(--brand-interactive-rgb), 0.2); }
+    80% { background-color: rgba(var(--brand-interactive-rgb), 0.15); }
+    90% { background-color: rgba(var(--brand-interactive-rgb), 0.1); }
+    100% { background-color: var(--brand-base); }
 }
 
 .flash {
