@@ -1,0 +1,10 @@
+{
+  "brand": {
+    "name": "Healthcare Test Brand",
+    "version": "1.0.0",
+    "description": "Healthcare organization brand with professional blue color scheme",
+    "primaryColor": "#1B365D",
+    "organization": "Healthcare Test Organization",
+    "lastUpdated": "2025-10-23"
+  }
+}

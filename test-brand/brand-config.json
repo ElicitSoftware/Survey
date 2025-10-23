@@ -1,0 +1,51 @@
+{
+  "name": "Healthcare Test Brand",
+  "version": "1.0.0",
+  "description": "Test brand implementation based on healthcare design guidelines and web presence",
+  "organization": "Healthcare Organization",
+  "website": "https://www.example-healthcare.com/",
+  "brandGuidelines": "Based on provided design guidelines PDF and website analysis",
+  "colors": {
+    "primary": {
+      "healthcareBlue": "#1B365D",
+      "healthcareTeal": "#4A9B8E",
+      "healthcareNavy": "#0F2A44"
+    },
+    "secondary": {
+      "lightBlue": "#5B9BD5",
+      "mediumBlue": "#2E5984",
+      "darkBlue": "#1E3A5F",
+      "tealAccent": "#6BB6AA",
+      "lightTeal": "#7FC7BC",
+      "darkTeal": "#2D6B5D"
+    },
+    "neutral": {
+      "white": "#FFFFFF",
+      "lightGray": "#F5F5F5",
+      "mediumGray": "#CCCCCC",
+      "darkGray": "#666666",
+      "charcoal": "#333333",
+      "black": "#000000"
+    },
+    "semantic": {
+      "success": "#28A745",
+      "warning": "#FFC107",
+      "error": "#DC3545",
+      "info": "#17A2B8"
+    }
+  },
+  "typography": {
+    "primary": "Open Sans",
+    "secondary": "Roboto",
+    "heading": "Montserrat",
+    "body": "Open Sans",
+    "monospace": "Source Code Pro"
+  },
+  "logos": {
+    "primary": "healthcare-primary-logo.svg",
+    "horizontal": "healthcare-horizontal-logo.svg",
+    "icon": "healthcare-icon.svg",
+    "symbol": "healthcare-symbol.svg"
+  },
+  "favicon": "favicon.ico"
+}

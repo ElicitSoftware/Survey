@@ -1,0 +1,78 @@
+/* Healthcare Test Brand Color Palette */
+/* Based on design guidelines PDF and website analysis */
+
+:root {
+  /* Primary Brand Colors */
+  --healthcare-blue: #1B365D;
+  --healthcare-teal: #4A9B8E;
+  --healthcare-navy: #0F2A44;
+  
+  /* Primary color aliases for semantic use */
+  --brand-primary: var(--healthcare-blue);
+  --brand-secondary: var(--healthcare-teal);
+  --brand-accent: var(--healthcare-navy);
+  
+  /* Secondary Supporting Colors */
+  --healthcare-light-blue: #5B9BD5;
+  --healthcare-medium-blue: #2E5984;
+  --healthcare-dark-blue: #1E3A5F;
+  --healthcare-teal-accent: #6BB6AA;
+  --healthcare-light-teal: #7FC7BC;
+  --healthcare-dark-teal: #2D6B5D;
+  
+  /* Neutral Colors */
+  --healthcare-white: #FFFFFF;
+  --healthcare-light-gray: #F5F5F5;
+  --healthcare-medium-gray: #CCCCCC;
+  --healthcare-dark-gray: #666666;
+  --healthcare-charcoal: #333333;
+  --healthcare-black: #000000;
+  
+  /* Semantic Colors */
+  --healthcare-success: #28A745;
+  --healthcare-warning: #FFC107;
+  --healthcare-error: #DC3545;
+  --healthcare-info: #17A2B8;
+  
+  /* Brand semantic mappings */
+  --brand-background: var(--healthcare-white);
+  --brand-surface: var(--healthcare-light-gray);
+  --brand-text-primary: var(--healthcare-charcoal);
+  --brand-text-secondary: var(--healthcare-dark-gray);
+  --brand-text-on-primary: var(--healthcare-white);
+  --brand-text-on-secondary: var(--healthcare-white);
+  --brand-text-on-accent: var(--healthcare-white);
+  
+  /* Interactive states */
+  --brand-hover: color-mix(in srgb, var(--healthcare-blue) 85%, var(--healthcare-teal) 15%);
+  --brand-active: color-mix(in srgb, var(--healthcare-navy) 90%, var(--healthcare-blue) 10%);
+  --brand-focus: var(--healthcare-teal-accent);
+  
+  /* Status colors */
+  --brand-success: var(--healthcare-success);
+  --brand-warning: var(--healthcare-warning);
+  --brand-error: var(--healthcare-error);
+  --brand-info: var(--healthcare-info);
+  
+  /* Border and shadow colors */
+  --brand-border: var(--healthcare-medium-gray);
+  --brand-border-light: var(--healthcare-light-gray);
+  --brand-shadow: color-mix(in srgb, var(--healthcare-navy) 20%, transparent 80%);
+  
+  /* Healthcare-specific color mappings */
+  --healthcare-trust: var(--healthcare-blue);
+  --healthcare-calm: var(--healthcare-teal);
+  --healthcare-professional: var(--healthcare-navy);
+  --healthcare-caring: var(--healthcare-light-teal);
+  --healthcare-reliable: var(--healthcare-dark-blue);
+  
+  /* Accessibility enhancements */
+  --high-contrast-text: var(--healthcare-black);
+  --high-contrast-background: var(--healthcare-white);
+  --focus-indicator: var(--healthcare-teal);
+  
+  /* Gradient definitions */
+  --brand-gradient-primary: linear-gradient(135deg, var(--healthcare-blue) 0%, var(--healthcare-teal) 100%);
+  --brand-gradient-secondary: linear-gradient(135deg, var(--healthcare-navy) 0%, var(--healthcare-blue) 100%);
+  --brand-gradient-accent: linear-gradient(135deg, var(--healthcare-teal) 0%, var(--healthcare-light-teal) 100%);
+}

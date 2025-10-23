@@ -1,0 +1,59 @@
+:root {
+  /* Primary Brand Colors */
+  --brand-primary: #00284D;
+  --brand-primary-hsl: 209, 100%, 15%;
+  --brand-primary-contrast: #FFD733;
+  --brand-base: #FFFFFF;
+
+  /* Status Colors */
+  --brand-error: #993324;
+  --brand-error-hsl: 8, 62%, 37%;
+  --brand-success: #75998E;
+  --brand-success-hsl: 161, 15%, 53%;
+
+  /* Interactive Colors */
+  --brand-interactive: #4DAFFF;
+  --brand-interactive-rgb: 77, 175, 255;
+
+  /* Lumo Theme Variables Mapping */
+  --lumo-primary-color: var(--brand-primary);
+  --lumo-primary-text-color: var(--brand-primary);
+  --lumo-primary-contrast-color: var(--brand-primary-contrast);
+  --lumo-base-color: var(--brand-base);
+
+  /* Primary Color Variants */
+  --lumo-primary-color-50pct: hsla(var(--brand-primary-hsl), 0.5);
+  --lumo-primary-color-10pct: hsla(var(--brand-primary-hsl), 0.1);
+
+  /* Shade Variants */
+  --lumo-shade-5pct: hsla(var(--brand-primary-hsl), 0.05);
+  --lumo-shade-10pct: hsla(var(--brand-primary-hsl), 0.1);
+  --lumo-shade-20pct: hsla(var(--brand-primary-hsl), 0.2);
+  --lumo-shade-30pct: hsla(var(--brand-primary-hsl), 0.3);
+  --lumo-shade-40pct: hsla(var(--brand-primary-hsl), 0.4);
+  --lumo-shade-50pct: hsla(var(--brand-primary-hsl), 0.5);
+  --lumo-shade-60pct: hsla(var(--brand-primary-hsl), 0.6);
+  --lumo-shade-70pct: hsla(var(--brand-primary-hsl), 0.7);
+  --lumo-shade-80pct: hsla(var(--brand-primary-hsl), 0.8);
+  --lumo-shade-90pct: hsla(var(--brand-primary-hsl), 0.9);
+  --lumo-shade: var(--brand-primary);
+
+  /* Error Color Variants */
+  --lumo-error-color: var(--brand-error);
+  --lumo-error-text-color: var(--brand-error);
+  --lumo-error-color-50pct: hsla(var(--brand-error-hsl), 0.5);
+  --lumo-error-color-10pct: hsla(var(--brand-error-hsl), 0.1);
+
+  /* Success Color Variants */
+  --lumo-success-color: var(--brand-success);
+  --lumo-success-text-color: var(--brand-success);
+  --lumo-success-color-50pct: hsla(var(--brand-success-hsl), 0.5);
+  --lumo-success-color-10pct: hsla(var(--brand-success-hsl), 0.1);
+
+  /* Animation Colors */
+  --brand-flash-10: rgba(var(--brand-interactive-rgb), 0.1);
+  --brand-flash-15: rgba(var(--brand-interactive-rgb), 0.15);
+  --brand-flash-20: rgba(var(--brand-interactive-rgb), 0.2);
+  --brand-flash-25: rgba(var(--brand-interactive-rgb), 0.25);
+  --brand-flash-30: rgba(var(--brand-interactive-rgb), 0.3);
+}

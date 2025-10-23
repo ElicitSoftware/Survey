@@ -1,0 +1,30 @@
+<svg width="400" height="80" viewBox="0 0 400 80" xmlns="http://www.w3.org/2000/svg">
+  <!-- Healthcare Horizontal Logo Placeholder -->
+  
+  <!-- Cross symbol -->
+  <g transform="translate(20, 15)">
+    <!-- Outer cross -->
+    <rect x="15" y="5" width="15" height="45" fill="#1B365D" rx="1"/>
+    <rect x="7.5" y="12.5" width="30" height="15" fill="#1B365D" rx="1"/>
+    
+    <!-- Inner cross highlight -->
+    <rect x="18" y="8" width="9" height="39" fill="#4A9B8E"/>
+    <rect x="10.5" y="15.5" width="24" height="9" fill="#4A9B8E"/>
+    
+    <!-- Heart -->
+    <circle cx="22.5" cy="22.5" r="2" fill="#FFFFFF"/>
+  </g>
+  
+  <!-- Text portion -->
+  <g transform="translate(80, 25)">
+    <!-- HEALTHCARE ORGANIZATION in one line -->
+    <text x="0" y="0" font-family="Montserrat, sans-serif" font-size="24" font-weight="bold" fill="#1B365D">HEALTHCARE</text>
+    <text x="160" y="0" font-family="Montserrat, sans-serif" font-size="20" font-weight="normal" fill="#4A9B8E">Organization</text>
+    
+    <!-- Tagline -->
+    <text x="0" y="20" font-family="Open Sans, sans-serif" font-size="10" fill="#666666">Caring for our community</text>
+  </g>
+  
+  <!-- Note -->
+  <text x="20" y="75" font-family="sans-serif" font-size="6" fill="#999999">Placeholder - Horizontal layout for Healthcare Organization</text>
+</svg>

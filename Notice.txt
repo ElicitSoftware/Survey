@@ -1,5 +1,5 @@
 
-Lists of 14 third-party dependencies.
+Lists of 15 third-party dependencies.
      (Apache License Version 2.0) Vaadin Quarkus Extension (com.vaadin:vaadin-quarkus-extension:24.9.1 - https://vaadin.com/vaadin-quarkus-extension-parent/vaadin-quarkus-extension)
      (Apache License, Version 2.0) PDFBox-Graphics2d (de.rototor.pdfbox:graphics2d:3.0.2 - https://github.com/rototor/pdfbox-graphics2d/graphics2d)
      (Apache License, Version 2.0) Quarkus PDFBox - Runtime (io.quarkiverse.pdfbox:quarkus-pdfbox:1.1.2 - https://quarkiverse.io)
@@ -9,6 +9,7 @@ Lists of 14 third-party dependencies.
      (The Apache Software License, Version 2.0) Quarkus - Hibernate ORM with Panache - Runtime (io.quarkus:quarkus-hibernate-orm-panache:3.28.2 - https://github.com/quarkusio/quarkus)
      (The Apache Software License, Version 2.0) Quarkus - Hibernate Validator - Runtime (io.quarkus:quarkus-hibernate-validator:3.28.2 - https://github.com/quarkusio/quarkus)
      (The Apache Software License, Version 2.0) Quarkus - JDBC - PostgreSQL - Runtime (io.quarkus:quarkus-jdbc-postgresql:3.28.2 - https://github.com/quarkusio/quarkus)
+     (The Apache Software License, Version 2.0) Quarkus - REST - Runtime (io.quarkus:quarkus-rest:3.28.2 - https://github.com/quarkusio/quarkus)
      (The Apache Software License, Version 2.0) Quarkus - REST Client - Runtime (io.quarkus:quarkus-rest-client:3.28.2 - https://github.com/quarkusio/quarkus)
      (The Apache Software License, Version 2.0) Quarkus - REST Client JSON-B (io.quarkus:quarkus-rest-client-jsonb:3.28.2 - https://github.com/quarkusio/quarkus)
      (The Apache Software License, Version 2.0) Quarkus - SmallRye Health - Runtime (io.quarkus:quarkus-smallrye-health:3.28.2 - https://github.com/quarkusio/quarkus)

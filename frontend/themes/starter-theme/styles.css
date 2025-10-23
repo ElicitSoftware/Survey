@@ -9,17 +9,17 @@
 
 /* Define brand color variables with fallback values */
 :root {
-  /* Brand Colors - These will be overridden by external brand CSS if available */
-  --brand-primary: #00284D;
-  --brand-primary-hsl: 209, 100%, 15%;
-  --brand-primary-contrast: #FFD733;
+  /* University of Michigan Brand Colors as defaults - will be overridden by external brand CSS if available */
+  --brand-primary: #FFCB05; /* UM Maize */
+  --brand-primary-hsl: 45, 100%, 51%; /* HSL for UM Maize */
+  --brand-primary-contrast: #00274C; /* UM Blue text on maize background */
   --brand-base: #FFFFFF;
-  --brand-error: #993324;
-  --brand-error-hsl: 8, 62%, 37%;
-  --brand-success: #75998E;
-  --brand-success-hsl: 161, 15%, 53%;
-  --brand-interactive: #4DAFFF;
-  --brand-interactive-rgb: 77, 175, 255;
+  --brand-error: #9A3324; /* UM Red */
+  --brand-error-hsl: 8, 60%, 37%;
+  --brand-success: #A5A508; /* UM Green */
+  --brand-success-hsl: 60, 91%, 35%;
+  --brand-interactive: #2F65A7; /* UM Medium Blue */
+  --brand-interactive-rgb: 47, 101, 167;
   
   /* Typography Variables */
   --brand-font-primary: "ibm_plex_sansregular", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;

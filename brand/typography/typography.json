@@ -1,0 +1,59 @@
+{
+  "brand": {
+    "name": "Elicit Survey Application",
+    "version": "1.0.0",
+    "description": "Typography configuration for Elicit Survey Application"
+  },
+  "typography": {
+    "primary": {
+      "name": "IBM Plex Sans",
+      "family": "ibm_plex_sansregular",
+      "fallback": ["-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "sans-serif"],
+      "files": {
+        "woff2": "ibmplexsans-regular-webfont.woff2",
+        "woff": "ibmplexsans-regular-webfont.woff"
+      },
+      "weight": "normal",
+      "style": "normal",
+      "display": "swap"
+    },
+    "secondary": {
+      "name": "Chilanka",
+      "family": "Chilanka",
+      "fallback": ["cursive"],
+      "files": {
+        "woff": "Chilanka-Regular.woff"
+      },
+      "weight": "normal",
+      "style": "normal",
+      "display": "swap"
+    },
+    "google": {
+      "name": "Google Font",
+      "family": "GoogleFont",
+      "files": {
+        "woff2": "WWXRlj2DZQiMJYaYRrJVI9EAZhTO.woff2"
+      },
+      "weight": "normal",
+      "style": "normal",
+      "display": "swap"
+    }
+  },
+  "styles": {
+    "body": {
+      "fontFamily": "ibm_plex_sansregular",
+      "fontSize": "16px",
+      "lineHeight": "1.5"
+    },
+    "heading": {
+      "fontFamily": "ibm_plex_sansregular",
+      "fontSize": "32px",
+      "fontWeight": "400",
+      "textAlign": "start",
+      "textTransform": "none",
+      "lineHeight": "1.6em",
+      "letterSpacing": "normal",
+      "fontStyle": "normal"
+    }
+  }
+}
