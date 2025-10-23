@@ -1,8 +1,8 @@
 {
   "brand": {
-    "name": "Elicit Survey Application",
+    "name": "Elicit Survey Application - Default Brand",
     "version": "1.0.0",
-    "description": "Brand configuration for runtime customization"
+    "description": "Default brand configuration using Vaadin standard colors and Elicit styling"
   },
   "structure": {
     "colors": {

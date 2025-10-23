@@ -38,35 +38,47 @@ public class AppConfig implements AppShellConfigurator {
         // Add brand information as HTML comment for debugging/identification
         addBrandInfoComment(settings);
         
-        // Use brand favicons if external brand directory is mounted, otherwise use defaults
-        String faviconPath = getBrandResourcePath("visual-assets/icons/favicon.ico", "icons/favicon.ico");
-        String favicon32Path = getBrandResourcePath("visual-assets/icons/favicon-32x32.png", "/icons/favicon-32x32.png");
-        String faviconSvgPath = getBrandResourcePath("visual-assets/icons/favicon.svg", null);
+        // Favicon logic: Use Elicit favicon for default brand, allow external brands to override
+        boolean externalBrandMounted = Files.exists(Paths.get("/brand"));
         
-        // Set favicon (prefer ICO, fallback to SVG if available)
-        if (faviconSvgPath != null && faviconPath.equals("icons/favicon.ico")) {
-            // Use SVG favicon if no ICO available but SVG exists
-            settings.addLink("icon", faviconSvgPath);
+        if (externalBrandMounted) {
+            // External brand is mounted - use brand favicons if available, otherwise fall back to Elicit
+            String faviconPath = getBrandResourcePath("visual-assets/icons/favicon.ico", "icons/favicon.ico");
+            String favicon32Path = getBrandResourcePath("visual-assets/icons/favicon-32x32.png", "/icons/favicon-32x32.png");
+            String faviconSvgPath = getBrandResourcePath("visual-assets/icons/favicon.svg", null);
+            
+            // Set favicon (prefer ICO, fallback to SVG if available)
+            if (faviconSvgPath != null && faviconPath.equals("icons/favicon.ico")) {
+                // Use SVG favicon if no ICO available but SVG exists
+                settings.addLink("icon", faviconSvgPath);
+            } else {
+                settings.addLink("shortcut icon", faviconPath);
+            }
+            
+            // Set 32x32 favicon (prefer PNG, fallback to SVG if available)  
+            if (faviconSvgPath != null && favicon32Path.equals("/icons/favicon-32x32.png")) {
+                // Use SVG as 32x32 icon if no PNG available but SVG exists
+                settings.addFavIcon("icon", faviconSvgPath, "32x32");
+            } else {
+                settings.addFavIcon("icon", favicon32Path, "32x32");
+            }
         } else {
-            settings.addLink("shortcut icon", faviconPath);
+            // Default brand - always use Elicit favicons
+            settings.addLink("shortcut icon", "icons/favicon.ico");
+            settings.addFavIcon("icon", "/icons/favicon-32x32.png", "32x32");
         }
         
-        // Set 32x32 favicon (prefer PNG, fallback to SVG if available)  
-        if (faviconSvgPath != null && favicon32Path.equals("/icons/favicon-32x32.png")) {
-            // Use SVG as 32x32 icon if no PNG available but SVG exists
-            settings.addFavIcon("icon", faviconSvgPath, "32x32");
-        } else {
-            settings.addFavIcon("icon", favicon32Path, "32x32");
-        }
-        
-        // Add external brand CSS files if they exist - these will load after the theme
-        if (Files.exists(Paths.get("/brand/colors/brand-colors.css"))) {
+        // Add brand CSS files - check external mount first, fall back to local brand
+        if (Files.exists(Paths.get("/brand/colors/brand-colors.css")) || 
+            Files.exists(Paths.get("brand/colors/brand-colors.css"))) {
             settings.addLink("stylesheet", "/brand/colors/brand-colors.css");
         }
-        if (Files.exists(Paths.get("/brand/typography/brand-typography.css"))) {
+        if (Files.exists(Paths.get("/brand/typography/brand-typography.css")) || 
+            Files.exists(Paths.get("brand/typography/brand-typography.css"))) {
             settings.addLink("stylesheet", "/brand/typography/brand-typography.css");
         }
-        if (Files.exists(Paths.get("/brand/theme.css"))) {
+        if (Files.exists(Paths.get("/brand/theme.css")) || 
+            Files.exists(Paths.get("brand/theme.css"))) {
             settings.addLink("stylesheet", "/brand/theme.css");
         }
     }
@@ -91,12 +103,23 @@ public class AppConfig implements AppShellConfigurator {
      * @return A string containing brand information or null if no brand is detected
      */
     private String detectBrandInfo() {
-        // Check for external brand directory first
+        // Check for external brand directory first, then local brand
+        String brandPath = null;
+        String brandSource = null;
+        
         if (Files.exists(Paths.get("/brand"))) {
+            brandPath = "/brand";
+            brandSource = "external mount";
+        } else if (Files.exists(Paths.get("brand"))) {
+            brandPath = "brand";
+            brandSource = "local directory";
+        }
+        
+        if (brandPath != null) {
             // Try to read brand-info.json first, then brand-config.json as fallback
             try {
-                java.nio.file.Path brandInfoPath = Paths.get("/brand/brand-info.json");
-                java.nio.file.Path brandConfigPath = Paths.get("/brand/brand-config.json");
+                java.nio.file.Path brandInfoPath = Paths.get(brandPath, "brand-info.json");
+                java.nio.file.Path brandConfigPath = Paths.get(brandPath, "brand-config.json");
                 
                 java.nio.file.Path metadataFile = null;
                 if (Files.exists(brandInfoPath)) {
@@ -113,7 +136,9 @@ public class AppConfig implements AppShellConfigurator {
                     String organization = extractJsonValue(content, "organization");
                     
                     if (brandName != null) {
-                        return String.format("External Brand: %s (v%s) - %s [from %s]", 
+                        String brandType = "external mount".equals(brandSource) ? "External" : "Default";
+                        return String.format("%s Brand: %s (v%s) - %s [from %s]", 
+                            brandType,
                             brandName, 
                             version != null ? version : "unknown", 
                             organization != null ? organization : "",
@@ -122,25 +147,27 @@ public class AppConfig implements AppShellConfigurator {
                 }
                 
                 // Fallback: list available brand files
-                StringBuilder fileList = new StringBuilder("External Brand Files: ");
-                if (Files.exists(Paths.get("/brand/colors/brand-colors.css"))) {
+                String fileListPrefix = "external mount".equals(brandSource) ? "External Brand Files: " : "Default Brand Files: ";
+                StringBuilder fileList = new StringBuilder(fileListPrefix);
+                if (Files.exists(Paths.get(brandPath, "colors/brand-colors.css"))) {
                     fileList.append("colors ");
                 }
-                if (Files.exists(Paths.get("/brand/typography/brand-typography.css"))) {
+                if (Files.exists(Paths.get(brandPath, "typography/brand-typography.css"))) {
                     fileList.append("typography ");
                 }
-                if (Files.exists(Paths.get("/brand/theme.css"))) {
+                if (Files.exists(Paths.get(brandPath, "theme.css"))) {
                     fileList.append("theme ");
                 }
                 
                 return fileList.toString().trim();
                 
             } catch (Exception e) {
-                return "External Brand Directory Detected (error reading metadata: " + e.getMessage() + ")";
+                String errorType = "external mount".equals(brandSource) ? "External" : "Default";
+                return errorType + " Brand Directory Detected (error reading metadata: " + e.getMessage() + ")";
             }
         }
         
-        return "Default Brand (no external brand mounted)";
+        return "Default Theme (no brand directory found)";
     }
     
     /**
@@ -165,15 +192,19 @@ public class AppConfig implements AppShellConfigurator {
     }
     
     /**
-     * Simple fallback logic: use brand path if external directory exists, otherwise use default.
+     * Fallback logic: use external brand mount first, then local brand, then default.
      * @param brandPath Path within the brand directory
-     * @param fallbackPath Default path if brand directory is not available
+     * @param fallbackPath Default path if no brand directory is available
      * @return The resolved resource path
      */
     private String getBrandResourcePath(String brandPath, String fallbackPath) {
         // Check if external brand directory exists (for Docker volume mounts)
         if (Files.exists(Paths.get("/brand", brandPath))) {
             return "/brand/" + brandPath;
+        }
+        // Check if local brand directory exists (for development or Docker image default)
+        if (Files.exists(Paths.get("brand", brandPath))) {
+            return "/brand/" + brandPath; // Still use /brand/ URL path (served by BrandStaticFileFilter)
         }
         // Use default path
         return fallbackPath;

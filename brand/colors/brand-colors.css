@@ -1,21 +1,40 @@
 :root {
-  /* Primary Brand Colors */
-  --brand-primary: #00284D;
-  --brand-primary-hsl: 209, 100%, 15%;
-  --brand-primary-contrast: #FFD733;
-  --brand-base: #FFFFFF;
+  /* Primary Brand Colors - Vaadin Lumo Standards */
+  --brand-primary: hsl(214, 90%, 52%); /* Vaadin Lumo primary blue */
+  --brand-primary-hsl: 214, 90%, 52%;
+  --brand-primary-contrast: hsl(0, 0%, 100%); /* White text on primary */
+  --brand-base: hsl(0, 0%, 100%); /* White base */
 
-  /* Status Colors */
-  --brand-error: #993324;
-  --brand-error-hsl: 8, 62%, 37%;
-  --brand-success: #75998E;
-  --brand-success-hsl: 161, 15%, 53%;
+  /* Status Colors - Vaadin Lumo Standards */
+  --brand-error: hsl(3, 85%, 48%); /* Lumo error red */
+  --brand-error-hsl: 3, 85%, 48%;
+  --brand-success: hsl(145, 72%, 30%); /* Lumo success green */
+  --brand-success-hsl: 145, 72%, 30%;
+  --brand-warning: hsl(43, 100%, 48%); /* Lumo warning yellow */
+  --brand-warning-hsl: 43, 100%, 48%;
 
-  /* Interactive Colors */
-  --brand-interactive: #4DAFFF;
-  --brand-interactive-rgb: 77, 175, 255;
+  /* Interactive Colors - Following Vaadin Standards */
+  --brand-interactive: hsl(214, 90%, 52%); /* Same as primary */
+  --brand-interactive-rgb: 22, 118, 243;
+  --brand-interactive-light: rgba(22, 118, 243, 0.1);
 
-  /* Lumo Theme Variables Mapping */
+  /* Color Variants for Theme Integration */
+  --brand-primary-50pct: hsla(214, 90%, 52%, 0.5);
+  --brand-primary-10pct: hsla(214, 90%, 52%, 0.1);
+  
+  --brand-error-50pct: hsla(3, 85%, 48%, 0.5);
+  --brand-error-10pct: hsla(3, 85%, 48%, 0.1);
+  
+  --brand-success-50pct: hsla(145, 72%, 30%, 0.5);
+  --brand-success-10pct: hsla(145, 72%, 30%, 0.1);
+  
+  --brand-warning-50pct: hsla(43, 100%, 48%, 0.5);
+  --brand-warning-10pct: hsla(43, 100%, 48%, 0.1);
+
+  /* Typography Variables - Lumo standard font stack */
+  --brand-font-primary: -apple-system, BlinkMacSystemFont, "Roboto", "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+
+  /* Legacy Lumo Theme Variables Mapping for compatibility */
   --lumo-primary-color: var(--brand-primary);
   --lumo-primary-text-color: var(--brand-primary);
   --lumo-primary-contrast-color: var(--brand-primary-contrast);

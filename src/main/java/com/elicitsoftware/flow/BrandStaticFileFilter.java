@@ -47,9 +47,18 @@ public class BrandStaticFileFilter implements Filter {
                 return;
             }
             
-            Path brandFile = Paths.get("/brand").resolve(relativePath);
+            // Try external brand mount first, then fall back to local brand directory
+            Path brandFile = null;
+            Path externalBrandFile = Paths.get("/brand").resolve(relativePath);
+            Path localBrandFile = Paths.get("brand").resolve(relativePath);
             
-            if (!Files.exists(brandFile) || !Files.isRegularFile(brandFile)) {
+            if (Files.exists(externalBrandFile) && Files.isRegularFile(externalBrandFile)) {
+                brandFile = externalBrandFile;
+            } else if (Files.exists(localBrandFile) && Files.isRegularFile(localBrandFile)) {
+                brandFile = localBrandFile;
+            }
+            
+            if (brandFile == null) {
                 httpResponse.sendError(HttpServletResponse.SC_NOT_FOUND, "File not found");
                 return;
             }

@@ -1,5 +1,15 @@
 /*
-   CSS styling examples for the Vaadin app.
+   Elicit Survey Application Theme
+   
+   This theme provides:
+   - Application-specific component styling
+   - Brand integration architecture via CSS custom properties
+   - Base Vaadin Lumo theme integration
+   
+   Brand colors and typography are provided by:
+   - Default: ./brand/ directory (copied into Docker image)
+   - External: Mounted brand directories (e.g., um-brand, test-brand)
+   
    Visit https://vaadin.com/docs/latest/styling/application-theme and
    https://vaadin.com/docs/latest/styling/lumo for more information.
 */
@@ -7,114 +17,99 @@
 /* Import local fonts as fallback */
 @import 'fonts/style.css';
 
-/* Define brand color variables with fallback values */
-:root {
-  /* University of Michigan Brand Colors as defaults - will be overridden by external brand CSS if available */
-  --brand-primary: #FFCB05; /* UM Maize */
-  --brand-primary-hsl: 45, 100%, 51%; /* HSL for UM Maize */
-  --brand-primary-contrast: #00274C; /* UM Blue text on maize background */
-  --brand-base: #FFFFFF;
-  --brand-error: #9A3324; /* UM Red */
-  --brand-error-hsl: 8, 60%, 37%;
-  --brand-success: #A5A508; /* UM Green */
-  --brand-success-hsl: 60, 91%, 35%;
-  --brand-interactive: #2F65A7; /* UM Medium Blue */
-  --brand-interactive-rgb: 47, 101, 167;
-  
-  /* Typography Variables */
-  --brand-font-primary: "ibm_plex_sansregular", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+/* Brand Integration Architecture */
+/* These CSS custom properties provide the contract between brands and the application */
+html {
+    /* Brand variables are populated by brand CSS files */
+    /* Mapping brand variables to Lumo theme properties */
+    --lumo-font-family: var(--brand-font-primary, -apple-system, BlinkMacSystemFont, "Roboto", "Segoe UI", Helvetica, Arial, sans-serif);
+    
+    /* Primary color mapping */
+    --lumo-primary-color: var(--brand-primary, hsl(214, 90%, 52%));
+    --lumo-primary-text-color: var(--brand-primary, hsl(214, 90%, 52%));
+    --lumo-primary-contrast-color: var(--brand-primary-contrast, hsl(0, 0%, 100%));
+    --lumo-base-color: var(--brand-base, hsl(0, 0%, 100%));
+    
+    /* Primary color variants */
+    --lumo-primary-color-50pct: var(--brand-primary-50pct, hsla(214, 90%, 52%, 0.5));
+    --lumo-primary-color-10pct: var(--brand-primary-10pct, hsla(214, 90%, 52%, 0.1));
+    
+    /* Status color mapping */
+    --lumo-error-color: var(--brand-error, hsl(3, 85%, 48%));
+    --lumo-error-text-color: var(--brand-error, hsl(3, 85%, 48%));
+    --lumo-error-color-50pct: var(--brand-error-50pct, hsla(3, 85%, 48%, 0.5));
+    --lumo-error-color-10pct: var(--brand-error-10pct, hsla(3, 85%, 48%, 0.1));
+    
+    --lumo-success-color: var(--brand-success, hsl(145, 72%, 30%));
+    --lumo-success-text-color: var(--brand-success, hsl(145, 72%, 30%));
+    --lumo-success-color-50pct: var(--brand-success-50pct, hsla(145, 72%, 30%, 0.5));
+    --lumo-success-color-10pct: var(--brand-success-10pct, hsla(145, 72%, 30%, 0.1));
+    
+    --lumo-warning-color: var(--brand-warning, hsl(43, 100%, 48%));
+    --lumo-warning-text-color: var(--brand-warning, hsl(43, 100%, 48%));
+    --lumo-warning-color-50pct: var(--brand-warning-50pct, hsla(43, 100%, 48%, 0.5));
+    --lumo-warning-color-10pct: var(--brand-warning-10pct, hsla(43, 100%, 48%, 0.1));
 }
 
-/* Apply brand variables to Lumo theme */
-html{
-    /* Typography */
-    --lumo-font-family: var(--brand-font-primary);
-    
-    /* Primary Colors */
-    --lumo-primary-text-color: var(--brand-primary);
-    --lumo-primary-color: var(--brand-primary);
-    --lumo-primary-contrast-color: var(--brand-primary-contrast);
-    --lumo-base-color: var(--brand-base);
-    
-    /* Primary Color Variants */
-    --lumo-primary-color-50pct: hsla(var(--brand-primary-hsl), 0.5);
-    --lumo-primary-color-10pct: hsla(var(--brand-primary-hsl), 0.1);
-    
-    /* Shade Variants */
-    --lumo-shade-5pct: hsla(var(--brand-primary-hsl), 0.05);
-    --lumo-shade-10pct: hsla(var(--brand-primary-hsl), 0.1);
-    --lumo-shade-20pct: hsla(var(--brand-primary-hsl), 0.2);
-    --lumo-shade-30pct: hsla(var(--brand-primary-hsl), 0.3);
-    --lumo-shade-40pct: hsla(var(--brand-primary-hsl), 0.4);
-    --lumo-shade-50pct: hsla(var(--brand-primary-hsl), 0.5);
-    --lumo-shade-60pct: hsla(var(--brand-primary-hsl), 0.6);
-    --lumo-shade-70pct: hsla(var(--brand-primary-hsl), 0.7);
-    --lumo-shade-80pct: hsla(var(--brand-primary-hsl), 0.8);
-    --lumo-shade-90pct: hsla(var(--brand-primary-hsl), 0.9);
-    --lumo-shade: var(--brand-primary);
-    
-    /* Error Color Variants */
-    --lumo-error-color: var(--brand-error);
-    --lumo-error-text-color: var(--brand-error);
-    --lumo-error-color-50pct: hsla(var(--brand-error-hsl), 0.5);
-    --lumo-error-color-10pct: hsla(var(--brand-error-hsl), 0.1);
-    
-    /* Success Color Variants */
-    --lumo-success-color: var(--brand-success);
-    --lumo-success-text-color: var(--brand-success);
-    --lumo-success-color-50pct: hsla(var(--brand-success-hsl), 0.5);
-    --lumo-success-color-10pct: hsla(var(--brand-success-hsl), 0.1);
-}
+/* ============================================================================ */
+/* APPLICATION-SPECIFIC STYLING                                                */
+/* ============================================================================ */
+/* The following styles are specific to the Elicit Survey application          */
+/* and are not related to branding. These remain constant across all brands.   */
 
+/* Elicit Input Field Customization */
 .elicit-input-field::part(label) {
     word-wrap: unset;
     white-space: unset;
     overflow: unset;
 }
 
-.review-section{
+/* Survey Review Components */
+.review-section {
     white-space: pre-line;
 }
 
-.review-item-question{
+.review-item-question {
     font-weight: bolder;
     padding-left: 10px;
 }
 
+/* Application Animations */
 @keyframes flash {
-    0% { background-color: var(--brand-base); }
-    10% { background-color: rgba(var(--brand-interactive-rgb), 0.1); }
-    20% { background-color: rgba(var(--brand-interactive-rgb), 0.15); }
-    30% { background-color: rgba(var(--brand-interactive-rgb), 0.2); }
-    40% { background-color: rgba(var(--brand-interactive-rgb), 0.25); }
-    50% { background-color: rgba(var(--brand-interactive-rgb), 0.3); }
-    60% { background-color: rgba(var(--brand-interactive-rgb), 0.25); }
-    70% { background-color: rgba(var(--brand-interactive-rgb), 0.2); }
-    80% { background-color: rgba(var(--brand-interactive-rgb), 0.15); }
-    90% { background-color: rgba(var(--brand-interactive-rgb), 0.1); }
-    100% { background-color: var(--brand-base); }
+    0% { background-color: var(--lumo-base-color, white); }
+    10% { background-color: var(--brand-interactive-light, rgba(22, 118, 243, 0.1)); }
+    20% { background-color: var(--brand-interactive-light, rgba(22, 118, 243, 0.15)); }
+    30% { background-color: var(--brand-interactive-light, rgba(22, 118, 243, 0.2)); }
+    40% { background-color: var(--brand-interactive-light, rgba(22, 118, 243, 0.25)); }
+    50% { background-color: var(--brand-interactive-light, rgba(22, 118, 243, 0.3)); }
+    60% { background-color: var(--brand-interactive-light, rgba(22, 118, 243, 0.25)); }
+    70% { background-color: var(--brand-interactive-light, rgba(22, 118, 243, 0.2)); }
+    80% { background-color: var(--brand-interactive-light, rgba(22, 118, 243, 0.15)); }
+    90% { background-color: var(--brand-interactive-light, rgba(22, 118, 243, 0.1)); }
+    100% { background-color: var(--lumo-base-color, white); }
 }
 
 .flash {
     animation: flash 1.5s ease-in-out;
 }
 
+/* Layout Utilities */
 .scroller {
-    overflow: auto; /* Enables scrolling */
+    overflow: auto;
     display: flex;
     flex-direction: column;
-    height: 100vh; /* Full height to allow scrolling */
+    height: 100vh;
     box-sizing: border-box;
 }
 
 .reviewCard {
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Drop shadow */
-    border: 1px solid #e0e0e0; /* Light border */
-    border-radius: 4px; /* Optional: rounded corners */
-    padding: 16px; /* Optional: some padding inside the card */
-    background-color: #fff; /* Optional: background color */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--lumo-contrast-20pct, #e0e0e0);
+    border-radius: var(--lumo-border-radius-m, 4px);
+    padding: var(--lumo-space-m, 16px);
+    background-color: var(--lumo-base-color, #fff);
 }
 
-.review-item-question{
+.review-item-question {
     font-weight: bold;
 }

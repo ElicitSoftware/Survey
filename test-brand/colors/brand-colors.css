@@ -9,8 +9,12 @@
   
   /* Primary color aliases for semantic use */
   --brand-primary: var(--healthcare-blue);
+  --brand-primary-contrast: var(--healthcare-white);
+  --brand-primary-50pct: rgba(27, 54, 93, 0.5);
+  --brand-primary-10pct: rgba(27, 54, 93, 0.1);
   --brand-secondary: var(--healthcare-teal);
   --brand-accent: var(--healthcare-navy);
+  --brand-base: var(--healthcare-white);
   
   /* Secondary Supporting Colors */
   --healthcare-light-blue: #5B9BD5;
@@ -50,8 +54,14 @@
   
   /* Status colors */
   --brand-success: var(--healthcare-success);
+  --brand-success-50pct: rgba(76, 175, 80, 0.5);
+  --brand-success-10pct: rgba(76, 175, 80, 0.1);
   --brand-warning: var(--healthcare-warning);
+  --brand-warning-50pct: rgba(255, 193, 7, 0.5);
+  --brand-warning-10pct: rgba(255, 193, 7, 0.1);
   --brand-error: var(--healthcare-error);
+  --brand-error-50pct: rgba(244, 67, 54, 0.5);
+  --brand-error-10pct: rgba(244, 67, 54, 0.1);
   --brand-info: var(--healthcare-info);
   
   /* Border and shadow colors */

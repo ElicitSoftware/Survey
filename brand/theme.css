@@ -1,0 +1,16 @@
+/* Elicit Default Brand Theme - Vaadin Standards */
+/* This theme defines the default Elicit brand using Vaadin standard colors */
+
+/* Import brand styles */
+@import url('./colors/brand-colors.css');
+@import url('./typography/brand-typography.css');
+
+/* 
+   Note: The starter-theme handles the mapping of brand variables to Lumo theme properties.
+   This file only needs to define brand-specific customizations beyond the standard mappings.
+   
+   Brand variables defined in brand-colors.css will automatically be used by the 
+   starter-theme for Lumo integration.
+*/
+
+/* Elicit-specific component customizations can be added here as needed */
