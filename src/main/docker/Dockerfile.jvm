@@ -89,7 +89,8 @@ COPY --chown=185 target/quarkus-app/app/ /deployments/app/
 COPY --chown=185 target/quarkus-app/quarkus/ /deployments/quarkus/
 
 # Copy default brand directory into the image (will be overridden by volume mounts)
-COPY --chown=185 brand/ /brand/
+# Copy default brand directory into the image (will be overridden by volume mounts)
+COPY --chown=185 default-brand/ /opt/brand/
 
 EXPOSE 8080
 USER 185

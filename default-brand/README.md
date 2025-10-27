@@ -44,10 +44,10 @@ docker run -p 8080:8080 elicitsoftware/survey:latest
 ### External Brand Override
 ```bash
 # Overrides with University of Michigan brand
-docker run -v ./um-brand:/brand:ro -p 8080:8080 elicitsoftware/survey:latest
+docker run -v ./um-brand:/opt/brands/um-brand:ro -p 8080:8080 elicitsoftware/survey:latest
 
 # Overrides with Healthcare test brand
-docker run -v ./test-brand:/brand:ro -p 8080:8080 elicitsoftware/survey:latest
+docker run -v ./test-brand:/opt/brands/test-brand:ro -p 8080:8080 elicitsoftware/survey:latest
 ```
 
 ## Directory Structure
@@ -213,7 +213,7 @@ Brand CSS files populate the `--brand-*` variables:
 docker run -p 8080:8080 survey:latest
 
 # External brand override
-docker run -v ./my-brand:/brand:ro -p 8080:8080 survey:latest
+docker run -v ./my-brand:/opt/brands/my-brand:ro -p 8080:8080 survey:latest
 ```
 
 ## Testing Different Brands
@@ -226,13 +226,13 @@ docker run -p 8080:8080 survey:latest
 
 ### Example 2: University of Michigan Brand
 ```bash
-docker run -v ./um-brand:/brand:ro -p 8081:8080 survey:latest
+docker run -v ./um-brand:/opt/brands/um-brand:ro -p 8081:8080 survey:latest
 # Result: Maize yellow buttons, UM blue accents, UM favicon
 ```
 
 ### Example 3: Healthcare Test Brand
 ```bash
-docker run -v ./test-brand:/brand:ro -p 8082:8080 survey:latest
+docker run -v ./test-brand:/opt/brands/test-brand:ro -p 8082:8080 survey:latest
 # Result: Healthcare blue buttons, teal accents, healthcare favicon
 ```
 
@@ -243,7 +243,7 @@ mkdir my-green-brand
 echo ':root { --brand-primary: #2E8B57 !important; }' > my-green-brand/theme.css
 
 # Test it
-docker run -v ./my-green-brand:/brand:ro -p 8083:8080 survey:latest
+docker run -v ./my-green-brand:/opt/brands/my-green-brand:ro -p 8083:8080 survey:latest
 # Result: Sea green buttons
 ```
 
@@ -309,7 +309,7 @@ This is sufficient to change the primary color throughout the application.
 **Problem**: Meta tag shows default brand instead of external brand.
 **Solution**:
 1. Restart Docker container after mounting brand volume
-2. Verify volume mount path: `-v ./my-brand:/brand:ro`
+2. Verify volume mount path: `-v ./my-brand:/opt/brands/my-brand:ro`
 3. Check that `brand-config.json` or `brand-info.json` exists
 
 ### Colors Work Partially

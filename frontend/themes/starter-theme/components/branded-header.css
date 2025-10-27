@@ -1,0 +1,162 @@
+/* Branded Header Component Styles */
+/* Supports multiple brands: um-brand, test-brand, default-brand */
+
+.branded-header {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    gap: 1rem;
+    min-height: 64px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Default brand styling (Elicit branding) */
+.branded-header {
+    background: linear-gradient(135deg, var(--lumo-primary-color) 0%, var(--lumo-primary-color-50pct) 100%);
+    color: var(--lumo-primary-contrast-color);
+    border-bottom: 2px solid var(--lumo-primary-color-10pct);
+}
+
+/* Brand-specific styling for external mounted brands */
+.branded-header.um-brand {
+    background: linear-gradient(135deg, #00274C 0%, #1B365D 100%);
+    color: #FFFFFF;
+    border-bottom: 3px solid #FFCB05;
+}
+
+/* Test brand (Healthcare) styling */
+.branded-header.test-brand {
+    background: linear-gradient(135deg, #1B365D 0%, #4A9B8E 100%);
+    color: #FFFFFF;
+    border-bottom: 3px solid #6BB6AA;
+}
+
+/* Logo container */
+.branded-header .logo-container {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.branded-header .logo {
+    height: 48px;
+    width: auto;
+    max-width: 200px;
+    object-fit: contain;
+}
+
+/* Brand title styling */
+.branded-header .brand-title {
+    font-family: var(--lumo-font-family);
+    font-size: var(--lumo-font-size-xl);
+    font-weight: 600;
+    text-decoration: none;
+    color: inherit;
+    margin: 0;
+    white-space: nowrap;
+}
+
+.branded-header .brand-title:hover {
+    opacity: 0.9;
+    text-decoration: none;
+}
+
+/* Brand-specific title styling */
+.branded-header.um-brand .brand-title {
+    font-family: var(--um-font-secondary, 'Montserrat', sans-serif);
+    color: #FFCB05;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* Test brand title */
+.branded-header.test-brand .brand-title {
+    color: #FFFFFF;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* Navigation toggle button styling */
+.branded-header vaadin-drawer-toggle {
+    color: inherit;
+    --lumo-icon-size-s: 1.5rem;
+}
+
+.branded-header.um-brand vaadin-drawer-toggle {
+    color: #FFCB05;
+}
+
+.branded-header.test-brand vaadin-drawer-toggle {
+    color: #FFFFFF;
+}
+
+/* Responsive behavior */
+@media (max-width: 768px) {
+    .branded-header {
+        padding: 0.5rem 0.75rem;
+        min-height: 56px;
+    }
+    
+    .branded-header .logo {
+        height: 40px;
+        max-width: 150px;
+    }
+    
+    .branded-header .brand-title {
+        font-size: var(--lumo-font-size-l);
+    }
+}
+
+@media (max-width: 480px) {
+    .branded-header {
+        padding: 0.5rem;
+        gap: 0.75rem;
+    }
+    
+    .branded-header .logo {
+        height: 36px;
+        max-width: 120px;
+    }
+    
+    .branded-header .brand-title {
+        font-size: var(--lumo-font-size-m);
+    }
+}
+
+/* Focus and accessibility */
+.branded-header .brand-title:focus,
+.branded-header vaadin-drawer-toggle:focus {
+    outline: 2px solid var(--lumo-primary-color-50pct);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+.branded-header.um-brand .brand-title:focus,
+.branded-header.um-brand vaadin-drawer-toggle:focus {
+    outline-color: #FFCB05;
+    box-shadow: 0 0 0 4px rgba(255, 203, 5, 0.2);
+}
+
+.branded-header.test-brand .brand-title:focus,
+.branded-header.test-brand vaadin-drawer-toggle:focus {
+    outline-color: #6BB6AA;
+    box-shadow: 0 0 0 4px rgba(107, 182, 170, 0.2);
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .branded-header {
+        border-bottom-width: 4px;
+    }
+    
+    .branded-header .brand-title,
+    .branded-header vaadin-drawer-toggle {
+        font-weight: bold;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .branded-header .brand-title {
+        transition: none;
+    }
+}

@@ -13,10 +13,13 @@ package com.elicitsoftware.flow;
 
 import com.elicitsoftware.UISessionDataService;
 import com.elicitsoftware.model.Respondent;
+import com.elicitsoftware.util.BrandUtil;
 import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.applayout.AppLayout;
 import com.vaadin.flow.component.applayout.DrawerToggle;
 import com.vaadin.flow.component.html.Anchor;
+import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.html.Image;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.Scroller;
 import com.vaadin.flow.component.sidenav.SideNav;
@@ -74,19 +77,55 @@ public class MainLayout extends AppLayout implements AfterNavigationListener {
     }
 
     /**
-     * Creates and adds a header section in the layout.
+     * Creates and adds a header section in the layout with brand-aware styling.
      * <p>
-     * This method initializes a drawer toggle and a title anchor that links
-     * to the application's root path ("/") and displays the software name.
-     * The title is styled with a larger font size and zero-margin spacing.
-     * Both the toggle and title are added to the navigation bar.
+     * This method creates a branded header that adapts to the current brand configuration,
+     * including appropriate logos, colors, and styling. The header contains:
+     * - A drawer toggle for navigation
+     * - Brand logo (if available)
+     * - Application title with brand-specific styling
      */
     private void createHeader() {
+        // Detect current brand
+        BrandUtil.BrandInfo brandInfo = BrandUtil.detectCurrentBrand();
+        
+        // Create header container with brand-specific CSS class
+        Div headerContainer = new Div();
+        headerContainer.addClassName("branded-header");
+        
+        // Add brand-specific CSS class if available and not empty
+        if (brandInfo != null && brandInfo.getCssClass() != null && !brandInfo.getCssClass().isEmpty()) {
+            headerContainer.addClassName(brandInfo.getCssClass());
+        }
+        
+        // Create drawer toggle
         DrawerToggle toggle = new DrawerToggle();
-        Anchor title = new Anchor("/", "Elicit");
-        title.getStyle().set("font-size", "var(--lumo-font-size-l)")
-                .set("margin", "0");
-        addToNavbar(toggle, title);
+        headerContainer.add(toggle);
+        
+        // Add logo if available
+        if (brandInfo != null) {
+            try {
+                Image logo = new Image();
+                logo.setSrc(BrandUtil.getLogoResourcePath(brandInfo));
+                logo.setAlt(brandInfo.getDisplayName() + " Logo");
+                logo.addClassName("logo");
+                
+                Div logoContainer = new Div(logo);
+                logoContainer.addClassName("logo-container");
+                headerContainer.add(logoContainer);
+            } catch (Exception e) {
+                // Logo not available, continue without it
+            }
+        }
+        
+        // Create application title
+        String appTitle = brandInfo != null ? BrandUtil.getApplicationTitle(brandInfo, "Survey") : "Elicit Survey";
+        Anchor title = new Anchor("/", appTitle);
+        title.addClassName("brand-title");
+        headerContainer.add(title);
+        
+        // Add header to navbar
+        addToNavbar(headerContainer);
     }
 
     /**

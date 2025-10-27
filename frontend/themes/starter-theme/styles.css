@@ -17,6 +17,9 @@
 /* Import local fonts as fallback */
 @import 'fonts/style.css';
 
+/* Import branded header component styles */
+@import 'components/branded-header.css';
+
 /* Brand Integration Architecture */
 /* These CSS custom properties provide the contract between brands and the application */
 html {
