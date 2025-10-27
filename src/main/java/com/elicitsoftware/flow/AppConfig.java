@@ -27,12 +27,26 @@ import java.nio.file.Paths;
  * picked up by Vaadin during the application runtime.
  * <p>
  * Key Features:
- * - Theme Configuration: Sets the application-wide theme.
- * - Shell Customization: Provides a mechanism for customizing the app shell through the
- * AppShellConfigurator interface.
+ * - Theme Configuration: Sets the application-wide theme to "starter-theme"
+ * - Brand Integration: Configures favicon and CSS links based on mounted brand directories
+ * - Fallback System: Implements three-tier brand fallback (external → local → default)
+ * - Meta Tags: Adds brand identification information for debugging
+ * <p>
+ * Brand Directory Precedence:
+ * 1. External brand mount (/brand) - Docker volume mounts for runtime branding
+ * 2. Local brand directory (brand/) - Development or embedded default brand
+ * 3. Application defaults (icons/) - Fallback when no brand is available
  */
 @Theme("starter-theme")
 public class AppConfig implements AppShellConfigurator {
+    
+    /**
+     * Configures the application shell settings including favicons, CSS links, and brand metadata.
+     * This method is automatically called by Vaadin during application startup to customize
+     * the HTML head section of the application.
+     * 
+     * @param settings The AppShellSettings to configure with brand-specific resources
+     */
     @Override
     public void configurePage(AppShellSettings settings) {
         // Add brand information as HTML comment for debugging/identification
@@ -98,9 +112,12 @@ public class AppConfig implements AppShellConfigurator {
     }
     
     /**
-     * Detects and reads brand information from various sources.
+     * Detects and reads brand information from various sources for debugging and identification.
+     * Implements the brand directory precedence: external mount (/brand) → local directory (brand/).
+     * Attempts to read metadata from brand-info.json first, then brand-config.json as fallback.
      * 
-     * @return A string containing brand information or null if no brand is detected
+     * @return A formatted string containing brand information, or a fallback message if no brand is detected.
+     *         Format: "{External|Default} Brand: {name} (v{version}) - {organization} [from {filename}]"
      */
     private String detectBrandInfo() {
         // Check for external brand directory first, then local brand
@@ -192,10 +209,17 @@ public class AppConfig implements AppShellConfigurator {
     }
     
     /**
-     * Fallback logic: use external brand mount first, then local brand, then default.
-     * @param brandPath Path within the brand directory
-     * @param fallbackPath Default path if no brand directory is available
-     * @return The resolved resource path
+     * Implements three-tier brand resource fallback logic for favicon and asset resolution.
+     * Checks for brand resources in order of precedence and returns the appropriate URL path.
+     * 
+     * Precedence Order:
+     * 1. External brand mount (/brand/{brandPath}) - Docker volume mounts
+     * 2. Local brand directory (brand/{brandPath}) - Development or embedded brand
+     * 3. Default application path (fallbackPath) - Application defaults
+     * 
+     * @param brandPath The relative path within the brand directory (e.g., "visual-assets/icons/favicon.svg")
+     * @param fallbackPath The default application path to use if no brand resource is found (can be null)
+     * @return The resolved URL path for the resource, or the fallbackPath if no brand resource exists
      */
     private String getBrandResourcePath(String brandPath, String fallbackPath) {
         // Check if external brand directory exists (for Docker volume mounts)

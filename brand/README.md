@@ -2,6 +2,8 @@
 
 This directory contains the **default brand** for the Elicit Survey application. It uses Vaadin standard colors and follows modern web design principles.
 
+> **Note**: This brand system was implemented as part of issue #67 to allow external branding while maintaining Vaadin design standards for the default experience.
+
 ## Architecture Overview
 
 The brand system uses a three-tier architecture:
@@ -53,14 +55,19 @@ docker run -v ./test-brand:/brand:ro -p 8080:8080 elicitsoftware/survey:latest
 ```
 /brand/ (Default Brand)
 ├── colors/
-│   └── brand-colors.css      # Vaadin standard colors + variants
+│   ├── brand-colors.css      # Vaadin standard colors + variants
+│   └── palette.json          # Color metadata
 ├── typography/
 │   ├── brand-typography.css  # Font declarations (system fonts)
-│   └── [font files]          # Web font assets (if any)
+│   ├── typography.json       # Font metadata
+│   └── *.woff, *.woff2       # Web font files
 ├── visual-assets/
 │   └── icons/
-│       ├── favicon.ico       # Default Elicit favicon
-│       └── favicon-32x32.png # 32x32 Elicit favicon
+│       ├── favicon.ico       # Default Elicit favicon (ICO format)
+│       ├── favicon-32x32.png # 32x32 Elicit favicon (PNG format)
+│       └── favicon.svg       # Default Elicit favicon (SVG format, preferred)
+├── logos/
+│   └── stacked.png           # Brand logo assets
 ├── brand-config.json         # Brand metadata
 ├── theme.css                 # Brand-specific customizations
 └── README.md                 # This file
@@ -99,9 +106,15 @@ Create `my-brand/colors/brand-colors.css`:
   --brand-success: #YOUR_SUCCESS_COLOR;
   --brand-warning: #YOUR_WARNING_COLOR;
   
-  /* Color Variants (required for proper integration) */
-  --brand-primary-50pct: hsla(YOUR_HSL, 0.5);
-  --brand-primary-10pct: hsla(YOUR_HSL, 0.1);
+  /* REQUIRED: Color Variants for Vaadin Component Integration */
+  --brand-primary-50pct: rgba(YOUR_R, YOUR_G, YOUR_B, 0.5);
+  --brand-primary-10pct: rgba(YOUR_R, YOUR_G, YOUR_B, 0.1);
+  --brand-error-50pct: rgba(YOUR_R, YOUR_G, YOUR_B, 0.5);
+  --brand-error-10pct: rgba(YOUR_R, YOUR_G, YOUR_B, 0.1);
+  --brand-success-50pct: rgba(YOUR_R, YOUR_G, YOUR_B, 0.5);
+  --brand-success-10pct: rgba(YOUR_R, YOUR_G, YOUR_B, 0.1);
+  --brand-warning-50pct: rgba(YOUR_R, YOUR_G, YOUR_B, 0.5);
+  --brand-warning-10pct: rgba(YOUR_R, YOUR_G, YOUR_B, 0.1);
   
   /* Typography */
   --brand-font-primary: "Your Font", system-ui, sans-serif;
@@ -118,9 +131,17 @@ Create `my-brand/theme.css`:
 html {
   --lumo-primary-color: var(--brand-primary) !important;
   --lumo-primary-contrast-color: var(--brand-primary-contrast) !important;
+  --lumo-primary-color-50pct: var(--brand-primary-50pct) !important;
+  --lumo-primary-color-10pct: var(--brand-primary-10pct) !important;
   --lumo-error-color: var(--brand-error) !important;
+  --lumo-error-color-50pct: var(--brand-error-50pct) !important;
+  --lumo-error-color-10pct: var(--brand-error-10pct) !important;
   --lumo-success-color: var(--brand-success) !important;
+  --lumo-success-color-50pct: var(--brand-success-50pct) !important;
+  --lumo-success-color-10pct: var(--brand-success-10pct) !important;
   --lumo-warning-color: var(--brand-warning) !important;
+  --lumo-warning-color-50pct: var(--brand-warning-50pct) !important;
+  --lumo-warning-color-10pct: var(--brand-warning-10pct) !important;
 }
 ```
 
@@ -136,14 +157,23 @@ Create `my-brand/brand-config.json`:
 ```
 ## How It Works
 
-### 1. CSS Loading Order
+### 1. File Serving (BrandStaticFileFilter)
+Brand files are served via a servlet filter with three-tier fallback:
+```
+Request: /brand/colors/brand-colors.css
+1. Check: /brand/colors/brand-colors.css (external mount)
+2. Check: brand/colors/brand-colors.css (local/embedded)  
+3. Return: 404 if not found in either location
+```
+
+### 2. CSS Loading Order
 ```
 1. Vaadin Base Theme (Lumo)
 2. Application Theme (starter-theme) - provides CSS variable contracts
 3. Brand CSS (this directory or external mount) - populates variables
 ```
 
-### 2. CSS Variable Contract
+### 3. CSS Variable Contract
 The application theme defines CSS variable contracts with fallbacks:
 ```css
 /* Application theme provides this structure */
@@ -164,7 +194,7 @@ Brand CSS files populate the `--brand-*` variables:
 }
 ```
 
-### 3. Fallback Behavior
+### 4. Fallback Behavior
 - **No brand directory**: Uses Vaadin standard colors from fallbacks
 - **Default brand** (this directory): Uses Vaadin colors explicitly defined
 - **External brand**: Overrides with custom colors using `!important`
@@ -237,9 +267,11 @@ The application automatically detects the active brand and displays it in the HT
 
 ### Optional Files
 - `typography/brand-typography.css` - Custom fonts
-- `visual-assets/icons/favicon.ico` - Custom favicon
+- `visual-assets/icons/favicon.svg` - Custom favicon (SVG format, preferred)
+- `visual-assets/icons/favicon.ico` - Custom favicon (ICO format, fallback)
 - `visual-assets/icons/favicon-32x32.png` - Custom 32x32 favicon
 - Font files (.woff2, .woff) - Custom web fonts
+- `logos/` directory - Brand logo assets
 
 ### Minimal Brand Example
 ```css
@@ -251,3 +283,39 @@ The application automatically detects the active brand and displays it in the HT
 ```
 
 This is sufficient to change the primary color throughout the application.
+
+## Troubleshooting
+
+### Brand Colors Not Appearing
+**Problem**: External brand is mounted but colors remain default blue.
+**Solution**: Ensure opacity variants are defined:
+```css
+:root {
+  --brand-primary: #FF6B35 !important;
+  --brand-primary-50pct: rgba(255, 107, 53, 0.5) !important;
+  --brand-primary-10pct: rgba(255, 107, 53, 0.1) !important;
+}
+```
+
+### Favicon Not Updating
+**Problem**: Browser shows old favicon after brand change.
+**Solution**: 
+1. Restart the Docker container
+2. Clear browser cache (Cmd+Shift+R)
+3. Try incognito/private browsing mode
+4. Check that favicon exists in brand directory at `visual-assets/icons/favicon.svg`
+
+### Brand Detection Shows "Default Brand"
+**Problem**: Meta tag shows default brand instead of external brand.
+**Solution**:
+1. Restart Docker container after mounting brand volume
+2. Verify volume mount path: `-v ./my-brand:/brand:ro`
+3. Check that `brand-config.json` or `brand-info.json` exists
+
+### Colors Work Partially
+**Problem**: Primary button changes color but other elements remain default.
+**Solution**: Define all required opacity variants (50pct and 10pct) for each color:
+- `--brand-primary-50pct` and `--brand-primary-10pct`
+- `--brand-error-50pct` and `--brand-error-10pct`
+- `--brand-success-50pct` and `--brand-success-10pct`
+- `--brand-warning-50pct` and `--brand-warning-10pct`

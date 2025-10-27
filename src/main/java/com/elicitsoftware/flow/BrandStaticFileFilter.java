@@ -22,12 +22,37 @@ import java.nio.file.Paths;
 
 /**
  * Servlet filter that intercepts requests to /brand/* and serves them as static files
- * from the external brand directory mounted at /brand.
- * This filter runs before Vaadin's routing to handle brand resources directly.
+ * from brand directories with intelligent fallback logic.
+ * <p>
+ * This filter implements a three-tier brand resource resolution system:
+ * 1. External brand mount (/brand) - Docker volume mounts for runtime branding
+ * 2. Local brand directory (brand/) - Development or embedded default brand
+ * 3. 404 Not Found - If the resource doesn't exist in any brand location
+ * <p>
+ * The filter runs before Vaadin's routing to handle brand resources directly,
+ * ensuring optimal performance and proper caching headers for brand assets.
+ * <p>
+ * Security Features:
+ * - Path traversal protection (blocks ".." and "//" in paths)
+ * - File existence validation
+ * - Proper MIME type detection for various brand asset types
+ * 
+ * @see AppConfig#getBrandResourcePath(String, String) for URL generation logic
  */
 @WebFilter(urlPatterns = "/brand/*")
 public class BrandStaticFileFilter implements Filter {
 
+    /**
+     * Processes HTTP requests for brand resources with fallback logic.
+     * Intercepts requests to /brand/* URLs and serves files from brand directories
+     * with proper security checks, MIME type detection, and caching headers.
+     * 
+     * @param request The servlet request (must be HttpServletRequest for /brand/* URLs)
+     * @param response The servlet response (cast to HttpServletResponse for brand processing)
+     * @param chain The filter chain to continue processing for non-brand requests
+     * @throws IOException If file I/O operations fail during brand resource serving
+     * @throws ServletException If servlet processing fails
+     */
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
             throws IOException, ServletException {
@@ -87,6 +112,13 @@ public class BrandStaticFileFilter implements Filter {
         chain.doFilter(request, response);
     }
     
+    /**
+     * Determines the appropriate MIME content type for a file based on its extension.
+     * Supports common brand asset file types including CSS, JavaScript, images, and fonts.
+     * 
+     * @param fileName The name of the file including extension
+     * @return The MIME content type string, or "application/octet-stream" for unknown extensions
+     */
     private String getContentType(String fileName) {
         String extension = getFileExtension(fileName);
         
@@ -106,6 +138,12 @@ public class BrandStaticFileFilter implements Filter {
         };
     }
     
+    /**
+     * Extracts the file extension from a filename.
+     * 
+     * @param fileName The filename to extract the extension from
+     * @return The file extension (without the dot), or empty string if no extension is found
+     */
     private String getFileExtension(String fileName) {
         int lastDotIndex = fileName.lastIndexOf('.');
         if (lastDotIndex > 0 && lastDotIndex < fileName.length() - 1) {
