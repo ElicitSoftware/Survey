@@ -72,14 +72,14 @@ public class BrandUtil {
                     CACHED_BRAND_INFO = new BrandInfo(
                         "um-brand",
                         "University of Michigan",
-                        "/brand/logos/HorizontalLogo.png",
+                        "/brand/images/HorizontalLogo.png",
                         "um-brand"
                     );
                 } else if (content.contains("test-brand") || content.contains("Healthcare")) {
                     CACHED_BRAND_INFO = new BrandInfo(
                         "test-brand",
                         "Healthcare System",
-                        "/brand/logos/HorizontalLogo.png",
+                        "/brand/images/HorizontalLogo.png",
                         "test-brand"
                     );
                 } else {
@@ -87,7 +87,7 @@ public class BrandUtil {
                     CACHED_BRAND_INFO = new BrandInfo(
                         "external-brand",
                         "External Brand",
-                        "/brand/logos/HorizontalLogo.png",
+                        "/brand/images/HorizontalLogo.png",
                         "external-brand"
                     );
                 }
@@ -124,7 +124,7 @@ public class BrandUtil {
     public static String getLogoResourcePath(BrandInfo brandInfo) {
         // For external brands, serve via the brand resource handler
         if (brandInfo.getLogoPath().startsWith("/brand/")) {
-            return "brand/logos/HorizontalLogo.png";
+            return "brand/images/HorizontalLogo.png";
         }
         // For default brand, use static resources
         return "images/HorizontalLogo.png";

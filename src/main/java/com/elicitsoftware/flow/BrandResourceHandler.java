@@ -17,6 +17,7 @@ import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
@@ -29,10 +30,12 @@ import java.nio.file.Paths;
 public class BrandResourceHandler {
 
     /**
-     * Serves brand files from the external brand directory.
+     * Serves brand files from the external brand directory with fallback to embedded resources.
+     * If a file is not found in the external brand directory, it will redirect to
+     * the default version served by Quarkus from META-INF/resources/.
      * 
      * @param filePath The relative path to the brand file
-     * @return HTTP response with the file content and appropriate media type
+     * @return HTTP response with the file content and appropriate media type, or redirect to fallback
      */
     @GET
     @Path("/{filePath:.+}")
@@ -45,24 +48,55 @@ public class BrandResourceHandler {
                 return Response.status(Response.Status.FORBIDDEN).build();
             }
             
-            // Check if file exists
-            if (!Files.exists(brandFile) || !Files.isRegularFile(brandFile)) {
-                return Response.status(Response.Status.NOT_FOUND).build();
+            // Try to read from external brand directory first
+            if (Files.exists(brandFile) && Files.isRegularFile(brandFile)) {
+                byte[] content = Files.readAllBytes(brandFile);
+                String mediaType = getMediaType(filePath);
+                
+                return Response.ok(content)
+                        .type(mediaType)
+                        .header("Cache-Control", "public, max-age=3600") // Cache for 1 hour
+                        .build();
+            } else {
+                // Fallback: serve content directly from embedded resources
+                byte[] fallbackContent = readEmbeddedResource(filePath);
+                if (fallbackContent != null) {
+                    String mediaType = getMediaType(filePath);
+                    return Response.ok(fallbackContent)
+                            .type(mediaType)
+                            .header("Cache-Control", "public, max-age=3600") // Cache for 1 hour
+                            .build();
+                } else {
+                    return Response.status(Response.Status.NOT_FOUND).build();
+                }
             }
-            
-            // Read file content
-            byte[] content = Files.readAllBytes(brandFile);
-            
-            // Determine media type based on file extension
-            String mediaType = getMediaType(filePath);
-            
-            return Response.ok(content)
-                    .type(mediaType)
-                    .header("Cache-Control", "public, max-age=3600") // Cache for 1 hour
-                    .build();
                     
         } catch (IOException e) {
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+    
+    /**
+     * Attempts to read a resource from the embedded META-INF/resources/ directory.
+     * 
+     * @param filePath The relative path to the resource
+     * @return The file content as byte array, or null if not found
+     */
+    private byte[] readEmbeddedResource(String filePath) {
+        try {
+            // Try to load the resource from META-INF/resources/
+            String resourcePath = "/META-INF/resources/" + filePath;
+            InputStream inputStream = getClass().getResourceAsStream(resourcePath);
+            
+            if (inputStream != null) {
+                try (inputStream) {
+                    return inputStream.readAllBytes();
+                }
+            }
+            
+            return null;
+        } catch (IOException e) {
+            return null;
         }
     }
     
