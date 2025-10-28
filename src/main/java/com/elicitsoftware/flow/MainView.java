@@ -23,11 +23,13 @@ import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.combobox.ComboBox;
+import com.vaadin.flow.component.combobox.ComboBoxVariant;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.component.textfield.TextFieldVariant;
 import com.vaadin.flow.router.BeforeEvent;
 import com.vaadin.flow.router.HasDynamicTitle;
 import com.vaadin.flow.router.HasUrlParameter;
@@ -187,6 +189,7 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
         txtToken.setTooltipText("Token is case-sensitive");
         txtToken.addThemeName("bordered");
         txtToken.setAutofocus(true);
+        txtToken.addThemeVariants(TextFieldVariant.LUMO_SMALL);
 
         // Add validation directly to the field
         txtToken.addValueChangeListener(e -> {
@@ -267,6 +270,7 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
             comboBox.setItems(tokenService.getSurveys().get("Surveys"));
             comboBox.setItemLabelGenerator(survey -> survey.name);
             comboBox.onEnabledStateChanged(true);
+            comboBox.addThemeVariants(ComboBoxVariant.LUMO_SMALL);
             comboBox.addValueChangeListener(e -> {
                 sessionDataService.setSurveyId(e.getValue().id);
             });

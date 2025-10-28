@@ -21,6 +21,7 @@ import com.elicitsoftware.response.NavResponse;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
@@ -426,6 +427,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         Button btnNewPrevious = new Button("Previous");
         btnNewPrevious.setDisableOnClick(true);
         btnNewPrevious.setEnabled(navResponse.getCurrentNavItem() != null && navResponse.getCurrentNavItem().getPrevious() != null);
+        btnNewPrevious.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
         btnNewPrevious.addClickListener(e -> {
             flash = false;
             previousSection();
@@ -443,6 +445,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
             btnNewNext.setText("Next");
             btnNewNext.setDisableOnClick(true);
             btnNewNext.setEnabled(navResponse.getCurrentNavItem().getNext() != null);
+            btnNewNext.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
             btnNewNext.getElement().addEventListener("mouseover", event -> {
                 // Handle the mouseover event
             });
@@ -458,6 +461,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         } else if (navResponse.getCurrentNavItem() != null && navResponse.getCurrentNavItem().getNext() == null) {
             btnNewNext.setText("Review");
             btnNewNext.setDisableOnClick(true);
+            btnNewNext.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
             btnNewNext.addClickListener(e -> {
                 flash = false;
                 if (validateSection()) {

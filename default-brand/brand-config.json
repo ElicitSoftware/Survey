@@ -1,0 +1,49 @@
+{
+  "brand": {
+    "name": "Elicit Survey Application - Default Brand",
+    "version": "1.0.0",
+    "description": "Default brand configuration using Vaadin standard colors and Elicit styling"
+  },
+  "structure": {
+    "colors": {
+      "directory": "colors/",
+      "css": "colors/brand-colors.css",
+      "metadata": "colors/palette.json"
+    },
+    "logos": {
+      "directory": "logos/",
+      "stacked": "logos/stacked.png"
+    },
+    "typography": {
+      "directory": "typography/",
+      "css": "typography/brand-typography.css",
+      "metadata": "typography/typography.json",
+      "fonts": {
+        "ibmPlexSans": ["typography/ibmplexsans-regular-webfont.woff2", "typography/ibmplexsans-regular-webfont.woff"],
+        "chilanka": ["typography/Chilanka-Regular.woff"],
+        "googleFont": ["typography/WWXRlj2DZQiMJYaYRrJVI9EAZhTO.woff2"]
+      }
+    },
+    "icons": {
+      "directory": "visual-assets/icons/",
+      "favicon": "visual-assets/icons/favicon.ico",
+      "favicon32": "visual-assets/icons/favicon-32x32.png"
+    }
+  },
+  "deployment": {
+    "docker": {
+      "volumeMount": "./brand:/brand",
+      "example": "docker run -v ./custom-brand:/brand elicitsoftware/survey:latest"
+    },
+    "kubernetes": {
+      "configMap": "Mount brand files as ConfigMap to /brand",
+      "example": "See README.md for complete Kubernetes configuration"
+    }
+  },
+  "customization": {
+    "colors": "Modify colors/brand-colors.css to override default brand colors",
+    "fonts": "Replace font files in typography/ and update brand-typography.css",
+    "logos": "Replace image files in logos/ directory",
+    "icons": "Replace favicon files in visual-assets/icons/"
+  }
+}

@@ -20,6 +20,7 @@ import com.elicitsoftware.response.ReviewResponse;
 import com.elicitsoftware.response.ReviewSection;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H5;
 import com.vaadin.flow.component.html.Paragraph;
@@ -102,12 +103,14 @@ public class ReviewView extends VerticalLayout {
             Button btnPrevious = new Button("Previous");
             btnPrevious.setDisableOnClick(true);
             btnPrevious.setEnabled(navResponse.getCurrentNavItem().getPrevious() != null);
+            btnPrevious.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
             btnPrevious.addClickListener(e -> previousSection());
             add(btnPrevious);
 
             Button btnFinish = new Button("Finish");
             btnFinish.setDisableOnClick(true);
             btnFinish.setEnabled(navResponse.getCurrentNavItem().getPrevious() != null);
+            btnFinish.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
             btnFinish.addClickListener(e -> deactivate());
             add(btnFinish);
         }

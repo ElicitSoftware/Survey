@@ -1,0 +1,60 @@
+/* Brand Typography Styles */
+
+/* Font Face Declarations */
+@font-face {
+    font-family: 'ibm_plex_sansregular';
+    src: url('ibmplexsans-regular-webfont.woff2') format('woff2'),
+         url('ibmplexsans-regular-webfont.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Chilanka';
+    src: url('Chilanka-Regular.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'GoogleFont';
+    src: url('WWXRlj2DZQiMJYaYRrJVI9EAZhTO.woff2') format('woff2');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+/* Typography Variables */
+:root {
+  --brand-font-primary: "ibm_plex_sansregular", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  --brand-font-secondary: "Chilanka", cursive;
+  --brand-font-google: "GoogleFont", sans-serif;
+}
+
+/* Global Typography Styles */
+* {
+    font-family: var(--brand-font-primary);
+}
+
+/* Heading Styles */
+.class-title {
+    font-family: var(--brand-font-primary);
+    font-size: 32px;
+    font-weight: 400;
+    text-align: start;
+    text-transform: none;
+    line-height: 1.6em;
+    letter-spacing: normal;
+    font-style: normal;
+}
+
+/* Alternative font options */
+.font-chilanka {
+    font-family: var(--brand-font-secondary);
+}
+
+.font-google {
+    font-family: var(--brand-font-google);
+}
