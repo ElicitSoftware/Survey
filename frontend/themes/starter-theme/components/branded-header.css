@@ -11,25 +11,11 @@
     box-sizing: border-box;
 }
 
-/* Default brand styling (Elicit branding) */
+/* Default brand styling - uses brand variables for all brands */
 .branded-header {
-    background: linear-gradient(135deg, var(--lumo-primary-color) 0%, var(--lumo-primary-color-50pct) 100%);
-    color: var(--lumo-primary-contrast-color);
-    border-bottom: 2px solid var(--lumo-primary-color-10pct);
-}
-
-/* Brand-specific styling for external mounted brands */
-.branded-header.um-brand {
-    background: linear-gradient(135deg, #00274C 0%, #1B365D 100%);
-    color: #FFFFFF;
-    border-bottom: 3px solid #FFCB05;
-}
-
-/* Test brand (Healthcare) styling */
-.branded-header.test-brand {
-    background: linear-gradient(135deg, #1B365D 0%, #4A9B8E 100%);
-    color: #FFFFFF;
-    border-bottom: 3px solid #6BB6AA;
+    background: var(--brand-primary);
+    color: var(--brand-primary-contrast);
+    border-bottom: 2px solid var(--brand-secondary);
 }
 
 /* Logo container */
@@ -62,31 +48,17 @@
     text-decoration: none;
 }
 
-/* Brand-specific title styling */
-.branded-header.um-brand .brand-title {
-    font-family: var(--um-font-secondary, 'Montserrat', sans-serif);
-    color: #FFCB05;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-}
-
-/* Test brand title */
-.branded-header.test-brand .brand-title {
-    color: #FFFFFF;
+/* Brand title styling - uses brand variables */
+.branded-header .brand-title {
+    font-family: var(--brand-font-primary, 'Montserrat', sans-serif);
+    color: var(--brand-header-text);
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 /* Navigation toggle button styling */
 .branded-header vaadin-drawer-toggle {
-    color: inherit;
+    color: var(--brand-primary-contrast);
     --lumo-icon-size-s: 1.5rem;
-}
-
-.branded-header.um-brand vaadin-drawer-toggle {
-    color: #FFCB05;
-}
-
-.branded-header.test-brand vaadin-drawer-toggle {
-    color: #FFFFFF;
 }
 
 /* Responsive behavior */
@@ -125,21 +97,10 @@
 /* Focus and accessibility */
 .branded-header .brand-title:focus,
 .branded-header vaadin-drawer-toggle:focus {
-    outline: 2px solid var(--lumo-primary-color-50pct);
+    outline: 2px solid var(--brand-secondary);
     outline-offset: 2px;
     border-radius: 4px;
-}
-
-.branded-header.um-brand .brand-title:focus,
-.branded-header.um-brand vaadin-drawer-toggle:focus {
-    outline-color: #FFCB05;
-    box-shadow: 0 0 0 4px rgba(255, 203, 5, 0.2);
-}
-
-.branded-header.test-brand .brand-title:focus,
-.branded-header.test-brand vaadin-drawer-toggle:focus {
-    outline-color: #6BB6AA;
-    box-shadow: 0 0 0 4px rgba(107, 182, 170, 0.2);
+    box-shadow: 0 0 0 4px var(--brand-primary-10pct);
 }
 
 /* High contrast mode support */

@@ -1,16 +1,23 @@
 # Elicit Survey - Default Brand Directory
 
-This directory contains the **default brand** for the Elicit Survey application. It uses Vaadin standard colors and follows modern web design principles.
-
-> **Note**: This brand system was implemented as part of issue #67 to allow external branding while maintaining Vaadin design standards for the default experience.
+This directory contains the **default brand** for the Elicit Survey application. It uses Vaadin Lumo standard colors and follows modern web design principles.
 
 ## Architecture Overview
 
 The brand system uses a three-tier architecture:
 
-1. **Default Brand** (this directory): Embedded in Docker image, uses Vaadin standards
-2. **External Brands**: Can be mounted via Docker volume to override the default
-3. **Base Theme**: Application-specific styling that remains constant across brands
+1. **External Brands**: Mounted via Docker volume (`/brand`) - highest priority
+2. **Local Brand**: Fallback to this default-brand directory
+3. **Application Defaults**: Vaadin Lumo theme integration
+
+## Brand Loading Process
+
+The Survey application loads brand files in this order:
+1. **Colors** (`colors/brand-colors.css`) - CSS custom properties with Vaadin Lumo integration
+2. **Typography** (`typography/brand-typography.css`) - Font definitions
+3. **Theme** (`theme.css`) - Vaadin theme integration via @import statements
+
+All CSS is injected inline to avoid @import caching issues.
 
 ## Brand Hierarchy
 
@@ -18,36 +25,50 @@ The brand system uses a three-tier architecture:
 🎨 Application Theme (starter-theme)
 ├── Brand Integration Layer (CSS variable contracts)
 ├── Application-specific styling (components, animations)
-└── Vaadin Lumo base theme integration
+└── Vaadin Lumo base theme integration (color imports removed)
 
-🏷️ Default Brand (./brand/ - this directory)
-├── Vaadin standard colors (blue primary)
+🏷️ Default Brand (./default-brand/ - this directory)
+├── Vaadin Lumo standard colors (hsl(214, 90%, 52%) primary blue)
 ├── Standard typography (system fonts)
 ├── Elicit favicon and assets
 └── Minimal customizations
 
 🔄 External Brands (./um-brand/, ./test-brand/, etc.)
-├── Custom colors (UM maize, healthcare blue, etc.)
+├── Custom colors (UM maize, healthcare magenta, etc.)
 ├── Custom typography and fonts
 ├── Custom favicons and assets
-└── Brand-specific overrides with !important
+└── Brand-specific overrides
+```
+
+## Directory Structure
+
+```
+default-brand/
+├── brand-config.json          # Brand configuration and metadata
+├── colors/
+│   └── brand-colors.css       # Vaadin Lumo standard colors
+├── typography/
+│   └── brand-typography.css   # Standard system fonts
+├── images/                    # Default brand images
+├── theme.css                  # Minimal Vaadin integration
+└── README.md                  # This file
 ```
 
 ## Quick Start
 
-### Default Brand (No Mount)
+### Default Brand (No External Mount)
 ```bash
-# Uses this default brand with Vaadin colors
+# Uses this default brand with Vaadin Lumo colors
 docker run -p 8080:8080 elicitsoftware/survey:latest
 ```
 
 ### External Brand Override
 ```bash
 # Overrides with University of Michigan brand
-docker run -v ./um-brand:/opt/brands/um-brand:ro -p 8080:8080 elicitsoftware/survey:latest
+docker run -v ./um-brand:/brand:ro -p 8080:8080 elicitsoftware/survey:latest
 
 # Overrides with Healthcare test brand
-docker run -v ./test-brand:/opt/brands/test-brand:ro -p 8080:8080 elicitsoftware/survey:latest
+docker run -v ./test-brand:/brand:ro -p 8080:8080 elicitsoftware/survey:latest
 ```
 
 ## Directory Structure

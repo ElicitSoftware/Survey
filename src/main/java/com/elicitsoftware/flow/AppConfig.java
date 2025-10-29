@@ -12,10 +12,16 @@ package com.elicitsoftware.flow;
  */
 
 import com.vaadin.flow.component.page.AppShellConfigurator;
+import com.vaadin.flow.component.page.Inline;
 import com.vaadin.flow.server.AppShellSettings;
 import com.vaadin.flow.theme.Theme;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import jakarta.annotation.PostConstruct;
+import jakarta.enterprise.context.ApplicationScoped;
+import io.quarkus.runtime.Startup;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 
 /**
@@ -38,7 +44,42 @@ import java.nio.file.Paths;
  * 3. Application defaults (icons/) - Fallback when no brand is available
  */
 @Theme("starter-theme")
+@ApplicationScoped
+@Startup
 public class AppConfig implements AppShellConfigurator {
+    
+    @ConfigProperty(name = "brand.file.system.path", defaultValue = "/brand")
+    String brandFileSystemPath;
+    
+    @ConfigProperty(name = "brand.local.path", defaultValue = "brand")
+    String brandLocalPath;
+    
+    private String resolvedBrandPath;
+    private String resolvedLocalBrandPath;
+    
+    @PostConstruct
+    void init() {
+        // Initialize the resolved brand paths after CDI injection is complete
+        // These values are guaranteed to be available due to @Startup and @PostConstruct
+        resolvedBrandPath = brandFileSystemPath;
+        resolvedLocalBrandPath = brandLocalPath;
+    }
+    
+    /**
+     * Gets the resolved brand file system path. 
+     * CDI injection is guaranteed to be complete due to @Startup.
+     */
+    private String getBrandPath() {
+        return resolvedBrandPath;
+    }
+    
+    /**
+     * Gets the resolved local brand path.
+     * CDI injection is guaranteed to be complete due to @Startup.
+     */
+    private String getLocalBrandPath() {
+        return resolvedLocalBrandPath;
+    }
     
     /**
      * Configures the application shell settings including favicons, CSS links, and brand metadata.
@@ -53,7 +94,7 @@ public class AppConfig implements AppShellConfigurator {
         addBrandInfoComment(settings);
         
         // Favicon logic: Use Elicit favicon for default brand, allow external brands to override
-        boolean externalBrandMounted = Files.exists(Paths.get("/brand"));
+        boolean externalBrandMounted = Files.exists(Paths.get(getBrandPath()));
         
         if (externalBrandMounted) {
             // External brand is mounted - use brand favicons if available, otherwise fall back to Elicit
@@ -82,17 +123,32 @@ public class AppConfig implements AppShellConfigurator {
             settings.addFavIcon("icon", "/icons/favicon-32x32.png", "32x32");
         }
         
-        // Add brand CSS files - check external mount first, fall back to local brand
-        if (Files.exists(Paths.get("/brand/colors/brand-colors.css")) || 
-            Files.exists(Paths.get("brand/colors/brand-colors.css"))) {
+        // Add brand CSS files in specific order - colors first, then typography, then theme
+        // This ensures proper CSS cascade and avoids @import issues
+        
+        // 1. Load brand colors first (defines CSS variables)
+        String brandColorsContent = loadBrandCssContent("colors/brand-colors.css");
+        if (brandColorsContent != null) {
+            settings.addInlineWithContents(brandColorsContent, Inline.Wrapping.STYLESHEET);
+        } else if (Files.exists(Paths.get(getLocalBrandPath(), "colors/brand-colors.css"))) {
             settings.addLink("stylesheet", "/brand/colors/brand-colors.css");
         }
-        if (Files.exists(Paths.get("/brand/typography/brand-typography.css")) || 
-            Files.exists(Paths.get("brand/typography/brand-typography.css"))) {
+        
+        // 2. Load brand typography second (may depend on color variables)
+        String brandTypographyContent = loadBrandCssContent("typography/brand-typography.css");
+        if (brandTypographyContent != null) {
+            settings.addInlineWithContents(brandTypographyContent, Inline.Wrapping.STYLESHEET);
+        } else if (Files.exists(Paths.get(getLocalBrandPath(), "typography/brand-typography.css"))) {
             settings.addLink("stylesheet", "/brand/typography/brand-typography.css");
         }
-        if (Files.exists(Paths.get("/brand/theme.css")) || 
-            Files.exists(Paths.get("brand/theme.css"))) {
+        
+        // 3. Load theme CSS last (overrides Lumo theme and integrates brand)
+        // Use inline loading for theme as well to avoid any @import issues
+        String brandThemeContent = loadBrandCssContent("theme.css");
+        if (brandThemeContent != null) {
+            settings.addInlineWithContents(brandThemeContent, Inline.Wrapping.STYLESHEET);
+        } else if (Files.exists(Paths.get(getBrandPath(), "theme.css")) || 
+                   Files.exists(Paths.get(getLocalBrandPath(), "theme.css"))) {
             settings.addLink("stylesheet", "/brand/theme.css");
         }
     }
@@ -124,11 +180,11 @@ public class AppConfig implements AppShellConfigurator {
         String brandPath = null;
         String brandSource = null;
         
-        if (Files.exists(Paths.get("/brand"))) {
-            brandPath = "/brand";
+        if (Files.exists(Paths.get(getBrandPath()))) {
+            brandPath = getBrandPath();
             brandSource = "external mount";
-        } else if (Files.exists(Paths.get("brand"))) {
-            brandPath = "brand";
+        } else if (Files.exists(Paths.get(getLocalBrandPath()))) {
+            brandPath = getLocalBrandPath();
             brandSource = "local directory";
         }
         
@@ -223,14 +279,40 @@ public class AppConfig implements AppShellConfigurator {
      */
     private String getBrandResourcePath(String brandPath, String fallbackPath) {
         // Check if external brand directory exists (for Docker volume mounts)
-        if (Files.exists(Paths.get("/brand", brandPath))) {
+        if (Files.exists(Paths.get(getBrandPath(), brandPath))) {
             return "/brand/" + brandPath;
         }
         // Check if local brand directory exists (for development or Docker image default)
-        if (Files.exists(Paths.get("brand", brandPath))) {
+        if (Files.exists(Paths.get(getLocalBrandPath(), brandPath))) {
             return "/brand/" + brandPath; // Still use /brand/ URL path (served by BrandStaticFileFilter)
         }
         // Use default path
         return fallbackPath;
+    }
+    
+    /**
+     * Loads brand CSS content from external mount or local directory.
+     * This method reads CSS files directly without processing @import statements.
+     * 
+     * @param cssPath The relative path to the CSS file within the brand directory
+     * @return The CSS content as a string, or null if the file doesn't exist
+     */
+    private String loadBrandCssContent(String cssPath) {
+        try {
+            Path externalPath = Paths.get(getBrandPath(), cssPath);
+            Path localPath = Paths.get(getLocalBrandPath(), cssPath);
+            
+            // Check external brand first, then local brand
+            if (Files.exists(externalPath)) {
+                return Files.readString(externalPath);
+            } else if (Files.exists(localPath)) {
+                return Files.readString(localPath);
+            }
+            
+        } catch (Exception e) {
+            System.err.println("Error loading brand CSS from " + cssPath + ": " + e.getMessage());
+        }
+        
+        return null;
     }
 }

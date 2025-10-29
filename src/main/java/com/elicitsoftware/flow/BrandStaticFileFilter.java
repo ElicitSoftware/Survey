@@ -15,6 +15,7 @@ import jakarta.servlet.*;
 import jakarta.servlet.annotation.WebFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -41,6 +42,9 @@ import java.nio.file.Paths;
  */
 @WebFilter(urlPatterns = "/brand/*")
 public class BrandStaticFileFilter implements Filter {
+
+    @ConfigProperty(name = "brand.file.system.path", defaultValue = "/brand")
+    String brandFileSystemPath;
 
     /**
      * Processes HTTP requests for brand resources with fallback logic.
@@ -74,7 +78,7 @@ public class BrandStaticFileFilter implements Filter {
             
             // Try external brand mount first, then fall back to local brand directory
             Path brandFile = null;
-            Path externalBrandFile = Paths.get("/brand").resolve(relativePath);
+            Path externalBrandFile = Paths.get(brandFileSystemPath).resolve(relativePath);
             Path localBrandFile = Paths.get("brand").resolve(relativePath);
             
             if (Files.exists(externalBrandFile) && Files.isRegularFile(externalBrandFile)) {

@@ -16,6 +16,7 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -29,6 +30,9 @@ import java.nio.file.Paths;
 @Path("/brand")
 public class BrandResourceHandler {
 
+    @ConfigProperty(name = "brand.file.system.path", defaultValue = "/brand")
+    String brandFileSystemPath;
+
     /**
      * Serves brand files from the external brand directory with fallback to embedded resources.
      * If a file is not found in the external brand directory, it will redirect to
@@ -41,10 +45,10 @@ public class BrandResourceHandler {
     @Path("/{filePath:.+}")
     public Response getBrandFile(@PathParam("filePath") String filePath) {
         try {
-            java.nio.file.Path brandFile = Paths.get("/brand", filePath);
+            java.nio.file.Path brandFile = Paths.get(brandFileSystemPath, filePath);
             
             // Security check: ensure the path is within the brand directory
-            if (!brandFile.normalize().startsWith(Paths.get("/brand"))) {
+            if (!brandFile.normalize().startsWith(Paths.get(brandFileSystemPath))) {
                 return Response.status(Response.Status.FORBIDDEN).build();
             }
             
