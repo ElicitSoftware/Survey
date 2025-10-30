@@ -14,6 +14,10 @@
    https://vaadin.com/docs/latest/styling/lumo for more information.
 */
 
+/* Brand theme integration */
+/* Note: Brand CSS is loaded dynamically via AppConfig during runtime */
+/* This avoids build-time dependency issues while maintaining runtime flexibility */
+
 /* Import local fonts as fallback */
 @import 'fonts/style.css';
 

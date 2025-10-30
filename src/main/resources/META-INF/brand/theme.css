@@ -1,0 +1,21 @@
+/*-
+ * ***LICENSE_START***
+ * Elicit Survey
+ * %%
+ * Copyright (C) 2025 The Regents of the University of Michigan - Rogel Cancer Center
+ * %%
+ * PolyForm Noncommercial License 1.0.0
+ * <https://polyformproject.org/licenses/noncommercial/1.0.0>
+ * ***LICENSE_END***
+ */
+
+/* Brand Theme Integration */
+/* Integrates brand colors and typography with the starter-theme */
+
+@import url('./colors/brand-colors.css');
+@import url('./typography/brand-typography.css');
+
+/* 
+   The starter-theme automatically maps brand variables to Lumo theme properties.
+   Brand-specific customizations can be added below as needed.
+*/
