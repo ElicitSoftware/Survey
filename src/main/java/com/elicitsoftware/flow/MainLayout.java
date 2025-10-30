@@ -48,6 +48,10 @@ public class MainLayout extends AppLayout implements AfterNavigationListener {
     @Inject
     UISessionDataService sessionDataService;
     
+    /** The brand utility service for managing brand configuration. */
+    @Inject
+    BrandUtil brandUtil;
+    
     /** The current side navigation component displayed in the drawer. */
     private SideNav currentSideNav;
     
@@ -87,7 +91,7 @@ public class MainLayout extends AppLayout implements AfterNavigationListener {
      */
     private void createHeader() {
         // Detect current brand
-        BrandUtil.BrandInfo brandInfo = BrandUtil.detectCurrentBrand();
+        BrandUtil.BrandInfo brandInfo = brandUtil.detectCurrentBrand();
         
         // Create header container with brand-specific CSS class
         Div headerContainer = new Div();
@@ -106,7 +110,7 @@ public class MainLayout extends AppLayout implements AfterNavigationListener {
         if (brandInfo != null) {
             try {
                 Image logo = new Image();
-                logo.setSrc(BrandUtil.getLogoResourcePath(brandInfo));
+                logo.setSrc(brandUtil.getLogoResourcePath(brandInfo));
                 logo.setAlt(brandInfo.getDisplayName() + " Logo");
                 logo.addClassName("logo");
                 
@@ -119,7 +123,7 @@ public class MainLayout extends AppLayout implements AfterNavigationListener {
         }
         
         // Create application title
-        String appTitle = brandInfo != null ? BrandUtil.getApplicationTitle(brandInfo, "Survey") : "Elicit Survey";
+        String appTitle = brandInfo != null ? brandUtil.getApplicationTitle(brandInfo, "Survey") : "Elicit Survey";
         Anchor title = new Anchor("/", appTitle);
         title.addClassName("brand-title");
         headerContainer.add(title);

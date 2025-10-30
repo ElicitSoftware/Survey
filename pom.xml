@@ -269,6 +269,7 @@
                     <emptyLineAfterHeader>true</emptyLineAfterHeader>
                     <excludes>
                         <exclude>**/*.properties</exclude>
+                        <exclude>**/brand-config.json</exclude>
                     </excludes>
                     <licenseResolver>${project.baseUri}src/license</licenseResolver>
                     <processStartTag>***LICENSE_START***</processStartTag>

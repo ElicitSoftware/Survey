@@ -88,8 +88,8 @@ public class BrandResourceHandler {
      */
     private byte[] readEmbeddedResource(String filePath) {
         try {
-            // Try to load the resource from META-INF/resources/
-            String resourcePath = "/META-INF/resources/" + filePath;
+            // Try to load the resource from META-INF/brand/
+            String resourcePath = "/META-INF/brand/" + filePath;
             InputStream inputStream = getClass().getResourceAsStream(resourcePath);
             
             if (inputStream != null) {

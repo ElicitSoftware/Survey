@@ -1,3 +1,14 @@
+/*-
+ * ***LICENSE_START***
+ * Elicit Survey
+ * %%
+ * Copyright (C) 2025 The Regents of the University of Michigan - Rogel Cancer Center
+ * %%
+ * PolyForm Noncommercial License 1.0.0
+ * <https://polyformproject.org/licenses/noncommercial/1.0.0>
+ * ***LICENSE_END***
+ */
+
 :root {
   /* Primary Brand Colors - Vaadin Lumo Standards */
   --brand-primary: hsl(214, 90%, 52%); /* Vaadin Lumo primary blue */
@@ -17,6 +28,11 @@
   --brand-interactive: hsl(214, 90%, 52%); /* Same as primary */
   --brand-interactive-rgb: 22, 118, 243;
   --brand-interactive-light: rgba(22, 118, 243, 0.1);
+
+  /* Header-specific variables for branded-header component */
+  --brand-header-background: var(--brand-primary);
+  --brand-header-text: var(--brand-primary-contrast);
+  --brand-secondary: hsl(214, 75%, 60%); /* Lighter variant of primary */
 
   /* Color Variants for Theme Integration */
   --brand-primary-50pct: hsla(214, 90%, 52%, 0.5);
@@ -75,8 +91,4 @@
   --brand-flash-20: rgba(var(--brand-interactive-rgb), 0.2);
   --brand-flash-25: rgba(var(--brand-interactive-rgb), 0.25);
   --brand-flash-30: rgba(var(--brand-interactive-rgb), 0.3);
-  
-  /* Header-specific brand colors - Default header styling */
-  --brand-header-background: var(--brand-primary);
-  --brand-header-text: var(--brand-primary-contrast);
 }
