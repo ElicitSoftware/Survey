@@ -23,9 +23,20 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 
 /**
- * JAX-RS resource handler for serving external brand files from the /brand mount point.
- * This allows CSS, fonts, images, and other brand assets to be served as static files
- * when an external brand directory is mounted at /brand.
+ * JAX-RS resource handler for serving brand files with intelligent three-tier fallback logic.
+ * This handler serves CSS, fonts, images, and other brand assets as static files with
+ * the same fallback behavior as BrandStaticFileFilter.
+ * <p>
+ * Three-tier brand resource resolution system:
+ * 1. External brand mount (brandFileSystemPath) - Docker volume mounts for runtime branding
+ * 2. Local brand directory (brand/) - Development or embedded default brand
+ * 3. Embedded resources (META-INF/brand/) - Final fallback for missing resources
+ * <p>
+ * Security Features:
+ * - Path traversal protection (blocks ".." and "//" in paths)
+ * - File existence validation
+ * - Proper MIME type detection for various brand asset types
+ * - HTTP caching headers for optimal performance
  */
 @Path("/brand")
 public class BrandResourceHandler {
@@ -34,46 +45,51 @@ public class BrandResourceHandler {
     String brandFileSystemPath;
 
     /**
-     * Serves brand files from the external brand directory with fallback to embedded resources.
-     * If a file is not found in the external brand directory, it will redirect to
-     * the default version served by Quarkus from META-INF/resources/.
+     * Serves brand files with three-tier fallback logic matching BrandStaticFileFilter:
+     * 1. External brand mount (brandFileSystemPath)
+     * 2. Local brand directory (brand/)
+     * 3. Embedded resources (META-INF/brand/)
      * 
      * @param filePath The relative path to the brand file
-     * @return HTTP response with the file content and appropriate media type, or redirect to fallback
+     * @return HTTP response with the file content and appropriate media type, or 404 if not found
      */
     @GET
     @Path("/{filePath:.+}")
     public Response getBrandFile(@PathParam("filePath") String filePath) {
+        // Security check: prevent directory traversal attacks
+        if (filePath.contains("..") || filePath.contains("//")) {
+            return Response.status(Response.Status.BAD_REQUEST).build();
+        }
+        
         try {
-            java.nio.file.Path brandFile = Paths.get(brandFileSystemPath, filePath);
+            byte[] content = null;
+            String mediaType = getMediaType(filePath);
             
-            // Security check: ensure the path is within the brand directory
-            if (!brandFile.normalize().startsWith(Paths.get(brandFileSystemPath))) {
-                return Response.status(Response.Status.FORBIDDEN).build();
-            }
-            
-            // Try to read from external brand directory first
-            if (Files.exists(brandFile) && Files.isRegularFile(brandFile)) {
-                byte[] content = Files.readAllBytes(brandFile);
-                String mediaType = getMediaType(filePath);
-                
-                return Response.ok(content)
-                        .type(mediaType)
-                        .header("Cache-Control", "public, max-age=3600") // Cache for 1 hour
-                        .build();
-            } else {
-                // Fallback: serve content directly from embedded resources
-                byte[] fallbackContent = readEmbeddedResource(filePath);
-                if (fallbackContent != null) {
-                    String mediaType = getMediaType(filePath);
-                    return Response.ok(fallbackContent)
-                            .type(mediaType)
-                            .header("Cache-Control", "public, max-age=3600") // Cache for 1 hour
-                            .build();
-                } else {
-                    return Response.status(Response.Status.NOT_FOUND).build();
+            // 1. Try external brand mount first
+            java.nio.file.Path externalBrandFile = Paths.get(brandFileSystemPath, filePath);
+            if (Files.exists(externalBrandFile) && Files.isRegularFile(externalBrandFile)) {
+                content = Files.readAllBytes(externalBrandFile);
+            } 
+            // 2. Try local brand directory (brand/) - NEW: matches BrandStaticFileFilter
+            else {
+                java.nio.file.Path localBrandFile = Paths.get("brand", filePath);
+                if (Files.exists(localBrandFile) && Files.isRegularFile(localBrandFile)) {
+                    content = Files.readAllBytes(localBrandFile);
+                } 
+                // 3. Try embedded resources as final fallback
+                else {
+                    content = readEmbeddedResource(filePath);
                 }
             }
+            
+            if (content == null) {
+                return Response.status(Response.Status.NOT_FOUND).build();
+            }
+            
+            return Response.ok(content)
+                    .type(mediaType)
+                    .header("Cache-Control", "public, max-age=3600") // Cache for 1 hour
+                    .build();
                     
         } catch (IOException e) {
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR).build();
