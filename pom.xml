@@ -15,7 +15,7 @@
         <quarkus.platform.version>3.29.1</quarkus.platform.version>
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.2</surefire-plugin.version>
-        <vaadin.version>25.0.0-beta2</vaadin.version>
+        <vaadin.version>24.9.4</vaadin.version>
         <javadoc-plugin.version>3.11.2</javadoc-plugin.version>
         <site-plugin.version>3.12.1</site-plugin.version>
         <!-- license-maven-plugin properties -->
