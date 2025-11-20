@@ -29,9 +29,10 @@ public class DatabaseHealthCheck implements HealthCheck {
 
     @Override
     public HealthCheckResponse call() {
-        try (Connection connection = dataSource.getConnection()) {
+        try (Connection connection = dataSource.getConnection();
+             var statement = connection.createStatement()) {
             // Simple connectivity test
-            connection.createStatement().execute("SELECT 1");
+            statement.execute("SELECT 1");
             
             return HealthCheckResponse.up("Database connection healthy");
         } catch (Exception e) {

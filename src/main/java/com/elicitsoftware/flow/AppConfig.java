@@ -90,36 +90,27 @@ public class AppConfig implements AppShellConfigurator {
      */
     @Override
     public void configurePage(AppShellSettings settings) {
-        System.out.println("DEBUG: Admin configurePage() called");
-        
         // Add brand information as HTML comment for debugging/identification
         addBrandInfoComment(settings);
         
         // Favicon logic: Use Elicit favicon for default brand, allow external brands to override
         boolean externalBrandMounted = Files.exists(Paths.get(getBrandPath()));
-        System.out.println("DEBUG: External brand mounted: " + externalBrandMounted + " (path: " + getBrandPath() + ")");
         
         if (externalBrandMounted) {
             // External brand is mounted - check favicon from brand config
             String faviconPath = getFaviconPathFromBrand();
-            System.out.println("DEBUG: External favicon path: " + faviconPath);
             
             if (faviconPath != null) {
                 settings.addLink("shortcut icon", faviconPath);
                 settings.addFavIcon("icon", faviconPath, "32x32");
-                System.out.println("DEBUG: Added external favicon links");
             }
         } else {
             // No external brand mounted - check for embedded brand favicon
             String faviconPath = getFaviconPathFromBrand();
-            System.out.println("DEBUG: Embedded favicon path: " + faviconPath);
             
             if (faviconPath != null) {
                 settings.addLink("shortcut icon", faviconPath);
                 settings.addFavIcon("icon", faviconPath, "32x32");
-                System.out.println("DEBUG: Added embedded favicon links");
-            } else {
-                System.out.println("DEBUG: No favicon path found for embedded brand");
             }
         }
         
@@ -253,20 +244,15 @@ public class AppConfig implements AppShellConfigurator {
      * @return The value or null if not found
      */
     private String extractJsonValue(String json, String key) {
-        System.out.println("DEBUG: extractJsonValue called for key: " + key);
         try {
             String pattern = "\"" + key + "\"\\s*:\\s*\"([^\"]+)\"";
             java.util.regex.Pattern p = java.util.regex.Pattern.compile(pattern);
             java.util.regex.Matcher m = p.matcher(json);
             if (m.find()) {
-                String value = m.group(1);
-                System.out.println("DEBUG: Found value for " + key + ": " + value);
-                return value;
-            } else {
-                System.out.println("DEBUG: No match found for " + key + " in JSON");
+                return m.group(1);
             }
         } catch (Exception e) {
-            System.out.println("DEBUG: Exception in extractJsonValue: " + e.getMessage());
+            // Silently handle JSON parsing errors
         }
         return null;
     }
@@ -278,52 +264,33 @@ public class AppConfig implements AppShellConfigurator {
      * @return The favicon URL path, or null if no favicon is configured
      */
     private String getFaviconPathFromBrand() {
-        System.out.println("DEBUG: getFaviconPathFromBrand() called");
         try {
             // First try to read from external brand
-            String externalConfigPath = getBrandPath() + "/brand-config.json";
-            System.out.println("DEBUG: Checking external config: " + externalConfigPath);
             if (Files.exists(Paths.get(getBrandPath(), "brand-config.json"))) {
                 String content = Files.readString(Paths.get(getBrandPath(), "brand-config.json"));
-                System.out.println("DEBUG: External config content: " + content.substring(0, Math.min(100, content.length())) + "...");
                 String faviconFile = extractJsonValue(content, "favicon");
-                System.out.println("DEBUG: External favicon file: " + faviconFile);
                 if (faviconFile != null) {
-                    String path = "/brand/images/" + faviconFile;
-                    System.out.println("DEBUG: Returning external path: " + path);
-                    return path;
+                    return "/brand/images/" + faviconFile;
                 }
             }
             
             // Then try embedded brand
-            System.out.println("DEBUG: Checking embedded brand config");
             try (var inputStream = getClass().getResourceAsStream("/META-INF/brand/brand-config.json")) {
                 if (inputStream != null) {
                     String content = new String(inputStream.readAllBytes());
-                    System.out.println("DEBUG: Embedded config content: " + content.substring(0, Math.min(100, content.length())) + "...");
                     String faviconFile = extractJsonValue(content, "favicon");
-                    System.out.println("DEBUG: Embedded favicon file: " + faviconFile);
                     if (faviconFile != null) {
-                        String path = "/brand/images/" + faviconFile;
-                        System.out.println("DEBUG: Returning embedded path: " + path);
-                        return path;
+                        return "/brand/images/" + faviconFile;
                     }
-                } else {
-                    System.out.println("DEBUG: Embedded brand-config.json not found");
                 }
             }
             
             // Fallback to common favicon files
-            System.out.println("DEBUG: Using fallback logic");
-            String fallback = getBrandResourcePath("images/favicon.ico", 
+            return getBrandResourcePath("images/favicon.ico", 
                                       getBrandResourcePath("images/favicon.svg", 
                                       getBrandResourcePath("images/favicon.png", null)));
-            System.out.println("DEBUG: Fallback result: " + fallback);
-            return fallback;
                                       
         } catch (Exception e) {
-            System.out.println("DEBUG: Exception in getFaviconPathFromBrand: " + e.getMessage());
-            e.printStackTrace();
             // Fallback to common favicon files
             return getBrandResourcePath("images/favicon.ico", 
                                       getBrandResourcePath("images/favicon.svg", 

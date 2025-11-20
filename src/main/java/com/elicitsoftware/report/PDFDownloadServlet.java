@@ -24,7 +24,7 @@ import java.io.IOException;
  * This servlet provides PDF download functionality without using deprecated StreamResource.
  * It retrieves PDF data from the session and streams it directly to the client.
  */
-@WebServlet(urlPatterns = {"/pdf-download", "/pdf-download/*"})
+@WebServlet(urlPatterns = "/pdf-download/*")
 public class PDFDownloadServlet extends HttpServlet {
 
     @Override
