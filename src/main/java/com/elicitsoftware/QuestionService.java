@@ -22,6 +22,7 @@ import com.elicitsoftware.response.ReviewResponse;
 import com.elicitsoftware.response.ReviewSection;
 import com.elicitsoftware.util.DatabaseRetryUtil;
 import com.vaadin.quarkus.annotation.NormalUIScoped;
+import io.micrometer.core.annotation.Timed;
 import io.quarkus.logging.Log;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
@@ -132,6 +133,7 @@ public class QuestionService {
      * @return an instance of {@code NavResponse}, which includes navigation details, answers,
      * and step information for the specified display key
      */
+    @Timed(value = "survey.init", description = "Time to initialize survey for respondent", histogram = true)
     @Transactional(Transactional.TxType.REQUIRES_NEW)
     public NavResponse init(int respondentId, String displaykey) {
         questionManager.init(respondentId, displaykey);
@@ -151,7 +153,6 @@ public class QuestionService {
         Respondent respondent = sessionDataService.getRespondent();
         return init(respondent.id, displaykey);
     }
-
     /**
      * Generates a review response containing sections and items based on the respondent's data.
      * Each section represents a logical grouping of items, and items include display labels and values.
@@ -159,6 +160,7 @@ public class QuestionService {
      * @param respondent_id the unique identifier of the respondent for whom the review response is generated
      * @return an instance of {@code ReviewResponse} containing a list of sections with their associated items
      */
+    @Timed(value = "survey.review", description = "Time to generate review response", histogram = true)
     @Transactional
     public ReviewResponse review(int respondent_id) {
 
@@ -251,6 +253,7 @@ public class QuestionService {
      * @return an instance of {@code NavResponse} containing updated navigation information,
      * answers, and related step details
      */
+    @Timed(value = "survey.save.answer", description = "Time to save answer and process dependencies", histogram = true)
     @Transactional
     public NavResponse saveAnswer(Answer answer) {
         // Load the answer
@@ -285,6 +288,7 @@ public class QuestionService {
         return questionManager.navigate(a.respondentId, a.getDisplayKey());
     }
 
+    @Timed(value = "survey.post.actions", description = "Time to execute post-survey actions", histogram = true)
     @Transactional(Transactional.TxType.REQUIRES_NEW)
     public void PostSurveyActions(int respondentId) {
         Respondent respondent = Respondent.findById(respondentId);

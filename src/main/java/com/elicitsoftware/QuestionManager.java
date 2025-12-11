@@ -16,6 +16,7 @@ import com.elicitsoftware.response.NavResponse;
 import com.elicitsoftware.response.NavigationItem;
 import com.elicitsoftware.util.DatabaseRetryUtil;
 import com.vaadin.quarkus.annotation.NormalUIScoped;
+import io.micrometer.core.annotation.Timed;
 import io.quarkus.logging.Log;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
@@ -229,6 +230,7 @@ public class QuestionManager {
      * @return a NavResponse object containing the current step, current navigation item,
      * list of answers for the section, and all navigation items for the respondent
      */
+    @Timed(value = "survey.navigate", description = "Time to navigate to survey section", histogram = true)
     public NavResponse navigate(Integer respondentId, String sectionDisplaykey) {
 
         DisplayKey key = new DisplayKey(sectionDisplaykey);

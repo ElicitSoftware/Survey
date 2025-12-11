@@ -283,6 +283,9 @@
                     <licenseResolver>${project.baseUri}src/license</licenseResolver>
                     <processStartTag>***LICENSE_START***</processStartTag>
                     <processEndTag>***LICENSE_END***</processEndTag>
+                    <connectTimeout>3000</connectTimeout>
+                    <socketTimeout>3000</socketTimeout>
+                    <errorRemedy>ignore</errorRemedy>
                 </configuration>
                 <executions>
                     <execution>
