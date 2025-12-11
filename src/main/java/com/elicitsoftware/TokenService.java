@@ -15,6 +15,7 @@ import com.elicitsoftware.model.Respondent;
 import com.elicitsoftware.model.Survey;
 import com.elicitsoftware.response.AddResponse;
 import com.elicitsoftware.util.DatabaseRetryUtil;
+import io.micrometer.core.annotation.Timed;
 import io.quarkus.logging.Log;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.transaction.Transactional;
@@ -184,6 +185,7 @@ public class TokenService {
      * Returns a new or updated respondent object, or {@code null} if
      * the respondent cannot be determined and auto-registration is disabled.
      */
+    @Timed(value = "survey.login", description = "Time to authenticate and login respondent", histogram = true)
     @Transactional
     public Respondent login(int surveyId, String token) {
         long start = System.currentTimeMillis();
