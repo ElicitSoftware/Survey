@@ -72,6 +72,7 @@ public class ETLRespondentService {
      * @param respondentId the ID of the respondent whose dimension values are to be populated
      * @return a message indicating the number of dimension tables populated
      */
+    @SuppressWarnings("unchecked")
     @Transactional
     public String populateDimensionTables(Integer respondentId) {
         Query query = entityManager.createNativeQuery(Sql.FIND_DIMENSTION_VALUES_SQL);
@@ -122,6 +123,7 @@ public class ETLRespondentService {
      * @param respondent_id the unique identifier of the respondent for whom fact sections are being added
      * @return the total count of fact section updates made as a String
      */
+    @SuppressWarnings("unchecked")
     @Transactional
     public String addOrUpdateRespondentFactSections(Integer respondent_id) {
 
