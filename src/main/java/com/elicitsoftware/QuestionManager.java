@@ -504,6 +504,7 @@ public class QuestionManager {
      */
     public void buildDownstreamQuestions(Answer upstreamAnswer) {
         Log.info("Build downstream questions for " + upstreamAnswer.id + " - " + upstreamAnswer.question.shortText);
+        
         // First we need to find all the relationships where this
         // question is the upstream question.
         ArrayList<Relationship> relationships = findRelationshipsByUpstreamQuestion(upstreamAnswer);

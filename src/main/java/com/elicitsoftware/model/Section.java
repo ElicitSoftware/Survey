@@ -13,6 +13,8 @@ package com.elicitsoftware.model;
 
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
+import org.hibernate.annotations.Cache;
+import org.hibernate.annotations.CacheConcurrencyStrategy;
 
 /**
  * The Section class represents an entity in the "sections" table within the "survey" schema.
@@ -30,6 +32,7 @@ import jakarta.persistence.*;
  */
 @Entity
 @Table(name = "sections", schema = "survey")
+@Cache(usage = CacheConcurrencyStrategy.READ_WRITE)
 public class Section extends PanacheEntityBase {
 
     @Transient

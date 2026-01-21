@@ -15,6 +15,8 @@ import com.elicitsoftware.DisplayKey;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import io.quarkus.panache.common.Parameters;
 import jakarta.persistence.*;
+import org.hibernate.annotations.Cache;
+import org.hibernate.annotations.CacheConcurrencyStrategy;
 
 import java.util.List;
 
@@ -52,6 +54,7 @@ import java.util.List;
  */
 @Entity
 @Table(name = "steps_sections", schema = "survey")
+@Cache(usage = CacheConcurrencyStrategy.READ_WRITE)
 @NamedQueries({@NamedQuery(name = "StepsSections.findByDisplayKey", query = "SELECT s FROM StepsSections s where s.displaykey = :displaykey order by s.displaykey"),
         @NamedQuery(name = "StepsSections.findByDisplayKeyQuery", query = "SELECT s FROM StepsSections s where s.displaykey like :displaykey order by s.displaykey"),
         @NamedQuery(name = "StepsSections.findBySurveyId", query = "select s from StepsSections s where s.surveyId = :surveyId order by s.displaykey")})

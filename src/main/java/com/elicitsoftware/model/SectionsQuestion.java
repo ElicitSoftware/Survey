@@ -13,6 +13,8 @@ package com.elicitsoftware.model;
 
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
+import org.hibernate.annotations.Cache;
+import org.hibernate.annotations.CacheConcurrencyStrategy;
 
 /**
  * Represents a mapping between sections and questions in the "sections_questions" table
@@ -30,6 +32,7 @@ import jakarta.persistence.*;
  */
 @Entity
 @Table(name = "sections_questions", schema = "survey")
+@Cache(usage = CacheConcurrencyStrategy.READ_WRITE)
 public class SectionsQuestion extends PanacheEntityBase {
 
     @Id

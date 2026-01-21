@@ -13,6 +13,8 @@ package com.elicitsoftware.model;
 
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
+import org.hibernate.annotations.Cache;
+import org.hibernate.annotations.CacheConcurrencyStrategy;
 
 
 /**
@@ -31,6 +33,7 @@ import jakarta.persistence.*;
  */
 @Entity
 @Table(name = "operator_types", schema = "survey")
+@Cache(usage = CacheConcurrencyStrategy.READ_ONLY)
 public class OperatorType extends PanacheEntityBase {
 
     /** The unique identifier for the operator type. */

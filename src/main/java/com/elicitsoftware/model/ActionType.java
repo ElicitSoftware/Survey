@@ -13,6 +13,8 @@ package com.elicitsoftware.model;
 
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
+import org.hibernate.annotations.Cache;
+import org.hibernate.annotations.CacheConcurrencyStrategy;
 
 
 /**
@@ -29,6 +31,7 @@ import jakarta.persistence.*;
  */
 @Entity
 @Table(name = "action_types", schema = "survey")
+@Cache(usage = CacheConcurrencyStrategy.READ_ONLY)
 public class ActionType extends PanacheEntityBase {
 
     /** The unique identifier for the action type. */
