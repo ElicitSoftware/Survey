@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
 <groupId>com.elicitsoftware</groupId>
     <artifactId>survey</artifactId>
-    <version>1.2.1-SNAPSHOT</version>
+    <version>v1.2.3</version>
 
     <properties>
         <compiler-plugin.version>3.14.0</compiler-plugin.version>
@@ -18,6 +18,8 @@
         <vaadin.version>25.0.2</vaadin.version>
         <javadoc-plugin.version>3.11.2</javadoc-plugin.version>
         <site-plugin.version>3.12.1</site-plugin.version>
+        <timestamp>${maven.build.timestamp}</timestamp>
+        <maven.build.timestamp.format>yyyy-MM-dd HH:mm:ss z</maven.build.timestamp.format>
         <!-- license-maven-plugin properties -->
         <license.thirdPartyFilename>Notice.txt</license.thirdPartyFilename>
         <license.includeTransitiveDependencies>false</license.includeTransitiveDependencies>
@@ -184,6 +186,22 @@
         </pluginRepository>
     </pluginRepositories>
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>application.properties</include>
+                </includes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <excludes>
+                    <exclude>application.properties</exclude>
+                </excludes>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>${quarkus.platform.group-id}</groupId>
