@@ -32,9 +32,9 @@ import java.util.List;
 @Entity
 @Table(name = "dependents", schema = "survey")
 @NamedQueries({
-        @NamedQuery(name = "Dependent.findByUpstream", query = "SELECT d FROM Dependent d where d.upstream.id = :upstreamId and d.respondentId = :respondentId order by d.id"),
-        @NamedQuery(name = "Dependent.findUnique", query = "SELECT d FROM Dependent d where d.respondentId = :respondentId and d.upstream.id = :upstreamId and d.downstream.id = :downstreamId and d.relationship.id = :relationshipId order by d.id"),
-        @NamedQuery(name = "Dependent.findByDownstream", query = "SELECT d FROM Dependent d where d.downstream.id = :downstreamId and d.respondentId = :respondentId order by d.id"),
+        @NamedQuery(name = "Dependent.findByUpstream", query = "SELECT d FROM Dependent d LEFT JOIN FETCH d.upstream LEFT JOIN FETCH d.downstream LEFT JOIN FETCH d.relationship where d.upstream.id = :upstreamId and d.respondentId = :respondentId order by d.id"),
+        @NamedQuery(name = "Dependent.findUnique", query = "SELECT d FROM Dependent d LEFT JOIN FETCH d.upstream LEFT JOIN FETCH d.downstream LEFT JOIN FETCH d.relationship where d.respondentId = :respondentId and d.upstream.id = :upstreamId and d.downstream.id = :downstreamId and d.relationship.id = :relationshipId order by d.id"),
+        @NamedQuery(name = "Dependent.findByDownstream", query = "SELECT d FROM Dependent d LEFT JOIN FETCH d.upstream LEFT JOIN FETCH d.downstream LEFT JOIN FETCH d.relationship where d.downstream.id = :downstreamId and d.respondentId = :respondentId order by d.id"),
 })
 public class Dependent extends PanacheEntityBase {
 

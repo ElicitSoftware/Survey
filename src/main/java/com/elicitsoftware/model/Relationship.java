@@ -99,37 +99,44 @@ public class Relationship extends PanacheEntityBase {
     public String token;
 
     // uni-directional many-to-one association to ActionType
+    // Keep EAGER - small lookup table, always needed
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "ACTION_ID", nullable = false)
     public ActionType actionType;
 
     // uni-directional many-to-one association to OperatorType
+    // Keep EAGER - small lookup table, always needed
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "OPERATOR_ID", nullable = false)
     public OperatorType operatorType;
 
     // uni-directional many-to-one association to Step
-    @ManyToOne(fetch = FetchType.EAGER)
+    // Changed to LAZY - load only when needed
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "UPSTREAM_STEP_ID")
     public Step upstreamStep;
 
     // uni-directional many-to-one association to SectionsQuestion
-    @ManyToOne(fetch = FetchType.EAGER)
+    // Changed to LAZY - load only when needed
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "UPSTREAM_SQ_ID", nullable = false)
     public SectionsQuestion upstreamQuestion;
 
     // uni-directional many-to-one association to Step
-    @ManyToOne(fetch = FetchType.EAGER)
+    // Changed to LAZY - load only when needed
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "DOWNSTREAM_STEP_ID")
     public Step downstreamStep;
 
     // uni-directional many-to-one association to Section
-    @ManyToOne(fetch = FetchType.EAGER)
+    // Changed to LAZY - load only when needed
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "DOWNSTREAM_S_ID")
     public StepsSections downstreamSection;
 
     // uni-directional many-to-one association to SectionsQuestion
-    @ManyToOne(fetch = FetchType.EAGER)
+    // Changed to LAZY - load only when needed
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "DOWNSTREAM_SQ_ID")
     public SectionsQuestion downstreamQuestion;
 
