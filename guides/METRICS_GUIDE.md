@@ -5,13 +5,13 @@
 This guide explains how to use Micrometer metrics and OpenTelemetry tracing to diagnose the 10x performance degradation when running in Google Cloud (3400ms vs 340ms in local Docker).
 
 **Observability Stack:**
-- **Micrometer with Prometheus**: For metrics collection and custom @Timed annotations
+- **Micrometer**: For metrics collection and custom @Timed annotations
 - **OpenTelemetry**: For distributed tracing, spans, and request flow visualization
 - **SmallRye Health**: For health checks and readiness probes
 
 ## Accessing Observability Endpoints
 
-### Prometheus Metrics Endpoint
+### Metrics Endpoint
 ```bash
 curl http://your-service-url/q/metrics
 ```
@@ -27,6 +27,7 @@ To visualize traces, use tools like:
 - **Jaeger**: Visual trace timeline and service dependency graphs
 - **Grafana Tempo**: Trace storage and querying
 - **Zipkin**: Distributed tracing UI
+- **Google Cloud Trace**: For Google Cloud deployments
 
 ## What is OpenTelemetry?
 
@@ -58,7 +59,7 @@ survey-request (3400ms)                    <- Total request time
 
 ## Accessing Metrics
 
-### Prometheus Metrics Endpoint
+### Metrics Endpoint
 ```bash
 curl http://your-service-url/q/metrics
 ```
@@ -78,7 +79,7 @@ The following custom timing metrics have been added to critical service methods:
 - **What it measures:** Time to initialize survey for a respondent, including generating initial answers
 - **Why it matters:** This is called when a user first accesses a survey
 
-**Prometheus Query:**
+**Example Queries:**
 ```promql
 # Average time
 rate(survey_init_seconds_sum[5m]) / rate(survey_init_seconds_count[5m])
@@ -93,7 +94,7 @@ histogram_quantile(0.95, rate(survey_init_seconds_bucket[5m]))
 - **What it measures:** Time to navigate to a survey section and load questions
 - **Why it matters:** This is called on every page navigation during survey completion
 
-**Prometheus Query:**
+**Example Queries:**
 ```promql
 # 95th percentile navigation time
 histogram_quantile(0.95, rate(survey_navigate_seconds_bucket[5m]))
@@ -109,7 +110,7 @@ histogram_quantile(0.95, rate(survey_navigate_seconds_bucket{environment="cloud"
 - **What it measures:** Time to authenticate and login a respondent
 - **Why it matters:** First operation when user accesses survey with token
 
-**Prometheus Query:**
+**Example Queries:**
 ```promql
 # Average login time
 rate(survey_login_seconds_sum[5m]) / rate(survey_login_seconds_count[5m])
@@ -121,7 +122,7 @@ rate(survey_login_seconds_sum[5m]) / rate(survey_login_seconds_count[5m])
 - **What it measures:** Time to save an answer and process downstream dependencies
 - **Why it matters:** Called on every answer submission; includes complex dependency resolution
 
-**Prometheus Query:**
+**Example Queries:**
 ```promql
 # Maximum save time in last hour
 max_over_time(survey_save_answer_seconds_max[1h])
@@ -428,9 +429,9 @@ quarkus.otel.traces.sampler=always_on
 - Analyze slow queries with PostgreSQL `pg_stat_statements`
 - Add indexes on frequently queried columns
 
-## Grafana Dashboard Setup
+## Dashboard Setup
 
-Create a Grafana dashboard with these panels:
+Create a metrics dashboard with these panels:
 
 ### Panel 1: Request Duration Over Time
 ```promql
@@ -572,7 +573,7 @@ For questions about observability and performance tuning:
 1. **Quarkus OpenTelemetry**: https://quarkus.io/guides/opentelemetry
 2. **Quarkus Micrometer**: https://quarkus.io/guides/micrometer
 3. **OpenTelemetry Documentation**: https://opentelemetry.io/docs/
-4. **Prometheus Query Language**: https://prometheus.io/docs/prometheus/latest/querying/basics/
+4. **PromQL Query Language**: https://prometheus.io/docs/prometheus/latest/querying/basics/
 5. **Jaeger Documentation**: https://www.jaegertracing.io/docs/
 
 ### Cloud-Specific Guides

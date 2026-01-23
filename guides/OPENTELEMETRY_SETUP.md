@@ -244,11 +244,11 @@ The application now has **both** monitoring stacks:
 
 | Stack | Purpose | Endpoint |
 |-------|---------|----------|
-| **Micrometer** | Metrics aggregation, Prometheus format | `/q/metrics` |
+| **Micrometer** | Metrics aggregation and time-series data | `/q/metrics` |
 | **OpenTelemetry** | Distributed tracing, detailed request flow | OTLP endpoint |
 
 **They complement each other**:
-- Use Micrometer for dashboards and alerts (Grafana/Prometheus)
+- Use Micrometer for dashboards and alerts (with Grafana or similar tools)
 - Use OpenTelemetry for debugging specific slow requests (Jaeger/Tempo)
 
 ### @Timed Annotations
