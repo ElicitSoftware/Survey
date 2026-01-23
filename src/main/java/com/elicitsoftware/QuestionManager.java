@@ -121,7 +121,8 @@ public class QuestionManager {
 
         DisplayKey displaykey = new DisplayKey(key);
 
-        List<StepsSections> steps = StepsSections.findBySurveyId(displaykey.getSurvey());
+        // Use optimized query with joins to avoid N+1 problem
+        List<StepsSections> steps = StepsSections.findBySurveyIdWithJoins(displaykey.getSurvey());
         for (StepsSections step : steps) {
             buildInitialAnswers(respondentId, step.getKey());
         }
@@ -180,7 +181,8 @@ public class QuestionManager {
         DisplayKey dkey = new DisplayKey(key);
         dkey.setStepInstance(0);
         try {
-            StepsSections stepsSections = StepsSections.findByDisplayKey(dkey);
+            // Use optimized query with joins to avoid N+1 problem
+            StepsSections stepsSections = StepsSections.findByDisplayKeyWithJoins(dkey);
             return stepsSections.section;
         } catch (Exception e) {
             // There may not be one in the database. Return the null value;
@@ -397,10 +399,28 @@ public class QuestionManager {
         @SuppressWarnings("unchecked")
         List<Object[]> rs = q.getResultList();
         if (!rs.isEmpty()) {
-            SectionsQuestion sectionsQuestion;
+            // Extract all IDs first
+            List<Integer> ids = new ArrayList<>();
             for (Object[] record : rs) {
-                sectionsQuestion = SectionsQuestion.findById(record[0]);
-                sectionsQuestions.add(sectionsQuestion);
+                ids.add((Integer) record[0]);
+            }
+            
+            // Batch load all SectionsQuestions in a single query (fixes N+1 problem)
+            List<SectionsQuestion> loadedQuestions = SectionsQuestion.find("id IN ?1", ids).list();
+            
+            // Create a map for quick lookup
+            java.util.Map<Integer, SectionsQuestion> questionMap = new java.util.HashMap<>();
+            for (SectionsQuestion sq : loadedQuestions) {
+                questionMap.put(sq.id, sq);
+            }
+            
+            // Add questions in the original order
+            for (Object[] record : rs) {
+                Integer id = (Integer) record[0];
+                SectionsQuestion sectionsQuestion = questionMap.get(id);
+                if (sectionsQuestion != null) {
+                    sectionsQuestions.add(sectionsQuestion);
+                }
             }
         }
         return sectionsQuestions;

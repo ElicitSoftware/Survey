@@ -80,7 +80,7 @@ public class Respondent extends PanacheEntityBase {
 
     @Transient
     public static Respondent findBySurveyAndToken(Integer survey_id, String token) {
-        return Respondent.find("survey.id = :survey_id and token = :token", Parameters.with("survey_id", survey_id).and("token", token)).firstResult();
+        return Respondent.find("SELECT r FROM Respondent r JOIN FETCH r.survey s LEFT JOIN FETCH s.reports WHERE s.id = :survey_id and r.token = :token", Parameters.with("survey_id", survey_id).and("token", token)).firstResult();
     }
 
     @Transient

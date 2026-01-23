@@ -53,13 +53,13 @@ public class Survey extends PanacheEntityBase {
     @Column(name = "post_survey_url")
     public String postSurveyURL;
 
-    @OneToMany(mappedBy = "survey", fetch = FetchType.EAGER)
+    @OneToMany(mappedBy = "survey", fetch = FetchType.LAZY)
     @OrderBy("displayOrder ASC")
     public Set<ReportDefinition> reports;
 
     // These restful actions are to be called after the survey is over.
     // e.g. export pdf, print, notify etc... 
-    @OneToMany(mappedBy = "survey", fetch = FetchType.EAGER)
+    @OneToMany(mappedBy = "survey", fetch = FetchType.LAZY)
     @OrderBy("executionOrder ASC")
     public Set<PostSurveyAction> postSurveyActions;
 
