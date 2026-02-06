@@ -173,7 +173,7 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
 
         this.setAlignItems(Alignment.CENTER);
 
-        //Add istruction for auto register testing.
+        //Add instruction for auto register testing.
         if (tokenService.isAutoRegister()) {
             Div autoRegisterInstructions = new Div();
             autoRegisterInstructions.getElement().setProperty("innerHTML", "To test enter any value between 5 and 12 charaters. <br/>Tokens are case sensitive");
@@ -185,7 +185,7 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
         loginLayout.setAlignItems(Alignment.CENTER);
 
         // Use TextField for standard text input with validation
-        txtToken = new TextField("Entery your login token");
+        txtToken = new TextField("Enter your login token");
         txtToken.setTooltipText("Token is case-sensitive");
         txtToken.addThemeName("bordered");
         txtToken.setAutofocus(true);
