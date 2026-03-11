@@ -52,6 +52,9 @@ public class ETLService {
     @ConfigProperty(name = "quarkus.flyway.owner.placeholders.surveyreport_user", defaultValue = "surveyreport_user")
     String REPORT_USER;
 
+    @ConfigProperty(name = "quarkus.flyway.owner.placeholders.survey_user", defaultValue = "survey_user")
+    String SURVEY_USER;
+
     /**
      * Handles the application startup event and initializes the ETL process.
      *
@@ -368,7 +371,9 @@ public class ETLService {
             String createSQL = selectSQL.toString();
             // remove the last comma
             createSQL = createSQL.substring(0, createSQL.length() - 2);
-            createSQL = createSQL + fromSQL + "); " + Sql.FACT_SECTIONS_VIEW_GRANT_CLAUSE_SQL.replace("<REPORT_USER>", REPORT_USER);
+            String grantReportUser = Sql.FACT_SECTIONS_VIEW_GRANT_CLAUSE_SQL.replace("<REPORT_USER>", REPORT_USER);
+            String grantSurveyUser = Sql.FACT_SECTIONS_VIEW_GRANT_CLAUSE_SQL.replace("<REPORT_USER>", SURVEY_USER);
+            createSQL = createSQL + fromSQL + "); " + grantReportUser + grantSurveyUser;
             Query query2 = entityManager.createNativeQuery(createSQL);
             query2.executeUpdate();
 
