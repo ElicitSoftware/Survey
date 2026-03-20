@@ -11,6 +11,11 @@ package com.elicitsoftware.flow;
  * ***LICENSE_END***
  */
 
+import java.net.URI;
+import java.util.ArrayList;
+
+import org.eclipse.microprofile.rest.client.RestClientBuilder;
+
 import com.elicitsoftware.UISessionDataService;
 import com.elicitsoftware.model.ReportDefinition;
 import com.elicitsoftware.model.Respondent;
@@ -24,12 +29,9 @@ import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.Route;
 import com.vaadin.quarkus.annotation.NormalUIScoped;
+
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
-import org.eclipse.microprofile.rest.client.RestClientBuilder;
-
-import java.net.URI;
-import java.util.ArrayList;
 
 /**
  * Represents the ReportView component in the application. This view is responsible for
@@ -99,10 +101,10 @@ public class ReportView extends VerticalLayout {
                 String pdfKey = com.elicitsoftware.report.PDFDownloadResource.cachePDF(pdfContent);
 
                 // Create URL for the PDF download endpoint
-                String pdfUrl = "./pdf-download?key=" + pdfKey;
+                String pdfUrl = "/api/pdf/download?key=" + pdfKey;
 
                 // Open the PDF in a new browser tab
-                UI.getCurrent().getPage().open(pdfUrl, "_blank");
+                UI.getCurrent().getPage().executeJs("window.open($0, '_blank')", pdfUrl);
             } catch (Exception e) {
                 e.printStackTrace();
                 Notification.show("Failed to generate PDF: " + e.getMessage(), 3000, Notification.Position.MIDDLE);

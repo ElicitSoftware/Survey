@@ -11,19 +11,20 @@ package com.elicitsoftware.report;
  * ***LICENSE_END***
  */
 
+import java.util.concurrent.ConcurrentHashMap;
+
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.Response;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * REST resource for handling PDF downloads.
  * This endpoint provides PDF download functionality without using deprecated StreamResource.
  * It retrieves PDF data from an in-memory cache and streams it directly to the client.
  */
-@Path("/pdf-download")
+@Path("/api/pdf/download")
 public class PDFDownloadResource {
     
     // Thread-safe cache for PDF data with timestamps
