@@ -29,6 +29,7 @@ Elicit Survey runs in <a href=https://github.com/ElicitSoftware/>Elicit Software
 specs/
 https://github.com/ElicitSoftware/Admin
 https://github.com/ElicitSoftware/Author
+https://github.com/ElicitSoftware/FHHS
 /.vscode/mcp.json
 ```
 
