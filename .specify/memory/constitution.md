@@ -77,8 +77,12 @@ every PR.
 - Coverage reports are produced by JaCoCo and attached to every CI run.
 - Coverage is a floor, not a ceiling — 70% is the minimum, not the target. TDD discipline
   (Principle II) is the primary quality gate; coverage is a regression detector.
-- Excluding code from coverage measurement requires an explicit `@ExcludeFromJacocoReport`
-  annotation with a comment explaining why.
+- Excluding **individual classes** from coverage measurement requires an explicit
+  `@ExcludeFromJacocoReport` annotation with a comment explaining why.
+- **Package-level exclusions** (e.g., framework-generated proxies matching `**/*$$*`,
+  or packages containing only untestable infrastructure such as PDF generation or HTTP
+  streaming) MAY instead be declared as JaCoCo XML `<excludes>` patterns in `pom.xml`,
+  provided the exclusion is explicitly justified in the feature spec that introduces it.
 
 **Rationale**: A coverage floor prevents silent regression in test coverage as the codebase
 grows, without creating false confidence that high numbers alone indicate quality.

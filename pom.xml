@@ -415,6 +415,31 @@
     </reporting>
     <profiles>
         <profile>
+            <id>dev</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>license-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>first</id>
+                                <phase>none</phase>
+                            </execution>
+                            <execution>
+                                <id>add-third-party-licenses</id>
+                                <phase>none</phase>
+                            </execution>
+                            <execution>
+                                <id>aggregate-download-licenses</id>
+                                <phase>none</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
             <id>native</id>
             <activation>
                 <property>
