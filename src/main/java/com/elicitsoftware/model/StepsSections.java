@@ -103,6 +103,41 @@ public class StepsSections extends PanacheEntityBase {
         return find("#StepsSections.findBySurveyId", Parameters.with("surveyId", surveyId)).list();
     }
 
+    /**
+     * Optimized query that fetches StepsSections with Step and Section relationships
+     * in a single query to avoid N+1 problems. Use this instead of findBySurveyId()
+     * when you need to access step and section details.
+     *
+     * @param surveyId the ID of the survey
+     * @return list of StepsSections with eager-loaded step and section relationships
+     */
+    public static List<StepsSections> findBySurveyIdWithJoins(int surveyId) {
+        return find("SELECT DISTINCT ss FROM StepsSections ss " +
+                    "LEFT JOIN FETCH ss.step " +
+                    "LEFT JOIN FETCH ss.section " +
+                    "WHERE ss.surveyId = :surveyId " +
+                    "ORDER BY ss.displaykey", 
+                    Parameters.with("surveyId", surveyId))
+                .list();
+    }
+
+    /**
+     * Optimized query that fetches a single StepsSections with Step and Section relationships
+     * in a single query to avoid N+1 problems. Use this instead of findByDisplayKey()
+     * when you need to access step and section details.
+     *
+     * @param key the DisplayKey to search for
+     * @return StepsSections with eager-loaded step and section relationships
+     */
+    public static StepsSections findByDisplayKeyWithJoins(DisplayKey key) {
+        return find("SELECT ss FROM StepsSections ss " +
+                    "LEFT JOIN FETCH ss.step " +
+                    "LEFT JOIN FETCH ss.section " +
+                    "WHERE ss.displaykey = :displaykey", 
+                    Parameters.with("displaykey", key.getValue()))
+                .firstResult();
+    }
+
     public String getDisplaykey() {
         if (this.key == null) {
             this.key = new DisplayKey(this.displaykey);

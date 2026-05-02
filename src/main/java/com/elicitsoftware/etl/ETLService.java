@@ -52,6 +52,9 @@ public class ETLService {
     @ConfigProperty(name = "quarkus.flyway.owner.placeholders.surveyreport_user", defaultValue = "surveyreport_user")
     String REPORT_USER;
 
+    @ConfigProperty(name = "quarkus.flyway.owner.placeholders.survey_user", defaultValue = "survey_user")
+    String SURVEY_USER;
+
     /**
      * Handles the application startup event and initializes the ETL process.
      *
@@ -121,6 +124,7 @@ public class ETLService {
     @Transactional
     public String buildDimensionTables() {
         Query query = entityManager.createNativeQuery(Sql.FIND_NEW_DIMENSION_TABLES_SQL);
+        @SuppressWarnings("unchecked")
         List<String> results = query.getResultList();
         for (String dimension : results) {
             buildDimension(dimension);
@@ -164,6 +168,7 @@ public class ETLService {
     private void populateAllFactSectionsTable() {
 
         Query respondentsQuery = entityManager.createNativeQuery(Sql.FIND_MISSING_FACT_SECTION_RESPONDENTS);
+        @SuppressWarnings("unchecked")
         List<Object> respondents = respondentsQuery.getResultList();
         int r = 1;
         Integer id;
@@ -203,6 +208,7 @@ public class ETLService {
         return DatabaseRetryUtil.executeWithRetry(() -> {
             Query query = entityManager.createNativeQuery(Sql.FIND_DIMENSTION_VALUES_SQL);
             query.setParameter("respondentId", respondentId);
+            @SuppressWarnings("unchecked")
             List<Object[]> results = query.getResultList();
             for (Object[] result : results) {
                 String dimension = (String) result[0];
@@ -260,6 +266,7 @@ public class ETLService {
 
         Query query = entityManager.createNativeQuery(Sql.FIND_MISSING_FACT_SECTION_DIMENSIONS_SQL);
         query.setParameter("respondent_id", respondent_id);
+        @SuppressWarnings("unchecked")
         List<Object[]> queryResults = query.getResultList();
 
         Query updateFactQuery;
@@ -299,6 +306,7 @@ public class ETLService {
     public String buildFactSectionTable() {
         StringBuilder returnValue = new StringBuilder();
         Query query = entityManager.createNativeQuery(Sql.FIND_DIMENSIONS_TO_ADD_TO_FACT_SECTIONS_TABLE);
+        @SuppressWarnings("unchecked")
         List<Object[]> results = query.getResultList();
         for (Object[] result : results) {
             String column = (String) result[0];
@@ -352,6 +360,7 @@ public class ETLService {
             StringBuilder fromSQL = new StringBuilder(Sql.FACT_SECTION_VIEW_FROM_SQL);
 
             Query query = entityManager.createNativeQuery(Sql.FIND_FACT_SECTION_JOIN_COLUMNS);
+            @SuppressWarnings("unchecked")
             List<Object[]> results = query.getResultList();
             for (Object[] result : results) {
                 String column = (String) result[0];
@@ -362,7 +371,9 @@ public class ETLService {
             String createSQL = selectSQL.toString();
             // remove the last comma
             createSQL = createSQL.substring(0, createSQL.length() - 2);
-            createSQL = createSQL + fromSQL + "); " + Sql.FACT_SECTIONS_VIEW_GRANT_CLAUSE_SQL.replace("<REPORT_USER>", REPORT_USER);
+            String grantReportUser = Sql.FACT_SECTIONS_VIEW_GRANT_CLAUSE_SQL.replace("<REPORT_USER>", REPORT_USER);
+            String grantSurveyUser = Sql.FACT_SECTIONS_VIEW_GRANT_CLAUSE_SQL.replace("<REPORT_USER>", SURVEY_USER);
+            createSQL = createSQL + fromSQL + "); " + grantReportUser + grantSurveyUser;
             Query query2 = entityManager.createNativeQuery(createSQL);
             query2.executeUpdate();
 

@@ -15,7 +15,6 @@ import com.elicitsoftware.report.pdf.Content;
 import com.elicitsoftware.report.pdfbox.Column;
 import com.elicitsoftware.report.pdfbox.Table;
 import com.elicitsoftware.report.pdfbox.TableBuilder;
-
 import de.rototor.pdfbox.graphics2d.PdfBoxGraphics2D;
 import de.rototor.pdfbox.graphics2d.PdfBoxGraphics2DFontTextDrawer;
 import jakarta.enterprise.context.RequestScoped;
@@ -35,6 +34,7 @@ import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.util.Matrix;
+import org.jboss.logging.Logger;
 import org.w3c.dom.svg.SVGDocument;
 
 import java.awt.*;
@@ -68,7 +68,6 @@ import java.util.List;
 @RequestScoped
 public class PDFService {
 
-    private static final PDRectangle PAGE_SIZE = PDRectangle.LETTER;
     static final float HEADER_MARGIN = 20f;
     static final float TEXT_MARGIN = 40f;
     static final float PADDING = 40f;
@@ -76,7 +75,8 @@ public class PDFService {
     static final PDFont TEXT_FONT = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
     static final float FONT_SIZE = 10f;
     static final float LEADING = FONT_SIZE;
-
+    private static final Logger LOG = Logger.getLogger(PDFService.class);
+    private static final PDRectangle PAGE_SIZE = PDRectangle.LETTER;
     // Table configuration
     private static final float ROW_HEIGHT = 15;
     private static final float CELL_MARGIN = 2;
@@ -90,6 +90,89 @@ public class PDFService {
 
     @Inject
     HttpServletRequest request;
+
+    private static Table createContent(Content content) {
+
+        // Total size of columns must not be greater than table width.
+        List<Column> columns = new ArrayList<>();
+        int i = 0;
+        for (String header : content.table.headers) {
+            float columnWidth;
+
+            // Set the first column (person) to auto width based on content
+            if (i == 0) {
+                // Calculate max width needed for the "person" column
+                float maxWidth = 0;
+                try {
+                    // Check header width
+                    float headerWidth = TEXT_FONT.getStringWidth(header) / 1000 * FONT_SIZE + (CELL_MARGIN * 2);
+                    maxWidth = Math.max(maxWidth, headerWidth);
+
+                    // Check all data in this column
+                    for (String[] row : content.table.body) {
+                        if (row.length > i && row[i] != null) {
+                            float cellWidth = TEXT_FONT.getStringWidth(row[i]) / 1000 * FONT_SIZE + (CELL_MARGIN * 2);
+                            maxWidth = Math.max(maxWidth, cellWidth);
+                        }
+                    }
+                    columnWidth = maxWidth + 10; // Add some padding
+                } catch (IOException e) {
+                    // Fallback to a reasonable width if font width calculation fails
+                    columnWidth = 120f;
+                }
+            } else {
+                columnWidth = Float.valueOf(content.table.widths[i]);
+            }
+
+            columns.add(new Column(header, columnWidth));
+            i++;
+        }
+
+        String[][] tableContent = content.table.body;
+
+        float tableHeight = PAGE_SIZE.getHeight() - TEXT_MARGIN;
+
+        Table table = new TableBuilder()
+                .setCellMargin(CELL_MARGIN)
+                .setColumns(columns)
+                .setContent(tableContent)
+                .setHeight(tableHeight)
+                .setNumberOfRows(tableContent.length)
+                .setRowHeight(ROW_HEIGHT)
+                .setMargin(PADDING)
+                .setPageSize(PAGE_SIZE)
+                .setLandscape(false)
+                .setTextFont(TEXT_FONT)
+                .setFontSize(FONT_SIZE)
+                .build();
+        return table;
+    }
+
+    public static List<String> wrapText(String text, PDFont font, float fontSize, float maxWidth) throws IOException {
+        List<String> lines = new ArrayList<>();
+        String[] words = new String[0];
+        if (text != null && text.length() > 0) {
+            words = text.split(" ");
+        }
+        StringBuilder currentLine = new StringBuilder();
+
+        for (String word : words) {
+            String lineWithWord = currentLine.length() == 0 ? word : currentLine + " " + word;
+            float size = font.getStringWidth(lineWithWord) / 1000 * fontSize;
+            if (size <= maxWidth) {
+                currentLine.append(currentLine.length() == 0 ? word : " " + word);
+            } else {
+                lines.add(currentLine.toString());
+                currentLine = new StringBuilder(word);
+            }
+        }
+
+        if (currentLine.length() > 0) {
+            lines.add(currentLine.toString());
+        }
+
+        return lines;
+    }
 
     public byte[] generatePDF(ArrayList<ReportResponse> reportResponses) {
         try {
@@ -105,25 +188,35 @@ public class PDFService {
             yPosition = pageHeight - TEXT_MARGIN;
 
             for (ReportResponse response : reportResponses) {
-                // Close the current content stream if a new page is needed
-                if (response.pdf.pageBreak) {
+                if (response == null) {
+                    LOG.warn("PDFService.generatePDF - Skipping null response");
+                    continue;
+                }
+
+                LOG.info("PDFService.generatePDF - Processing response: " + response.title + ", pdf is null: " + (response.pdf == null));
+
+                // If the PDF payload is missing, render a safe error block instead of crashing
+                if (response.pdf == null) {
+                    LOG.info("PDFService.generatePDF - PDF is null, rendering error block for: " + response.title);
+                    String title = (response.title != null && !response.title.isEmpty()) ? response.title : "Report Generation Error";
+                    String errorText = (response.innerHTML != null && !response.innerHTML.isEmpty())
+                            ? response.innerHTML.replaceAll("[\\r\\n\\t]", " ").replaceAll("<[^>]+>", " ").replaceAll("&nbsp;", " ").trim()
+                            : "Failed to generate report content.";
+                    LOG.info("PDFService.generatePDF - Error text: " + errorText);
+                    // Close the current content stream if a new page is needed
                     contentStream.close();
                     page = new PDPage(PDRectangle.LETTER);
                     document.addPage(page);
                     contentStream = new PDPageContentStream(document, page);
                     contentStream.setFont(TEXT_FONT, FONT_SIZE);
                     yPosition = pageHeight - TEXT_MARGIN;
-                }
 
-                addTitleBlock(response.pdf.title);
-
-                for (Content content : response.pdf.content) {
-                    if (content == null) {
-                        System.out.println("Content is null");
-                        continue;
-                    }
+                    addTitleBlock(title);
+                    // Add the content
+                    addTextBlock(errorText);
+                } else {
                     // Close the current content stream if a new page is needed
-                    if (yPosition < TEXT_MARGIN + FONT_SIZE) {
+                    if (response.pdf.pageBreak) {
                         contentStream.close();
                         page = new PDPage(PDRectangle.LETTER);
                         document.addPage(page);
@@ -132,13 +225,31 @@ public class PDFService {
                         yPosition = pageHeight - TEXT_MARGIN;
                     }
 
-                    // Add the content
-                    if (content.svg != null) {
-                        addSVG(content);
-                    } else if (content.table != null) {
-                        drawTable(createContent(content));
-                    } else {
-                        addTextBlock(content.text);
+                    addTitleBlock(response.pdf.title);
+
+                    for (Content content : response.pdf.content) {
+                        if (content == null) {
+                            System.out.println("Content is null");
+                            continue;
+                        }
+                        // Close the current content stream if a new page is needed
+                        if (yPosition < TEXT_MARGIN + FONT_SIZE) {
+                            contentStream.close();
+                            page = new PDPage(PDRectangle.LETTER);
+                            document.addPage(page);
+                            contentStream = new PDPageContentStream(document, page);
+                            contentStream.setFont(TEXT_FONT, FONT_SIZE);
+                            yPosition = pageHeight - TEXT_MARGIN;
+                        }
+
+                        // Add the content
+                        if (content.svg != null) {
+                            addSVG(content);
+                        } else if (content.table != null) {
+                            drawTable(createContent(content));
+                        } else {
+                            addTextBlock(content.text);
+                        }
                     }
                 }
             }
@@ -289,63 +400,6 @@ public class PDFService {
                 contentStream.close();
             }
         }
-    }
-
-    private static Table createContent(Content content) {
-
-        // Total size of columns must not be greater than table width.
-        List<Column> columns = new ArrayList<>();
-        int i = 0;
-        for (String header : content.table.headers) {
-            float columnWidth;
-
-            // Set the first column (person) to auto width based on content
-            if (i == 0) {
-                // Calculate max width needed for the "person" column
-                float maxWidth = 0;
-                try {
-                    // Check header width
-                    float headerWidth = TEXT_FONT.getStringWidth(header) / 1000 * FONT_SIZE + (CELL_MARGIN * 2);
-                    maxWidth = Math.max(maxWidth, headerWidth);
-
-                    // Check all data in this column
-                    for (String[] row : content.table.body) {
-                        if (row.length > i && row[i] != null) {
-                            float cellWidth = TEXT_FONT.getStringWidth(row[i]) / 1000 * FONT_SIZE + (CELL_MARGIN * 2);
-                            maxWidth = Math.max(maxWidth, cellWidth);
-                        }
-                    }
-                    columnWidth = maxWidth + 10; // Add some padding
-                } catch (IOException e) {
-                    // Fallback to a reasonable width if font width calculation fails
-                    columnWidth = 120f;
-                }
-            } else {
-                columnWidth = Float.valueOf(content.table.widths[i]);
-            }
-
-            columns.add(new Column(header, columnWidth));
-            i++;
-        }
-
-        String[][] tableContent = content.table.body;
-
-        float tableHeight = PAGE_SIZE.getHeight() - TEXT_MARGIN;
-
-        Table table = new TableBuilder()
-                .setCellMargin(CELL_MARGIN)
-                .setColumns(columns)
-                .setContent(tableContent)
-                .setHeight(tableHeight)
-                .setNumberOfRows(tableContent.length)
-                .setRowHeight(ROW_HEIGHT)
-                .setMargin(PADDING)
-                .setPageSize(PAGE_SIZE)
-                .setLandscape(false)
-                .setTextFont(TEXT_FONT)
-                .setFontSize(FONT_SIZE)
-                .build();
-        return table;
     }
 
     void addHeadersAndFooters() {
@@ -530,31 +584,5 @@ public class PDFService {
         contentStream.lineTo(nextX, tableBottomY);
         contentStream.stroke();
 
-    }
-
-    public static List<String> wrapText(String text, PDFont font, float fontSize, float maxWidth) throws IOException {
-        List<String> lines = new ArrayList<>();
-        String[] words = new String[0];
-        if (text != null && text.length() > 0) {
-            words = text.split(" ");
-        }
-        StringBuilder currentLine = new StringBuilder();
-
-        for (String word : words) {
-            String lineWithWord = currentLine.length() == 0 ? word : currentLine + " " + word;
-            float size = font.getStringWidth(lineWithWord) / 1000 * fontSize;
-            if (size <= maxWidth) {
-                currentLine.append(currentLine.length() == 0 ? word : " " + word);
-            } else {
-                lines.add(currentLine.toString());
-                currentLine = new StringBuilder(word);
-            }
-        }
-
-        if (currentLine.length() > 0) {
-            lines.add(currentLine.toString());
-        }
-
-        return lines;
     }
 }

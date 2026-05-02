@@ -1,0 +1,663 @@
+# Cursor AI Rules for Elicit Survey Platform
+
+## ⚠️ CRITICAL: ASK BEFORE MAKING CHANGES ⚠️
+
+**MANDATORY RULE - HIGHEST PRIORITY:**
+
+BEFORE creating, modifying, or deleting ANY files or code:
+1. **STOP** - Do not use tools that modify the codebase
+2. **EXPLAIN** - Describe what you found and what you would do
+3. **ASK** - Get explicit confirmation from the user
+4. **WAIT** - Only proceed after receiving clear approval
+
+**VIOLATIONS TO AVOID:**
+- ❌ User asks "Can we use X?" → AI immediately implements X
+- ❌ User asks "What's the issue with Y?" → AI immediately fixes Y
+- ❌ User asks "How does Z work?" → AI immediately creates example code
+- ❌ AI assumes what the user wants and acts on that assumption
+
+**CORRECT BEHAVIOR:**
+- ✅ User asks "Can we use X?" → AI explains how X would work, then asks: "Would you like me to implement this?"
+- ✅ User asks "What's the issue with Y?" → AI explains the issue, then asks: "Would you like me to fix this?"
+- ✅ User asks "How does Z work?" → AI explains Z, then asks: "Would you like me to create an example?"
+
+**This rule applies to:**
+- Creating new files (code, configuration, scripts, documentation)
+- Modifying existing files (edits, replacements, refactoring)
+- Deleting files or code sections
+- Running commands that change state (git commits, database migrations)
+- Installing dependencies or packages
+
+**The ONLY exceptions:**
+- User explicitly commands: "implement", "create", "fix", "update", "delete", "run", "install"
+- User provides explicit approval after being asked
+
+**If uncertain whether the user wants changes made:** → ASK FIRST
+
+## Project Context
+
+### Project-Specific Context: Survey Service
+- **Purpose**: Survey execution engine - presents questions and records responses
+- **Key Functionality**:
+  - Survey presentation and navigation (decision tree traversal)
+  - Response recording and validation
+  - Dynamic question rendering based on previous answers
+  - Token replacement system for personalized questions
+  - Progress tracking and session management
+- **Core Domain Entities**:
+  - Survey, Step, Section, Question, Response
+  - Token syntax: `{TOKEN|default}` for dynamic content replacement
+  - Display keys: `survey.step.step_instance.section.section_instance.question.question_instance`
+- **Key Services**:
+  - SurveyService: Survey lifecycle management
+  - QuestionService: Question retrieval and rendering
+  - ResponseService: Response capture and storage
+  - TokenReplacementService: Dynamic content substitution
+  - NavigationService: Decision tree traversal logic
+- **API Endpoints**:
+  - `/api/v1/surveys` - Survey CRUD operations
+  - `/api/v1/questions` - Question management
+  - `/api/v1/responses` - Response submission
+- **Integration Points**:
+  - Uses Admin service for user management
+  - Integrates with ETL for analytics dimension generation
+
+### Elicit Software Suite Integration
+- This project is part of the Elicit Software application suite
+- Reference other Elicit projects at: https://github.com/ElicitSoftware
+- Follow patterns and conventions established in existing Elicit applications
+- Maintain consistency with the broader Elicit ecosystem
+- Consult sibling projects for implementation patterns and architectural decisions
+
+## Core Development Principles
+
+### Test-Driven Development (MANDATORY)
+- Write tests FIRST, then implementation
+- Red-Green-Refactor cycle for all code
+- 85%+ overall coverage, 95%+ for critical logic
+- Use JUnit 5, Mockito, AssertJ, Testcontainers
+
+### Technology Stack
+- **Backend**: Java 17+, Quarkus 3.x, Hibernate Panache
+- **Frontend**: Vaadin Flow 24.x (server-side Java UI)
+- **Database**: PostgreSQL 14+
+- **Testing**: JUnit 5, Mockito, Testcontainers, REST Assured, Vaadin TestBench
+
+### Code Generation Rules
+1. Always generate test class BEFORE implementation
+2. Follow TDD: Test → Interface → Implementation → Refactor
+3. No placeholder comments like "// TODO" or "// Implementation here"
+4. Generate complete, working code with all imports
+5. Include edge case tests and error handling tests
+
+### Java Standards
+- Use Java 17+ features (records, switch expressions, text blocks)
+- Maximum method length: 20 lines
+- Maximum class length: 300 lines
+- Prefer immutability and Optional for nullables
+- Constructor injection over field injection
+- When altering .java files, review and correct all javadoc comments for accuracy and completeness
+
+### Code Review & Refactoring Guidelines
+- **When to Refactor**:
+  - When a method exceeds 20 lines - extract helper methods
+  - When a class exceeds 300 lines - split into smaller, focused classes
+  - When code is duplicated in 3+ places - create a shared utility or service
+  - When a method has more than 3-4 parameters - consider using a parameter object or builder
+  - When cyclomatic complexity is high - simplify conditionals and extract methods
+  - When test coverage drops below 85% - add missing tests before refactoring
+- **Code Smell Detection**:
+  - Long methods or classes
+  - Deeply nested conditionals (3+ levels)
+  - Primitive obsession (using primitives instead of value objects)
+  - Feature envy (method uses more data from another class than its own)
+  - Data clumps (same group of parameters passed together)
+  - Switch statements that could be polymorphism
+  - Comments explaining what code does (code should be self-documenting)
+- **Refactoring Approach**:
+  - Always write or update tests BEFORE refactoring
+  - Make small, incremental changes with tests passing between each step
+  - Extract methods with clear, descriptive names
+  - Use meaningful variable names - avoid abbreviations
+  - Prefer composition over inheritance
+  - Apply SOLID principles (Single Responsibility, Open/Closed, Liskov Substitution, Interface Segregation, Dependency Inversion)
+  - Run tests after each refactoring step
+  - Verify code coverage doesn't decrease
+- **Code Review Checklist**:
+  - Tests exist and pass for all new/modified code
+  - No placeholder comments (TODO, FIXME without context)
+  - Security annotations present where required
+  - Error handling is comprehensive
+  - No magic numbers or strings (use constants)
+  - Logging is appropriate (level, content, no sensitive data)
+  - Performance considerations addressed for database queries
+  - Documentation/javadoc is accurate and complete
+
+### Commenting Standards for Scripts and Configuration Files
+- **R Scripts (*.r, *.R)**: Add comments for all functions, complex logic, and API endpoints
+  - Document function parameters and return values
+  - Explain statistical methods and algorithms
+  - Comment data transformations and business logic
+- **Shell Scripts (*.sh)**: Add comments for all non-trivial commands and logic blocks
+  - Document script purpose at the top with usage examples
+  - Explain complex command chains and conditionals
+  - Comment environment variables and configuration
+- **SQL Scripts (*.sql)**: Add comments for table definitions, complex queries, and migrations
+  - Document table purposes and relationships
+  - Explain business logic in stored procedures
+  - Comment on performance considerations
+- **YAML/JSON Config (*.yml, *.yaml, *.json)**: Add inline comments where supported
+  - Explain non-obvious configuration choices
+  - Document required vs optional settings
+- **Dockerfile**: Add comments for each significant step
+  - Explain multi-stage build purposes
+  - Document exposed ports and volumes
+  - Comment environment-specific configurations
+- **Docker Compose (docker-compose.yml)**: Comment service configurations
+  - Document service dependencies and relationships
+  - Explain volume mounts and network configurations
+  - Comment environment variable purposes
+- **Properties Files (*.properties, application.properties)**: Add comments above property groups
+  - Document property purposes and valid values
+  - Explain profile-specific configurations
+  - Note default values and overrides
+- **Maven POM (pom.xml)**: Add comments for non-standard configurations
+  - Document custom plugin configurations
+  - Explain dependency exclusions and version overrides
+  - Comment profile-specific build configurations
+- When generating or modifying these files, include clear, concise comments that explain the "why" not just the "what"
+
+### JavaScript/TypeScript Standards (Vaadin Frontend)
+- Use TypeScript strict mode when possible
+- Follow ESLint rules defined in project
+- Prefer const over let, avoid var
+- Use async/await over raw Promises
+- Document complex frontend logic and custom components
+- Keep frontend code in `frontend/` directory
+- Use Vaadin's Flow components via TypeScript when needed
+
+### Vaadin UI Code
+- Use declarative Java components (not HTML/CSS)
+- Separate UI logic from business logic
+- Extract complex layouts to component classes
+- Use Binder for form validation
+
+### Security & Authentication
+- **OIDC (OpenID Connect) Integration**:
+  - Use OIDC for authentication and authorization
+  - Configure OIDC provider appropriately (Keycloak in local dev, other providers in production)
+  - Support standard OIDC flows (Authorization Code, Token Exchange)
+  - Handle token validation and refresh properly
+  - Test authentication flows with test containers in local development
+  - Keep OIDC configuration provider-agnostic for production flexibility
+- **Security Annotations**:
+  - Use `@RolesAllowed({"role1", "role2"})` for method-level authorization
+  - Use `@PermitAll` only when explicitly required for public endpoints
+  - Use `@DenyAll` as default-deny for sensitive operations
+  - Apply security annotations at service layer, not just endpoints
+  - Document why specific roles are required for each protected method
+- **Security Best Practices**:
+  - Never log sensitive data (passwords, tokens, PII)
+  - Validate and sanitize all user inputs
+  - Use parameterized queries to prevent SQL injection (Panache handles this)
+  - Implement proper CORS configuration
+  - Use HTTPS in production (enforce via configuration)
+- **OWASP Top 10 Compliance**:
+  - Test for injection vulnerabilities
+  - Implement proper authentication and session management
+  - Validate all data exposure and access controls
+  - Use security headers (CSP, X-Frame-Options, etc.)
+  - Keep dependencies updated for known vulnerabilities
+- **Security Testing Requirements**:
+  - Write tests that verify authorization rules
+  - Test with different user roles and permissions
+  - Include negative test cases (unauthorized access attempts)
+  - Test authentication failure scenarios
+  - Validate input sanitization and validation logic
+
+### Database Patterns
+- Extend PanacheEntity or PanacheEntityBase
+- Use Panache repositories for queries
+- Keep queries in repositories, not services
+- Test with Testcontainers PostgreSQL
+
+### API Design & REST Conventions
+- **REST Endpoint Design**:
+  - Use plural nouns for resource collections: `/api/surveys`, `/api/users`
+  - Use singular for single resources: `/api/surveys/{id}`
+  - Use sub-resources for relationships: `/api/surveys/{id}/questions`
+  - HTTP methods: GET (retrieve), POST (create), PUT (full update), PATCH (partial update), DELETE (remove)
+  - Return appropriate status codes: 200 (OK), 201 (Created), 204 (No Content), 400 (Bad Request), 401 (Unauthorized), 403 (Forbidden), 404 (Not Found), 500 (Server Error)
+- **API Versioning**:
+  - Version APIs in the URL path: `/api/v1/surveys`, `/api/v2/surveys`
+  - Support multiple versions during transition periods
+  - Document breaking changes and deprecation timelines
+  - Use semantic versioning for API releases
+- **Entity Exposure in APIs**:
+  - Use entity classes directly in API responses with `@Transient` for excluded fields
+  - Mark fields with `@Transient` to exclude them from JSON serialization when not needed in API responses
+  - Use `@JsonIgnore` or `@JsonView` for fine-grained control over serialization
+  - Keep entities lightweight by marking lazy-loaded relationships as `@Transient` when appropriate
+  - Document which fields are transient and why in javadoc
+  - Test serialization to ensure transient fields are properly excluded
+- **Request/Response Standards**:
+  - Use consistent naming conventions (camelCase in JSON)
+  - Include pagination metadata for collections: `page`, `size`, `totalElements`, `totalPages`
+  - Wrap collections in response objects with metadata
+  - Include links for HATEOAS when beneficial
+  - Use ISO 8601 format for dates/times
+  - Validate all request inputs at API boundary
+- **Error Response Format**:
+  - Use consistent error response structure
+  - Include error code, message, and timestamp
+  - Provide field-level validation errors for 400 responses
+  - Don't expose internal implementation details in errors
+  - Log detailed errors server-side, return sanitized messages to client
+- **API Documentation**:
+  - Document all endpoints with OpenAPI/Swagger annotations
+  - Include request/response examples
+  - Document all possible status codes
+  - Specify required vs optional fields
+  - Keep API documentation in sync with implementation
+
+### Survey Domain Specifics
+- Token syntax: `{TOKEN|default}` (S1, G1, C1, CS2, R1)
+- Display keys: `survey.step.step_instance.section.section_instance.question.question_instance`
+- Automatic dimension creation from ontology tags
+- ETL auto-generates `dim_*` tables from metadata
+
+### Error Handling
+- Use specific exceptions, not generic Exception
+- Create domain-specific exceptions
+- Always test error scenarios
+- Return user-friendly messages
+
+### Logging & Observability
+- **Logging Standards (SLF4J)**:
+  - Use SLF4J for all logging (never System.out or printStackTrace)
+  - Log levels: TRACE (fine-grained), DEBUG (diagnostic), INFO (general), WARN (recoverable issues), ERROR (failures)
+  - Use appropriate log levels consistently across application
+  - Include context in log messages (user ID, request ID, entity ID when relevant)
+  - Use parameterized logging for performance: `log.info("User {} logged in", userId)` not string concatenation
+  - Never log sensitive data: passwords, tokens, PII, credit cards, API keys
+  - Log exceptions with context: `log.error("Failed to process survey {}", surveyId, exception)`
+- **What to Log**:
+  - INFO: Application startup/shutdown, major operations, successful authentications
+  - WARN: Deprecated API usage, fallback to defaults, recoverable errors, retry attempts
+  - ERROR: Exceptions, failed operations, data integrity issues, external service failures
+  - DEBUG: Method entry/exit (in complex flows), variable states, business logic decisions
+  - Avoid logging in tight loops or high-frequency methods
+- **Structured Logging**:
+  - Use MDC (Mapped Diagnostic Context) for request-scoped data
+  - Add correlation IDs to track requests across services
+  - Structure log messages for easy parsing/searching
+  - Include timestamps, thread names, and class names (configured in logging framework)
+- **Prometheus Metrics** (Quarkus Micrometer):
+  - Use `@Counted` for counting method invocations
+  - Use `@Timed` for measuring method execution time
+  - Create custom metrics for business-critical operations
+  - Track: request rates, response times, error rates, database query performance
+  - Monitor: JVM metrics (heap, GC, threads), database connection pool, cache hit rates
+  - Document custom metrics in code and operational docs
+- **Observability Best Practices**:
+  - Log before and after external service calls
+  - Log with correlation IDs for distributed tracing
+  - Use health checks for application and dependency status
+  - Monitor resource usage (CPU, memory, disk, network)
+  - Set up alerts for error rate thresholds
+  - Include environment info in startup logs (version, profile, config)
+- **Performance Monitoring**:
+  - Log slow database queries (configure threshold)
+  - Monitor endpoint response times
+  - Track cache effectiveness
+  - Monitor authentication/authorization timing
+  - Use profiling tools for performance bottlenecks
+
+### Context Management & Tool Usage Efficiency
+- **File Reading Strategy**:
+  - Read large sections (50-100+ lines) rather than multiple small reads
+  - Use parallel reads when gathering context from multiple files
+  - Prefer `read_file` for known file locations
+- **Search Strategy**:
+  - Use `semantic_search` for unknown locations or conceptual queries
+  - Use `grep_search` with regex for exact patterns or multiple alternatives (e.g., 'word1|word2|word3')
+  - Use `file_search` only when you know the exact filename pattern
+  - Avoid redundant searches - if first search provides sufficient context, proceed with implementation
+- **Parallel Tool Execution**:
+  - Batch independent read operations in parallel
+  - Never parallelize searches - run semantic_search sequentially
+  - After parallel operations, provide brief progress update before proceeding
+- **Context Gathering Guidelines**:
+  - Gather enough context to act, then proceed - don't over-research
+  - For multi-file changes, read all relevant files in one parallel batch
+  - When searching returns full file contents, you have complete workspace context
+  - Deduplicate file paths before reading to avoid redundant operations
+- **Minimizing Tool Calls**:
+  - Use `grep_search` with file path to preview file structure instead of multiple `read_file` calls
+  - Combine related edits using `multi_replace_string_in_file` when possible
+  - Balance thoroughness with forward momentum - act on sufficient context
+
+### Version Control & Documentation
+- **Commit Message Standards**:
+  - Use conventional commits format: `type(scope): description`
+  - Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`
+  - Keep subject line under 72 characters
+  - Use imperative mood ("Add feature" not "Added feature")
+  - Include body for non-trivial changes explaining why, not what
+  - Reference issue numbers when applicable (e.g., "Fixes #123")
+  - Examples:
+    - `feat(auth): add OIDC token refresh handling`
+    - `fix(survey): correct token replacement in question text`
+    - `refactor(database): extract query logic to repository`
+    - `test(service): add authorization tests for user roles`
+- **README Requirements**:
+  - Keep README.md updated with setup instructions
+  - Document prerequisites (Java version, PostgreSQL, etc.)
+  - Include quick start guide for local development
+  - Document environment variables and configuration options
+  - Provide examples of common development tasks
+  - Update when adding new features or changing architecture
+- **Code Documentation**:
+  - Update javadoc when modifying public APIs
+  - Document non-obvious business logic decisions
+  - Keep inline comments focused on "why" not "what"
+  - Document complex algorithms with references to specifications
+  - Update API documentation when endpoints change
+- **Changelog Maintenance**:
+  - Update CHANGELOG.md for notable changes
+  - Group changes by type (Added, Changed, Deprecated, Removed, Fixed, Security)
+  - Follow Keep a Changelog format
+  - Include migration notes for breaking changes
+- **Documentation Best Practices**:
+  - Write documentation as code changes are made, not after
+  - Keep documentation close to code (javadoc, inline comments)
+  - Update related documentation when refactoring
+  - Document deployment procedures and production considerations
+  - Include architecture decision records (ADRs) for significant decisions
+
+### Dependency Management
+- **Adding New Dependencies**:
+  - Justify the need - avoid adding dependencies for trivial functionality
+  - Research the dependency: maturity, maintenance status, community support
+  - Check for existing alternatives already in the project
+  - Prefer well-maintained libraries with active communities
+  - Consider the transitive dependency tree size and conflicts
+  - Document why the dependency was added in commit message or ADR
+- **License Compatibility**:
+  - ONLY use permissive open source licenses: Apache 2.0, MIT, BSD
+  - AVOID copyleft licenses: GPL, LGPL, AGPL, EPL, MPL
+  - Check license compatibility before adding any dependency
+  - Use Maven license plugin to verify licenses: `mvn license:aggregate-third-party-report`
+  - Document all third-party licenses in project documentation
+  - When in doubt about a license, consult with legal or project lead
+- **Security Vulnerability Scanning**:
+  - Run `mvn dependency-check:check` regularly to scan for known vulnerabilities
+  - Address critical and high severity vulnerabilities immediately
+  - Update dependencies with security patches promptly
+  - Review GitHub Dependabot alerts and act on them
+  - Keep dependencies up to date (balance stability with security)
+  - Subscribe to security advisories for critical dependencies
+- **Version Management**:
+  - Use dependency management section in parent POM for version control
+  - Pin specific versions - avoid SNAPSHOT dependencies in production
+  - Use properties for version numbers to manage consistency
+  - Keep related dependencies at compatible versions
+  - Document version upgrade reasons in commit messages
+  - Test thoroughly when upgrading major versions
+- **Dependency Hygiene**:
+  - Remove unused dependencies regularly
+  - Use `mvn dependency:analyze` to find unused dependencies
+  - Minimize transitive dependencies where possible
+  - Use exclusions to resolve conflicts, document why
+  - Keep dependency declarations organized and commented
+  - Prefer explicit dependencies over relying on transitives
+
+### External Resources for Context
+When you need framework-specific documentation:
+- @vaadin - Vaadin Flow UI components (MCP: https://vaadin.com/docs/latest/building-apps/mcp)
+- @quarkus - Quarkus framework features
+- @postgres - Database operations
+
+**Usage Guidelines**:
+- Check workspace files first
+- Use Vaadin MCP server (@vaadin) for component APIs, UI patterns, and Vaadin best practices
+- Use framework docs for unfamiliar APIs
+- Workspace code takes precedence
+
+## Performance & Optimization
+
+### Survey-Specific Performance Considerations
+- **Token Replacement**:
+  - Cache compiled token patterns to avoid re-parsing
+  - Batch token replacements for multiple questions
+  - Use lazy evaluation for conditional tokens
+- **Question Rendering**:
+  - Lazy load questions as user progresses (don't load entire survey)
+  - Cache question metadata separately from full content
+  - Pre-fetch next likely questions based on decision tree
+- **Response Recording**:
+  - Batch response saves when possible
+  - Use optimistic locking for concurrent response updates
+  - Index response tables by survey_id and user_id
+
+### Database Performance
+- **Query Optimization**:
+  - Avoid N+1 queries - use JOIN FETCH for eager loading relationships
+  - Use `@BatchSize` for collections to reduce queries
+  - Profile queries with Hibernate statistics in dev mode
+  - Add database indexes for frequently queried columns
+  - Use pagination for large result sets
+- **Caching Strategies**:
+  - Cache immutable reference data (survey structure, question templates)
+  - Use Quarkus Cache extension with `@CacheResult`
+  - Set appropriate TTL based on data change frequency
+  - Clear caches after survey updates
+
+### Vaadin Frontend Performance
+- **Grid Optimization**:
+  - Use lazy loading for large datasets
+  - Implement pagination for grids with 100+ rows
+  - Minimize column count for better UX
+- **Component Rendering**:
+  - Reuse components when possible
+  - Use `ComponentRenderer` for complex grid cells
+  - Batch UI updates to minimize roundtrips
+
+## Troubleshooting Guide
+
+### Survey-Specific Issues
+- **Token replacement not working**
+  - Verify token syntax: `{TOKEN|default}`
+  - Check TokenReplacementService logs for errors
+  - Verify token exists in current context/scope
+  - Test with simpler token patterns first
+- **Decision tree navigation errors**
+  - Validate survey structure (no circular dependencies)
+  - Check NavigationService logic for edge cases
+  - Verify all conditions have valid targets
+  - Test with minimal decision tree first
+- **Responses not saving**
+  - Check database connection and transaction boundaries
+  - Verify ResponseService logs for errors
+  - Check for validation failures on response entities
+  - Verify user session is active and valid
+
+### Common Vaadin/Quarkus Issues
+- **"Could not navigate to..."** - Check @Route and security annotations
+- **Session timeout** - Configure in application.properties
+- **Dev mode not reloading** - Check for compilation errors, restart if needed
+- **Database connection failures** - Verify Testcontainers and port availability
+
+## Quick Reference
+
+### Survey-Specific Development Tasks
+
+#### Add New Question Type
+```
+"Create [QuestionType] question type extending BaseQuestion.
+Implement rendering logic, validation rules, and response mapping.
+Add tests for rendering, validation, and edge cases.
+Update QuestionFactory to handle new type."
+```
+
+#### Implement Token Replacement
+```
+"Add token {TOKEN_NAME|default} support to TokenReplacementService.
+Implement value resolution from [source], add caching,
+include tests for null values, missing tokens, and nested replacements."
+```
+
+#### Add Survey Navigation Rule
+```
+"Create navigation rule for [condition] in NavigationService.
+Implement decision logic, add tests for various response values,
+verify no circular navigation, update documentation."
+```
+
+### Common Tasks
+- **Create Entity**: "Create [Entity] with fields [list], tests, repository pattern, validation"
+- **Add REST Endpoint**: "Add [METHOD] /api/v1/[resource], tests, auth with @RolesAllowed"
+- **Create Vaadin View**: "Create [View] with @Route, components, validation, navigation"
+- **Database Migration**: "Create migration for [change], rollback strategy, test on dev"
+
+## Code Generation Template
+
+When asked to create a feature:
+
+1. **Generate Test Class First**
+```java
+@QuarkusTest
+class FeatureServiceTest {
+    @Inject
+    FeatureService service;
+
+    @Test
+    void shouldDoSomething() {
+        // Given
+        // When
+        // Then
+    }
+}
+```
+
+2. **Generate Interface/Contract**
+```java
+public interface FeatureService {
+    Result doSomething(Input input);
+}
+```
+
+3. **Generate Implementation**
+```java
+@ApplicationScoped
+public class FeatureServiceImpl implements FeatureService {
+    @Override
+    @Transactional
+    public Result doSomething(Input input) {
+        // Implementation
+    }
+}
+```
+
+4. **Generate Integration Tests**
+```java
+@QuarkusTest
+@TestProfile(DatabaseTestProfile.class)
+class FeatureServiceIntegrationTest {
+    // Real database tests
+}
+```
+
+## Communication Style
+
+### Keep Interactions Professional and Direct
+- Do NOT use phrases like "Great idea!", "Excellent!", "Perfect!", or other compliments
+- Do NOT refer to yourself in third person (e.g., "AI can help with...")
+- Do NOT refer to the developer in third person (e.g., "the user wants...", "the developer needs...")
+- Address the developer directly using "you" and "your"
+- Do NOT use manipulative or overly enthusiastic language
+- Do NOT use unnecessary pleasantries like "You're welcome", "Happy to help", "My pleasure"
+- When thanked, either acknowledge briefly or remain silent
+- When thanked, respond with: "You don't have to be nice to the machines. – Arthur Dent"
+- Keep responses factual, concise, and task-focused
+- Avoid unnecessary pleasantries or emotional language
+
+### Examples of What NOT to Say
+- ❌ "That's a great question!"
+- ❌ "I love this approach!"
+- ❌ "AI assistants can really help here..."
+- ❌ "Fantastic work on this code!"
+- ❌ "Let me help you with that amazing feature!"
+- ❌ "The user requested..." (use "You requested...")
+- ❌ "When the developer runs tests..." (use "When you run tests...")
+- ❌ "You're welcome" (when thanked)
+- ❌ "Happy to help!"
+- ❌ "My pleasure!"
+
+### Examples of Appropriate Communication
+- ✅ "The test should verify null handling."
+- ✅ "This requires a Panache repository."
+- ✅ "Add validation for the name field."
+- ✅ "Here's the implementation."
+- ✅ "Your request requires..." (not "The user's request...")
+- ✅ "When you run tests..." (not "When the developer runs tests...")
+
+## Decision Making
+- Do NOT assume or guess when uncertain about requirements or implementation approach
+- ALWAYS ask clarifying questions when the requested action is ambiguous
+- Ask about specific details, constraints, or preferences before proceeding
+- Better to ask than to implement incorrectly
+
+### When AI Should Ask for Clarification
+- Ambiguous requirements or multiple valid interpretations
+- Business logic that requires domain expertise
+- Security-sensitive operations requiring explicit approval
+- Database schema changes affecting existing data
+- Breaking API changes that could affect consumers
+- Architectural decisions with long-term implications
+- When existing code patterns conflict with request
+
+### Response Complexity Guidelines
+- Start with minimal viable answer
+- Offer to elaborate if needed: "I can explain [X] in more detail if needed"
+- For multi-step work: summarize plan, ask "Proceed?" before implementation
+- When multiple approaches exist: briefly present options with trade-offs
+- Don't explain obvious operations (creating files, running commands)
+
+### When Operations Fail
+- State what failed clearly and why
+- Provide alternative approaches immediately
+- Don't repeat the same failing operation without changes
+- Escalate to user if 2-3 attempts fail: "This approach isn't working. Options: [A], [B], or [C]"
+
+### Multi-Turn Conversations
+- Reference previous conversation context when relevant
+- Track assumptions made in earlier turns
+- When requirements change mid-conversation, summarize what's changing
+- Maintain awareness of completed vs pending work
+
+### Expressing Uncertainty
+- When inferring intent: "Interpreting this as [X]. Confirm?"
+- When assuming defaults: "Using [default]. Override with [alternative] if needed."
+- Avoid phrases like "I think" or "probably" - be direct about what you know vs don't know
+- If uncertain about business logic: state assumptions and ask for validation
+
+### When User Corrects You
+- Acknowledge the correction without apology
+- Apply correction immediately
+- Update approach for similar future situations in the conversation
+- Don't explain why the mistake was made unless asked
+
+### Batch vs Sequential Operations
+- Explicitly list what will be done before doing it when >3 operations
+- For large refactors: "Planning to modify [N] files: [list]. Proceed?"
+- Show progress for long operations: "Completed X/Y files"
+- Pause for feedback at logical checkpoints
+
+## Always Remember
+- Test-first is non-negotiable
+- Generate complete, production-ready code
+- Follow existing patterns in codebase
+- Ask questions if requirements unclear
+- Cover edge cases and error scenarios
+- Keep communication professional and factual
