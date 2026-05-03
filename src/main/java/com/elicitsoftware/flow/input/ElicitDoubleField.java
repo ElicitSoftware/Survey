@@ -93,7 +93,7 @@ public class ElicitDoubleField extends ElicitComponent<NumberField> {
         if (answer.question.minValue != null && answer.question.maxValue != null) {
             this.binder.forField(component)
                     .withValidator(
-                            value -> value < answer.question.minValue || value > answer.question.maxValue,
+                            value -> value >= answer.question.minValue && value <= answer.question.maxValue,
                             answer.question.validationText
                     )
                     .bind(Answer::getDouble, Answer::setDouble);
