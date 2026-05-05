@@ -59,19 +59,27 @@ public class ElicitTextField extends ElicitComponent<TextField> {
      */
     @Override
     void setBindings(Answer answer) {
+        var bindingBuilder = binder.forField(component);
+
         if (answer.question.required) {
             component.setRequired(answer.question.required);
             component.setRequiredIndicatorVisible(answer.question.required);
-            binder.forField(component)
-                    .asRequired(answer.question.validationText)
-                    .bind(Answer::getTextValue, Answer::setTextValue);
+            bindingBuilder = bindingBuilder.asRequired(answer.question.validationText);
         }
 
         if (answer.question.minValue != null && answer.question.maxValue != null) {
-            binder.forField(component)
-                    .withValidator(text -> text.length() >= answer.question.minValue && text.length() <= answer.question.maxValue, answer.question.validationText)
-                    .bind(Answer::getTextValue, Answer::setTextValue);
+            boolean required = answer.question.required;
+            bindingBuilder = bindingBuilder.withValidator(
+                    text -> {
+                        if (text == null || text.isEmpty()) {
+                            return !required; // empty is valid only when not required
+                        }
+                        return text.length() >= answer.question.minValue && text.length() <= answer.question.maxValue;
+                    },
+                    answer.question.validationText);
         }
+
+        bindingBuilder.bind(Answer::getTextValue, Answer::setTextValue);
     }
 
     /**
