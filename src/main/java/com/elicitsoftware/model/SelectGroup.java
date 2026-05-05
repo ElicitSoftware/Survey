@@ -13,6 +13,8 @@ package com.elicitsoftware.model;
 
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 
 import java.util.List;
 
@@ -57,5 +59,6 @@ public class SelectGroup extends PanacheEntityBase {
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @JoinColumn(name = "group_id")
     @OrderBy("displayOrder ASC")
+    @Fetch(FetchMode.SUBSELECT)
     public List<SelectItem> selectItems;
 }
