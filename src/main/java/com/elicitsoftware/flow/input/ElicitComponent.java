@@ -100,6 +100,10 @@ public abstract class ElicitComponent<T extends Component> {
             if (answer.question.placeholder != null && !answer.question.placeholder.isEmpty()) {
                 setPlaceholderText(answer.question.placeholder);
             }
+
+            if (answer.question.mask != null && !answer.question.mask.isEmpty()) {
+                setInputMask(answer.question.mask);
+            }
         }
 
         /**
