@@ -42,7 +42,7 @@ public class GlobalStrings {
     public static final String QUESTION_TYPE_DATE_PICKER = "DATE_PICKER";
 
     /** Question type constant for date-time picker input fields. */
-    public static final String QUESTIION_TYPE_DATE_TIME_PICKER = "DATE_TIME_PICKER";
+    public static final String QUESTIION_TYPE_DATE_TIME_PICKER = "DATETIME";
 
     /** Question type constant for double/floating-point number input fields. */
     public static final String QUESTION_TYPE_DOUBLE = "DOUBLE";

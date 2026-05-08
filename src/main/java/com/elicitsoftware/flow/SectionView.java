@@ -31,6 +31,7 @@ import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.router.HasDynamicTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.quarkus.annotation.NormalUIScoped;
+import io.quarkus.logging.Log;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 
@@ -82,8 +83,8 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
     private String pageTitle = "";
 
     private boolean flash;
-    
-    private int valueChangeTimeout = 900; // Default value change timeout in milliseconds 
+
+    private int valueChangeTimeout = 900; // Default value change timeout in milliseconds
     // Track pending save operations
     private int pendingSaveOperations = 0;
 
@@ -160,7 +161,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
      */
     private void buildQuestions() {
         System.out.println("Starting buildQuestions() method");
-        
+
         //Save a copy of the display map
         oldDisplayMap = getDisplayComponents();
 
@@ -170,9 +171,12 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         if (navResponse != null) {
             System.out.println("Processing " + navResponse.getAnswers().size() + " answers in navResponse");
             for (Answer answer : navResponse.getAnswers()) {
-                if (answer.question == null && answer.sectionInstance == 0) {
-                    // this is a section title.
-                    pageTitle = answer.displayText;
+                if (answer.question == null) {
+                    // this is a section title or repeated section header.
+                    if (answer.sectionInstance == 0) {
+                        pageTitle = answer.displayText;
+                    }
+                    // skip rendering for repeated section placeholder answers
                 } else {
                     switch (answer.question.questionType.name) {
                         case GlobalStrings.QUESTION_TYPE_CHECKBOX:
@@ -199,7 +203,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                         case GlobalStrings.QUESTION_TYPE_COMBOBOX:
                             ElicitComboBox comboBox = new ElicitComboBox(answer);
                             comboBox.component.addValueChangeListener(e -> {
-                                saveAnswer(answer, e.getValue().toString());
+                                saveAnswer(answer, e.getValue() != null ? e.getValue().codedValue : null);
                             });
                             displayMap.put(answer.getDisplayKey(), comboBox.component);
                             if (!binders.containsKey(answer.getDisplayKey())) {
@@ -215,7 +219,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             integerField.component.setValueChangeTimeout(300);
                             integerField.component.addValueChangeListener(e -> {
                                 Integer newValue = e.getValue();
-                                saveAnswer(answer, String.valueOf(newValue));
+                                saveAnswer(answer, newValue != null ? String.valueOf(newValue) : null);
                             });
                             displayMap.put(answer.getDisplayKey(), integerField.component);
                             if (!binders.containsKey(answer.getDisplayKey())) {
@@ -496,7 +500,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         for (Map.Entry<String, Component> displayEntry : displayMap.entrySet()) {
             String componentKey = displayEntry.getKey();
             Component component = displayEntry.getValue();
-            
+
             // Check if this component has a corresponding binder
             if (binders.containsKey(componentKey)) {
                 Binder<?> binder = binders.get(componentKey);
@@ -512,7 +516,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                 }
             }
         }
-        
+
         if (!valid) {
             // Make the component reference final for use in lambda
             final Component componentToScrollTo = firstInvalidComponent;
@@ -527,7 +531,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                     "} else { " +
                     "console.log('Element not found for scrolling:', $0); " +
                     "} " +
-                    "}, 200);", 
+                    "}, 200);",
                     componentToScrollTo.getId().orElse("unknown")
                 );
             }
@@ -553,10 +557,10 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         if ((value != null && answer.getTextValue() == null) ||
                 (value != null && !answer.getTextValue().equals(value))) {
             answer.setTextValue(value);
-            
+
             // Increment pending operations counter
             pendingSaveOperations++;
-            
+
             try {
                 NavResponse newNavResponse = service.saveAnswer(answer);
                 if (newNavResponse != null) {
@@ -565,6 +569,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                     buildQuestions();
                 }
             } catch (Exception e) {
+                Log.error("Error saving answer for respondent " + answer.respondentId + ", displayKey=" + answer.getDisplayKey(), e);
                 Notification.show("Error saving answer. Please try again.", 3000, Notification.Position.MIDDLE);
             } finally {
                 // Decrement pending operations counter
@@ -580,12 +585,12 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
     private void waitForPendingSaveOperations() {
         if (pendingSaveOperations > 0) {
             Notification.show("Saving changes...", 1000, Notification.Position.MIDDLE);
-            
+
             // Simple polling approach - wait for saves to complete
             int maxWaitTime = 5000; // Maximum 5 seconds wait
             int waitInterval = 100; // Check every 100ms
             int totalWaited = 0;
-            
+
             while (pendingSaveOperations > 0 && totalWaited < maxWaitTime) {
                 try {
                     Thread.sleep(waitInterval);
@@ -595,7 +600,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                     break;
                 }
             }
-            
+
             if (pendingSaveOperations > 0) {
                 System.out.println("Warning: Navigation proceeded with " + pendingSaveOperations + " pending save operations");
             }
@@ -612,7 +617,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
     private void nextSection() {
         // Wait for any pending save operations to complete first
         waitForPendingSaveOperations();
-        
+
         // Add null checks before accessing navigation data
         if (navResponse == null || navResponse.getCurrentNavItem() == null) {
             Notification.show("Navigation data not available. Please refresh the page.", 3000, Notification.Position.MIDDLE);
@@ -668,7 +673,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
     private void previousSection() {
         // Wait for any pending save operations to complete first
         waitForPendingSaveOperations();
-        
+
         // Add null checks before accessing navigation data
         if (navResponse == null || navResponse.getCurrentNavItem() == null) {
             Notification.show("Navigation data not available. Please refresh the page.", 3000, Notification.Position.MIDDLE);
