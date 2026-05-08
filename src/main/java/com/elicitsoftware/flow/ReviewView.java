@@ -77,9 +77,10 @@ public class ReviewView extends VerticalLayout {
     public void init() {
         setSizeFull();
 
-        Survey survey = Survey.findById(sessionDataService.getSurveyId());
         respondent = sessionDataService.getRespondent();
         navResponse = sessionDataService.getNavResponse();
+        Integer surveyId = sessionDataService.getSurveyId();
+        Survey survey = surveyId != null ? Survey.findById(surveyId) : null;
 
         // Add null checks
         if (respondent == null || survey == null) {
