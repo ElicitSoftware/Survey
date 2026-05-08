@@ -497,7 +497,7 @@ public class Answer extends PanacheEntityBase {
         this.surveyId = displayKey.getSurvey();
         this.stepId = displayKey.getStep();
         this.stepInstance = displayKey.getStepInstance();
-        this.sectionId = displayKey.getSection();
+        this.sectionId = valueOrNull(displayKey.getSection());
         this.sectionInstance = displayKey.getSectionInstance();
         this.section_question_id = valueOrNull(displayKey.getQuestion());
         this.question_instance = displayKey.getQuestionInstance();

@@ -56,13 +56,13 @@ public class RespondentPSA extends PanacheEntityBase {
     public Integer id;
 
     @Column(name = "respondent_id")
-    public long respondentId;
+    public int respondentId;
 
     @Column(name = "post_survey_action_id")
-    public long psaId;
+    public int psaId;
 
     @Column(name = "tries")
-    public long tries;
+    public int tries;
 
     @Column(name = "status")
     public String status;

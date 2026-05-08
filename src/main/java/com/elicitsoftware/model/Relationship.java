@@ -71,6 +71,7 @@ import java.util.List;
         @NamedQuery(name = "Relationship.findByDownstream_Step_ID", query = "SELECT r FROM Relationship r WHERE r.surveyId = :surveyId and r.actionType.name <> 'TEXT' and r.downstreamSection is null and r.downstreamQuestion is null and r.downstreamStep.id = :downstream_step_id and r.upstreamStep.id = :stepId order by r.id"),
         @NamedQuery(name = "Relationship.findByDownstream_S_ID", query = "SELECT r FROM Relationship r WHERE r.surveyId = :surveyId and r.actionType.name <> 'TEXT' and r.downstreamSection.id = :downstream_s_id and r.upstreamStep.id = :stepId order by r.id"),
         @NamedQuery(name = "Relationship.findByDownstream_SQ_ID", query = "SELECT r FROM Relationship r WHERE r.surveyId = :surveyId and r.actionType.name <> 'TEXT' and r.downstreamQuestion.id = :downstream_sq_id order by r.id"),
+        @NamedQuery(name = "Relationship.findTextByDownstream_S_ID", query = "SELECT r FROM Relationship r WHERE r.surveyId = :surveyId and r.actionType.name = 'TEXT' and r.downstreamSection.id = :downstream_s_id order by r.id"),
         @NamedQuery(name = "Relationship.findRepeatByDownstreamStep", query = "SELECT r FROM Relationship r WHERE r.surveyId = :surveyId and r.downstreamStep.id = :downstreamStepId and r.downstreamSection is null and r.downstreamQuestion is null order by r.id"),
         @NamedQuery(name = "Relationship.findRepeatByDownstreamStepSection", query = "SELECT r FROM Relationship r WHERE r.surveyId = :surveyId and r.downstreamStep.id = :downstreamStepId and r.downstreamSection.id = :downstreamSectionId and r.downstreamQuestion is null order by r.id"),
         @NamedQuery(name = "Relationship.findRelationshipsByDownstreamAnswer", query = "SELECT r FROM Relationship r inner JOIN Answer a on r.downstreamStep.id = a.stepId AND r.downstreamQuestion.id is null AND r.surveyId = a.surveyId WHERE a.section_question_id is null AND a.respondentId = :respondentId AND r.actionType.id = 3 AND a.id = :answerId order by r.id"),
@@ -162,6 +163,11 @@ public class Relationship extends PanacheEntityBase {
     public static List<Relationship> findByDownstream_SQ_ID(int surveyId, int downstream_sq_id) {
         return find("#Relationship.findByDownstream_SQ_ID", Parameters.with("surveyId", surveyId)
                 .and("downstream_sq_id", downstream_sq_id)).list();
+    }
+
+    public static List<Relationship> findTextByDownstream_S_ID(int surveyId, int downstream_s_id) {
+        return find("#Relationship.findTextByDownstream_S_ID", Parameters.with("surveyId", surveyId)
+                .and("downstream_s_id", downstream_s_id)).list();
     }
 
     /**
