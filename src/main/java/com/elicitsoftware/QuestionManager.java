@@ -260,9 +260,12 @@ public class QuestionManager {
     private NavigationItem getCurrentNavItem(NavigationItem[] navItems, String key) {
 
         DisplayKey dkey = new DisplayKey(key);
+        dkey.setQuestion(0);
+        dkey.setQuestionInstance(0);
+        String sectionKey = dkey.getValue();
 
         for (NavigationItem navigationItem : navItems) {
-            if (navigationItem.getPath().equals(dkey.getSectionString())) {
+            if (navigationItem.getPath().equals(sectionKey)) {
                 return navigationItem;
             }
         }
@@ -320,14 +323,14 @@ public class QuestionManager {
 
         String sqlStep = "SELECT SQ.ID, SQ.DISPLAY_ORDER FROM SURVEY.SECTIONS_QUESTIONS SQ "
                 + "JOIN SURVEY.STEPS_SECTIONS SS ON SQ.SECTION_ID = SS.SECTION_ID AND SQ.SURVEY_ID = SS.SURVEY_ID "
-                + "WHERE SS.SURVEY_ID = :surveyId AND SS.STEP_ID = :stepId AND SS.SECTION_DISPLAY_ORDER = :displayOrder "
+                + "WHERE SS.SURVEY_ID = :surveyId AND SS.STEP_DISPLAY_ORDER = :stepId AND SS.SECTION_DISPLAY_ORDER = :displayOrder "
                 + "AND SS.ID NOT IN (SELECT R.DOWNSTREAM_S_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.DOWNSTREAM_STEP_ID = SS.STEP_ID AND R.DOWNSTREAM_SQ_ID IS NULL AND R.DOWNSTREAM_S_ID IS NOT NULL AND R.ACTION_ID != 3) "
                 + "AND Sq.id NOT IN (SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.UPSTREAM_STEP_ID = SS.STEP_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_S_ID IS NOT NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL) "
                 + "order by SQ.DISPLAY_ORDER";
 
         String sqlSection = "SELECT SQ.ID, SQ.DISPLAY_ORDER FROM SURVEY.SECTIONS_QUESTIONS SQ "
                 + "JOIN SURVEY.STEPS_SECTIONS SS ON SQ.SECTION_ID = SS.SECTION_ID AND SQ.SURVEY_ID = SS.SURVEY_ID "
-                + "WHERE SS.SURVEY_ID = :surveyId AND SS.STEP_ID = :stepId AND SS.SECTION_DISPLAY_ORDER = :displayOrder "
+                + "WHERE SS.SURVEY_ID = :surveyId AND SS.STEP_DISPLAY_ORDER = :stepId AND SS.SECTION_DISPLAY_ORDER = :displayOrder "
                 + "AND Sq.id NOT IN ( "
                 + "SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.UPSTREAM_STEP_ID = SS.STEP_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_S_ID IS NOT NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL "
                 + "UNION "
@@ -404,16 +407,16 @@ public class QuestionManager {
             for (Object[] record : rs) {
                 ids.add((Integer) record[0]);
             }
-            
+
             // Batch load all SectionsQuestions in a single query (fixes N+1 problem)
             List<SectionsQuestion> loadedQuestions = SectionsQuestion.find("id IN ?1", ids).list();
-            
+
             // Create a map for quick lookup
             java.util.Map<Integer, SectionsQuestion> questionMap = new java.util.HashMap<>();
             for (SectionsQuestion sq : loadedQuestions) {
                 questionMap.put(sq.id, sq);
             }
-            
+
             // Add questions in the original order
             for (Object[] record : rs) {
                 Integer id = (Integer) record[0];
@@ -921,6 +924,27 @@ public class QuestionManager {
                 buildDownstreamQuestions(answer);
                 answers.add(answer);
             }
+
+            // Re-evaluate TEXT relationships targeting this section so tokens are replaced
+            // even when the upstream question was answered before this section was first shown.
+            // Mirrors the TEXT branch in buildDownstreamQuestions: Dependents must be persisted
+            // before replaceText/buildDipslayText can resolve token values via getValuesMap.
+            if (r.downstreamSection != null) {
+                List<Relationship> textRels = Relationship.findTextByDownstream_S_ID(r.surveyId, r.downstreamSection.id);
+                for (Relationship textRel : textRels) {
+                    Answer upstreamForText = getUpstreamAnswerByRelationshipId(textRel.id, upstreamAnswer.respondentId);
+                    if (upstreamForText != null && textRel.evaluateOperator(upstreamForText)) {
+                        ArrayList<Answer> sectionAnswers = getDownstreamSectionAnswers(textRel, upstreamAnswer.respondentId);
+                        for (Answer a : sectionAnswers) {
+                            Dependent dep = new Dependent(upstreamAnswer.respondentId, upstreamForText, a, textRel);
+                            HashMap<Integer, Dependent> textDependents = new HashMap<>();
+                            textDependents.put(dep.respondentId, dep);
+                            saveAnswer(a, textDependents);
+                        }
+                        replaceText(textRel, upstreamForText);
+                    }
+                }
+            }
         }
     }
 
@@ -1000,8 +1024,10 @@ public class QuestionManager {
 
             DisplayKey answerKey = new DisplayKey(upstreamAnswer.getDisplayKey());
             //MFD this will have to be reworked ID will not work!!
-            answerKey.setStep(getStepDisplayOrder(r.surveyId, r.downstreamStep.id));
-            //MFD this will have to be reworked ID will not work!!
+            if (r.downstreamStep != null) {
+                answerKey.setStep(getStepDisplayOrder(r.surveyId, r.downstreamStep.id));
+            }
+            //MFD this will have to be reworked ID will not work!!œ
             answerKey.setSection(getSectionDisplayOrder(r.surveyId, r.downstreamSection.id));
 
             List<Answer> answers = Answer.findBySectionInstancesQueryString(relationshipId, answerKey);
@@ -1071,8 +1097,13 @@ public class QuestionManager {
         }
 
         // Substitute the Question instances and Section Instances.
+        // For repeated sections sectionInstance (1-based) is the meaningful counter;
+        // fall back to stepInstance for answers inside repeated steps (if ever implemented).
         text = text.replaceAll("\\{Q#\\}", answer.getKey().getQuestionInstance() + "");
-        text = text.replaceAll("\\{S#\\}", answer.getKey().getStepInstance() + "");
+        int sNum = answer.getKey().getSectionInstance() != 0
+                ? answer.getKey().getSectionInstance()
+                : answer.getKey().getStepInstance();
+        text = text.replaceAll("\\{S#\\}", sNum + "");
 
         TreeMap<String, String> values;
 
@@ -1287,12 +1318,13 @@ public class QuestionManager {
                     // may have to only remove some of the downstream elements.
                     if (upstreamAnswer.id == rootAnswerId) {
                         if (dependent.relationship.downstreamQuestion != null
+                                && dependent.upstream.getTextValue() != null
                                 && !dependent.upstream.getTextValue().isBlank()) {
                             if (Integer.parseInt(dependent.upstream.getTextValue()) < dependent.downstream.question_instance) {
                                 deleteAnswers(dependent.downstream, rootAnswerId);
                             }
                         } else {
-                            if (!upstreamAnswer.getTextValue().isBlank()) {
+                            if (upstreamAnswer.getTextValue() != null && !upstreamAnswer.getTextValue().isBlank()) {
                                 deleteSomeDownstreamAnswers(respondentId,
                                         Integer.valueOf(upstreamAnswer.getTextValue()),
                                         dependent.relationship.downstreamSection.getKey().getValue(), rootAnswerId);
@@ -1661,6 +1693,7 @@ public class QuestionManager {
                             }
                             break;
                         case "TEXT":
+                        case "EMAIL":
                         case "DATE":
                             if (dependent.upstream.getTextValue() != null) {
                                 value = dependent.upstream.getTextValue();
