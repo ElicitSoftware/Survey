@@ -67,17 +67,19 @@ public class ETLService {
         Query checkQuery = entityManager.createNativeQuery("SELECT COUNT(*) FROM surveyreport.dim_section");
 
         Long rows = (Long) checkQuery.getSingleResult();
+        // Always upsert steps/sections and create any missing dimension tables —
+        // these are safe incremental operations that pick up new surveys on restart.
+        Log.info("Update Step Dimension Table: " + updateStepDimensionTable());
+        Log.info("Update Section Dimension Table: " + updateSectionDimensionTable());
+        Log.info("Build Dimension Tables: " + buildDimensionTables());
         if (rows == 0) {
+            // First-time initialization: build the fact infrastructure.
             Log.info("ETL Service initialization.");
-            Log.info("Initializing ETL");
-            Log.info("Update Step Dimension Table: " + updateStepDimensionTable());
-            Log.info("Update Section Dimension Table: " + updateSectionDimensionTable());
-            Log.info("Build Dimension Tables: " + buildDimensionTables());
             Log.info("Build Fact Respondents View: " + buildFactRespondentsView());
             Log.info("Build Fact Sections Table: " + buildFactSectionTable());
-            Log.info("Build Dimension Tables: " + buildFactSectionView());
+            Log.info("Build Fact Section View: " + buildFactSectionView());
         } else {
-            Log.info("ETL Service Init found records in surveyreport.dim_section, No initialization needed.");
+            Log.info("ETL Service: fact infrastructure already exists, skipping rebuild.");
         }
         populateAllFactSectionsTable();
     }
