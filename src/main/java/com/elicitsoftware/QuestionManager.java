@@ -15,7 +15,7 @@ import com.elicitsoftware.model.*;
 import com.elicitsoftware.response.NavResponse;
 import com.elicitsoftware.response.NavigationItem;
 import com.elicitsoftware.util.DatabaseRetryUtil;
-import com.vaadin.quarkus.annotation.NormalUIScoped;
+import jakarta.enterprise.context.ApplicationScoped;
 import io.micrometer.core.annotation.Timed;
 import io.quarkus.logging.Log;
 import jakarta.inject.Inject;
@@ -39,7 +39,7 @@ import java.util.TreeMap;
  * the relationships and hierarchical structure among them. It ensures the correct flow for both
  * repeated and dependent answers, along with creating navigation items for respondents.
  */
-@NormalUIScoped
+@ApplicationScoped
 public class QuestionManager {
     @Inject
     EntityManager entityManager;
@@ -55,7 +55,7 @@ public class QuestionManager {
      *               and values are the replacements for those tokens
      * @return the resulting string after replacing all specified tokens and applying formatting adjustments
      */
-    private static String replaceTokens(String text, TreeMap<String, String> values) {
+    static String replaceTokens(String text, TreeMap<String, String> values) {
 
         // Split the string into parts
         String[] displayText = text.split("}");
@@ -1292,10 +1292,11 @@ public class QuestionManager {
                                 deleteAnswers(dependent.downstream, rootAnswerId);
                             }
                         } else {
+                            // Section-based REPEAT: use sectionInstance comparison, not question_instance
                             if (!upstreamAnswer.getTextValue().isBlank()) {
-                                deleteSomeDownstreamAnswers(respondentId,
+                                deleteSomeDownstreamSectionAnswers(respondentId, "",
                                         Integer.valueOf(upstreamAnswer.getTextValue()),
-                                        dependent.relationship.downstreamSection.getKey().getValue(), rootAnswerId);
+                                        dependent.relationship.downstreamSection.getKey(), rootAnswerId);
                             }
                         }
                     } else {

@@ -12,15 +12,16 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
-        <quarkus.platform.version>3.34.1</quarkus.platform.version>
+        <quarkus.platform.version>3.35.3</quarkus.platform.version>
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.5</surefire-plugin.version>
-        <vaadin.version>25.1.1</vaadin.version>
+        <vaadin.version>25.1.5</vaadin.version>
         <javadoc-plugin.version>3.12.0</javadoc-plugin.version>
         <site-plugin.version>3.21.0</site-plugin.version>
         <timestamp>${maven.build.timestamp}</timestamp>
         <maven.build.timestamp.format>yyyy-MM-dd HH:mm:ss z</maven.build.timestamp.format>
         <!-- license-maven-plugin properties -->
+        <license.skip>true</license.skip>
         <license.thirdPartyFilename>Notice.txt</license.thirdPartyFilename>
         <license.includeTransitiveDependencies>false</license.includeTransitiveDependencies>
         <license.excludedScopes>test,provided</license.excludedScopes>
@@ -316,6 +317,7 @@
                 <artifactId>license-maven-plugin</artifactId>
                 <version>2.7.1</version>
                 <configuration>
+                    <skip>${license.skip}</skip>
                     <inceptionYear>2025</inceptionYear>
                     <licenseName>polyform</licenseName>
                     <organizationName>The Regents of the University of Michigan - Rogel Cancer Center</organizationName>
@@ -338,19 +340,21 @@
                         <goals>
                             <goal>update-file-header</goal>
                         </goals>
-                        <phase>process-sources</phase>
+                        <phase>package</phase>
                     </execution>
                     <execution>
                         <id>add-third-party-licenses</id>
                         <goals>
                             <goal>add-third-party</goal>
                         </goals>
+                        <phase>package</phase>
                     </execution>
                     <execution>
                         <id>aggregate-download-licenses</id>
                         <goals>
                             <goal>aggregate-download-licenses</goal>
                         </goals>
+                        <phase>package</phase>
                     </execution>
                 </executions>
             </plugin>
@@ -414,6 +418,17 @@
         </plugins>
     </reporting>
     <profiles>
+        <profile>
+            <id>license</id>
+            <activation>
+                <property>
+                    <name>license</name>
+                </property>
+            </activation>
+            <properties>
+                <license.skip>false</license.skip>
+            </properties>
+        </profile>
         <profile>
             <id>native</id>
             <activation>
