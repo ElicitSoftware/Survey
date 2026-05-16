@@ -105,6 +105,53 @@ enables debugging, compliance demonstration, and post-hoc audit of all structura
 
 ---
 
+## Quarkus MCP Tooling — NON-NEGOTIABLE
+
+All AI agents implementing features in this project MUST use the Quarkus Agent
+MCP server tools. Direct Maven/Gradle commands and web search are NOT acceptable
+substitutes for these tools.
+
+### Mandatory workflow for every implementation task
+
+1. **Before writing any code** — call `quarkus_skills(projectDir)` for each
+   extension relevant to the task (e.g., `panache`, `rest`, `arc`, `validator`).
+   Skipping this step and guessing at patterns is a constitution violation.
+2. **Start dev mode** — use `quarkus_start(projectDir)`. Never run
+   `mvn quarkus:dev` or `gradle quarkusDev` manually.
+3. **Discover tools** — call `quarkus_searchTools(projectDir)` after any
+   extension change; the tool list is dynamic and must be re-queried.
+4. **Run tests** — use `quarkus_callTool(toolName: "devui-testing_runTests")`
+   to run all tests. Never use `mvn test` or `mvn verify` as a substitute
+   while dev mode is running.
+5. **Red → Green per method** — after writing each new test, run it via
+   `quarkus_callTool(toolName: "devui-testing_runTest", toolArguments: '{"className":"<FullyQualifiedTestClass"}')`
+   to confirm the Red → Green cycle.
+6. **Diagnose errors** — when a compilation or runtime error occurs, call
+   `quarkus_callTool(toolName: "devui-exceptions_getLastException")` before
+   attempting any fix. Do not guess at the cause from logs alone.
+7. **Search docs** — use `quarkus_searchDocs(projectDir, query)` for any
+   Quarkus API, annotation, or configuration question. Web search and generic
+   documentation tools are NOT permitted for Quarkus-specific questions.
+
+### Hard rules
+
+- NEVER run `mvn clean` or `gradle clean` while dev mode is running — it
+  deletes `target/test-classes` and breaks the test runner.
+- NEVER skip hooks (`--no-verify`) to work around a failing build.
+- If the test runner returns "Tests already in progress" and won't recover,
+  perform a full `quarkus_stop` + `quarkus_start` cycle to reset it.
+- Adding a new Quarkus extension MUST be done via
+  `quarkus_callTool(toolName: "devui-extensions_add", ...)`, not by editing
+  `pom.xml` directly.
+
+**Rationale**: The Quarkus Agent MCP server provides live hot-reload,
+real-time test feedback, and extension-aware code patterns that no static
+tool or web search can replicate. Using it is the fastest path to correct,
+idiomatic Quarkus code and ensures the TDD cycle (Principle II) runs at
+dev-mode speed.
+
+---
+
 ## Technology Stack
 
 | Layer | Technology |
