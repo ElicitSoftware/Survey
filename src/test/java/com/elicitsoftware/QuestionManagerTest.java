@@ -25,6 +25,11 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * UC-002: Answer Survey Questions — decision-tree navigation (init/navigate,
+ * SHOW/REPEAT/EQUAL/NOT_EQUAL/CONTAINS/FIELD_EXIST branching, soft-delete restore).
+ * Also covers the UC-004 removeDeleted() purge step (see tagged test below).
+ */
 @QuarkusTest
 class QuestionManagerTest {
 
@@ -652,6 +657,8 @@ class QuestionManagerTest {
 
     @Test
     @TestTransaction
+    // UC-004: finalize() calls questionManager.removeDeleted() to permanently purge
+    // soft-deleted answers/dependents left over from branches shown then later hidden.
     void given_deletedAnswers_when_removeDeleted_then_answersPhysicallyRemoved() {
         // removeDeleted() purges soft-deleted rows from the DB
         Respondent r = createFreshRespondent();
