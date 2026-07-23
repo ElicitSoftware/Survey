@@ -49,6 +49,19 @@
                 <artifactId>jackson-annotations</artifactId>
                 <version>2.21</version>
             </dependency>
+            <!-- Fix JUnit 6 version mismatch: Vaadin BOM pins junit-jupiter(-api) to 6.0.3
+                 while the Quarkus BOM pins the rest of the JUnit 6 artifacts to 6.1.1. -->
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter</artifactId>
+                <version>6.1.1</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter-api</artifactId>
+                <version>6.1.1</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
