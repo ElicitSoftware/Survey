@@ -1,0 +1,31 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+
+actor "Respondent" as Respondent
+actor "External Report Service" as ReportSvc
+actor "External Post-Survey-Action Service" as PsaSvc
+
+rectangle "Elicit Survey" {
+  usecase "UC-001\nEnter Survey via Token" as UC001
+  usecase "UC-002\nAnswer Survey Questions" as UC002
+  usecase "UC-003\nReview Answers" as UC003
+  usecase "UC-004\nFinalize Survey" as UC004
+  usecase "UC-005\nView Reports & Download PDF" as UC005
+  usecase "UC-006\nLog Out" as UC006
+}
+
+Respondent --> UC001
+Respondent --> UC002
+Respondent --> UC003
+Respondent --> UC004
+Respondent --> UC005
+Respondent --> UC006
+
+UC004 ..> UC005 : <<include>>\n(navigates to report view)
+UC002 ..> UC002 : <<extend>>\n(branching shows/hides/repeats\ndownstream questions)
+
+UC004 --> PsaSvc : notifies (webhook POST)
+UC005 --> ReportSvc : requests report data
+
+@enduml
