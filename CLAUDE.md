@@ -34,6 +34,11 @@ this order; review and hand-edit each artifact before continuing.
 the existing source. Run it before the forward workflow on this repo, since
 the codebase predates AIUP adoption.
 
+## Git Commits
+
+- Never append a `Co-Authored-By: Claude` (or similar AI co-author) trailer to
+  commit messages.
+
 ## Working Agreements
 
 - Re-run upstream skills when requirements change so downstream artifacts
