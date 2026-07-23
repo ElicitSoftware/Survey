@@ -13,6 +13,7 @@ on:
   push:
     tags:
       - 'v*'
+      - 'V*'
 
 jobs:
   build:
@@ -31,6 +32,7 @@ jobs:
         run: |
           TAG=${GITHUB_REF#refs/tags/}
           VERSION=${TAG#v}
+          VERSION=${VERSION#V}
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "major_minor=$(echo $VERSION | cut -d. -f1,2)" >> $GITHUB_OUTPUT
