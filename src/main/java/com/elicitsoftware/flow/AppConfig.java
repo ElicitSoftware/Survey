@@ -15,6 +15,7 @@ import com.vaadin.flow.component.page.AppShellConfigurator;
 import com.vaadin.flow.component.page.Inline;
 import com.vaadin.flow.server.AppShellSettings;
 import com.vaadin.flow.component.dependency.StyleSheet;
+import com.vaadin.flow.theme.lumo.Lumo;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import jakarta.annotation.PostConstruct;
@@ -43,6 +44,12 @@ import java.nio.file.Paths;
  * 2. Local brand directory (brand/) - Development or embedded default brand
  * 3. Application defaults (icons/) - Fallback when no brand is available
  */
+// Load the Lumo theme (and its utility classes) via @StyleSheet before the
+// application stylesheet. Theme stylesheets must come first so application
+// overrides in styles.css win the cascade. Using the Lumo constants is the
+// supported Vaadin 25 mechanism; CSS @import of the theme is an anti-pattern.
+@StyleSheet(Lumo.STYLESHEET)
+@StyleSheet(Lumo.UTILITY_STYLESHEET)
 @StyleSheet("context://styles.css")
 @ApplicationScoped
 @Startup

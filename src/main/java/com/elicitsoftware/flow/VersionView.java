@@ -72,11 +72,11 @@ public class VersionView extends VerticalLayout {
             
             Paragraph containerTimeValue = new Paragraph(containerTime);
             containerTimeValue.getStyle().set("font-family", "monospace");
-            containerTimeValue.getStyle().set("background-color", "#e8f4fd");
-            containerTimeValue.getStyle().set("padding", "8px");
-            containerTimeValue.getStyle().set("border", "1px solid #bee5eb");
-            containerTimeValue.getStyle().set("border-radius", "4px");
-            containerTimeValue.getStyle().set("margin-bottom", "16px");
+            containerTimeValue.getStyle().set("background-color", "var(--lumo-primary-color-10pct)");
+            containerTimeValue.getStyle().set("padding", "var(--lumo-space-s)");
+            containerTimeValue.getStyle().set("border", "1px solid var(--lumo-primary-color-50pct)");
+            containerTimeValue.getStyle().set("border-radius", "var(--lumo-border-radius-m)");
+            containerTimeValue.getStyle().set("margin-bottom", "var(--lumo-space-m)");
             
             section.add(containerTimeLabel, containerTimeValue);
         }
@@ -91,16 +91,16 @@ public class VersionView extends VerticalLayout {
             
             Paragraph creationDateValue = new Paragraph(creationDate);
             creationDateValue.getStyle().set("font-family", "monospace");
-            creationDateValue.getStyle().set("background-color", "#e8f5e8");
-            creationDateValue.getStyle().set("padding", "8px");
-            creationDateValue.getStyle().set("border", "1px solid #c3e6c3");
-            creationDateValue.getStyle().set("border-radius", "4px");
+            creationDateValue.getStyle().set("background-color", "var(--lumo-success-color-10pct)");
+            creationDateValue.getStyle().set("padding", "var(--lumo-space-s)");
+            creationDateValue.getStyle().set("border", "1px solid var(--lumo-success-color-50pct)");
+            creationDateValue.getStyle().set("border-radius", "var(--lumo-border-radius-m)");
             
             section.add(creationDateLabel, creationDateValue);
         } else {
             Paragraph noImageInfo = new Paragraph("Image creation date not available.");
             noImageInfo.getStyle().set("font-style", "italic");
-            noImageInfo.getStyle().set("color", "#6c757d");
+            noImageInfo.getStyle().set("color", "var(--lumo-secondary-text-color)");
             section.add(noImageInfo);
         }
         
