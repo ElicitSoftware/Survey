@@ -20,6 +20,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
+import io.quarkus.logging.Log;
 import io.quarkus.runtime.Startup;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -359,7 +360,7 @@ public class AppConfig implements AppShellConfigurator {
             }
 
         } catch (Exception e) {
-            System.err.println("Error loading brand CSS from " + cssPath + ": " + e.getMessage());
+            Log.error("Error loading brand CSS from " + cssPath, e);
         }
 
         return null;

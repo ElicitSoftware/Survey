@@ -29,6 +29,7 @@ import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.Route;
 import com.vaadin.quarkus.annotation.NormalUIScoped;
+import io.quarkus.logging.Log;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
@@ -106,7 +107,7 @@ public class ReportView extends VerticalLayout {
                 // Open the PDF in a new browser tab
                 UI.getCurrent().getPage().executeJs("window.open($0, '_blank')", pdfUrl);
             } catch (Exception e) {
-                e.printStackTrace();
+                Log.error("Failed to generate PDF", e);
                 Notification.show("Failed to generate PDF: " + e.getMessage(), 3000, Notification.Position.MIDDLE);
             }
         });

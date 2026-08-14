@@ -34,7 +34,7 @@ import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.util.Matrix;
-import org.jboss.logging.Logger;
+import io.quarkus.logging.Log;
 import org.w3c.dom.svg.SVGDocument;
 
 import java.awt.*;
@@ -75,7 +75,6 @@ public class PDFService {
     static final PDFont TEXT_FONT = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
     static final float FONT_SIZE = 10f;
     static final float LEADING = FONT_SIZE;
-    private static final Logger LOG = Logger.getLogger(PDFService.class);
     private static final PDRectangle PAGE_SIZE = PDRectangle.LETTER;
     // Table configuration
     private static final float ROW_HEIGHT = 15;
@@ -189,20 +188,20 @@ public class PDFService {
 
             for (ReportResponse response : reportResponses) {
                 if (response == null) {
-                    LOG.warn("PDFService.generatePDF - Skipping null response");
+                    Log.warn("PDFService.generatePDF - Skipping null response");
                     continue;
                 }
 
-                LOG.info("PDFService.generatePDF - Processing response: " + response.title + ", pdf is null: " + (response.pdf == null));
+                Log.info("PDFService.generatePDF - Processing response: " + response.title + ", pdf is null: " + (response.pdf == null));
 
                 // If the PDF payload is missing, render a safe error block instead of crashing
                 if (response.pdf == null) {
-                    LOG.info("PDFService.generatePDF - PDF is null, rendering error block for: " + response.title);
+                    Log.info("PDFService.generatePDF - PDF is null, rendering error block for: " + response.title);
                     String title = (response.title != null && !response.title.isEmpty()) ? response.title : "Report Generation Error";
                     String errorText = (response.innerHTML != null && !response.innerHTML.isEmpty())
                             ? response.innerHTML.replaceAll("[\\r\\n\\t]", " ").replaceAll("<[^>]+>", " ").replaceAll("&nbsp;", " ").trim()
                             : "Failed to generate report content.";
-                    LOG.info("PDFService.generatePDF - Error text: " + errorText);
+                    Log.info("PDFService.generatePDF - Error text: " + errorText);
                     // Close the current content stream if a new page is needed
                     contentStream.close();
                     page = new PDPage(PDRectangle.LETTER);
@@ -229,7 +228,7 @@ public class PDFService {
 
                     for (Content content : response.pdf.content) {
                         if (content == null) {
-                            System.out.println("Content is null");
+                            Log.warn("Content is null");
                             continue;
                         }
                         // Close the current content stream if a new page is needed
