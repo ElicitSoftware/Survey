@@ -31,6 +31,7 @@ import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.router.HasDynamicTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.quarkus.annotation.NormalUIScoped;
+import io.quarkus.logging.Log;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 
@@ -116,7 +117,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                 // Log successful restoration
                 if (navResponse != null && navResponse.getCurrentNavItem() != null) {
                     String currentPath = navResponse.getCurrentNavItem().getPath();
-                    System.out.println("Session restored successfully to path: " + currentPath);
+                    Log.info("Session restored successfully to path: " + currentPath);
                 }
             }
         }
@@ -159,8 +160,8 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
      * </ul>
      */
     private void buildQuestions() {
-        System.out.println("Starting buildQuestions() method");
-        
+        Log.debug("Starting buildQuestions() method");
+
         //Save a copy of the display map
         oldDisplayMap = getDisplayComponents();
 
@@ -168,7 +169,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         displayMap.clear();
 
         if (navResponse != null) {
-            System.out.println("Processing " + navResponse.getAnswers().size() + " answers in navResponse");
+            Log.debug("Processing " + navResponse.getAnswers().size() + " answers in navResponse");
             for (Answer answer : navResponse.getAnswers()) {
                 if (answer.question == null && answer.sectionInstance == 0) {
                     // this is a section title.
@@ -386,7 +387,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
             index++;
         }
         addButtons();
-        System.out.println("Completed buildQuestions() method successfully");
+        Log.debug("Completed buildQuestions() method successfully");
     }
 
     /**
@@ -597,7 +598,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
             }
             
             if (pendingSaveOperations > 0) {
-                System.out.println("Warning: Navigation proceeded with " + pendingSaveOperations + " pending save operations");
+                Log.warn("Navigation proceeded with " + pendingSaveOperations + " pending save operations");
             }
         }
     }
@@ -632,24 +633,23 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         }
 
         try {
-            System.out.println("Attempting to navigate to next section with key: " + nextKey + " for respondent: " + respondent.id);
+            Log.debug("Attempting to navigate to next section with key: " + nextKey + " for respondent: " + respondent.id);
             NavResponse newNavResponse = service.init(respondent.id, nextKey);
             if (newNavResponse != null) {
-                System.out.println("Successfully loaded next section data");
+                Log.info("Successfully loaded next section data");
                 navResponse = newNavResponse;
                 sessionDataService.setNavResponse(newNavResponse);
                 // Rebuild the questions in place instead of navigating
                 buildQuestions();
             } else {
-                System.out.println("Navigation service returned null response for key: " + nextKey);
+                Log.warn("Navigation service returned null response for key: " + nextKey);
                 Notification.show("Error loading next section data.", 3000, Notification.Position.MIDDLE);
                 if (btnNext != null) {
                     btnNext.setEnabled(true);
                 }
             }
         } catch (Exception e) {
-            System.out.println("Exception during navigation to next section: " + e.getMessage());
-            e.printStackTrace();
+            Log.error("Exception during navigation to next section: " + e.getMessage(), e);
             Notification.show("Error navigating to next section. Please try again.", 3000, Notification.Position.MIDDLE);
             // Re-enable the button if navigation fails
             if (btnNext != null) {
@@ -688,24 +688,23 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         }
 
         try {
-            System.out.println("Attempting to navigate to previous section with key: " + previousKey + " for respondent: " + respondent.id);
+            Log.debug("Attempting to navigate to previous section with key: " + previousKey + " for respondent: " + respondent.id);
             NavResponse newNavResponse = service.init(respondent.id, previousKey);
             if (newNavResponse != null) {
-                System.out.println("Successfully loaded previous section data");
+                Log.info("Successfully loaded previous section data");
                 navResponse = newNavResponse;
                 sessionDataService.setNavResponse(newNavResponse);
                 // Rebuild the questions in place instead of navigating
                 buildQuestions();
             } else {
-                System.out.println("Navigation service returned null response for key: " + previousKey);
+                Log.warn("Navigation service returned null response for key: " + previousKey);
                 Notification.show("Error loading previous section data.", 3000, Notification.Position.MIDDLE);
                 if (btnPrevious != null) {
                     btnPrevious.setEnabled(true);
                 }
             }
         } catch (Exception e) {
-            System.out.println("Exception during navigation to previous section: " + e.getMessage());
-            e.printStackTrace();
+            Log.error("Exception during navigation to previous section: " + e.getMessage(), e);
             Notification.show("Error navigating to previous section. Please try again.", 3000, Notification.Position.MIDDLE);
             // Re-enable the button if navigation fails
             if (btnPrevious != null) {
