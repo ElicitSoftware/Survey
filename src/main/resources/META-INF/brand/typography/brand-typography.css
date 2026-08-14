@@ -29,25 +29,16 @@
     font-display: swap;
 }
 
-@font-face {
-    font-family: 'GoogleFont';
-    src: url('WWXRlj2DZQiMJYaYRrJVI9EAZhTO.woff2') format('woff2');
-    font-weight: normal;
-    font-style: normal;
-    font-display: swap;
-}
-
 /* Typography Variables */
 :root {
   --brand-font-primary: "ibm_plex_sansregular", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   --brand-font-secondary: "Chilanka", cursive;
-  --brand-font-google: "GoogleFont", sans-serif;
 }
 
-/* Global Typography Styles */
-* {
-    font-family: var(--brand-font-primary);
-}
+/* The application font is applied through the --lumo-font-family token
+   (mapped from --brand-font-primary in styles.css), not a universal `*`
+   selector. Individual elements can opt into other families via the classes
+   below. */
 
 /* Heading Styles */
 .class-title {
@@ -64,8 +55,4 @@
 /* Alternative font options */
 .font-chilanka {
     font-family: var(--brand-font-secondary);
-}
-
-.font-google {
-    font-family: var(--brand-font-google);
 }

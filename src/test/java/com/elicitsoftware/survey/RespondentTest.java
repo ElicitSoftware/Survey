@@ -19,6 +19,10 @@ import java.time.ZonedDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+/**
+ * UC-004: Finalize Survey — Respondent.getElapsedTime() derives from firstAccessDt
+ * (UC-001 login) and finalizedDt (UC-004 finalize), the two timestamps set by those flows.
+ */
 @QuarkusTest
 public class RespondentTest {
 

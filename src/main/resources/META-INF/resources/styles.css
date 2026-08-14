@@ -12,8 +12,8 @@
 /*
    Elicit Survey Application Theme - Vaadin 25 with Lumo Theme
 
-   This is the master stylesheet loaded via @StyleSheet annotation.
-   It imports the Lumo theme for consistency with Vaadin 24 look and feel.
+   This is the master application stylesheet loaded via @StyleSheet, after the
+   Lumo theme (which AppConfig loads via @StyleSheet(Lumo.STYLESHEET)).
 
    This theme provides:
    - Application-specific component styling
@@ -27,11 +27,9 @@
    Visit https://vaadin.com/docs/latest/styling/application-theme for more information.
 */
 
-/* Import Vaadin Lumo theme (Vaadin 24 compatible) */
-@import 'lumo/lumo.css';
-
-/* Import Lumo utility classes (optional, but recommended) */
-@import 'lumo/lumo-utility.css';
+/* The Lumo theme and its utility classes are loaded via @StyleSheet(Lumo.STYLESHEET)
+   and @StyleSheet(Lumo.UTILITY_STYLESHEET) in AppConfig, ahead of this file, so the
+   application overrides below win the cascade. Do not @import the theme here. */
 
 /* Brand theme integration */
 /* Note: Brand CSS is loaded dynamically via AppConfig during runtime */
@@ -44,15 +42,23 @@
 @import 'components/branded-header.css';
 
 /* Brand Integration Architecture */
-/* These CSS custom properties provide the contract between brands and the application */
-html {
+/* These CSS custom properties provide the contract between brands and the application.
+   The mapping lives on :root — the same selector the brand color/typography files use —
+   so a mounted brand overrides these by CSS source order (it is injected after this
+   file by AppConfig), rather than depending on html-vs-:root specificity. */
+:root {
     /* Brand variables are populated by brand CSS files */
     /* Mapping brand variables to Lumo theme properties */
     --lumo-font-family: var(--brand-font-primary, -apple-system, BlinkMacSystemFont, "Roboto", "Segoe UI", Helvetica, Arial, sans-serif);
 
-    /* Primary color mapping */
+    /* Primary color mapping.
+       --lumo-primary-text-color is used for text/links on light surfaces, so it maps to
+       a dedicated --brand-primary-text token rather than the raw --brand-primary: a light
+       brand primary (e.g. a yellow) fails WCAG contrast as text even though it is fine as
+       a button/background fill. Brands with a light primary should set --brand-primary-text
+       to a darkened variant; it defaults to the primary for brands whose primary is dark. */
     --lumo-primary-color: var(--brand-primary, hsl(214, 90%, 52%));
-    --lumo-primary-text-color: var(--brand-primary, hsl(214, 90%, 52%));
+    --lumo-primary-text-color: var(--brand-primary-text, var(--brand-primary, hsl(214, 90%, 52%)));
     --lumo-primary-contrast-color: var(--brand-primary-contrast, hsl(0, 0%, 100%));
     --lumo-base-color: var(--brand-base, hsl(0, 0%, 100%));
 
@@ -96,7 +102,7 @@ html {
 }
 
 .review-item-question {
-    font-weight: bolder;
+    font-weight: bold;
     padding-left: 10px;
 }
 
@@ -124,18 +130,16 @@ html {
     overflow: auto;
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    /* dvh tracks the dynamic viewport so mobile browser chrome does not clip content;
+       100vh would overflow on iOS Safari. */
+    height: 100dvh;
     box-sizing: border-box;
 }
 
 .reviewCard {
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--lumo-box-shadow-s, 0 4px 8px rgba(0, 0, 0, 0.1));
     border: 1px solid var(--lumo-contrast-20pct, #e0e0e0);
     border-radius: var(--lumo-border-radius-m, 4px);
     padding: var(--lumo-space-m, 16px);
     background-color: var(--lumo-base-color, #fff);
-}
-
-.review-item-question {
-    font-weight: bold;
 }

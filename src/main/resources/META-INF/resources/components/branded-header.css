@@ -59,11 +59,14 @@
     text-decoration: none;
 }
 
-/* Brand title styling - uses brand variables */
+/* Brand title styling - uses brand variables.
+   No text-shadow here: it is only legible on a dark header, and brands may use a
+   light header (e.g. the cream Kindred header with brown text). A brand that wants
+   a shadow can set --brand-header-text-shadow in its own CSS. */
 .branded-header .brand-title {
     font-family: var(--brand-font-primary, 'Montserrat', sans-serif);
     color: var(--brand-header-text);
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    text-shadow: var(--brand-header-text-shadow, none);
 }
 
 /* Navigation toggle button styling */

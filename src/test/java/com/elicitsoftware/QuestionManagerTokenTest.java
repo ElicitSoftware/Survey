@@ -18,6 +18,10 @@ import java.util.TreeMap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+/**
+ * UC-002: Answer Survey Questions — replaceTokens() backs the TEXT action's
+ * display-text token substitution (QuestionManager.buildDownstreamQuestions/replaceText).
+ */
 class QuestionManagerTokenTest {
 
     // Matrix row 10: TEXT action — replaceTokens unit tests (no DB, no Quarkus)

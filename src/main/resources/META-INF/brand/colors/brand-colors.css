@@ -15,6 +15,10 @@
   --brand-primary-hsl: 214, 90%, 52%;
   --brand-primary-contrast: hsl(0, 0%, 100%); /* White text on primary */
   --brand-base: hsl(0, 0%, 100%); /* White base */
+  /* Color for primary-colored TEXT/links on light surfaces (maps to
+     --lumo-primary-text-color). This blue meets WCAG AA on white; brands with a
+     light primary must override this with a darkened variant. */
+  --brand-primary-text: var(--brand-primary);
 
   /* Status Colors - Vaadin Lumo Standards */
   --brand-error: hsl(3, 85%, 48%); /* Lumo error red */

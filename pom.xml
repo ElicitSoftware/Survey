@@ -12,10 +12,10 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
-        <quarkus.platform.version>3.35.3</quarkus.platform.version>
+        <quarkus.platform.version>3.37.3</quarkus.platform.version>
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.5</surefire-plugin.version>
-        <vaadin.version>25.1.5</vaadin.version>
+        <vaadin.version>25.2.3</vaadin.version>
         <javadoc-plugin.version>3.12.0</javadoc-plugin.version>
         <site-plugin.version>3.21.0</site-plugin.version>
         <timestamp>${maven.build.timestamp}</timestamp>
@@ -48,6 +48,19 @@
                 <groupId>com.fasterxml.jackson.core</groupId>
                 <artifactId>jackson-annotations</artifactId>
                 <version>2.21</version>
+            </dependency>
+            <!-- Fix JUnit 6 version mismatch: Vaadin BOM pins junit-jupiter(-api) to 6.0.3
+                 while the Quarkus BOM pins the rest of the JUnit 6 artifacts to 6.1.1. -->
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter</artifactId>
+                <version>6.1.1</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter-api</artifactId>
+                <version>6.1.1</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -110,7 +123,7 @@
         <dependency>
             <groupId>io.quarkiverse.pdfbox</groupId>
             <artifactId>quarkus-pdfbox</artifactId>
-            <version>1.2.2</version>
+            <version>1.2.3</version>
         </dependency>
         <dependency>
             <groupId>de.rototor.pdfbox</groupId>

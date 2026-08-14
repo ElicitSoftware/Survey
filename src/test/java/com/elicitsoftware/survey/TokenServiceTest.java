@@ -23,6 +23,10 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * UC-001: Enter Survey via Token — covers survey lookup, token issuance,
+ * and login (including auto-register) via TokenService.
+ */
 @QuarkusTest
 public class TokenServiceTest {
 
@@ -31,6 +35,7 @@ public class TokenServiceTest {
 
 
     @Test
+    // UC-001: survey selector population
     public void testGetSurveys() {
         var surveys = service.getSurveys();
         assertNotNull(surveys);
@@ -38,6 +43,7 @@ public class TokenServiceTest {
     }
 
     @Test
+    // UC-001: survey lookup by id
     public void testGetSurvey() {
         Survey survey = service.getSurvey(1);
         assertNotNull(survey);
@@ -45,6 +51,7 @@ public class TokenServiceTest {
 
     @Test
     @Transactional
+    // UC-001: token issuance for a valid survey
     public void testPutToken() {
         AddResponse response = service.putToken(1);
         assertNotNull(response.getToken());
@@ -53,6 +60,7 @@ public class TokenServiceTest {
 
     @Test
     @Transactional
+    // UC-001 A-flow: token issuance fails for an invalid survey id
     public void testAddTokenForInvalidSurvey() {
         AddResponse response = service.addToken(3);
         assertEquals("Error Generating Token", response.getError());
@@ -60,6 +68,7 @@ public class TokenServiceTest {
 
     @Test
     @Transactional
+    // UC-004: deactivate() sets Respondent.active = false (finalize path, separate from QuestionService.finalize)
     public void testDeactivate() {
         Respondent user = service.deactivate(1);
         assertFalse(user.active);
@@ -67,6 +76,7 @@ public class TokenServiceTest {
 
     @Test
     @Transactional
+    // UC-001 main success scenario: unrecognized token + auto-register enabled creates an active respondent
     public void testLoginWithAutoRegister() {
 
         RandomStringGenerator generator = new RandomStringGenerator(10);
