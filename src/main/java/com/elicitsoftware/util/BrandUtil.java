@@ -213,7 +213,20 @@ public class BrandUtil {
         // For default brand, use the brand resource path (served by embedded resources)
         return brandInfo.getLogoPath();
     }
-    
+
+    /**
+     * Gets the icon-only mark for use in the nav header, where the full
+     * horizontal lockup's wordmark is illegible and its dark artwork
+     * disappears against the dark header background.
+     *
+     * @param brandInfo the brand information
+     * @return resource path suitable for Vaadin Image component
+     */
+    public String getIconResourcePath(BrandInfo brandInfo) {
+        return "brand/images/icon-white.png";
+    }
+
+
     /**
      * Gets the brand-specific application title.
      * 

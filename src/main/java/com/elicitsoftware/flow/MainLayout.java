@@ -106,11 +106,15 @@ public class MainLayout extends AppLayout implements AfterNavigationListener {
         DrawerToggle toggle = new DrawerToggle();
         headerContainer.add(toggle);
         
-        // Add logo if available
+        // Add logo if available.
+        // The header uses the icon-only mark, not the full horizontal lockup:
+        // the full lockup's wordmark is illegible at header height, and its
+        // navy artwork disappears against the navy header background. The
+        // full lockup is reserved for surfaces with room to breathe.
         if (brandInfo != null) {
             try {
                 Image logo = new Image();
-                logo.setSrc(brandUtil.getLogoResourcePath(brandInfo));
+                logo.setSrc(brandUtil.getIconResourcePath(brandInfo));
                 logo.setAlt(brandInfo.getDisplayName() + " Logo");
                 logo.addClassName("logo");
                 
