@@ -1,9 +1,10 @@
 {
-  "name": "Elicit Survey Application - Default Brand",
+  "name": "Elicit Default Brand",
   "version": "1.0.0",
-  "organization": "Elicit",
+  "organization": "Elicit Software",
   "logos": {
-    "horizontal": "HorizontalLogo.png"
+    "horizontal": "HorizontalLogo.png",
+    "icon": "icon-white.png"
   },
   "favicon": "favicon.ico"
 }

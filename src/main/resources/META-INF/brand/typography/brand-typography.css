@@ -2,57 +2,146 @@
  * ***LICENSE_START***
  * Elicit Survey
  * %%
- * Copyright (C) 2025 The Regents of the University of Michigan - Rogel Cancer Center
+ * Copyright (C) 2025 - 2026 The Regents of the University of Michigan - Rogel Cancer Center
  * %%
  * PolyForm Noncommercial License 1.0.0
  * <https://polyformproject.org/licenses/noncommercial/1.0.0>
  * ***LICENSE_END***
  */
 
-/* Brand Typography Styles */
+/* Brand Typography */
+/* Elicit default brand typography: system font stack -- no custom fonts to
+   load, no external network dependency. Brands that want a custom face can
+   override --brand-font-* and add their own @font-face rules. */
 
-/* Font Face Declarations */
-@font-face {
-    font-family: 'ibm_plex_sansregular';
-    src: url('ibmplexsans-regular-webfont.woff2') format('woff2'),
-         url('ibmplexsans-regular-webfont.woff') format('woff');
-    font-weight: normal;
-    font-style: normal;
-    font-display: swap;
-}
-
-@font-face {
-    font-family: 'Chilanka';
-    src: url('Chilanka-Regular.woff') format('woff');
-    font-weight: normal;
-    font-style: normal;
-    font-display: swap;
-}
-
-/* Typography Variables */
 :root {
-  --brand-font-primary: "ibm_plex_sansregular", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-  --brand-font-secondary: "Chilanka", cursive;
+  /* Font Family Variables */
+  --elicit-font-primary: -apple-system, BlinkMacSystemFont, "Roboto", "Segoe UI", Helvetica, Arial, sans-serif;
+  --elicit-font-heading: -apple-system, BlinkMacSystemFont, "Roboto", "Segoe UI", Helvetica, Arial, sans-serif;
+  --elicit-font-mono: "SF Mono", "Monaco", "Inconsolata", "Roboto Mono", "Consolas", "Courier New", monospace;
+
+  /* Generic brand typography mappings */
+  --brand-font-primary: var(--elicit-font-primary);
+  --brand-font-secondary: var(--elicit-font-primary);
+  --brand-font-body: var(--elicit-font-primary);
+  --brand-font-heading: var(--elicit-font-heading);
+  --brand-font-monospace: var(--elicit-font-mono);
+
+  /* Font Weights */
+  --brand-font-weight-light: 300;
+  --brand-font-weight-normal: 400;
+  --brand-font-weight-medium: 500;
+  --brand-font-weight-semibold: 600;
+  --brand-font-weight-bold: 700;
+
+  /* Font Sizes */
+  --brand-font-size-xs: 0.75rem;    /* 12px - token pills, captions */
+  --brand-font-size-sm: 0.875rem;   /* 14px */
+  --brand-font-size-base: 1rem;     /* 16px */
+  --brand-font-size-lg: 1.125rem;   /* 18px */
+  --brand-font-size-xl: 1.25rem;    /* 20px */
+  --brand-font-size-2xl: 1.5rem;    /* 24px */
+  --brand-font-size-3xl: 1.875rem;  /* 30px */
+  --brand-font-size-4xl: 2.25rem;   /* 36px */
+
+  /* Line Heights */
+  --brand-line-height-tight: 1.25;
+  --brand-line-height-normal: 1.5;
+  --brand-line-height-relaxed: 1.75;
 }
 
-/* The application font is applied through the --lumo-font-family token
-   (mapped from --brand-font-primary in styles.css), not a universal `*`
-   selector. Individual elements can opt into other families via the classes
-   below. */
-
-/* Heading Styles */
-.class-title {
-    font-family: var(--brand-font-primary);
-    font-size: 32px;
-    font-weight: 400;
-    text-align: start;
-    text-transform: none;
-    line-height: 1.6em;
-    letter-spacing: normal;
-    font-style: normal;
+/* Apply brand typography to common elements. Text color is intentionally
+   left to the Lumo tokens (--lumo-header-text-color/--lumo-body-text-color,
+   driven by colors/brand-colors.css leaving --lumo-shade unset) rather than
+   set here directly -- one mechanism for text color avoids the two
+   disagreeing if either file is edited later. */
+body {
+  font-family: var(--brand-font-body);
+  font-weight: var(--brand-font-weight-normal);
+  line-height: var(--brand-line-height-normal);
+  background-color: var(--brand-background);
 }
 
-/* Alternative font options */
-.font-chilanka {
-    font-family: var(--brand-font-secondary);
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--brand-font-heading);
+  font-weight: var(--brand-font-weight-semibold);
+  line-height: var(--brand-line-height-tight);
+}
+
+code, pre {
+  font-family: var(--brand-font-monospace);
+}
+
+/* Elicit Typography Classes */
+.elicit-heading-1 {
+  font-family: var(--brand-font-heading);
+  font-size: var(--brand-font-size-4xl);
+  font-weight: var(--brand-font-weight-bold);
+  line-height: 2.5rem;
+  color: var(--brand-text-primary);
+}
+
+.elicit-heading-2 {
+  font-family: var(--brand-font-heading);
+  font-size: var(--brand-font-size-3xl);
+  font-weight: var(--brand-font-weight-semibold);
+  line-height: 2.25rem;
+  color: var(--brand-text-primary);
+}
+
+.elicit-heading-3 {
+  font-family: var(--brand-font-heading);
+  font-size: var(--brand-font-size-2xl);
+  font-weight: var(--brand-font-weight-semibold);
+  line-height: 2rem;
+  color: var(--brand-text-primary);
+}
+
+.elicit-body {
+  font-family: var(--brand-font-body);
+  font-size: var(--brand-font-size-base);
+  font-weight: var(--brand-font-weight-normal);
+  line-height: var(--brand-line-height-relaxed);
+  color: var(--brand-text-secondary);
+}
+
+.elicit-caption {
+  font-family: var(--brand-font-body);
+  font-size: var(--brand-font-size-xs);
+  font-weight: var(--brand-font-weight-normal);
+  line-height: var(--brand-line-height-normal);
+  color: var(--brand-text-secondary);
+  letter-spacing: 0.02em;
+}
+
+/* Token / identifier text -- specimen-label style, used for survey tokens,
+   department codes, and other structured identifiers throughout the grid */
+.elicit-mono {
+  font-family: var(--brand-font-monospace);
+  font-size: var(--brand-font-size-sm);
+  letter-spacing: 0.02em;
+}
+
+/* Responsive Typography */
+@media (max-width: 768px) {
+  .elicit-heading-1 { font-size: var(--brand-font-size-3xl); }
+  .elicit-heading-2 { font-size: var(--brand-font-size-2xl); }
+  .elicit-heading-3 { font-size: var(--brand-font-size-xl); }
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* Print styles */
+@media print {
+  .elicit-heading-1,
+  .elicit-heading-2,
+  .elicit-heading-3 {
+    color: #000000 !important;
+  }
 }

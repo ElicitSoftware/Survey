@@ -2,102 +2,206 @@
  * ***LICENSE_START***
  * Elicit Survey
  * %%
- * Copyright (C) 2025 The Regents of the University of Michigan - Rogel Cancer Center
+ * Copyright (C) 2025 - 2026 The Regents of the University of Michigan - Rogel Cancer Center
  * %%
  * PolyForm Noncommercial License 1.0.0
  * <https://polyformproject.org/licenses/noncommercial/1.0.0>
  * ***LICENSE_END***
  */
 
+/* Brand Color Palette */
+/* Elicit default brand colors, derived from the clipboard/checkmark mark */
+
 :root {
-  /* Primary Brand Colors - derived from the Elicit mark, lightened from the
-     logo's literal navy (#0A3D62) so the header doesn't read as near-black */
-  --brand-primary: hsl(207, 65%, 32%); /* Ink - #1B629C */
-  --brand-primary-hsl: 207, 65%, 32%;
-  --brand-primary-contrast: hsl(40, 20%, 97%); /* Paper text on primary */
-  --brand-base: hsl(40, 20%, 97%); /* Paper - #F7F5F0, warm off-white base */
-  /* Color for primary-colored TEXT/links on light surfaces (maps to
-     --lumo-primary-text-color). Ink is dark enough to meet WCAG AA on Paper/white. */
-  --brand-primary-text: var(--brand-primary);
+  /* Primary Brand Colors - Ink family (lightened from the logo's literal navy
+     #0A3D62, which reads as near-black at header size) */
+  --elicit-ink: #1B629C;
+  --elicit-ink-dark: #154C79;
+  --elicit-ink-darker: #103A5C;
+  --elicit-ink-darkest: #0A3D62;
 
-  /* Status Colors - retuned to sit in the same warm/muted family as Ink and Verdigris */
-  --brand-error: hsl(9, 51%, 47%); /* muted brick - #B34A3C */
-  --brand-error-hsl: 9, 51%, 47%;
-  --brand-success: hsl(162, 55%, 41%); /* Verdigris-family success - #2FA084 */
-  --brand-success-hsl: 162, 55%, 41%;
-  --brand-warning: hsl(42, 66%, 51%); /* muted amber - #D9A02C */
-  --brand-warning-hsl: 42, 66%, 51%;
+  /* Accent - Verdigris family (logo checkmark teal). Darkened from the
+     original #2FA084 -- white button/badge text on that fill was 3.24:1,
+     below WCAG AA's 4.5:1 for normal text. Same hue/saturation, just deeper;
+     white text on this base is ~5.46:1. */
+  --elicit-verdigris: #22775D;
+  --elicit-verdigris-dark: #1C5F4B;
+  --elicit-verdigris-light: #5CBBA4;
+  --elicit-verdigris-pale: #E3F3EE;
 
-  /* Interactive / accent color - Verdigris, the logo's checkmark teal */
-  --brand-interactive: hsl(162, 55%, 41%); /* #2FA084 */
-  --brand-interactive-rgb: 47, 160, 132;
-  --brand-interactive-light: rgba(47, 160, 132, 0.1);
+  /* Neutral - Paper family (warm off-white, lighter than stark contrast but
+     still distinct from pure white surfaces like cards/dialogs) */
+  --elicit-paper: #FDFCFA;
+  --elicit-ledger: #E8E4DC;
+  --elicit-ledger-light: #F0EDE6;
+  --elicit-slate: #4A5A6A;
+  --elicit-white: #FFFFFF;
+  --elicit-black: #000000;
+  /* Near-black neutral for heading/body text -- kept separate from Ink so
+     text doesn't read as blue-tinted at high contrast. ~14.8:1 on Paper. */
+  --elicit-charcoal: #1A2229;
 
-  /* Header-specific variables for branded-header component */
-  --brand-header-background: var(--brand-primary);
-  --brand-header-text: var(--brand-primary-contrast);
-  --brand-secondary: hsl(207, 45%, 45%); /* lighter Ink variant, replaces the green header rule */
+  /* Status - retuned for AA contrast/legibility (the muted original brick
+     read as brownish rather than urgent) */
+  --elicit-brick: #BB251B; /* ~6.0:1 on Paper */
+  /* Amber stays bright for fills/badge backgrounds (buttons, badge chips),
+     but is too light to use as its own text color -- 2.27:1 on Paper, well
+     below AA. --elicit-amber-text below is the same hue, darkened, for any
+     place Amber is drawn as foreground (e.g. Lumo's badge[warning] uses
+     --lumo-warning-text-color separately from --lumo-warning-color). */
+  --elicit-amber: #D9A02C;
+  --elicit-amber-text: #8C6A1D; /* ~4.9:1 on Paper, ~4.5:1 on its own 10pct-tint badge bg */
 
-  /* Color Variants for Theme Integration */
-  --brand-primary-50pct: hsla(207, 65%, 32%, 0.5);
-  --brand-primary-10pct: hsla(207, 65%, 32%, 0.1);
+  /* Generic brand color mappings */
+  --brand-primary: var(--elicit-ink);
+  --brand-primary-contrast: var(--elicit-paper);
+  --brand-primary-50pct: rgba(27, 98, 156, 0.5);
+  --brand-primary-10pct: rgba(27, 98, 156, 0.1);
+  --brand-secondary: var(--elicit-verdigris);
+  --brand-accent: var(--elicit-verdigris);
+  --brand-background: var(--elicit-paper);
+  /* --lumo-base-color maps to --brand-base (see each app's styles.css) --
+     without this, the app-layout drawer/navbar (which use --lumo-base-color
+     directly per Lumo's own app-layout.css) fall back to white while content
+     areas driven by --brand-background go Paper, producing a visible seam. */
+  --brand-base: var(--elicit-paper);
+  --brand-surface: var(--elicit-white);
+  /* Heading/body text. Charcoal (near-black), not Ink -- a blue-tinted
+     --lumo-shade made headings/borders read as an unrelated third color
+     next to the Ink header and Slate labels. Leaving --lumo-shade unset
+     everywhere else lets --lumo-header-text-color/--lumo-body-text-color
+     fall back to this value with ~14.8:1 contrast on Paper. */
+  --brand-text-primary: var(--elicit-charcoal);
+  /* Question/field-label text (--lumo-secondary-text-color). Slate holds
+     ~6.5:1 contrast on both Paper and white -- comfortably above WCAG AA's
+     4.5:1 for normal text, unlike a 70%-alpha blend of --lumo-shade would. */
+  --brand-text-secondary: var(--elicit-slate);
+  --brand-text-disabled: #93A0AB;
+  --brand-text-on-primary: var(--elicit-paper);
+  --brand-text-on-secondary: var(--elicit-white);
+  --brand-text-on-accent: var(--elicit-ink-darkest);
 
-  --brand-error-50pct: hsla(9, 51%, 47%, 0.5);
-  --brand-error-10pct: hsla(9, 51%, 47%, 0.1);
+  /* Interactive states */
+  --brand-hover: rgba(34, 119, 93, 0.1);
+  --brand-active: rgba(34, 119, 93, 0.2);
+  --brand-focus: var(--elicit-verdigris);
 
-  --brand-success-50pct: hsla(162, 55%, 41%, 0.5);
-  --brand-success-10pct: hsla(162, 55%, 41%, 0.1);
+  /* Semantic status colors */
+  --brand-error: var(--elicit-brick);
+  --brand-error-50pct: rgba(187, 37, 27, 0.5);
+  --brand-error-10pct: rgba(187, 37, 27, 0.1);
+  --brand-success: var(--elicit-verdigris);
+  --brand-success-50pct: rgba(34, 119, 93, 0.5);
+  --brand-success-10pct: rgba(34, 119, 93, 0.1);
+  --brand-warning: var(--elicit-amber);
+  /* Text/foreground use of warning color (maps to --lumo-warning-text-color,
+     which Lumo's own badge CSS keeps separate from --lumo-warning-color/fill
+     -- see each app's styles.css). Amber itself is too light as text. */
+  --brand-warning-text: var(--elicit-amber-text);
+  --brand-warning-50pct: rgba(217, 160, 44, 0.5);
+  --brand-warning-10pct: rgba(217, 160, 44, 0.1);
+  --brand-info: var(--elicit-verdigris);
+  --brand-info-50pct: rgba(34, 119, 93, 0.5);
+  --brand-info-10pct: rgba(34, 119, 93, 0.1);
 
-  --brand-warning-50pct: hsla(42, 66%, 51%, 0.5);
-  --brand-warning-10pct: hsla(42, 66%, 51%, 0.1);
-
-  /* Typography Variables */
-  --brand-font-primary: "ibm_plex_sansregular", -apple-system, BlinkMacSystemFont, "Roboto", "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
-  --brand-font-monospace: "IBM Plex Mono", "SF Mono", "Consolas", "Monaco", "Courier New", monospace;
+  /* Border and shadow colors - Ledger: warm gray, paper-adjacent */
+  --brand-border: var(--elicit-ledger);
+  --brand-border-light: var(--elicit-ledger-light);
+  --brand-shadow: rgba(27, 98, 156, 0.12);
 
   /* Token pill - the signature recurring device (specimen-label style token chips) */
-  --brand-token-bg: hsla(162, 55%, 41%, 0.12);
-  --brand-token-text: var(--brand-primary);
+  --brand-token-bg: var(--elicit-verdigris-pale);
+  --brand-token-text: var(--elicit-ink);
 
-  /* Legacy Lumo Theme Variables Mapping for compatibility */
-  --lumo-primary-color: var(--brand-primary);
-  --lumo-primary-text-color: var(--brand-primary);
-  --lumo-primary-contrast-color: var(--brand-primary-contrast);
-  --lumo-base-color: var(--brand-base);
+  /* Accessibility enhancements */
+  --high-contrast-text: var(--elicit-black);
+  --high-contrast-background: var(--elicit-white);
+  --focus-indicator: var(--elicit-verdigris);
+}
 
-  /* Primary Color Variants */
-  --lumo-primary-color-50pct: hsla(var(--brand-primary-hsl), 0.5);
-  --lumo-primary-color-10pct: hsla(var(--brand-primary-hsl), 0.1);
+/* Header treatment: solid Ink background, Paper text. No accent rule beneath --
+   a Verdigris (green) rule under a blue header read as an unrelated third
+   color; the header now uses Ink shades only. Keep this flat rather than a
+   gradient -- the mark is a solid-fill icon and reads best against a flat field. */
+vaadin-app-layout[theme="default"] [slot="navbar"],
+vaadin-app-layout [slot="navbar"],
+.app-layout-navbar,
+.branded-header,
+header,
+.header,
+vaadin-header,
+.navbar,
+.toolbar {
+  background-color: var(--brand-header-background) !important;
+  color: var(--brand-header-text) !important;
+  border-bottom: 2px solid var(--elicit-ink-dark);
+}
 
-  /* Shade Variants */
-  --lumo-shade-5pct: hsla(var(--brand-primary-hsl), 0.05);
-  --lumo-shade-10pct: hsla(var(--brand-primary-hsl), 0.1);
-  --lumo-shade-20pct: hsla(var(--brand-primary-hsl), 0.2);
-  --lumo-shade-30pct: hsla(var(--brand-primary-hsl), 0.3);
-  --lumo-shade-40pct: hsla(var(--brand-primary-hsl), 0.4);
-  --lumo-shade-50pct: hsla(var(--brand-primary-hsl), 0.5);
-  --lumo-shade-60pct: hsla(var(--brand-primary-hsl), 0.6);
-  --lumo-shade-70pct: hsla(var(--brand-primary-hsl), 0.7);
-  --lumo-shade-80pct: hsla(var(--brand-primary-hsl), 0.8);
-  --lumo-shade-90pct: hsla(var(--brand-primary-hsl), 0.9);
-  --lumo-shade: var(--brand-primary);
+/* Primary button - solid Ink, no gradient */
+[theme~="primary"],
+vaadin-button[theme~="primary"],
+.primary {
+  background: var(--brand-primary) !important;
+  background-image: none !important;
+  background-color: var(--brand-primary) !important;
+  color: var(--brand-text-on-primary) !important;
+  border-radius: .25rem;
+}
 
-  /* Error Color Variants */
-  --lumo-error-color: var(--brand-error);
-  --lumo-error-text-color: var(--brand-error);
-  --lumo-error-color-50pct: hsla(var(--brand-error-hsl), 0.5);
-  --lumo-error-color-10pct: hsla(var(--brand-error-hsl), 0.1);
+[theme~="primary"]:hover,
+vaadin-button[theme~="primary"]:hover,
+.primary:hover {
+  background: var(--elicit-ink-dark) !important;
+  background-color: var(--elicit-ink-dark) !important;
+}
 
-  /* Success Color Variants */
-  --lumo-success-color: var(--brand-success);
-  --lumo-success-text-color: var(--brand-success);
-  --lumo-success-color-50pct: hsla(var(--brand-success-hsl), 0.5);
-  --lumo-success-color-10pct: hsla(var(--brand-success-hsl), 0.1);
+[theme~="primary"]:focus-visible,
+vaadin-button[theme~="primary"]:focus-visible,
+.primary:focus-visible {
+  outline: 2px solid var(--brand-accent);
+  outline-offset: 2px;
+}
 
-  /* Animation Colors */
-  --brand-flash-10: rgba(var(--brand-interactive-rgb), 0.1);
-  --brand-flash-15: rgba(var(--brand-interactive-rgb), 0.15);
-  --brand-flash-20: rgba(var(--brand-interactive-rgb), 0.2);
-  --brand-flash-25: rgba(var(--brand-interactive-rgb), 0.25);
-  --brand-flash-30: rgba(var(--brand-interactive-rgb), 0.3);
+/* Secondary button - solid Verdigris */
+[theme~="secondary"],
+vaadin-button[theme~="secondary"],
+.secondary {
+  background: var(--brand-secondary) !important;
+  background-image: none !important;
+  color: var(--brand-text-on-secondary) !important;
+  border-radius: .25rem;
+  font-weight: 600;
+}
+
+[theme~="secondary"]:hover,
+vaadin-button[theme~="secondary"]:hover,
+.secondary:hover {
+  background: var(--elicit-verdigris-dark) !important;
+}
+
+[theme~="secondary"]:focus-visible,
+vaadin-button[theme~="secondary"]:focus-visible,
+.secondary:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+/* Token pill - specimen-label style chip for survey/subject tokens */
+.elicit-token {
+  display: inline-block;
+  font-family: var(--brand-font-monospace);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.25rem;
+  background-color: var(--brand-token-bg);
+  color: var(--brand-token-text);
+  white-space: nowrap;
+}
+
+/* Header-specific brand colors */
+:root {
+  --brand-header-background: var(--brand-primary);
+  --brand-header-text: var(--brand-primary-contrast);
 }

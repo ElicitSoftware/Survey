@@ -35,9 +35,6 @@
 /* Note: Brand CSS is loaded dynamically via AppConfig during runtime */
 /* This avoids build-time dependency issues while maintaining runtime flexibility */
 
-/* Import local fonts as fallback */
-@import 'fonts/fonts.css';
-
 /* Import component styles */
 @import 'components/branded-header.css';
 
@@ -62,6 +59,12 @@
     --lumo-primary-contrast-color: var(--brand-primary-contrast, hsl(0, 0%, 100%));
     --lumo-base-color: var(--brand-base, hsl(0, 0%, 100%));
 
+    /* Question/field-label text. Overrides Lumo's default derivation of
+       --lumo-secondary-text-color from --lumo-contrast-70pct, which tracks
+       whatever brands set --lumo-shade to and can drop below WCAG AA (4.5:1)
+       on light brand backgrounds. See brand-colors.css for the contrast math. */
+    --lumo-secondary-text-color: var(--brand-text-secondary, var(--lumo-contrast-70pct));
+
     /* Primary color variants */
     --lumo-primary-color-50pct: var(--brand-primary-50pct, hsla(214, 90%, 52%, 0.5));
     --lumo-primary-color-10pct: var(--brand-primary-10pct, hsla(214, 90%, 52%, 0.1));
@@ -78,7 +81,10 @@
     --lumo-success-color-10pct: var(--brand-success-10pct, hsla(145, 72%, 30%, 0.1));
 
     --lumo-warning-color: var(--brand-warning, hsl(43, 100%, 48%));
-    --lumo-warning-text-color: var(--brand-warning, hsl(43, 100%, 48%));
+    /* Kept distinct from --lumo-warning-color: a bright fill color is fine as
+       a background/badge fill, but frequently fails AA contrast used as its
+       own text color -- see brand-colors.css's --brand-warning-text. */
+    --lumo-warning-text-color: var(--brand-warning-text, var(--brand-warning, hsl(43, 100%, 48%)));
     --lumo-warning-color-50pct: var(--brand-warning-50pct, hsla(43, 100%, 48%, 0.5));
     --lumo-warning-color-10pct: var(--brand-warning-10pct, hsla(43, 100%, 48%, 0.1));
 }
