@@ -1,0 +1,21 @@
+/*-
+ * ***LICENSE_START***
+ * Elicit Survey
+ * %%
+ * Copyright (C) 2025 - 2026 The Regents of the University of Michigan - Rogel Cancer Center
+ * %%
+ * PolyForm Noncommercial License 1.0.0
+ * <https://polyformproject.org/licenses/noncommercial/1.0.0>
+ * ***LICENSE_END***
+ */
+
+{
+  "brand": {
+    "name": "Elicit Default Brand",
+    "version": "1.0.0",
+    "description": "Elicit Software's default brand: Ink navy and Verdigris teal drawn from the clipboard/checkmark mark, warm Paper background, IBM Plex Sans/Mono typography.",
+    "primaryColor": "#0A3D62",
+    "organization": "Elicit Software",
+    "lastUpdated": "2026-08-14"
+  }
+}

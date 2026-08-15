@@ -2,7 +2,7 @@
  * ***LICENSE_START***
  * Elicit Survey
  * %%
- * Copyright (C) 2025 The Regents of the University of Michigan - Rogel Cancer Center
+ * Copyright (C) 2025 - 2026 The Regents of the University of Michigan - Rogel Cancer Center
  * %%
  * PolyForm Noncommercial License 1.0.0
  * <https://polyformproject.org/licenses/noncommercial/1.0.0>
@@ -11,40 +11,23 @@
 
 {
   "brand": {
-    "name": "Elicit Survey Application",
+    "name": "Elicit Default Brand",
     "version": "1.0.0",
-    "description": "Typography configuration for Elicit Survey Application"
+    "description": "Typography configuration for the Elicit default brand"
   },
   "typography": {
     "primary": {
-      "name": "IBM Plex Sans",
-      "family": "ibm_plex_sansregular",
-      "fallback": ["-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "sans-serif"],
-      "files": {
-        "woff2": "ibmplexsans-regular-webfont.woff2",
-        "woff": "ibmplexsans-regular-webfont.woff"
-      },
+      "name": "System Font Stack",
+      "family": "system-ui",
+      "fallback": ["-apple-system", "BlinkMacSystemFont", "Roboto", "Segoe UI", "Helvetica", "Arial", "sans-serif"],
       "weight": "normal",
       "style": "normal",
       "display": "swap"
     },
-    "secondary": {
-      "name": "Chilanka",
-      "family": "Chilanka",
-      "fallback": ["cursive"],
-      "files": {
-        "woff": "Chilanka-Regular.woff"
-      },
-      "weight": "normal",
-      "style": "normal",
-      "display": "swap"
-    },
-    "google": {
-      "name": "Google Font",
-      "family": "GoogleFont",
-      "files": {
-        "woff2": "WWXRlj2DZQiMJYaYRrJVI9EAZhTO.woff2"
-      },
+    "monospace": {
+      "name": "System Monospace Stack",
+      "family": "monospace",
+      "fallback": ["SF Mono", "Monaco", "Inconsolata", "Roboto Mono", "Consolas", "Courier New"],
       "weight": "normal",
       "style": "normal",
       "display": "swap"
@@ -52,17 +35,17 @@
   },
   "styles": {
     "body": {
-      "fontFamily": "ibm_plex_sansregular",
+      "fontFamily": "system-ui",
       "fontSize": "16px",
       "lineHeight": "1.5"
     },
     "heading": {
-      "fontFamily": "ibm_plex_sansregular",
+      "fontFamily": "system-ui",
       "fontSize": "32px",
-      "fontWeight": "400",
+      "fontWeight": "600",
       "textAlign": "start",
       "textTransform": "none",
-      "lineHeight": "1.6em",
+      "lineHeight": "1.25",
       "letterSpacing": "normal",
       "fontStyle": "normal"
     }
