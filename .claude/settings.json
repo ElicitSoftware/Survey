@@ -1,5 +1,6 @@
 {
   "enabledPlugins": {
-    "aiup-core@ai-unified-process-marketplace": true
+    "aiup-core@ai-unified-process-marketplace": true,
+    "vaadin-skills@vaadin-marketplace": true
   }
 }
