@@ -13,6 +13,7 @@ package com.elicitsoftware.report;
 
 import java.util.concurrent.ConcurrentHashMap;
 
+import com.elicitsoftware.RandomStringGenerator;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
@@ -52,7 +53,7 @@ public class PDFDownloadResource {
      * Store PDF content in the cache
      */
     public static String cachePDF(byte[] pdfContent) {
-        String key = "pdf_" + System.currentTimeMillis() + "_" + System.nanoTime();
+        String key = "pdf_" + new RandomStringGenerator(32).nextString();
         PDF_CACHE.put(key, new PDFCacheEntry(pdfContent));
         return key;
     }

@@ -47,6 +47,21 @@ package com.elicitsoftware.etl;
  */
 public final class Sql {
 
+    private static final java.util.regex.Pattern SQL_IDENTIFIER_PATTERN =
+            java.util.regex.Pattern.compile("^[a-z0-9_]+$");
+
+    /**
+     * Validates a value that will be spliced directly into a native SQL string as a
+     * table or column identifier (JDBC bind parameters can't stand in for identifiers).
+     * Throws if the value doesn't look like a plain lowercase/underscore identifier.
+     */
+    public static String requireValidIdentifier(String name) {
+        if (name == null || !SQL_IDENTIFIER_PATTERN.matcher(name).matches()) {
+            throw new IllegalArgumentException("Invalid SQL identifier: " + name);
+        }
+        return name;
+    }
+
     public static final String UPDATE_STEPS_DIMENSION_TABLE_SQL = """
             INSERT INTO surveyreport.dim_step(id, value)
             select s.id, s.dimension_name
@@ -218,9 +233,9 @@ public final class Sql {
 
     public static final String INSERT_INTO_DIMENSION = """
             INSERT INTO surveyreport.<DIM>(value)
-            SELECT '<VAL>'
+            SELECT :val
             WHERE NOT EXISTS (
-                SELECT d.value FROM surveyreport.<DIM> d WHERE value = '<VAL>'
+                SELECT d.value FROM surveyreport.<DIM> d WHERE value = :val
             );
             """;
 
@@ -598,9 +613,9 @@ public final class Sql {
     public static final String UPDATE_FACT_SECTION_DIMENSION_VALUE_SQL = """
             UPDATE surveyreport.fact_sections a
             SET <KEY> = x.id
-            FROM (SELECT d.id FROM surveyreport.<DIM> d WHERE d.value = '<VAL>') x
-            WHERE a.id=<FACT_ID>
-            AND a.respondent_id=<RESPONDENT_ID>;
+            FROM (SELECT d.id FROM surveyreport.<DIM> d WHERE d.value = :val) x
+            WHERE a.id=:factId
+            AND a.respondent_id=:respondentId;
             """;
 
 

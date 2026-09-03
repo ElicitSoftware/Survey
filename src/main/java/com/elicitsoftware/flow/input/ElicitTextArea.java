@@ -78,7 +78,7 @@ public class ElicitTextArea extends ElicitComponent<TextArea> {
 
         if (answer.question.minValue != null && answer.question.maxValue != null) {
             binder.forField(component)
-                    .withValidator(textValue -> textValue.length() >= answer.question.minValue || textValue.length() <= answer.question.maxValue, answer.question.validationText)
+                    .withValidator(textValue -> textValue.length() >= answer.question.minValue && textValue.length() <= answer.question.maxValue, answer.question.validationText)
                     .bind(Answer::getTextValue, Answer::setTextValue);
         }
 
@@ -99,9 +99,6 @@ public class ElicitTextArea extends ElicitComponent<TextArea> {
     @Override
     void setValue(Answer answer) {
         component.setValue(answer.getTextValue());
-        if (answer.getTextValue() != null && !answer.getTextValue().isEmpty()) {
-            setValue(answer);
-        }
     }
 
     /**
