@@ -70,7 +70,7 @@ There is no enforced code-coverage percentage gate in this repo's build — writ
 
 2. **Start a local PostgreSQL 17 and create the expected roles/database**
 
-   The Flyway migrations only `GRANT` to `survey_user`, `surveyadmin_user`, `surveyreport_user`, and `elicit_owner` — they don't create them, so a fresh local database needs a one-time setup step:
+   The Flyway migrations only `GRANT` on individual tables to `survey_user`, `surveyadmin_user`, `surveyreport_user`, and `elicit_owner` — they don't create those roles, create the `survey`/`surveyreport` schemas the tables live in, or grant schema-level `USAGE` (table grants alone don't let a role see inside a schema it lacks `USAGE` on). So a fresh local database needs a one-time setup step:
    ```bash
    docker run -d --name survey-postgres -p 5452:5432 \
      -e POSTGRES_PASSWORD=postgres postgres:17
@@ -82,6 +82,12 @@ There is no enforced code-coverage percentage gate in this repo's build — writ
    CREATE ROLE elicit_owner LOGIN PASSWORD 'SURVEYPW' CREATEROLE CREATEDB;
    CREATE DATABASE survey OWNER elicit_owner;
    SQL
+
+   docker exec -i survey-postgres psql -U postgres -d survey <<'SQL'
+   CREATE SCHEMA IF NOT EXISTS survey AUTHORIZATION elicit_owner;
+   CREATE SCHEMA IF NOT EXISTS surveyreport AUTHORIZATION elicit_owner;
+   GRANT USAGE ON SCHEMA survey, surveyreport TO survey_user, surveyadmin_user, surveyreport_user, elicit_owner;
+   SQL
    ```
    This matches the `%dev.`/`%test.` datasource URLs already in `application.properties` (`localhost:5452`, database `survey`). The passwords above are local-dev placeholders baked into the committed `application.properties` — never reuse them outside a local/throwaway database.
 
@@ -91,8 +97,18 @@ There is no enforced code-coverage percentage gate in this repo's build — writ
    ```
    Flyway runs the migrations automatically on startup (`quarkus.flyway.owner.migrate-at-start=true`). Open http://localhost:8080.
 
-4. **Run the tests** — against the same local database (create a `survey_test` database the same way if you want an isolated one; see the `%test.` properties)
+4. **Run the tests** — the `%test.` properties always point at a separate `survey_test` database (same server, port 5452), so create it and its schemas the same way as step 2:
    ```bash
+   docker exec -i survey-postgres psql -U postgres <<'SQL'
+   CREATE DATABASE survey_test OWNER elicit_owner;
+   SQL
+
+   docker exec -i survey-postgres psql -U postgres -d survey_test <<'SQL'
+   CREATE SCHEMA IF NOT EXISTS survey AUTHORIZATION elicit_owner;
+   CREATE SCHEMA IF NOT EXISTS surveyreport AUTHORIZATION elicit_owner;
+   GRANT USAGE ON SCHEMA survey, surveyreport TO survey_user, surveyadmin_user, surveyreport_user, elicit_owner;
+   SQL
+
    ./mvnw test
    ```
 
