@@ -93,7 +93,9 @@ public class ReportView extends VerticalLayout {
 //        Survey survey = Survey.findById(sessionDataService.getSurveyId());
         respondent = sessionDataService.getRespondent();
 
-        Button pdfButton = new Button("Generate PDF", event -> {
+        Button pdfButton = new Button("Generate PDF");
+        pdfButton.setId("report-generate-pdf-button");
+        pdfButton.addClickListener(event -> {
             try {
                 // Generate the PDF using the pdfService
                 byte[] pdfContent = pdfService.generatePDF(this.reportResponses);
@@ -129,6 +131,7 @@ public class ReportView extends VerticalLayout {
             Button btnNext = new Button("Next", event -> {
                 getUI().ifPresent(ui -> ui.getPage().open(this.respondent.survey.postSurveyURL, "_self"));
             });
+            btnNext.setId("report-next-button");
             this.add(btnNext);
         }
     }

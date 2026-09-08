@@ -186,6 +186,7 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
 
         // Use TextField for standard text input with validation
         txtToken = new TextField("Enter your login token");
+        txtToken.setId("login-token-field");
         txtToken.setTooltipText("Token is case-sensitive");
         txtToken.addThemeName("bordered");
         txtToken.setAutofocus(true);
@@ -215,7 +216,9 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
 
 
         // Button click listeners can be defined as lambda expressions
-        Button btnLogin = new Button("Login", e -> {
+        Button btnLogin = new Button("Login");
+        btnLogin.setId("login-button");
+        btnLogin.addClickListener(e -> {
             // Trigger validation by setting the value to itself
             txtToken.setValue(txtToken.getValue());
             
@@ -267,6 +270,7 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
             sessionDataService.setSurveyId(surveys.get(0).id.intValue());
         } else {
             ComboBox<Survey> comboBox = new ComboBox<>("Surveys");
+            comboBox.setId("login-survey-select");
             comboBox.setItems(tokenService.getSurveys().get("Surveys"));
             comboBox.setItemLabelGenerator(survey -> survey.name);
             comboBox.onEnabledStateChanged(true);

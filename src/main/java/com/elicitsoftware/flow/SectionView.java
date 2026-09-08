@@ -426,6 +426,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         }
 
         Button btnNewPrevious = new Button("Previous");
+        btnNewPrevious.setId("section-previous-button");
         btnNewPrevious.setDisableOnClick(true);
         btnNewPrevious.setEnabled(navResponse.getCurrentNavItem() != null && navResponse.getCurrentNavItem().getPrevious() != null);
         btnNewPrevious.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
@@ -442,6 +443,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         btnPrevious = btnNewPrevious;
 
         Button btnNewNext = new Button();
+        btnNewNext.setId("section-next-button");
         if (navResponse.getCurrentNavItem() != null && navResponse.getCurrentNavItem().getNext() != null) {
             btnNewNext.setText("Next");
             btnNewNext.setDisableOnClick(true);

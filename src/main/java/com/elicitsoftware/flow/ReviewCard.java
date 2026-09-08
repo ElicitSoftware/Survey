@@ -58,6 +58,7 @@ public class ReviewCard extends Div {
         header.add(titleDiv);
 
         Icon editIcon = new Icon(VaadinIcon.EDIT);
+        editIcon.setId("review-edit-icon-" + section.getDisplayKey());
         editIcon.addClickListener(e -> {
             NavResponse newNavResponse = service.init(section.getDisplayKey());
             sessionDataService.setNavResponse(newNavResponse);
