@@ -24,6 +24,8 @@ import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * UC-003/UC-004: Review Answers & Finalize — Browserless coverage of ReviewView's
@@ -64,14 +66,11 @@ class ReviewViewTest extends QuarkusBrowserlessTest {
     }
 
     @Test
-    // UC-004: review-finish-button is gated on navResponse.getCurrentNavItem().getPrevious()
-    // (ReviewView.java) — the same condition used for review-previous-button. For a fresh,
-    // unanswered respondent whose conditional skip logic collapses the survey to a single
-    // reachable section, previous is null, so Finish starts disabled just like Previous does.
-    // NOTE: this looks like it may be a copy-paste condition rather than intentional — Finish
-    // arguably shouldn't depend on whether a previous section exists. Flagging rather than
-    // "fixing" it here since that's a behavior change outside this test's scope.
-    void freshRespondent_review_finishButtonAlsoDisabled() {
+    // UC-004: review-finish-button must be enabled regardless of whether a previous section
+    // exists — it used to be gated on the same getPrevious() != null condition as
+    // review-previous-button (a copy-paste bug), which left a fresh respondent unable to ever
+    // finish when conditional skip logic collapsed their survey to a single reachable section.
+    void freshRespondent_review_finishButtonEnabled() {
         Respondent respondent = QuarkusTransaction.requiringNew().call(this::createFreshRespondent);
         try {
             seedSession(respondent);
@@ -79,15 +78,38 @@ class ReviewViewTest extends QuarkusBrowserlessTest {
             navigate(ReviewView.class);
 
             Button finish = find(Button.class).id("review-finish-button");
-            assertFalse(finish.isEnabled());
+            assertTrue(finish.isEnabled());
+        } finally {
+            cleanup(respondent.id);
+        }
+    }
+
+    @Test
+    // UC-004 main success scenario: clicking Finish finalizes the respondent (making them
+    // inactive) and navigates to ReportView.
+    void clickFinish_finalizesRespondent_navigatesToReportView() {
+        Respondent respondent = QuarkusTransaction.requiringNew().call(this::createFreshRespondent);
+        try {
+            seedSession(respondent);
+
+            navigate(ReviewView.class);
+            test(find(Button.class).id("review-finish-button")).click();
+
+            assertInstanceOf(ReportView.class, getCurrentView());
+            assertFalse(Respondent.<Respondent>findById(respondent.id).active,
+                    "Finishing the review must deactivate the respondent");
         } finally {
             cleanup(respondent.id);
         }
     }
 
     private Respondent createFreshRespondent() {
+        // Finish navigates into ReportView, which iterates respondent.survey.reports outside
+        // any transaction — eager-fetch it here so it isn't a lazy proxy (see ReportViewTest).
+        Survey survey = Survey.find("FROM Survey s LEFT JOIN FETCH s.reports WHERE s.id = ?1", SURVEY_ID)
+                .firstResult();
         Respondent r = new Respondent();
-        r.survey = Survey.findById(SURVEY_ID);
+        r.survey = survey;
         r.token = "test_" + System.nanoTime();
         r.active = true;
         r.logins = 0;
@@ -104,6 +126,10 @@ class ReviewViewTest extends QuarkusBrowserlessTest {
 
     private void cleanup(Integer respondentId) {
         QuarkusTransaction.requiringNew().run(() -> {
+            // finalize() (called via Finish) records a survey.respondent_psa row per
+            // post-survey-action attempt, even when the action's HTTP call fails.
+            em.createNativeQuery("DELETE FROM survey.respondent_psa WHERE respondent_id = ?1")
+                    .setParameter(1, respondentId).executeUpdate();
             em.createNativeQuery("DELETE FROM survey.dependents WHERE respondent_id = ?1")
                     .setParameter(1, respondentId).executeUpdate();
             em.createNativeQuery("DELETE FROM survey.answers WHERE respondent_id = ?1")

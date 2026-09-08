@@ -111,7 +111,6 @@ public class ReviewView extends VerticalLayout {
             Button btnFinish = new Button("Finish");
             btnFinish.setId("review-finish-button");
             btnFinish.setDisableOnClick(true);
-            btnFinish.setEnabled(navResponse.getCurrentNavItem().getPrevious() != null);
             btnFinish.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
             btnFinish.addClickListener(e -> deactivate());
             add(btnFinish);
