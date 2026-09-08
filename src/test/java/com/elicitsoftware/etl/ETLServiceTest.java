@@ -186,6 +186,37 @@ class ETLServiceTest {
         }
     }
 
+    @Test
+    void given_sectionRenamed_when_updateSectionDimensionTable_then_sameRowUpdatedInPlace() {
+        // Mirrors given_stepRenamed_when_updateStepDimensionTable_then_sameRowUpdatedInPlace —
+        // locks in today's SCD-Type-1-on-dim_section behavior (Kimball_type_2.md Gap ETL-5)
+        // for sections, which only had an idempotency test before this.
+        long countBefore = nativeCount("SELECT COUNT(*) FROM surveyreport.dim_section");
+
+        try {
+            QuarkusTransaction.requiringNew().run(() ->
+                    em.createNativeQuery("UPDATE survey.sections SET dimension_name = 'WelcomeRenamed' WHERE id = ?1")
+                            .setParameter(1, WELCOME_SECTION_ID)
+                            .executeUpdate());
+
+            etlService.updateSectionDimensionTable();
+
+            long countAfter = nativeCount("SELECT COUNT(*) FROM surveyreport.dim_section");
+            String value = (String) em.createNativeQuery("SELECT value FROM surveyreport.dim_section WHERE id = ?1")
+                    .setParameter(1, WELCOME_SECTION_ID)
+                    .getSingleResult();
+
+            assertEquals(countBefore, countAfter, "Rename must update in place, not insert a new dim_section row");
+            assertEquals("WelcomeRenamed", value, "dim_section.value must reflect the renamed dimension_name");
+        } finally {
+            QuarkusTransaction.requiringNew().run(() ->
+                    em.createNativeQuery("UPDATE survey.sections SET dimension_name = 'Welcome' WHERE id = ?1")
+                            .setParameter(1, WELCOME_SECTION_ID)
+                            .executeUpdate());
+            etlService.updateSectionDimensionTable();
+        }
+    }
+
     // ── dimension table discovery ───────────────────────────────────────────
 
     @Test
@@ -209,6 +240,56 @@ class ETLServiceTest {
         assertEquals(1, branch, "dim_branch must exist (Branch dimension: pickup_branch)");
     }
 
+    @Test
+    void given_freshOntologyDimensionMetadataRow_when_buildDimensionTables_then_newTableIsDiscoveredAndCreated() {
+        // Every other discovery test only observes state after @Startup already ran once
+        // (idempotent re-run, or tables that already exist). This test captures the actual
+        // create-a-new-table transition FIND_NEW_DIMENSION_TABLES_SQL exists for, via the
+        // section_question_id-path / standalone-tag branch (dimension IS NULL).
+        String tag = "gap_probe_" + System.nanoTime();
+        String tableName = "dim_" + tag;
+        Integer ontologyId = QuarkusTransaction.requiringNew().call(() -> {
+            Integer newOntologyId = ((Number) em.createNativeQuery(
+                    "INSERT INTO survey.ontology (id, survey_id, name, tag, dimension) "
+                            + "VALUES (NEXTVAL('survey.ontology_seq'), ?1, ?2, ?3, NULL) RETURNING id")
+                    .setParameter(1, SURVEY_ID).setParameter(2, "Gap Probe " + tag).setParameter(3, tag)
+                    .getSingleResult()).intValue();
+            em.createNativeQuery(
+                    "INSERT INTO survey.metadata (id, survey_id, section_question_id, ontology_id) "
+                            + "SELECT NEXTVAL('survey.metadata_seq'), ?1, sq.id, ?2 "
+                            + "FROM survey.sections_questions sq WHERE sq.section_id = ?3 LIMIT 1")
+                    .setParameter(1, SURVEY_ID).setParameter(2, newOntologyId).setParameter(3, WELCOME_SECTION_ID)
+                    .executeUpdate();
+            return newOntologyId;
+        });
+
+        try {
+            long existsBefore = nativeCount(ownerEm,
+                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='surveyreport' AND table_name=?1",
+                    tableName);
+            assertEquals(0, existsBefore, tableName + " must not exist before buildDimensionTables() discovers it");
+
+            String result = etlService.buildDimensionTables();
+
+            assertTrue(result.contains(tableName), "buildDimensionTables() return value must name the newly discovered table: " + result);
+            long existsAfter = nativeCount(ownerEm,
+                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='surveyreport' AND table_name=?1",
+                    tableName);
+            assertEquals(1, existsAfter, tableName + " must exist after buildDimensionTables()");
+        } finally {
+            QuarkusTransaction.requiringNew().run(() -> {
+                em.createNativeQuery("DELETE FROM survey.metadata WHERE ontology_id = ?1")
+                        .setParameter(1, ontologyId).executeUpdate();
+                em.createNativeQuery("DELETE FROM survey.ontology WHERE id = ?1")
+                        .setParameter(1, ontologyId).executeUpdate();
+            });
+            QuarkusTransaction.requiringNew().run(() ->
+                    ownerEm.createNativeQuery("DROP TABLE IF EXISTS surveyreport." + tableName).executeUpdate());
+            QuarkusTransaction.requiringNew().run(() ->
+                    ownerEm.createNativeQuery("DROP SEQUENCE IF EXISTS surveyreport." + tableName + "_seq").executeUpdate());
+        }
+    }
+
     // ── fact_sections population ────────────────────────────────────────────
 
     @Test
@@ -222,6 +303,24 @@ class ETLServiceTest {
         assertEquals(expectedFactSectionTupleCount(TESS_RESPONDENT_ID), actual,
                 "fact_sections row count for Tess must match the distinct (step,instance,section,instance) "
                         + "tuple count among her non-deleted, saved, non-null answers");
+    }
+
+    @Test
+    void given_tessWelcomeAnswer_when_populateFactSectionTable_then_stepKeyMatchesKnownDimStepId() {
+        // given_tessFinalized_...rowCountMatchesOracle only checks a row COUNT against an
+        // oracle query that duplicates INSERT_MISSING_FACT_SECTION_SQL's own "a.step = s.id"
+        // join. This asserts an actual resolved value independently of that join.
+        etlService.populateFactSectionTable(TESS_RESPONDENT_ID);
+
+        Integer stepKey = (Integer) em.createNativeQuery(
+                "SELECT step_key FROM surveyreport.fact_sections "
+                        + "WHERE survey_id = ?1 AND respondent_id = ?2 AND section_key = ?3 LIMIT 1")
+                .setParameter(1, SURVEY_ID).setParameter(2, TESS_RESPONDENT_ID).setParameter(3, WELCOME_SECTION_ID)
+                .getSingleResult();
+
+        assertEquals(Integer.valueOf(WELCOME_STEP_ID), stepKey,
+                "fact_sections.step_key for a Welcome-section row must equal dim_step's id for the Welcome step "
+                        + "(today, dim_step.id == steps.id — the surrogate-keyed relationship this test pins)");
     }
 
     @Test
