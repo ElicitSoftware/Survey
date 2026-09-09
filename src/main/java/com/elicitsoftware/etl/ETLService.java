@@ -243,8 +243,9 @@ public class ETLService {
      * @return the number of rows affected by the insert operation
      */
     private int insertDimensionValue(String dim, String value) {
-        String sql = Sql.INSERT_INTO_DIMENSION.replaceAll("<DIM>", dim).replaceAll("<VAL>", value.replaceAll("'", "''"));
+        String sql = Sql.INSERT_INTO_DIMENSION.replace("<DIM>", Sql.requireValidIdentifier(dim));
         Query query = entityManager.createNativeQuery(sql);
+        query.setParameter("val", value);
         return query.executeUpdate();
     }
 
@@ -282,12 +283,12 @@ public class ETLService {
             fact_id = (Integer) result[3];
 
             String sql = Sql.UPDATE_FACT_SECTION_DIMENSION_VALUE_SQL;
-            sql = sql.replace("<KEY>", key);
-            sql = sql.replaceAll("<DIM>", dim);
-            sql = sql.replaceAll("<VAL>", val);
-            sql = sql.replaceAll("<FACT_ID>", String.valueOf(fact_id));
-            sql = sql.replaceAll("<RESPONDENT_ID>", String.valueOf(respondent_id));
+            sql = sql.replace("<KEY>", Sql.requireValidIdentifier(key));
+            sql = sql.replace("<DIM>", Sql.requireValidIdentifier(dim));
             updateFactQuery = entityManager.createNativeQuery(sql);
+            updateFactQuery.setParameter("val", val);
+            updateFactQuery.setParameter("factId", fact_id);
+            updateFactQuery.setParameter("respondentId", respondent_id);
             updateFactQuery.executeUpdate();
             item++;
         }

@@ -12,10 +12,10 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
-        <quarkus.platform.version>3.37.3</quarkus.platform.version>
+        <quarkus.platform.version>3.39.2</quarkus.platform.version>
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.5</surefire-plugin.version>
-        <vaadin.version>25.2.3</vaadin.version>
+        <vaadin.version>25.2.7</vaadin.version>
         <javadoc-plugin.version>3.12.0</javadoc-plugin.version>
         <site-plugin.version>3.21.0</site-plugin.version>
         <timestamp>${maven.build.timestamp}</timestamp>
@@ -162,6 +162,16 @@
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-jacoco</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.vaadin</groupId>
+            <artifactId>browserless-test-junit6</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.vaadin</groupId>
+            <artifactId>browserless-test-quarkus</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

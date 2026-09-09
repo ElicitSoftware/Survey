@@ -101,6 +101,7 @@ public class ReviewView extends VerticalLayout {
                 add(new ReviewCard(section, service, sessionDataService));
             }
             Button btnPrevious = new Button("Previous");
+            btnPrevious.setId("review-previous-button");
             btnPrevious.setDisableOnClick(true);
             btnPrevious.setEnabled(navResponse.getCurrentNavItem().getPrevious() != null);
             btnPrevious.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
@@ -108,8 +109,8 @@ public class ReviewView extends VerticalLayout {
             add(btnPrevious);
 
             Button btnFinish = new Button("Finish");
+            btnFinish.setId("review-finish-button");
             btnFinish.setDisableOnClick(true);
-            btnFinish.setEnabled(navResponse.getCurrentNavItem().getPrevious() != null);
             btnFinish.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
             btnFinish.addClickListener(e -> deactivate());
             add(btnFinish);

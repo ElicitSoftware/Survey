@@ -68,7 +68,8 @@ public class QuestionManager {
                     if (string.contains(key)) {
                         string = string.replaceFirst("\\{", "");
                         string = string.replaceFirst("\\|.*", "");
-                        string = string.replaceFirst(key, values.get(key));
+                        string = string.replaceFirst(key,
+                                java.util.regex.Matcher.quoteReplacement(escapeHtml(values.get(key))));
                     }
                     if (string.contains("}")) {
                         string = replaceTokens(string, values);
@@ -107,6 +108,26 @@ public class QuestionManager {
         text = text.replaceAll("s's", "s'");
 
         return text;
+    }
+
+    /**
+     * Escapes HTML-significant characters in a string so it is safe to splice into
+     * HTML markup that will later be rendered via {@code innerHTML} (e.g. by
+     * {@code ElicitHtml}). This is used to escape individual token substitution
+     * values (attacker-controllable free-text survey answers) before they are
+     * spliced into display text templates, without altering any legitimate literal
+     * HTML that may already be present in the template text itself.
+     *
+     * @param input the raw value to escape; {@code null} is treated as an empty string
+     * @return the HTML-escaped value, safe to insert into HTML markup
+     */
+    private static String escapeHtml(String input) {
+        if (input == null) return "";
+        return input.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
     }
 
     /**
@@ -1191,11 +1212,11 @@ public class QuestionManager {
     private Answer getUpstreamAnswerByRelationshipId(int answerId, int respondentId) {
 
         Answer answer = null;
-        String sql = "SELECT A.ID FROM survey.ANSWERS A JOIN survey.RELATIONSHIPS R ON A.STEP = R.UPSTREAM_STEP_ID AND A.SECTION_QUESTION_ID = R.UPSTREAM_SQ_ID WHERE A.RESPONDENT_ID = "
-                + respondentId + " AND R.id = " + answerId + " order by A.DISPLAY_KEY";
+        String sql = "SELECT A.ID FROM survey.ANSWERS A JOIN survey.RELATIONSHIPS R ON A.STEP = R.UPSTREAM_STEP_ID AND A.SECTION_QUESTION_ID = R.UPSTREAM_SQ_ID WHERE A.RESPONDENT_ID = :respondentId AND R.id = :answerId order by A.DISPLAY_KEY";
 
-        //  entityManager.joinTransaction();
         Query q = entityManager.createNativeQuery(sql);
+        q.setParameter("respondentId", respondentId);
+        q.setParameter("answerId", answerId);
 
         @SuppressWarnings("unchecked")
         List<Object[]> rs = q.getResultList();
