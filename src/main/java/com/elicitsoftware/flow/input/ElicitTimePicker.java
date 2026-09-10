@@ -86,7 +86,7 @@ public class ElicitTimePicker extends ElicitComponent<TimePicker> {
 
     @Override
     void setValue(Answer answer) {
-        //TODO
+        component.setValue(LocalTime.parse(answer.getTextValue()));
     }
 
     /**

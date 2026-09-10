@@ -79,20 +79,23 @@ class RelationshipTest {
         assertTrue(r.evaluateOperator(answerWithText("2000-01-01")));
     }
 
-    // UC-002: LESS THAN on a non-date question. Note: the numeric branch actually
-    // evaluates `dValue >= rVal` -- the same comparison GREATER THAN's numeric branch
-    // uses below -- so for non-date questions "LESS THAN" and "GREATER THAN" currently
-    // behave identically. This pins the existing behavior rather than the operator's name.
+    // UC-002: LESS THAN on a non-date question is strict, matching the DATE branch above.
     @Test
-    void evaluateOperator_lessThanNumeric_valueAtOrAboveReference_returnsTrue() {
+    void evaluateOperator_lessThanNumeric_valueBelowReference_returnsTrue() {
         Relationship r = relationship("LESS THAN", "10", false);
-        assertTrue(r.evaluateOperator(answerWithText("10")));
+        assertTrue(r.evaluateOperator(answerWithText("5")));
     }
 
     @Test
-    void evaluateOperator_lessThanNumeric_valueBelowReference_returnsFalse() {
+    void evaluateOperator_lessThanNumeric_valueEqualsReference_returnsFalse() {
         Relationship r = relationship("LESS THAN", "10", false);
-        assertFalse(r.evaluateOperator(answerWithText("5")));
+        assertFalse(r.evaluateOperator(answerWithText("10")));
+    }
+
+    @Test
+    void evaluateOperator_lessThanNumeric_valueAboveReference_returnsFalse() {
+        Relationship r = relationship("LESS THAN", "10", false);
+        assertFalse(r.evaluateOperator(answerWithText("15")));
     }
 
     @Test
@@ -114,10 +117,18 @@ class RelationshipTest {
         assertFalse(r.evaluateOperator(answerWithText("2020-01-01")));
     }
 
+    // UC-002: GREATER THAN on a non-date question is strict, unlike the DATE branch above
+    // (which deliberately stays inclusive) -- the two are intentionally asymmetric.
     @Test
-    void evaluateOperator_greaterThanNumeric_valueAtReference_returnsTrue() {
+    void evaluateOperator_greaterThanNumeric_valueAboveReference_returnsTrue() {
         Relationship r = relationship("GREATER THAN", "10", false);
-        assertTrue(r.evaluateOperator(answerWithText("10")));
+        assertTrue(r.evaluateOperator(answerWithText("15")));
+    }
+
+    @Test
+    void evaluateOperator_greaterThanNumeric_valueEqualsReference_returnsFalse() {
+        Relationship r = relationship("GREATER THAN", "10", false);
+        assertFalse(r.evaluateOperator(answerWithText("10")));
     }
 
     // UC-002: EQUAL compares case-insensitively and requires a non-null reference value

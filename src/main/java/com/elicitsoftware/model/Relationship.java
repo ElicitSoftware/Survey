@@ -247,7 +247,8 @@ public class Relationship extends PanacheEntityBase {
                         Double dValue = Double.valueOf(answer.getTextValue());
                         if (this.referenceValue != null) {
                             Double rVal = Double.valueOf(this.referenceValue);
-                            returnValue = dValue >= rVal;
+                            // Strictly less than, matching the DATE branch above.
+                            returnValue = dValue < rVal;
                         } else {
                             // the default is false.
                         }
@@ -269,7 +270,9 @@ public class Relationship extends PanacheEntityBase {
                         double dValue = Double.parseDouble(answer.getTextValue());
                         if (this.referenceValue != null) {
                             double rVal = Double.parseDouble(this.referenceValue);
-                            returnValue = dValue >= rVal;
+                            // Strictly greater than. Note: the DATE branch above deliberately
+                            // stays inclusive (compareTo(dateRef) > -1) - not changed to match.
+                            returnValue = dValue > rVal;
                         } else {
                             // the default is false.
                         }

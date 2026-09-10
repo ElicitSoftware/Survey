@@ -202,50 +202,58 @@ class AnswerTest {
 
     // --- getSelectedItem/setSelectedItem/getSelectedItems/setSelectedItems ---
     //
-    // KNOWN BUG, pinned rather than fixed here: these four methods compare a QuestionType
-    // *entity* against a GlobalStrings String constant via `question.questionType.equals(...)`.
-    // QuestionType never overrides equals()/hashCode() (confirmed: PanacheEntityBase doesn't
-    // either), so comparing it to a String always falls back to Object identity and can never
-    // be true. In practice this means ElicitComboBox/ElicitRadioButtonGroup (bound via
-    // Answer::getSelectedItem/setSelectedItem) and ElicitCheckboxGroup/
-    // ElicitMultiSelectComboBox (bound via the plural forms) never actually read or write a
-    // selection through these methods today - a real, currently-existing bug this test suite
-    // did not previously cover. Fixing the comparison (e.g. questionType.name.equals(...)) is
-    // out of scope for a coverage-raising pass; flagging prominently instead.
+    // FIXED (was a real bug this test suite caught): these four methods used to compare a
+    // QuestionType *entity* against a GlobalStrings String constant via
+    // `question.questionType.equals(...)`, which -- since QuestionType never overrides
+    // equals()/hashCode() -- was always false. Now compares `question.questionType.name`
+    // (the String field) instead, so ElicitComboBox/ElicitRadioButtonGroup/
+    // ElicitCheckboxGroup/ElicitMultiSelectComboBox (all bound via these methods) actually
+    // read and write a selection.
 
     @Test
-    void getSelectedItem_radioQuestionWithMatchingCodedValue_currentlyAlwaysReturnsNull() {
-        Answer answer = answerWithQuestion(typeNamed("RADIO"), List.of(item("YES")));
+    void getSelectedItem_radioQuestionWithMatchingCodedValue_returnsThatItem() {
+        SelectItem yes = item("YES");
+        Answer answer = answerWithQuestion(typeNamed("RADIO"), List.of(yes));
+        answer.setTextValue("YES");
+
+        assertSame(yes, answer.getSelectedItem());
+    }
+
+    @Test
+    void getSelectedItem_nonRadioOrCheckboxQuestion_returnsNull() {
+        Answer answer = answerWithQuestion(typeNamed("TEXT"), List.of(item("YES")));
         answer.setTextValue("YES");
 
         assertNull(answer.getSelectedItem());
     }
 
     @Test
-    void setSelectedItem_radioQuestion_currentlyNeverUpdatesTextValue() {
+    void setSelectedItem_radioQuestion_updatesTextValueToItsCodedValue() {
         Answer answer = answerWithQuestion(typeNamed("RADIO"), List.of(item("YES")));
         answer.setTextValue(null);
 
         answer.setSelectedItem(item("YES"));
 
-        assertNull(answer.getTextValue());
+        assertEquals("YES", answer.getTextValue());
     }
 
     @Test
-    void getSelectedItems_checkboxGroupWithMatchingCodedValues_currentlyAlwaysReturnsNull() {
-        Answer answer = answerWithQuestion(typeNamed("CHECKBOX_GROUP"), List.of(item("A"), item("B")));
+    void getSelectedItems_checkboxGroupWithMatchingCodedValues_returnsMatchingItems() {
+        SelectItem a = item("A");
+        SelectItem b = item("B");
+        Answer answer = answerWithQuestion(typeNamed("CHECKBOX_GROUP"), List.of(a, b, item("C")));
         answer.setTextValue("A,B");
 
-        assertNull(answer.getSelectedItems());
+        assertEquals(Set.of(a, b), answer.getSelectedItems());
     }
 
     @Test
-    void setSelectedItems_checkboxGroup_currentlyNeverUpdatesTextValue() {
+    void setSelectedItems_checkboxGroup_updatesTextValueToCommaSeparatedCodedValues() {
         Answer answer = answerWithQuestion(typeNamed("CHECKBOX_GROUP"), List.of(item("A"), item("B")));
         answer.setTextValue(null);
 
         answer.setSelectedItems(Set.of(item("A")));
 
-        assertNull(answer.getTextValue());
+        assertEquals("A", answer.getTextValue());
     }
 }

@@ -497,7 +497,11 @@ public class Answer extends PanacheEntityBase {
         this.surveyId = displayKey.getSurvey();
         this.stepId = displayKey.getStep();
         this.stepInstance = displayKey.getStepInstance();
-        this.sectionId = displayKey.getSection();
+        // survey.answers.section is nullable and FK'd to survey.sections(id), which never
+        // has a row with id 0 -- valueOrNull() (already applied to section_question_id above)
+        // must apply here too, or a step-only relationship (no downstream section) fails
+        // answers_section_fk on every save.
+        this.sectionId = valueOrNull(displayKey.getSection());
         this.sectionInstance = displayKey.getSectionInstance();
         this.section_question_id = valueOrNull(displayKey.getQuestion());
         this.question_instance = displayKey.getQuestionInstance();
@@ -590,8 +594,8 @@ public class Answer extends PanacheEntityBase {
      */
     @Transient
     public SelectItem getSelectedItem() {
-        if (this.textValue != null && (question.questionType.equals(GlobalStrings.QUESTION_TYPE_RADIO)
-                || question.questionType.equals(GlobalStrings.QUESTION_TYPE_CHECKBOX))) {
+        if (this.textValue != null && (question.questionType.name.equals(GlobalStrings.QUESTION_TYPE_RADIO)
+                || question.questionType.name.equals(GlobalStrings.QUESTION_TYPE_CHECKBOX))) {
             for (SelectItem item : question.selectGroup.selectItems) {
                 if (item.codedValue.equals(this.textValue)) {
                     return item;
@@ -610,8 +614,8 @@ public class Answer extends PanacheEntityBase {
      * @throws NullPointerException if the question or questionType is null
      */
     public void setSelectedItem(SelectItem item) {
-        if (question.questionType.equals(GlobalStrings.QUESTION_TYPE_RADIO)
-                || question.questionType.equals(GlobalStrings.QUESTION_TYPE_CHECKBOX)) {
+        if (question.questionType.name.equals(GlobalStrings.QUESTION_TYPE_RADIO)
+                || question.questionType.name.equals(GlobalStrings.QUESTION_TYPE_CHECKBOX)) {
             this.textValue = item.codedValue;
         }
     }
@@ -628,8 +632,8 @@ public class Answer extends PanacheEntityBase {
      */
     public Set<SelectItem> getSelectedItems() {
         HashSet<SelectItem> selectedItems = new HashSet<>();
-        if (this.textValue != null && (question.questionType.equals(GlobalStrings.QUESTIION_TYPE_CHECKBOX_GROUP)
-                || question.questionType.equals(GlobalStrings.QUESTIION_TYPE_MULTI_SELECT_COMBOBOX))) {
+        if (this.textValue != null && (question.questionType.name.equals(GlobalStrings.QUESTIION_TYPE_CHECKBOX_GROUP)
+                || question.questionType.name.equals(GlobalStrings.QUESTIION_TYPE_MULTI_SELECT_COMBOBOX))) {
             for (SelectItem item : question.selectGroup.selectItems) {
                 String[] values = this.textValue.split(",");
                 for (String value : values) {
@@ -653,8 +657,8 @@ public class Answer extends PanacheEntityBase {
      *              for the answer
      */
     public void setSelectedItems(Set<SelectItem> items) {
-        if (question.questionType.equals(GlobalStrings.QUESTIION_TYPE_CHECKBOX_GROUP)
-                || question.questionType.equals(GlobalStrings.QUESTIION_TYPE_MULTI_SELECT_COMBOBOX)) {
+        if (question.questionType.name.equals(GlobalStrings.QUESTIION_TYPE_CHECKBOX_GROUP)
+                || question.questionType.name.equals(GlobalStrings.QUESTIION_TYPE_MULTI_SELECT_COMBOBOX)) {
             HashSet<String> values = new HashSet<>();
             for (SelectItem item : items) {
                 values.add(item.codedValue);

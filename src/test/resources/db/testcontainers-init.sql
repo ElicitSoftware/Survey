@@ -1,3 +1,14 @@
+---
+-- ***LICENSE_START***
+-- Elicit Survey
+-- %%
+-- Copyright (C) 2025 - 2026 The Regents of the University of Michigan - Rogel Cancer Center
+-- %%
+-- PolyForm Noncommercial License 1.0.0
+-- <https://polyformproject.org/licenses/noncommercial/1.0.0>
+-- ***LICENSE_END***
+---
+
 -- Runs once, immediately after the Testcontainers Postgres container reports healthy and
 -- before Flyway (or the app) ever connects. Mirrors the manual local-dev setup documented
 -- in CONTRIBUTING.md: the Flyway migrations only GRANT on individual tables, they don't
