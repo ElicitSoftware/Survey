@@ -129,12 +129,17 @@ public class PDFService {
 
         String[][] tableContent = content.table.body;
 
-        float tableHeight = PAGE_SIZE.getHeight() - TEXT_MARGIN;
+        // Reserve the top margin the table starts drawing from (TEXT_MARGIN) and the same
+        // bottom clearance used elsewhere in this class before footer/content overlap
+        // (FONT_SIZE + PADDING) - otherwise the last row on a page can be drawn low enough
+        // to collide with the footer addHeadersAndFooters() stamps on afterward.
+        float tableHeight = PAGE_SIZE.getHeight() - TEXT_MARGIN - (FONT_SIZE + PADDING);
 
         Table table = new TableBuilder()
                 .setCellMargin(CELL_MARGIN)
                 .setColumns(columns)
                 .setContent(tableContent)
+                .setRowHeights(computeRowHeights(tableContent, columns))
                 .setHeight(tableHeight)
                 .setNumberOfRows(tableContent.length)
                 .setRowHeight(ROW_HEIGHT)
@@ -145,6 +150,33 @@ public class PDFService {
                 .setFontSize(FONT_SIZE)
                 .build();
         return table;
+    }
+
+    /**
+     * Computes the actual rendered height of every body row, so a cell whose text is wider
+     * than its column wraps onto multiple lines instead of overflowing into the next column.
+     *
+     * @param tableContent the raw (unwrapped) row/cell values
+     * @param columns the table's columns, used for each column's rendering width
+     * @return one height per row, in the same order as {@code tableContent}
+     */
+    private static float[] computeRowHeights(String[][] tableContent, List<Column> columns) {
+        float[] rowHeights = new float[tableContent.length];
+        for (int r = 0; r < tableContent.length; r++) {
+            String[] row = tableContent[r];
+            int maxLines = 1;
+            for (int c = 0; c < columns.size() && c < row.length; c++) {
+                float availableWidth = columns.get(c).getWidth() - (2 * CELL_MARGIN);
+                try {
+                    List<String> lines = wrapText(row[c], TEXT_FONT, FONT_SIZE, availableWidth);
+                    maxLines = Math.max(maxLines, Math.max(1, lines.size()));
+                } catch (IOException e) {
+                    // Fall back to a single line if font metrics can't be measured
+                }
+            }
+            rowHeights[r] = maxLines * ROW_HEIGHT;
+        }
+        return rowHeights;
     }
 
     public static List<String> wrapText(String text, PDFont font, float fontSize, float maxWidth) throws IOException {
@@ -470,60 +502,89 @@ public class PDFService {
 
     // Configures basic setup for the table and draws it page by page
     public void drawTable(Table table) throws IOException {
-        // Calculate pagination
-        Integer rowsPerPage = (int) Math.floor(table.getHeight() / table.getRowHeight()) - 1;
-        Integer numberOfPages = (int) Math.ceil(table.getNumberOfRows().floatValue() / rowsPerPage);
+        int totalRows = table.getNumberOfRows();
+        if (totalRows == 0) {
+            return;
+        }
 
-        // Generate each page, get the content and draw it
-        for (int pageCount = 0; pageCount < numberOfPages; pageCount++) {
-            PDPageContentStream contentStream = null;
-            try {
-                contentStream = generateContentStream(table);
-                String[][] currentPageContent = getContentForCurrentPage(table, rowsPerPage, pageCount);
-                drawCurrentPage(table, currentPageContent);
-            } finally {
-                if (contentStream != null) {
-                    contentStream.close(); // Ensure the stream is closed
-                }
+        int rowIndex = 0;
+        boolean firstPage = true;
+        while (rowIndex < totalRows) {
+            if (!firstPage) {
+                // Every internal table page after the first needs a real, fresh physical
+                // page - the caller only leaves one page/stream open for us to continue on.
+                generateContentStream(table);
             }
+            firstPage = false;
+
+            int endRowIndex = rowsForNextPage(table, rowIndex);
+            String[][] currentPageContent = Arrays.copyOfRange(table.getContent(), rowIndex, endRowIndex);
+            float[] currentPageRowHeights = Arrays.copyOfRange(table.getRowHeights(), rowIndex, endRowIndex);
+            drawCurrentPage(table, currentPageContent, currentPageRowHeights);
+            rowIndex = endRowIndex;
         }
     }
 
-    private PDPageContentStream generateContentStream(Table table) throws IOException {
+    /**
+     * Determines how many of the remaining rows fit on the current/next page, given each
+     * row's actual (possibly wrapped, multi-line) height.
+     *
+     * @param table the table being paginated
+     * @param startRowIndex the first not-yet-drawn row's index
+     * @return the exclusive end index of the row range that fits on one page
+     */
+    private int rowsForNextPage(Table table, int startRowIndex) {
+        // table.getHeight() is the max budget for a page the table starts at the top of
+        // (used on every internal page after the first, since generateContentStream()
+        // resets yPosition to the top margin). But drawTable()'s first page can start
+        // wherever yPosition already is - e.g. after other content earlier on that same
+        // physical page - so cap the budget at whatever room is actually left above the
+        // same footer-clearance boundary (FONT_SIZE + PADDING), or rows overflow into the
+        // footer without ever triggering a page break.
+        float availableOnThisPage = yPosition - (FONT_SIZE + PADDING);
+        float usableHeight = Math.min(table.getHeight(), availableOnThisPage) - table.getRowHeight(); // reserve the header row
+        float accumulated = 0f;
+        float[] rowHeights = table.getRowHeights();
+        int endRowIndex = startRowIndex;
+        while (endRowIndex < table.getNumberOfRows()) {
+            float rowHeight = rowHeights[endRowIndex];
+            // Always include at least one row per page, even if it alone overflows -
+            // otherwise an oversized row could never be drawn and the loop would stall.
+            if (endRowIndex > startRowIndex && accumulated + rowHeight > usableHeight) {
+                break;
+            }
+            accumulated += rowHeight;
+            endRowIndex++;
+        }
+        return endRowIndex;
+    }
 
-        PDPageContentStream contentStream = new PDPageContentStream(document, document.getPage(document.getNumberOfPages() - 1), PDPageContentStream.AppendMode.APPEND, false);
-        // User transformation matrix to change the reference when drawing.
-        // This is necessary for the landscape position to draw correctly
+    /**
+     * Starts a fresh physical page for the table to continue drawing on.
+     * Applies the transformation matrix for landscape orientation if needed.
+     *
+     * @param table the table being drawn
+     * @throws IOException if an error occurs creating the page or its content stream
+     */
+    private void generateContentStream(Table table) throws IOException {
+        page = new PDPage(table.getPageSize());
+        document.addPage(page);
+        contentStream.close();
+        contentStream = new PDPageContentStream(document, page);
         if (table.isLandscape()) {
             contentStream.transform(new Matrix(0, 1, -1, 0, table.getPageSize().getWidth(), 0));
         }
         contentStream.setFont(table.getTextFont(), table.getFontSize());
-        return contentStream;
-    }
-
-    private String[][] getContentForCurrentPage(Table table, Integer rowsPerPage, int pageCount) {
-        int startRange = pageCount * rowsPerPage;
-        int endRange = (pageCount * rowsPerPage) + rowsPerPage;
-        if (endRange > table.getNumberOfRows()) {
-            endRange = table.getNumberOfRows();
-        }
-        return Arrays.copyOfRange(table.getContent(), startRange, endRange);
+        yPosition = pageHeight - TEXT_MARGIN;
     }
 
     // Draws current page table grid and borderlines and content
-    private void drawCurrentPage(Table table, String[][] currentPageContent)
+    private void drawCurrentPage(Table table, String[][] currentPageContent, float[] currentPageRowHeights)
             throws IOException {
-        PDPage page = document.getPage(document.getNumberOfPages() - 1);
-//        float tableTopY = table.isLandscape() ? table.getPageSize().getWidth() - table.getMargin() : table.getPageSize().getHeight() - table.getMargin();
         float tableTopY = yPosition;
-//        if (yPosition == TEXT_MARGIN) {
-//            tableTopY = table.isLandscape() ? table.getPageSize().getWidth() - table.getMargin() : table.getPageSize().getHeight() - table.getMargin();
-//        } else {
-//            tableTopY = yPosition - table.getMargin();
-//        }
 
         // Draws grid and borders
-        drawTableGrid(table, currentPageContent, tableTopY);
+        drawTableGrid(table, currentPageRowHeights, tableTopY);
 
         // Position cursor to start drawing content
         float nextTextX = table.getMargin() + table.getCellMargin();
@@ -539,39 +600,52 @@ public class PDFService {
         // Write content
         for (int i = 0; i < currentPageContent.length; i++) {
             writeContentLine(currentPageContent[i], nextTextX, nextTextY, table);
-            nextTextY -= table.getRowHeight();
+            nextTextY -= currentPageRowHeights[i];
             nextTextX = table.getMargin() + table.getCellMargin();
         }
         yPosition = nextTextY;
     }
 
-    // Writes the content for one line
+    // Writes the content for one line, wrapping any cell whose text is wider than its
+    // column onto additional lines below it rather than overflowing into the next column.
     private void writeContentLine(String[] lineContent, float nextTextX, float nextTextY,
                                   Table table) throws IOException {
         for (int i = 0; i < table.getNumberOfColumns(); i++) {
             String text = lineContent[i];
-            contentStream.beginText();
-            contentStream.newLineAtOffset(nextTextX, nextTextY);
-            contentStream.showText(text != null ? text : "");
-            contentStream.endText();
-            nextTextX += table.getColumns().get(i).getWidth();
+            float columnWidth = table.getColumns().get(i).getWidth();
+            List<String> lines = wrapText(text, table.getTextFont(), table.getFontSize(),
+                    columnWidth - (2 * table.getCellMargin()));
+            if (lines.isEmpty()) {
+                lines = List.of("");
+            }
+            float lineY = nextTextY;
+            for (String line : lines) {
+                contentStream.beginText();
+                contentStream.newLineAtOffset(nextTextX, lineY);
+                contentStream.showText(line);
+                contentStream.endText();
+                lineY -= table.getRowHeight();
+            }
+            nextTextX += columnWidth;
         }
     }
 
-    private void drawTableGrid(Table table, String[][] currentPageContent, float tableTopY)
+    // Draws the table grid lines, sizing each row's box to its actual (possibly
+    // multi-line) height instead of a uniform constant.
+    private void drawTableGrid(Table table, float[] currentPageRowHeights, float tableTopY)
             throws IOException {
-        // Draw row lines
+        // Draw row lines: one above the header, one below the header, then one below each body row
         float nextY = tableTopY;
-        for (int i = 0; i <= currentPageContent.length + 1; i++) {
-            contentStream.moveTo(table.getMargin(), nextY);
-            contentStream.lineTo(table.getMargin() + table.getWidth(), nextY);
-            contentStream.stroke();
-            nextY -= table.getRowHeight();
+        drawHorizontalLine(table, nextY);
+        nextY -= table.getRowHeight();
+        drawHorizontalLine(table, nextY);
+        for (float rowHeight : currentPageRowHeights) {
+            nextY -= rowHeight;
+            drawHorizontalLine(table, nextY);
         }
 
         // Draw column lines
-        final float tableYLength = table.getRowHeight() + (table.getRowHeight() * currentPageContent.length);
-        final float tableBottomY = tableTopY - tableYLength;
+        final float tableBottomY = nextY;
         float nextX = table.getMargin();
         for (int i = 0; i < table.getNumberOfColumns(); i++) {
             contentStream.moveTo(nextX, tableTopY);
@@ -582,6 +656,12 @@ public class PDFService {
         contentStream.moveTo(nextX, tableTopY);
         contentStream.lineTo(nextX, tableBottomY);
         contentStream.stroke();
+    }
 
+    // Draws a single full-width horizontal grid line at the given Y coordinate.
+    private void drawHorizontalLine(Table table, float y) throws IOException {
+        contentStream.moveTo(table.getMargin(), y);
+        contentStream.lineTo(table.getMargin() + table.getWidth(), y);
+        contentStream.stroke();
     }
 }

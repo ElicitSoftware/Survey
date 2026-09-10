@@ -33,6 +33,15 @@ public class Table {
     private Integer numberOfRows;
     private List<Column> columns;
     private String[][] content;
+
+    /**
+     * Actual rendered height of each body row, in the same order as {@link #content}.
+     * <p>
+     * A row's height may exceed {@link #rowHeight} (the single-line unit) when one of
+     * its cells wraps onto multiple lines.
+     */
+    private float[] rowHeights;
+
     private float cellMargin;
 
     public Table() {
@@ -128,6 +137,24 @@ public class Table {
 
     public void setContent(String[][] content) {
         this.content = content;
+    }
+
+    /**
+     * Returns the actual rendered height of each body row.
+     *
+     * @return array of per-row heights, in the same order as {@link #getContent()}
+     */
+    public float[] getRowHeights() {
+        return rowHeights;
+    }
+
+    /**
+     * Sets the actual rendered height of each body row.
+     *
+     * @param rowHeights array of per-row heights, in the same order as {@link #getContent()}
+     */
+    public void setRowHeights(float[] rowHeights) {
+        this.rowHeights = rowHeights;
     }
 
     public float getCellMargin() {

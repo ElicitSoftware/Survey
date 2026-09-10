@@ -40,6 +40,17 @@ public class TableBuilder {
         return this;
     }
 
+    /**
+     * Sets the actual rendered height of each body row.
+     *
+     * @param rowHeights array of per-row heights, in the same order as the content
+     * @return this builder for chaining
+     */
+    public TableBuilder setRowHeights(float[] rowHeights) {
+        table.setRowHeights(rowHeights);
+        return this;
+    }
+
     public TableBuilder setColumns(List<Column> columns) {
         table.setColumns(columns);
         return this;
