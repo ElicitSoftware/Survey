@@ -65,7 +65,9 @@ public class TokenServiceTest {
     @Transactional
     // UC-001 A-flow: token issuance fails for an invalid survey id
     public void testAddTokenForInvalidSurvey() {
-        AddResponse response = service.addToken(3);
+        // A small hardcoded id (e.g. 3) previously collided with fixture-inserted survey rows
+        // added for other tests. Integer.MAX_VALUE can never be a real fixture id.
+        AddResponse response = service.addToken(Integer.MAX_VALUE);
         assertEquals("Error Generating Token", response.getError());
     }
 
