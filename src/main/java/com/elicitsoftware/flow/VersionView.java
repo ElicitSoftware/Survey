@@ -409,7 +409,12 @@ public class VersionView extends VerticalLayout {
     /**
      * Formats the image creation date into raw format using container timezone
      */
-    private String formatImageCreationDate(String rawDate) {
+    // Package-private (not private) so VersionViewFormatImageCreationDateTest can exercise
+    // this pure date-formatting logic directly. The rest of this class's methods shell out to
+    // `hostname`/`docker inspect` and aren't safely testable without those subprocesses; this
+    // one method has no such dependency, so it's the one worth testing in isolation. Same
+    // visibility-for-testability precedent as QuestionService.CallPostSurveyAction.
+    String formatImageCreationDate(String rawDate) {
         try {
             // Handle different date formats that might be returned
             
