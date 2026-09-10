@@ -23,6 +23,8 @@ import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.textfield.TextFieldVariant;
 import com.vaadin.flow.data.binder.BinderValidationStatus;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.common.QuarkusTestResource;
+import com.elicitsoftware.PostgresTestResource;
 import org.junit.jupiter.api.Test;
 
 import static com.elicitsoftware.flow.input.ElicitAnswerFixtures.answer;
@@ -38,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * asserted once via ElicitTextField since every wrapper shares that constructor logic.
  */
 @QuarkusTest
+@QuarkusTestResource(PostgresTestResource.class)
 class ElicitTextInputFieldsTest {
 
     @Test

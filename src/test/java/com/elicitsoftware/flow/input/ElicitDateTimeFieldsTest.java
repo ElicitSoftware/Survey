@@ -20,6 +20,8 @@ import com.vaadin.flow.component.datetimepicker.DateTimePickerVariant;
 import com.vaadin.flow.component.timepicker.TimePicker;
 import com.vaadin.flow.component.timepicker.TimePickerVariant;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.common.QuarkusTestResource;
+import com.elicitsoftware.PostgresTestResource;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -40,6 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * two (see each class's own setBindings javadoc).
  */
 @QuarkusTest
+@QuarkusTestResource(PostgresTestResource.class)
 class ElicitDateTimeFieldsTest {
 
     @Test

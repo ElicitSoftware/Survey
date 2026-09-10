@@ -17,6 +17,8 @@ import com.elicitsoftware.model.Respondent;
 import com.elicitsoftware.model.Survey;
 import com.elicitsoftware.response.AddResponse;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.common.QuarkusTestResource;
+import com.elicitsoftware.PostgresTestResource;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import org.junit.jupiter.api.Test;
@@ -28,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * and login (including auto-register) via TokenService.
  */
 @QuarkusTest
+@QuarkusTestResource(PostgresTestResource.class)
 public class TokenServiceTest {
 
     @Inject

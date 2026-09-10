@@ -24,6 +24,8 @@ import com.vaadin.flow.component.combobox.MultiSelectComboBoxVariant;
 import com.vaadin.flow.component.radiobutton.RadioButtonGroup;
 import com.vaadin.flow.component.radiobutton.RadioGroupVariant;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.common.QuarkusTestResource;
+import com.elicitsoftware.PostgresTestResource;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -45,6 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Question.selectGroup.selectItems and label them with SelectItem.displayText.
  */
 @QuarkusTest
+@QuarkusTestResource(PostgresTestResource.class)
 class ElicitSelectionFieldsTest {
 
     @Test

@@ -13,6 +13,8 @@ package com.elicitsoftware.scd;
 
 import io.quarkus.test.TestTransaction;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.common.QuarkusTestResource;
+import com.elicitsoftware.PostgresTestResource;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceException;
@@ -31,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * versioning/constraint pattern as {@link QuestionsVersioningSpecTest}.
  */
 @QuarkusTest
+@QuarkusTestResource(PostgresTestResource.class)
 @Disabled("Enable once the select_items Type 2 migration lands — see research/Kimball_type_2.md 'Schema Changes Per Table -> select_items'")
 class SelectItemsVersioningSpecTest {
 

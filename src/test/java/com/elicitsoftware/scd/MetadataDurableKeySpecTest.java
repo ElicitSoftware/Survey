@@ -13,6 +13,8 @@ package com.elicitsoftware.scd;
 
 import io.quarkus.test.TestTransaction;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.common.QuarkusTestResource;
+import com.elicitsoftware.PostgresTestResource;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Disabled;
@@ -37,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * should depend on either surviving or being fixed.
  */
 @QuarkusTest
+@QuarkusTestResource(PostgresTestResource.class)
 @Disabled("Enable once the metadata Type 2 migration lands — see research/Kimball_type_2.md 'Metadata, Ontology, and ETL Impact'")
 class MetadataDurableKeySpecTest {
 

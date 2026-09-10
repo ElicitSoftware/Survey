@@ -44,7 +44,7 @@ There is no enforced code-coverage percentage gate in this repo's build — writ
 
 ### Testing
 - **Test framework**: JUnit 5 (Jupiter) via `quarkus-junit`
-- **Integration style**: `@QuarkusTest` against a real, externally-running PostgreSQL instance (see [Getting Started](#getting-started)) — this project does **not** use Testcontainers/Dev Services for tests (`%test.quarkus.datasource.devservices.enabled=false`)
+- **Integration style**: `@QuarkusTest` against a real PostgreSQL instance. The `%test.` datasource URLs/credentials are supplied at runtime by `PostgresTestResource` (`src/test/java/com/elicitsoftware/PostgresTestResource.java`), which uses Testcontainers to start a throwaway `postgres:18` container per test run and tears it down afterward — no externally-running database is required. Every `@QuarkusTest` class carries `@QuarkusTestResource(PostgresTestResource.class)` so the whole suite shares one container and one Quarkus boot (Quarkus's Dev Services auto-provisioning is disabled via `%test.quarkus.datasource(.owner)?.devservices.enabled=false` — the resource supplies the URL explicitly instead).
 - **Assertions**: plain `org.junit.jupiter.api.Assertions` — no AssertJ or Mockito in the current dependency set
 - **Coverage tooling**: `quarkus-jacoco` is on the test classpath, but no threshold is enforced in the build or CI
 
@@ -97,18 +97,8 @@ There is no enforced code-coverage percentage gate in this repo's build — writ
    ```
    Flyway runs the migrations automatically on startup (`quarkus.flyway.owner.migrate-at-start=true`). Open http://localhost:8080.
 
-4. **Run the tests** — the `%test.` properties always point at a separate `survey_test` database (same server, port 5452), so create it and its schemas the same way as step 2:
+4. **Run the tests** — no local Postgres setup needed for this step. `./mvnw test` provisions its own throwaway `postgres:18` container via Testcontainers (`PostgresTestResource`), runs the roles/schema bootstrap and Flyway migrations against it, and tears it down when the run finishes:
    ```bash
-   docker exec -i survey-postgres psql -U postgres <<'SQL'
-   CREATE DATABASE survey_test OWNER elicit_owner;
-   SQL
-
-   docker exec -i survey-postgres psql -U postgres -d survey_test <<'SQL'
-   CREATE SCHEMA IF NOT EXISTS survey AUTHORIZATION elicit_owner;
-   CREATE SCHEMA IF NOT EXISTS surveyreport AUTHORIZATION elicit_owner;
-   GRANT USAGE ON SCHEMA survey, surveyreport TO survey_user, surveyadmin_user, surveyreport_user, elicit_owner;
-   SQL
-
    ./mvnw test
    ```
 

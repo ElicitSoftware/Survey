@@ -13,6 +13,8 @@ package com.elicitsoftware.report;
 
 import com.sun.net.httpserver.HttpServer;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.common.QuarkusTestResource;
+import com.elicitsoftware.PostgresTestResource;
 import org.eclipse.microprofile.rest.client.RestClientBuilder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -53,6 +55,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * test extension bootstraps the application.
  */
 @QuarkusTest
+@QuarkusTestResource(PostgresTestResource.class)
 class ReportServiceCallTest {
 
     private final List<HttpServer> serversToStop = new ArrayList<>();

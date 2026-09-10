@@ -20,6 +20,7 @@ import com.elicitsoftware.model.Step;
 import com.elicitsoftware.model.Survey;
 import io.quarkus.test.TestTransaction;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.common.QuarkusTestResource;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
@@ -50,6 +51,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * never contains a row with id 0.
  */
 @QuarkusTest
+@QuarkusTestResource(PostgresTestResource.class)
 class QuestionManagerBranchCoverageTest {
 
     @Inject
