@@ -17,6 +17,7 @@ import com.elicitsoftware.model.Survey;
 import com.elicitsoftware.response.NavResponse;
 import io.quarkus.test.TestTransaction;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.common.QuarkusTestResource;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
@@ -31,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Also covers the UC-004 removeDeleted() purge step (see tagged test below).
  */
 @QuarkusTest
+@QuarkusTestResource(PostgresTestResource.class)
 class QuestionManagerTest {
 
     @Inject

@@ -12,12 +12,16 @@ package com.elicitsoftware;
  */
 
 import com.elicitsoftware.model.Respondent;
+import com.elicitsoftware.model.Step;
 import com.elicitsoftware.response.NavResponse;
 import com.elicitsoftware.response.NavigationItem;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
@@ -25,18 +29,19 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * the method {@code LogoutView.onAttach(...)} calls to satisfy UC-006 step 2 ("System clears
  * all session-held survey and respondent state").
  * <p>
- * Scope note (see UC-006's "Notes / Known Gaps" and the accompanying decision to keep this
- * use case's coverage shallow): {@code LogoutView} itself is a {@code @NormalUIScoped} Vaadin
- * component whose behavior only runs via {@code onAttach(AttachEvent)} and finishes with a raw
- * {@code executeJs("window.location.href = '/';")} browser redirect. Exercising that class
- * meaningfully — attaching it to a UI, verifying the redirect JS actually executes — requires a
- * running Vaadin UI/session, i.e. a UI-testing framework such as Karibu-Testing or Vaadin
- * TestBench. Neither is a dependency of this project, and adding one solely for UC-006 was
- * explicitly rejected as out of scope. That UI-only redirect/session-invalidation trigger is
- * therefore NOT covered by any test in this project; this class covers only the reachable
- * non-UI logic it delegates to (field-nulling on {@code UISessionDataService} and the
+ * Scope note, updated: the class previously said exercising {@code LogoutView} itself — a
+ * {@code @NormalUIScoped} Vaadin component whose behavior only runs via
+ * {@code onAttach(AttachEvent)} — would require a UI-testing framework such as
+ * Karibu-Testing or Vaadin TestBench, neither a dependency here, and was out of scope for
+ * UC-006. That's stale: this project has since adopted Vaadin Browserless Testing (see
+ * {@code MainViewTest}/{@code SectionViewTest}), which does run a real UI/session.
+ * {@link com.elicitsoftware.flow.LogoutViewTest} now attaches {@code LogoutView} through it
+ * and confirms {@code clear()} actually runs on attach. The tests below still cover the
+ * non-UI logic directly (field-nulling on {@code UISessionDataService} and the
  * null-VaadinSession guards on {@link SessionPersistenceService}, see
- * {@link SessionPersistenceServiceTest}).
+ * {@link SessionPersistenceServiceTest}) since that's the more precise place to pin those
+ * specific behaviors; the raw {@code executeJs("window.location.href = '/';")} browser
+ * redirect itself still isn't observable from Browserless Testing (no real browser navigates).
  */
 class UISessionDataServiceTest {
 
@@ -87,5 +92,58 @@ class UISessionDataServiceTest {
         boolean restored = assertDoesNotThrow(service::restoreFromSession);
 
         assertFalse(restored);
+    }
+
+    // UC-006 (supporting behavior): when SessionPersistenceService does have restorable data,
+    // restoreFromSession() must copy every field out of it and return true. A small local
+    // subclass overriding restoreSessionData() stands in for a real VaadinSession here -- this
+    // project has no Mockito dependency, and plain subclassing is enough for this one method.
+    @Test
+    void given_sessionPersistenceServiceHasRestorableData_when_restoreFromSession_then_returnsTrueAndCopiesFields() {
+        Respondent respondent = new Respondent();
+        respondent.id = 5;
+        NavResponse navResponse = new NavResponse(null, null, null, null);
+        SessionPersistenceService.SessionData data =
+                new SessionPersistenceService.SessionData(3, respondent, navResponse);
+
+        UISessionDataService service = new UISessionDataService();
+        service.sessionPersistenceService = new SessionPersistenceService() {
+            @Override
+            public SessionData restoreSessionData() {
+                return data;
+            }
+        };
+
+        boolean restored = service.restoreFromSession();
+
+        assertTrue(restored);
+        assertEquals(3, service.getSurveyId());
+        assertSame(respondent, service.getRespondent());
+        assertSame(navResponse, service.getNavResponse());
+    }
+
+    // toString() is used for debug logging; it must include the survey id, respondent id, and
+    // current step id when all three are populated.
+    @Test
+    void toString_withRespondentAndNavResponse_includesKeyFieldsInOutput() {
+        UISessionDataService service = new UISessionDataService();
+        service.sessionPersistenceService = new SessionPersistenceService();
+
+        Respondent respondent = new Respondent();
+        respondent.id = 42;
+        Step step = new Step();
+        step.id = 7;
+        NavigationItem navItem = new NavigationItem("Step 1", false, "path", null, null);
+        NavResponse navResponse = new NavResponse(step, navItem, null, null);
+
+        service.setSurveyId(1);
+        service.setRespondent(respondent);
+        service.setNavResponse(navResponse);
+
+        String result = service.toString();
+
+        assertTrue(result.contains("Survey Id: 1"));
+        assertTrue(result.contains("42"));
+        assertTrue(result.contains("7"));
     }
 }

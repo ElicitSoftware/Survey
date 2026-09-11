@@ -17,6 +17,8 @@ import com.elicitsoftware.model.Respondent;
 import com.elicitsoftware.model.Survey;
 import com.elicitsoftware.response.AddResponse;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.common.QuarkusTestResource;
+import com.elicitsoftware.PostgresTestResource;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import org.junit.jupiter.api.Test;
@@ -28,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * and login (including auto-register) via TokenService.
  */
 @QuarkusTest
+@QuarkusTestResource(PostgresTestResource.class)
 public class TokenServiceTest {
 
     @Inject
@@ -62,7 +65,9 @@ public class TokenServiceTest {
     @Transactional
     // UC-001 A-flow: token issuance fails for an invalid survey id
     public void testAddTokenForInvalidSurvey() {
-        AddResponse response = service.addToken(3);
+        // A small hardcoded id (e.g. 3) previously collided with fixture-inserted survey rows
+        // added for other tests. Integer.MAX_VALUE can never be a real fixture id.
+        AddResponse response = service.addToken(Integer.MAX_VALUE);
         assertEquals("Error Generating Token", response.getError());
     }
 

@@ -15,6 +15,8 @@ import com.elicitsoftware.model.Respondent;
 import com.elicitsoftware.model.Survey;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.common.QuarkusTestResource;
+import com.elicitsoftware.PostgresTestResource;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -41,6 +43,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * the same operations is idempotent, rather than assuming an empty starting point.
  */
 @QuarkusTest
+@QuarkusTestResource(PostgresTestResource.class)
 class ETLServiceTest {
 
     @Inject

@@ -14,6 +14,8 @@ package com.elicitsoftware.scd;
 import com.elicitsoftware.etl.ETLService;
 import io.quarkus.test.TestTransaction;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.common.QuarkusTestResource;
+import com.elicitsoftware.PostgresTestResource;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Disabled;
@@ -39,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * the actual rewritten query.
  */
 @QuarkusTest
+@QuarkusTestResource(PostgresTestResource.class)
 @Disabled("Enable once dim_step/dim_section are rekeyed by durable step_id/section_id — see research/Kimball_type_2.md 'dim_step and dim_section — Rekey'")
 class DimStepSectionRekeySpecTest {
 

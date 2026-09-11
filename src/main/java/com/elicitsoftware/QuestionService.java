@@ -349,7 +349,11 @@ public class QuestionService {
      * @return the response body from the post-survey action service
      * @throws Exception if the action fails due to configuration, network, or service errors
      */
-    private String CallPostSurveyAction(PostSurveyAction psa, int respondentId) throws Exception {
+    // Package-private (not private) so QuestionServiceCallPostSurveyActionTest can exercise
+    // it directly against a local HttpServer fixture, without a full Respondent/Survey/DB
+    // round trip through PostSurveyActions(). Same visibility-for-testability precedent as
+    // PDFService.request.
+    String CallPostSurveyAction(PostSurveyAction psa, int respondentId) throws Exception {
         if (psa.url == null || psa.url.trim().isEmpty()) {
             throw new Exception("Post Survey Action '" + psa.name + "' Error: URL is null or empty - please check the action configuration");
         }

@@ -18,6 +18,8 @@ import com.elicitsoftware.model.Survey;
 import com.sun.net.httpserver.HttpServer;
 import io.quarkus.test.TestTransaction;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.common.QuarkusTestResource;
+import com.elicitsoftware.PostgresTestResource;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
@@ -48,6 +50,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * in for the external post-survey-action service so no real network calls are made.
  */
 @QuarkusTest
+@QuarkusTestResource(PostgresTestResource.class)
 public class QuestionServiceFinalizeTest {
 
     @Inject

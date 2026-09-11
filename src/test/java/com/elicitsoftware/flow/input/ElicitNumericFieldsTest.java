@@ -17,6 +17,8 @@ import com.vaadin.flow.component.textfield.IntegerField;
 import com.vaadin.flow.component.textfield.NumberField;
 import com.vaadin.flow.component.textfield.TextFieldVariant;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.common.QuarkusTestResource;
+import com.elicitsoftware.PostgresTestResource;
 import org.junit.jupiter.api.Test;
 
 import static com.elicitsoftware.flow.input.ElicitAnswerFixtures.answer;
@@ -33,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * when the saved text can't be parsed.
  */
 @QuarkusTest
+@QuarkusTestResource(PostgresTestResource.class)
 class ElicitNumericFieldsTest {
 
     @Test

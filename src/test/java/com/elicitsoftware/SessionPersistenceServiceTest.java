@@ -26,12 +26,14 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * exercise this branch honestly.
  * <p>
  * This test intentionally does NOT attempt to exercise the "session present" branches
- * (which read/write real VaadinSession attributes) since doing so meaningfully would
- * require a running Vaadin UI/session, which in turn would require a UI-testing
- * framework such as Karibu-Testing — not currently a dependency of this project and
- * explicitly out of scope for UC-006's coverage. See {@link UISessionDataServiceTest}
- * for the accompanying note on LogoutView's UI-only redirect trigger being unreachable
- * to plain unit tests for the same reason.
+ * (which read/write real VaadinSession attributes) directly against this class. That said,
+ * the previous rejection recorded here — that doing so would require a UI-testing framework
+ * such as Karibu-Testing, not a dependency of this project — is stale: this project has since
+ * adopted Vaadin Browserless Testing (see {@code MainViewTest}/{@code SectionViewTest}), which
+ * does run a real UI/session. {@link com.elicitsoftware.flow.LogoutViewTest} now attaches
+ * {@code LogoutView} through it and confirms the session-clearing path this class guards
+ * actually runs end-to-end. See {@link UISessionDataServiceTest} for the same update on the
+ * service layer immediately above this one.
  */
 class SessionPersistenceServiceTest {
 

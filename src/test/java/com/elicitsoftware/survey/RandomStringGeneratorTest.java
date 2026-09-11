@@ -13,6 +13,8 @@ package com.elicitsoftware.survey;
 
 import com.elicitsoftware.RandomStringGenerator;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.common.QuarkusTestResource;
+import com.elicitsoftware.PostgresTestResource;
 import org.junit.jupiter.api.Test;
 
 import java.util.Random;
@@ -24,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * primitive underlying TokenService.addToken()/putToken().
  */
 @QuarkusTest
+@QuarkusTestResource(PostgresTestResource.class)
 public class RandomStringGeneratorTest {
 
     @Test

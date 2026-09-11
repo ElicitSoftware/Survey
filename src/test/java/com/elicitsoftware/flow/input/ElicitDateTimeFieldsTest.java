@@ -20,6 +20,8 @@ import com.vaadin.flow.component.datetimepicker.DateTimePickerVariant;
 import com.vaadin.flow.component.timepicker.TimePicker;
 import com.vaadin.flow.component.timepicker.TimePickerVariant;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.common.QuarkusTestResource;
+import com.elicitsoftware.PostgresTestResource;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -30,7 +32,6 @@ import static com.elicitsoftware.flow.input.ElicitAnswerFixtures.answer;
 import static com.elicitsoftware.flow.input.ElicitAnswerFixtures.question;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -40,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * two (see each class's own setBindings javadoc).
  */
 @QuarkusTest
+@QuarkusTestResource(PostgresTestResource.class)
 class ElicitDateTimeFieldsTest {
 
     @Test
@@ -142,16 +144,16 @@ class ElicitDateTimeFieldsTest {
     }
 
     @Test
-    void timePicker_construction_neverAppliesInitialValue_becauseSetValueIsUnimplemented() {
-        // ElicitTimePicker.setValue(Answer) is a stubbed-out TODO - it does nothing - so a
-        // previously-saved answer never reaches the component. Documented here as current
-        // behavior; fixing it wasn't in scope for this test pass.
+    void timePicker_construction_appliesInitialValueFromAnswer() {
+        // ElicitTimePicker.setValue(Answer) used to be a stubbed-out TODO that did nothing,
+        // so a previously-saved answer never reached the component. Fixed to match the
+        // sibling ElcitDatePicker/ElicitDateTimePicker pattern.
         Question question = question(false, null, null, null, null);
         Answer answer = answer("1.1.1.1.4.3.0", "Preferred time", question, "09:00");
 
         TimePicker picker = new ElicitTimePicker(answer).component;
 
-        assertNull(picker.getValue());
+        assertEquals(LocalTime.of(9, 0), picker.getValue());
     }
 
     @Test

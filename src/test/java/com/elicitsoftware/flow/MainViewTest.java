@@ -17,6 +17,8 @@ import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.textfield.TextField;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.common.QuarkusTestResource;
+import com.elicitsoftware.PostgresTestResource;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -28,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * IDs rather than the TokenService layer directly (see TokenServiceTest for that coverage).
  */
 @QuarkusTest
+@QuarkusTestResource(PostgresTestResource.class)
 class MainViewTest extends QuarkusBrowserlessTest {
 
     @Test

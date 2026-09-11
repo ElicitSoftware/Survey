@@ -13,6 +13,8 @@ package com.elicitsoftware.survey;
 
 import com.elicitsoftware.model.Respondent;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.common.QuarkusTestResource;
+import com.elicitsoftware.PostgresTestResource;
 import org.junit.jupiter.api.Test;
 
 import java.time.ZonedDateTime;
@@ -24,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * (UC-001 login) and finalizedDt (UC-004 finalize), the two timestamps set by those flows.
  */
 @QuarkusTest
+@QuarkusTestResource(PostgresTestResource.class)
 public class RespondentTest {
 
     private final Respondent respondent = new Respondent();

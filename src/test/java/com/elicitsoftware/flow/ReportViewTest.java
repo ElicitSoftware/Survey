@@ -18,6 +18,8 @@ import com.vaadin.browserless.quarkus.QuarkusBrowserlessTest;
 import com.vaadin.flow.component.button.Button;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.common.QuarkusTestResource;
+import com.elicitsoftware.PostgresTestResource;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
@@ -37,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * through {@code QuarkusTransaction.requiringNew()} instead.
  */
 @QuarkusTest
+@QuarkusTestResource(PostgresTestResource.class)
 class ReportViewTest extends QuarkusBrowserlessTest {
 
     private static final int SURVEY_ID = 1;

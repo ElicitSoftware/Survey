@@ -20,6 +20,8 @@ import com.elicitsoftware.response.ReviewResponse;
 import com.elicitsoftware.response.ReviewSection;
 import io.quarkus.test.TestTransaction;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.common.QuarkusTestResource;
+import com.elicitsoftware.PostgresTestResource;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
@@ -38,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * the same workaround used in QuestionManagerTest).
  */
 @QuarkusTest
+@QuarkusTestResource(PostgresTestResource.class)
 public class QuestionServiceReviewTest {
 
     @Inject

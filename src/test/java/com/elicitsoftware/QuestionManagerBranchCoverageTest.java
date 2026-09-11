@@ -20,6 +20,7 @@ import com.elicitsoftware.model.Step;
 import com.elicitsoftware.model.Survey;
 import io.quarkus.test.TestTransaction;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.common.QuarkusTestResource;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
@@ -43,13 +44,16 @@ import static org.junit.jupiter.api.Assertions.*;
  * particular small number.
  * <p>
  * Writing this suite surfaced a real, previously-unknown limitation, not just a coverage
- * gap: the SHOW downstreamStep-only branch currently throws for any survey (see
- * {@code showStepOnlyBranch_currentlyThrowsBecauseTheStepAnswerHasNoValidSectionFk}) because
+ * gap: the SHOW downstreamStep-only branch used to throw for any survey, because
  * {@code buildDisplayKey} sets the section key segment to 0 when there is no downstream
  * section, and {@code survey.answers.section} is FK'd to {@code survey.sections(id)}, which
- * never contains a row with id 0.
+ * never contains a row with id 0. Fixed in {@code Answer.setDisplayKeyValues()} by routing
+ * the section segment through {@code valueOrNull()} (already applied to
+ * {@code section_question_id} in that same method) so it becomes {@code null} instead of a
+ * literal {@code 0} -- see {@code showStepOnlyBranch_succeedsAndCreatesStepOnlyAnswer} below.
  */
 @QuarkusTest
+@QuarkusTestResource(PostgresTestResource.class)
 class QuestionManagerBranchCoverageTest {
 
     @Inject
@@ -146,18 +150,16 @@ class QuestionManagerBranchCoverageTest {
 
     @Test
     @TestTransaction
-    void showStepOnlyBranch_currentlyThrowsBecauseTheStepAnswerHasNoValidSectionFk() {
-        // Discovered while writing this test, not assumed: QuestionManager.buildDisplayKey
-        // sets key.setSection(0) whenever downstreamSection == null (QuestionManager.java
-        // ~line 776), and buildStepAnswer then persists an Answer with that key. But
-        // survey.answers.section is FK'd to survey.sections(id), and no sections row can
-        // ever have id = 0 (Postgres sequences start at 1). So this branch — SHOW a step
-        // with no accompanying section — is not just uncovered, it is currently broken for
-        // ANY survey. Every existing fixture relationship that sets downstream_step_id also
-        // sets downstream_s_id specifically to avoid ever taking this path (see the Library
-        // fixture's R19/R20 comments). This test pins today's failure mode so that if the
-        // Kimball_type_2.md migration (or any other change) alters buildDisplayKey/
-        // buildStepAnswer, a silent behavior change here is caught rather than assumed fixed.
+    void showStepOnlyBranch_succeedsAndCreatesStepOnlyAnswer() {
+        // QuestionManager.buildDisplayKey sets key.setSection(0) whenever downstreamSection ==
+        // null (QuestionManager.java ~line 776), and buildStepAnswer then persists an Answer
+        // with that key. Answer.setDisplayKeyValues() now routes the section segment through
+        // valueOrNull() (matching section_question_id in that same method), so a step-only
+        // Answer gets sectionId = null rather than a literal 0 -- satisfying the nullable
+        // answers_section_fk instead of violating it. This test used to pin a throw here;
+        // every existing fixture relationship that sets downstream_step_id also sets
+        // downstream_s_id specifically to avoid this path (see the Library fixture's R19/R20
+        // comments), so this branch was previously untested in every other survey too.
         Integer surveyId = surveyId();
         Respondent r = createFreshRespondent(surveyId);
         questionManager.init(r.id.intValue(), initialDisplayKey(surveyId));
@@ -170,12 +172,24 @@ class QuestionManagerBranchCoverageTest {
         Answer qA = Answer.findByDisplayKeyActive(r.id.intValue(), qAKey(surveyId));
         assertNotNull(qA, "Q_A must be seeded by init()");
 
-        RuntimeException ex = assertThrows(RuntimeException.class, () -> saveAnswer(qA, "true"),
-                "Firing the step-only SHOW relationship must currently throw — see class comment above");
-        Throwable cause = ex;
-        while (cause.getCause() != null) cause = cause.getCause();
-        assertTrue(cause.getMessage() != null && cause.getMessage().contains("answers_section_fk"),
-                "The failure must be the answers_section_fk violation on section=0, not some other error: " + ex);
+        assertDoesNotThrow(() -> saveAnswer(qA, "true"),
+                "Firing the step-only SHOW relationship must now succeed");
+
+        // buildInitialStepAnswers now also runs (it never used to be reached, since the save
+        // above always threw first) and populates BranchSectionTwo's own initial answers,
+        // since that section lives inside StepTwo.
+        long afterStepTwo = Answer.count(
+                "respondentId = ?1 and displayKey like ?2 and deleted = false",
+                r.id, stepTwoSectionKey(surveyId) + "%");
+        assertTrue(afterStepTwo > 0, "BranchSectionTwo's initial answers must now be created inside StepTwo");
+
+        // The step-only marker answer itself (buildStepAnswer's own save) is a distinct row:
+        // no question, no section_question_id, and now sectionId = null rather than 0.
+        Answer stepOnlyAnswer = Answer.find(
+                "respondentId = ?1 and stepId = ?2 and question is null and deleted = false",
+                r.id, stepTwoId(surveyId)).firstResult();
+        assertNotNull(stepOnlyAnswer, "The step-only marker answer for StepTwo must exist");
+        assertNull(stepOnlyAnswer.sectionId, "A step-only answer must have a null sectionId, not a literal 0");
     }
 
     // ── REPEAT, downstreamStep-only branch — buildRepeatedStep is currently a stub ──

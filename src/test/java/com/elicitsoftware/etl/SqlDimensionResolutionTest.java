@@ -12,6 +12,8 @@ package com.elicitsoftware.etl;
  */
 
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.common.QuarkusTestResource;
+import com.elicitsoftware.PostgresTestResource;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
@@ -34,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Uses the V005/V005.5/V005.6 fixture (survey_id=1, Tess Tester = respondent_id=1).
  */
 @QuarkusTest
+@QuarkusTestResource(PostgresTestResource.class)
 class SqlDimensionResolutionTest {
 
     @Inject

@@ -69,6 +69,10 @@ Elicit Survey runs in <a href=https://github.com/ElicitSoftware/>Elicit Software
 
 The easiest way to see Elicit Survey in action is to check out the <a href=https://github.com/ElicitSoftware/FHHS/>Family Health History Survey</a>.
 
+### Local Development Workflow
+
+For local development, run the shared `../docker-compose.yml` stack (database, and any other Elicit Software services) with the Survey container itself left out, then run Survey separately via `./mvnw quarkus:dev` against that same compose network. This lets you iterate on one container — Survey — at a time, with hot reload, while every other service stays up in its usual containerized form.
+
 <!-- USAGE EXAMPLES -->
 ## Usage
 To use the Elicit System, download the Authoring tool (work in progress), create a new survey, and publish it to the database. The Admin application is used to register subjects and generate unique tokens that are sent in an invitation email. Subjects will follow the link in the email and enter their tokens in the Elicit Survey to complete the questionnaire.
