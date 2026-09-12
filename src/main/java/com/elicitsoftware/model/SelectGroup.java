@@ -55,7 +55,7 @@ public class SelectGroup extends PanacheEntityBase {
     public String name;
 
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
-    @JoinColumn(name = "group_id")
+    @JoinColumn(name = "select_group_id")
     @OrderBy("displayOrder ASC")
     public List<SelectItem> selectItems;
 }

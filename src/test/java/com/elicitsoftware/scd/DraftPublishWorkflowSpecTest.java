@@ -17,7 +17,6 @@ import io.quarkus.test.common.QuarkusTestResource;
 import com.elicitsoftware.PostgresTestResource;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;
@@ -33,7 +32,6 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @QuarkusTest
 @QuarkusTestResource(PostgresTestResource.class)
-@Disabled("Enable once the questions Type 2 migration lands (any structural table demonstrates the same pattern) — see research/Kimball_type_2.md 'Workflow 1: Survey Alteration'")
 class DraftPublishWorkflowSpecTest {
 
     @Inject

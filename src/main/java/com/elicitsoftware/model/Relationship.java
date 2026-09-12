@@ -50,7 +50,7 @@ import java.util.List;
  * section.
  * - `findByDownstream_SQ_ID(int surveyId, int downstream_sq_id)`: Retrieves
  * relationships for a particular downstream question.
- * - `findByDownstream_S_ID(int surveyId, int downstream_s_id, int stepId)`:
+ * - `findByDownstream_SS_ID(int surveyId, int downstream_ss_id, int stepId)`:
  * Retrieves relationships for a specific downstream section and upstream step.
  * - `findByDownstream_Step_ID(int surveyId, int downstream_step_id, int stepId)`:
  * Retrieves relationships for a specific downstream step and upstream step.
@@ -69,7 +69,7 @@ import java.util.List;
 @Table(name = "RELATIONSHIPS", schema = "survey")
 @NamedQueries({
         @NamedQuery(name = "Relationship.findByDownstream_Step_ID", query = "SELECT r FROM Relationship r WHERE r.surveyId = :surveyId and r.actionType.name <> 'TEXT' and r.downstreamSection is null and r.downstreamQuestion is null and r.downstreamStep.id = :downstream_step_id and r.upstreamStep.id = :stepId order by r.id"),
-        @NamedQuery(name = "Relationship.findByDownstream_S_ID", query = "SELECT r FROM Relationship r WHERE r.surveyId = :surveyId and r.actionType.name <> 'TEXT' and r.downstreamSection.id = :downstream_s_id and r.upstreamStep.id = :stepId order by r.id"),
+        @NamedQuery(name = "Relationship.findByDownstream_SS_ID", query = "SELECT r FROM Relationship r WHERE r.surveyId = :surveyId and r.actionType.name <> 'TEXT' and r.downstreamSection.id = :downstream_ss_id and r.upstreamStep.id = :stepId order by r.id"),
         @NamedQuery(name = "Relationship.findByDownstream_SQ_ID", query = "SELECT r FROM Relationship r WHERE r.surveyId = :surveyId and r.actionType.name <> 'TEXT' and r.downstreamQuestion.id = :downstream_sq_id order by r.id"),
         @NamedQuery(name = "Relationship.findRepeatByDownstreamStep", query = "SELECT r FROM Relationship r WHERE r.surveyId = :surveyId and r.downstreamStep.id = :downstreamStepId and r.downstreamSection is null and r.downstreamQuestion is null order by r.id"),
         @NamedQuery(name = "Relationship.findRepeatByDownstreamStepSection", query = "SELECT r FROM Relationship r WHERE r.surveyId = :surveyId and r.downstreamStep.id = :downstreamStepId and r.downstreamSection.id = :downstreamSectionId and r.downstreamQuestion is null order by r.id"),
@@ -125,7 +125,7 @@ public class Relationship extends PanacheEntityBase {
 
     // uni-directional many-to-one association to Section
     @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "DOWNSTREAM_S_ID")
+    @JoinColumn(name = "DOWNSTREAM_SS_ID")
     public StepsSections downstreamSection;
 
     // uni-directional many-to-one association to SectionsQuestion
@@ -170,13 +170,13 @@ public class Relationship extends PanacheEntityBase {
      * with a particular downstream section within the context of a specific survey and step.
      *
      * @param surveyId        the identifier of the survey in which the relationships are searched
-     * @param downstream_s_id the identifier of the downstream section to filter the relationships
+     * @param downstream_ss_id the identifier of the downstream section to filter the relationships
      * @param stepId          the identifier of the step to filter the relationships
      * @return a list of {@link Relationship} entities that match the given survey ID, downstream section ID, and step ID
      */
-    public static List<Relationship> findByDownstream_S_ID(int surveyId, int downstream_s_id, int stepId) {
-        return find("#Relationship.findByDownstream_S_ID", Parameters.with("surveyId", surveyId)
-                .and("downstream_s_id", downstream_s_id)
+    public static List<Relationship> findByDownstream_SS_ID(int surveyId, int downstream_ss_id, int stepId) {
+        return find("#Relationship.findByDownstream_SS_ID", Parameters.with("surveyId", surveyId)
+                .and("downstream_ss_id", downstream_ss_id)
                 .and("stepId", stepId)).list();
     }
 

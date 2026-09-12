@@ -342,17 +342,17 @@ public class QuestionManager {
         String sqlStep = "SELECT SQ.ID, SQ.DISPLAY_ORDER FROM SURVEY.SECTIONS_QUESTIONS SQ "
                 + "JOIN SURVEY.STEPS_SECTIONS SS ON SQ.SECTION_ID = SS.SECTION_ID AND SQ.SURVEY_ID = SS.SURVEY_ID "
                 + "WHERE SS.SURVEY_ID = :surveyId AND SS.STEP_ID = :stepId AND SS.SECTION_DISPLAY_ORDER = :displayOrder "
-                + "AND SS.ID NOT IN (SELECT R.DOWNSTREAM_S_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.DOWNSTREAM_STEP_ID = SS.STEP_ID AND R.DOWNSTREAM_SQ_ID IS NULL AND R.DOWNSTREAM_S_ID IS NOT NULL AND R.ACTION_ID != 3) "
-                + "AND Sq.id NOT IN (SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.UPSTREAM_STEP_ID = SS.STEP_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_S_ID IS NOT NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL) "
+                + "AND SS.ID NOT IN (SELECT R.DOWNSTREAM_SS_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.DOWNSTREAM_STEP_ID = SS.STEP_ID AND R.DOWNSTREAM_SQ_ID IS NULL AND R.DOWNSTREAM_SS_ID IS NOT NULL AND R.ACTION_ID != 3) "
+                + "AND Sq.id NOT IN (SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.UPSTREAM_STEP_ID = SS.STEP_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_SS_ID IS NOT NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL) "
                 + "order by SQ.DISPLAY_ORDER";
 
         String sqlSection = "SELECT SQ.ID, SQ.DISPLAY_ORDER FROM SURVEY.SECTIONS_QUESTIONS SQ "
                 + "JOIN SURVEY.STEPS_SECTIONS SS ON SQ.SECTION_ID = SS.SECTION_ID AND SQ.SURVEY_ID = SS.SURVEY_ID "
                 + "WHERE SS.SURVEY_ID = :surveyId AND SS.STEP_ID = :stepId AND SS.SECTION_DISPLAY_ORDER = :displayOrder "
                 + "AND Sq.id NOT IN ( "
-                + "SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.UPSTREAM_STEP_ID = SS.STEP_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_S_ID IS NOT NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL "
+                + "SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.UPSTREAM_STEP_ID = SS.STEP_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_SS_ID IS NOT NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL "
                 + "UNION "
-                + "SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_S_ID IS NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL) "
+                + "SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_SS_ID IS NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL) "
                 + "order by SQ.DISPLAY_ORDER";
 
         Query q;
@@ -406,7 +406,7 @@ public class QuestionManager {
                 + "WHERE SS.SURVEY_ID = :surveyId AND SS.STEP_DISPLAY_ORDER = :stepDisplayOrder "
                 + "AND S.ID NOT IN (SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.DOWNSTREAM_SQ_ID IS NOT NULL) "
                 + "AND S.ID NOT IN (SELECT A.SECTION_QUESTION_ID FROM SURVEY.Answers A WHERE A.RESPONDENT_ID = :respondentId and A.SECTION_QUESTION_ID = S.ID ) "
-                + "AND S.ID NOT IN (SELECT SQ.ID from SURVEY.SECTIONS_QUESTIONS SQ JOIN SURVEY.STEPS_SECTIONS SS on SQ.SECTION_ID = SS.SECTION_ID JOIN SURVEY.RELATIONSHIPS R ON SS.ID = R.DOWNSTREAM_S_ID WHERE R.DOWNSTREAM_S_ID IS NOT NULL) "
+                + "AND S.ID NOT IN (SELECT SQ.ID from SURVEY.SECTIONS_QUESTIONS SQ JOIN SURVEY.STEPS_SECTIONS SS on SQ.SECTION_ID = SS.SECTION_ID JOIN SURVEY.RELATIONSHIPS R ON SS.ID = R.DOWNSTREAM_SS_ID WHERE R.DOWNSTREAM_SS_ID IS NOT NULL) "
                 + "AND S.ID NOT IN (SELECT T.ID FROM SURVEY.SECTIONS_QUESTIONS T JOIN SURVEY.STEPS_SECTIONS SS ON T.SECTION_ID = SS.SECTION_ID JOIN SURVEY.RELATIONSHIPS R ON SS.STEP_ID = R.DOWNSTREAM_STEP_ID) "
                 + "order by S.DISPLAY_ORDER";
 
@@ -682,8 +682,10 @@ public class QuestionManager {
     private ArrayList<Answer> getDownstreamSectionAnswers(Relationship relationship, Integer respondentId) {
         ArrayList<Answer> answers = new ArrayList<>();
 
-        String sql = "SELECT A.ID FROM survey.RELATIONSHIPS R " + " JOIN survey.STEPS_SECTIONS SS ON R.DOWNSTREAM_S_ID = SS.ID "
-                + " JOIN survey.ANSWERS A ON SS.STEP_ID = A.STEP AND SS.SECTION_DISPLAY_ORDER = A.SECTION "
+        // SS.STEP_ID is now a durable step reference (Kimball Type 2 SCD retarget), not a
+        // display-order value — join on STEP_DISPLAY_ORDER instead, matching the section side.
+        String sql = "SELECT A.ID FROM survey.RELATIONSHIPS R " + " JOIN survey.STEPS_SECTIONS SS ON R.DOWNSTREAM_SS_ID = SS.ID "
+                + " JOIN survey.ANSWERS A ON SS.STEP_DISPLAY_ORDER = A.STEP AND SS.SECTION_DISPLAY_ORDER = A.SECTION "
                 + " WHERE A.DELETED = false AND R.SURVEY_ID = :surveyId" + " AND A.SURVEY_ID = :surveyId"
                 + " AND A.RESPONDENT_ID = :respondentId" + " AND R.ID = :rid"
                 + " ORDER BY A.DISPLAY_KEY";
@@ -717,7 +719,9 @@ public class QuestionManager {
      */
     private void replaceText(Relationship relationship, Answer upstreamAnswer) {
 
-        String sectionSQL = "SELECT A.ID,  A.SECTION, A.SECTION_QUESTION_ID FROM survey.RELATIONSHIPS R JOIN survey.STEPS_SECTIONS SS ON R.DOWNSTREAM_S_ID = SS.ID JOIN survey.ANSWERS A ON SS.STEP_ID = A.STEP AND SS.SECTION_DISPLAY_ORDER = A.SECTION WHERE A.DELETED = false AND R.ID = :rid AND A.RESPONDENT_ID = :respondentId ORDER BY A.DISPLAY_KEY";
+        // SS.STEP_ID is now a durable step reference (Kimball Type 2 SCD retarget) — join on
+        // STEP_DISPLAY_ORDER instead, matching the section side (see getDownstreamSectionAnswers above).
+        String sectionSQL = "SELECT A.ID,  A.SECTION, A.SECTION_QUESTION_ID FROM survey.RELATIONSHIPS R JOIN survey.STEPS_SECTIONS SS ON R.DOWNSTREAM_SS_ID = SS.ID JOIN survey.ANSWERS A ON SS.STEP_DISPLAY_ORDER = A.STEP AND SS.SECTION_DISPLAY_ORDER = A.SECTION WHERE A.DELETED = false AND R.ID = :rid AND A.RESPONDENT_ID = :respondentId ORDER BY A.DISPLAY_KEY";
         String questionSQL = "SELECT A.ID,  A.SECTION, A.SECTION_QUESTION_ID FROM survey.RELATIONSHIPS R JOIN survey.SECTIONS_QUESTIONS SQ ON R.DOWNSTREAM_SQ_ID = SQ.ID JOIN survey.ANSWERS A ON SQ.ID = A.SECTION_QUESTION_ID WHERE A.DELETED = false AND R.ID = :rid AND A.RESPONDENT_ID = :respondentId ORDER BY A.DISPLAY_KEY";
 
         Query q;
@@ -800,12 +804,19 @@ public class QuestionManager {
      */
     private Integer getStepDisplayOrder(long surveyId, long stepId) {
         try {
-            String sql = "select distinct ss.step_display_order from survey.steps_sections ss where ss.survey_id = :surveyId and ss.step_id = :stepId order by ss.step_display_order";
+            // stepId is the surrogate Step.id (from a @ManyToOne relationship field); steps_sections.step_id
+            // is now the durable step_id (Kimball Type 2 SCD retarget), so resolve through survey.steps to
+            // bridge surrogate -> durable before joining.
+            String sql = "select distinct ss.step_display_order from survey.steps_sections ss "
+                    + "join survey.steps s on s.step_id = ss.step_id "
+                    + "where ss.survey_id = :surveyId and s.id = :stepId order by ss.step_display_order";
             // entityManager.joinTransaction();
             Query q = entityManager.createNativeQuery(sql);
             q.setParameter("surveyId", surveyId);
             q.setParameter("stepId", stepId);
-            return (Integer) q.getSingleResult();
+            // step_display_order is NUMERIC (decimal midpoint insertion support), not INTEGER — JDBC
+            // returns BigDecimal, so go through Number rather than casting straight to Integer.
+            return ((Number) q.getSingleResult()).intValue();
         } catch (Exception e) {
             return -1;
         }
@@ -825,7 +836,9 @@ public class QuestionManager {
             Query q = entityManager.createNativeQuery(sql);
             q.setParameter("surveyId", surveyId);
             q.setParameter("sectionId", sectionId);
-            return (Integer) q.getSingleResult();
+            // section_display_order is NUMERIC (decimal midpoint insertion support), not INTEGER —
+            // JDBC returns BigDecimal, so go through Number rather than casting straight to Integer.
+            return ((Number) q.getSingleResult()).intValue();
         } catch (Exception e) {
             return -1;
         }
@@ -1504,7 +1517,7 @@ public class QuestionManager {
             } else {
                 stepId = relationship.upstreamStep.id;
             }
-            List<Relationship> relationships = Relationship.findByDownstream_S_ID(relationship.surveyId, relationship.downstreamSection.id, stepId);
+            List<Relationship> relationships = Relationship.findByDownstream_SS_ID(relationship.surveyId, relationship.downstreamSection.id, stepId);
             for (Relationship r : relationships) {
                 Answer upstreamAnswer = getUpstreamAnswer(r, answer);
                 if (!r.evaluateOperator(upstreamAnswer)) {

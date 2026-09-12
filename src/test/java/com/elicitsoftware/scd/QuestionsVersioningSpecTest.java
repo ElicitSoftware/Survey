@@ -19,10 +19,11 @@ import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceException;
 import jakarta.persistence.Query;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -41,7 +42,6 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @QuarkusTest
 @QuarkusTestResource(PostgresTestResource.class)
-@Disabled("Enable once the questions Type 2 migration lands — see research/Kimball_type_2.md 'Schema Changes Per Table -> questions'")
 class QuestionsVersioningSpecTest {
 
     @Inject
@@ -78,8 +78,8 @@ class QuestionsVersioningSpecTest {
                 .getSingleResult();
 
         assertEquals(0, ((Number) row[0]).intValue(), "Pre-existing row must backfill to version 0");
-        assertEquals(EPOCH_SENTINEL, row[1], "Pre-existing row must backfill effective_from to epoch");
-        assertEquals(MAX_SENTINEL, row[2], "Pre-existing row must backfill effective_to to the max sentinel");
+        assertEquals(EPOCH_SENTINEL, toOffsetDateTime(row[1]), "Pre-existing row must backfill effective_from to epoch");
+        assertEquals(MAX_SENTINEL, toOffsetDateTime(row[2]), "Pre-existing row must backfill effective_to to the max sentinel");
         assertEquals(Boolean.FALSE, row[3], "Pre-existing row must not be a draft");
     }
 
@@ -132,15 +132,15 @@ class QuestionsVersioningSpecTest {
 
         closeCurrentAndInsertNewVersion(durableId, currentVersion, publishInstant, "Reworded text");
 
-        Object[] oldRow = (Object[]) em.createNativeQuery(
+        Object oldEffectiveTo = em.createNativeQuery(
                 "SELECT effective_to FROM survey.questions WHERE question_id = ?1 AND version = ?2")
                 .setParameter(1, durableId).setParameter(2, currentVersion).getSingleResult();
         Object[] newRow = (Object[]) em.createNativeQuery(
                 "SELECT effective_from, version, text FROM survey.questions WHERE question_id = ?1 AND version = ?2")
                 .setParameter(1, durableId).setParameter(2, currentVersion + 1).getSingleResult();
 
-        assertEquals(publishInstant, oldRow[0], "Old row's effective_to must be exactly the publish instant");
-        assertEquals(publishInstant, newRow[0], "New row's effective_from must be exactly the same publish instant (no gap/overlap)");
+        assertEquals(publishInstant.toInstant(), toOffsetDateTime(oldEffectiveTo).toInstant(), "Old row's effective_to must be exactly the publish instant");
+        assertEquals(publishInstant.toInstant(), toOffsetDateTime(newRow[0]).toInstant(), "New row's effective_from must be exactly the same publish instant (no gap/overlap)");
         assertEquals(currentVersion + 1, ((Number) newRow[1]).intValue(), "version must increment by exactly 1");
         assertEquals("Reworded text", newRow[2]);
     }
@@ -211,6 +211,20 @@ class QuestionsVersioningSpecTest {
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
+
+    /** Native-query results for {@code timestamp with time zone} columns come back as
+     *  {@code java.time.Instant} in this Hibernate/driver combination, not {@code OffsetDateTime}
+     *  — normalize so comparisons against the OffsetDateTime constants/parameters used
+     *  throughout this suite work regardless of which temporal type is actually returned. */
+    private static OffsetDateTime toOffsetDateTime(Object value) {
+        if (value instanceof OffsetDateTime odt) {
+            return odt;
+        }
+        if (value instanceof Instant instant) {
+            return instant.atOffset(ZoneOffset.UTC);
+        }
+        throw new IllegalArgumentException("Unexpected temporal type: " + (value == null ? "null" : value.getClass()));
+    }
 
     private int versionOf(Integer surrogateId) {
         return ((Number) em.createNativeQuery("SELECT version FROM survey.questions WHERE id = ?1")

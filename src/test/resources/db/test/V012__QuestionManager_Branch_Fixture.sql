@@ -16,7 +16,7 @@
 -- Registration" fixture and the V011 "ScdSpecFixture": exercises two
 -- QuestionManager.buildDownstreamQuestions branches that no existing
 -- fixture relationship reaches because every existing relationship that
--- sets downstream_step_id also sets downstream_s_id:
+-- sets downstream_step_id also sets downstream_ss_id:
 --   - SHOW,   downstreamStep != null, downstreamSection == null
 --     (QuestionManager.buildDownstreamQuestions "Show a step" branch)
 --   - REPEAT, downstreamStep != null, downstreamSection == null
@@ -129,9 +129,9 @@ BEGIN
   VALUES (NEXTVAL('survey.select_groups_seq'), v_survey_id, 'BranchChoice', 'Used only to round-trip SelectItem.selectGroupId', 'Text')
   RETURNING id INTO v_sg_choice;
 
-  INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+  INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
   VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_choice, 'Alpha', 1, 'alpha');
-  INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+  INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
   VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_choice, 'Beta', 2, 'beta');
 
   -- Q_A: CHECKBOX (type_id 1) — drives the SHOW step-only branch via BOOLEAN operator.
@@ -168,14 +168,14 @@ BEGIN
   VALUES (NEXTVAL('survey.sections_questions_seq'), v_survey_id, v_q_c, v_section_two, 1)
   RETURNING id INTO v_sq_c;
 
-  -- R_show_step: Q_A BOOLEAN SHOW -> StepTwo only (downstream_s_id and downstream_sq_id
-  -- both NULL — every existing fixture relationship sets downstream_s_id alongside
+  -- R_show_step: Q_A BOOLEAN SHOW -> StepTwo only (downstream_ss_id and downstream_sq_id
+  -- both NULL — every existing fixture relationship sets downstream_ss_id alongside
   -- downstream_step_id, which always routes through the downstreamSection branch first).
   -- upstream_step_id = v_step_one: QuestionManager.findRelationshipsByUpstreamQuestion
   -- compares this surrogate id directly against Q_A's displayOrder-based key segment,
   -- which is v_step_one too (display_order was set equal to id above).
   INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id,
-                                    downstream_step_id, downstream_s_id, downstream_sq_id,
+                                    downstream_step_id, downstream_ss_id, downstream_sq_id,
                                     operator_id, action_id, description, token, reference_value, default_upstream_value)
   VALUES (NEXTVAL('survey.relationships_seq'), v_survey_id, v_step_one, v_sq_a,
           v_step_two, NULL, NULL,
@@ -186,7 +186,7 @@ BEGIN
   -- is currently an unimplemented stub (QuestionManager.java: "TODO" / "not yet implemented"),
   -- so this relationship is expected to be a no-op today — see repeatStepOnlyBranch_isCurrentlyANoOp.
   INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id,
-                                    downstream_step_id, downstream_s_id, downstream_sq_id,
+                                    downstream_step_id, downstream_ss_id, downstream_sq_id,
                                     operator_id, action_id, description, token, reference_value, default_upstream_value)
   VALUES (NEXTVAL('survey.relationships_seq'), v_survey_id, v_step_one, v_sq_b,
           v_step_three, NULL, NULL,

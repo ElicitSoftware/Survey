@@ -17,7 +17,6 @@ import io.quarkus.test.common.QuarkusTestResource;
 import com.elicitsoftware.PostgresTestResource;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;
@@ -40,7 +39,6 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @QuarkusTest
 @QuarkusTestResource(PostgresTestResource.class)
-@Disabled("Enable once the metadata Type 2 migration lands — see research/Kimball_type_2.md 'Metadata, Ontology, and ETL Impact'")
 class MetadataDurableKeySpecTest {
 
     @Inject
@@ -50,11 +48,18 @@ class MetadataDurableKeySpecTest {
 
     @Test
     void migration_rekeysMetadataToDurableColumns() {
+        // The *_surrogate columns are an artifact of the ALTER-based v2.x -> v3 upgrade
+        // track only (db/migration-v3/V010__Kimball_Type2_SCD.sql renames the old surrogate
+        // FK columns out of the way before adding the new durable ones). The greenfield
+        // track (db/migration/V001__Create_Survey_Schema.sql) never had surrogate columns to
+        // rename in the first place, so it never creates them — a fresh v3.0.0 install has
+        // 0, not 3. Either count is valid; anything else indicates a partial/broken migration.
         long surrogateColumnsRenamedAway = ((Number) em.createNativeQuery(
                 "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='survey' AND table_name='metadata' "
                         + "AND column_name IN ('question_id_surrogate','section_question_id_surrogate','step_section_id_surrogate')")
                 .getSingleResult()).longValue();
-        assertEquals(3, surrogateColumnsRenamedAway, "The old surrogate columns must be preserved under _surrogate names during the transition");
+        assertTrue(surrogateColumnsRenamedAway == 0 || surrogateColumnsRenamedAway == 3,
+                "The *_surrogate columns must be either absent (greenfield track) or all three present (upgrade track), never partial");
 
         long durableColumns = ((Number) em.createNativeQuery(
                 "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='survey' AND table_name='metadata' "
@@ -79,7 +84,7 @@ class MetadataDurableKeySpecTest {
                         + "VALUES (NEXTVAL('survey.ontology_seq'), ?1, 'Scd Tag', 'scd_tag', ?2) RETURNING id")
                 .setParameter(1, surveyId).setParameter(2, dimensionId).getSingleResult();
         em.createNativeQuery(
-                "INSERT INTO survey.metadata(id, survey_id, step_section_id, question_id, section_question_id, ontology_id, value) "
+                "INSERT INTO survey.metadata(id, survey_id, steps_sections_id, question_id, sections_question_id, ontology_id, value) "
                         + "VALUES (NEXTVAL('survey.metadata_seq'), ?1, NULL, ?2, NULL, ?3, NULL)")
                 .setParameter(1, surveyId).setParameter(2, durableQuestionId).setParameter(3, ontologyId).executeUpdate();
 
@@ -118,7 +123,7 @@ class MetadataDurableKeySpecTest {
 
         Integer depressionOntologyId = insertTagOnlyOntology(surveyId, "Depression Score", "depression_score");
         Integer metadataId = (Integer) em.createNativeQuery(
-                "INSERT INTO survey.metadata(id, survey_id, step_section_id, question_id, section_question_id, ontology_id, value) "
+                "INSERT INTO survey.metadata(id, survey_id, steps_sections_id, question_id, sections_question_id, ontology_id, value) "
                         + "VALUES (NEXTVAL('survey.metadata_seq'), ?1, NULL, ?2, NULL, ?3, NULL) RETURNING id")
                 .setParameter(1, surveyId).setParameter(2, durableQuestionId).setParameter(3, depressionOntologyId)
                 .getSingleResult();

@@ -49,14 +49,9 @@ CREATE INDEX dim_status_idx ON surveyreport.dim_status(id);
 GRANT SELECT ON surveyreport.dim_status TO ${survey_user};
 GRANT SELECT ON surveyreport.dim_status TO ${surveyreport_user};
 --------------------------------
--- Kimball Type 2 SCD (greenfield): dim_step carries a durable-key rekey column
--- (step_id) from creation, so ETL upserts can key on survey.steps.step_id instead
--- of the surrogate steps.id that changes on every version row. See
--- research/Kimball_type_2.md "dim_step and dim_section — Rekey by Durable UUID".
 CREATE TABLE IF NOT EXISTS surveyreport.dim_step(
       id integer NOT NULL,
       value character varying(50) NOT NULL,
-      step_id integer UNIQUE,
       CONSTRAINT dim_step_pk PRIMARY KEY (id),
       CONSTRAINT dim_step_un UNIQUE (value)
 );
@@ -65,12 +60,9 @@ CREATE INDEX dim_step_value_index ON surveyreport.dim_step USING btree (value AS
 GRANT INSERT, SELECT, UPDATE ON surveyreport.dim_step TO ${survey_user};
 GRANT SELECT ON surveyreport.dim_step TO ${surveyreport_user};
 --------------------------------
--- Kimball Type 2 SCD (greenfield): dim_section carries the same durable-key rekey
--- column (section_id) as dim_step, for the same reason.
 CREATE TABLE IF NOT EXISTS surveyreport.dim_section(
       id integer NOT NULL,
       value character varying(50) NOT NULL,
-      section_id integer UNIQUE,
       CONSTRAINT dim_section_pk PRIMARY KEY (id),
       CONSTRAINT dim_section_un UNIQUE (value)
 );

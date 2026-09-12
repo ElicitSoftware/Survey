@@ -12,6 +12,12 @@ so that any element (question, section, step, relationship, answer option) can b
 versioned without cloning the entire survey. A respondent's experience is pinned to a
 point-in-time snapshot determined by `respondents.firstAccessDt`.
 
+> **Scope note**: This document covers the database schema, migration strategy, and
+> query patterns only. The Author Tool UI (draft editing screens, publish-workflow
+> controls, version-history views) is intentionally **out of scope** here and will be
+> designed in a separate, later effort. None of the backend/schema work below is
+> blocked on that UI design.
+
 ---
 
 ## Current Schema — Structural Dependency Chain
@@ -225,6 +231,9 @@ CREATE UNIQUE INDEX questions_one_draft_un
 ALTER TABLE survey.questions ADD CONSTRAINT questions_id_version_un UNIQUE (question_id, version);
 
 CREATE INDEX questions_durable_id_idx ON survey.questions (question_id);
+
+-- Composite index for the respondent/ETL time-range predicate
+CREATE INDEX questions_active_range_idx ON survey.questions (survey_id, effective_from, effective_to);
 ```
 
 `questions.select_group_id` already exists as a surrogate FK to `select_groups.id`. After
@@ -279,6 +288,9 @@ CREATE UNIQUE INDEX select_groups_one_draft_un
 ALTER TABLE survey.select_groups ADD CONSTRAINT select_groups_id_version_un UNIQUE (select_group_id, version);
 
 CREATE INDEX select_groups_durable_id_idx ON survey.select_groups (select_group_id);
+
+-- Composite index for the respondent/ETL time-range predicate
+CREATE INDEX select_groups_active_range_idx ON survey.select_groups (survey_id, effective_from, effective_to);
 ```
 
 `questions.select_group_id` (durable reference column, replacing the old surrogate `select_group_id` FK)
@@ -339,6 +351,9 @@ ALTER TABLE survey.select_items ADD CONSTRAINT select_items_id_version_un UNIQUE
 
 CREATE INDEX select_items_durable_id_idx ON survey.select_items (select_item_id);
 CREATE INDEX select_items_select_group_id_idx ON survey.select_items (select_group_id);
+
+-- Composite index for the respondent/ETL time-range predicate
+CREATE INDEX select_items_active_range_idx ON survey.select_items (survey_id, effective_from, effective_to);
 ```
 
 `answers` stores `text_value` directly at response time, so versioning answer options
@@ -372,6 +387,9 @@ ALTER TABLE survey.sections ADD CONSTRAINT sections_id_version_un UNIQUE (sectio
 
 CREATE INDEX sections_durable_id_idx ON survey.sections (section_id);
 
+-- Composite index for the respondent/ETL time-range predicate
+CREATE INDEX sections_active_range_idx ON survey.sections (survey_id, effective_from, effective_to);
+
 -- display_order must be NUMERIC to support decimal midpoint insertion (see Adding a new question)
 ALTER TABLE survey.sections ALTER COLUMN display_order TYPE NUMERIC;
 ```
@@ -403,6 +421,9 @@ CREATE UNIQUE INDEX steps_one_draft_un
 ALTER TABLE survey.steps ADD CONSTRAINT steps_id_version_un UNIQUE (step_id, version);
 
 CREATE INDEX steps_durable_id_idx ON survey.steps (step_id);
+
+-- Composite index for the respondent/ETL time-range predicate
+CREATE INDEX steps_active_range_idx ON survey.steps (survey_id, effective_from, effective_to);
 
 -- display_order must be NUMERIC to support decimal midpoint insertion (see Adding a new question)
 ALTER TABLE survey.steps ALTER COLUMN display_order TYPE NUMERIC;
@@ -485,6 +506,9 @@ ALTER TABLE survey.steps_sections ADD CONSTRAINT steps_sections_id_version_un UN
 
 CREATE INDEX steps_sections_durable_id_idx ON survey.steps_sections (steps_sections_id);
 
+-- Composite index for the respondent/ETL time-range predicate
+CREATE INDEX steps_sections_active_range_idx ON survey.steps_sections (survey_id, effective_from, effective_to);
+
 -- display_order must be NUMERIC to support decimal midpoint insertion (see Adding a new question)
 ALTER TABLE survey.steps_sections ALTER COLUMN display_order TYPE NUMERIC;
 ```
@@ -552,6 +576,9 @@ CREATE UNIQUE INDEX sections_questions_one_draft_un
 ALTER TABLE survey.sections_questions ADD CONSTRAINT sections_questions_id_version_un UNIQUE (sections_question_id, version);
 
 CREATE INDEX sections_questions_durable_id_idx ON survey.sections_questions (sections_question_id);
+
+-- Composite index for the respondent/ETL time-range predicate
+CREATE INDEX sections_questions_active_range_idx ON survey.sections_questions (survey_id, effective_from, effective_to);
 
 -- display_order must be NUMERIC to support decimal midpoint insertion (see Adding a new question)
 ALTER TABLE survey.sections_questions ALTER COLUMN display_order TYPE NUMERIC;
@@ -666,6 +693,9 @@ CREATE UNIQUE INDEX relationships_one_draft_un
 ALTER TABLE survey.relationships ADD CONSTRAINT relationships_id_version_un UNIQUE (relationship_id, version);
 
 CREATE INDEX relationships_durable_id_idx ON survey.relationships (relationship_id);
+
+-- Composite index for the respondent/ETL time-range predicate
+CREATE INDEX relationships_active_range_idx ON survey.relationships (survey_id, effective_from, effective_to);
 ```
 
 ---
@@ -1338,6 +1368,11 @@ versions, and the ontology assignment travels with it.
 8. Drop old surrogate FK columns from all structural tables and `metadata` once all six
    checks in Open Question 1 pass in a staging environment.
 
+**Rollback strategy**: no Flyway down-migration (`undo`) script will be authored for
+this schema change. If a defect is discovered after the migration runs in production,
+recovery is an operational **pre-upgrade database backup/restore**, not a code-level
+rollback.
+
 ---
 
 ## Summary of Changes
@@ -1991,3 +2026,53 @@ at `firstAccessDt`.
 | E-3 | ETL | ETL step join uses `firstAccessDt` anchor; display_order change = new version; exact resolution guaranteed | ✅ Resolved |
 | E-4 | ETL | ETL execution order documented above (steps 1–7); enforced by the orchestrating service class | ✅ Resolved |
 | E-5 | ETL | SCD Type 1 on `dim_step`/`dim_section` — intentional; all respondents see current step/section names | ✅ Resolved |
+
+---
+
+## Implementation Readiness Notes (2026-09-11 review)
+
+A cross-repo review of this document alongside Admin's and FHHS's companion
+`Kimball_type2.md` docs confirmed the design is decision-complete and technically sound
+(every Open Question above is resolved, and the FK-cascade problem is solved cleanly via
+durable keys). Four gaps identified in that review have already been decided and folded
+into the sections above: composite `(survey_id, effective_from, effective_to)` indexes
+on every structural table, the Author Tool UI being out of scope for this document, no
+schema down-migration (backup/restore instead), and — in Admin's doc — no
+backward-compatible import of pre-Kimball export files.
+
+The following risks surfaced in that review remain **open** — no decision has been made
+on them yet, and they are called out here so whoever implements this doc doesn't treat
+the design as fully closed on these points:
+
+- **Migration lock/duration risk.** The full sequence per table (add sequence → add
+  durable/Type-2 columns → backfill join-table FKs → add composite `UNIQUE`/`CHECK`
+  constraints) runs as ALTERs and backfill `UPDATE`s across nine tables, including
+  `answers`. Test the actual migration against a production-sized data snapshot before
+  committing to a single-transaction rollout; batch it if it's too slow or holds locks
+  too long.
+- **Query-coverage risk.** There is deliberately no `is_current` flag — every query
+  touching a structural table must carry both `effective_from <= :ts AND effective_to > :ts`.
+  A missed clause anywhere fails silently (wrong or duplicate version rows), not loudly.
+  During implementation, do a full search across `src/main/java` and `Sql.java` for every
+  query against a structural table, not just the ones this document calls out by name.
+- **`display_order` type conversion cost.** `ALTER TABLE ... ALTER COLUMN display_order
+  TYPE NUMERIC` (and the same for `answers.step`/`answers.section`) is a lossless cast but
+  still triggers a full table rewrite in PostgreSQL. Check `answers`' row count before
+  assuming this is a safe blocking ALTER in production.
+- **Cross-repo deployment ordering is not enforced anywhere.** Survey's Kimball migration
+  must land in the shared database before Admin's `V0.0.12__Add_Kimball_Durable_Seq_Grants.sql`
+  (which grants access to sequences this migration creates) and before FHHS's
+  `V0.0.8__REORDER_CANCER_QUESTIONS_DURABLE.sql` (which looks up a durable `section_id`
+  this migration produces). Nothing in the current deployment tooling (e.g.
+  `docker-compose`, CI/CD) enforces this ordering if the three apps are deployed
+  concurrently — this needs an operational runbook or an explicit dependency gate before
+  go-live.
+- **Retroactive-reclassification decisions have clinical/research stakes beyond
+  engineering.** Gap ETL-1 (editing a `metadata` row retroactively reclassifies all
+  historical finalized respondents' answers under the new ontology tag) and the SCD
+  Type 1 relabeling of `dim_step`/`dim_section` (renaming a step/section changes the
+  label on all historical FHHS reports) are both marked "Resolved" as engineering
+  decisions in this document. Given FHHS is a cancer family history tool, recommend
+  getting explicit sign-off from research/compliance stakeholders on these two behaviors
+  before enabling them in production — not just treating them as closed because the
+  technical design is sound.

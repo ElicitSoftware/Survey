@@ -68,7 +68,7 @@ public class QuestionServiceReviewTest {
              JOIN survey.questions q ON a.question_id = q.id
              LEFT JOIN survey.question_types t ON q.type_id = t.id
              LEFT JOIN survey.select_groups g ON q.select_group_id = g.id
-             LEFT JOIN survey.select_items i ON g.id = i.group_id AND a.text_value::text = i.coded_value::text
+             LEFT JOIN survey.select_items i ON g.id = i.select_group_id AND a.text_value::text = i.coded_value::text
              WHERE a.respondent_id = :respondentId
                 AND a.deleted = false
                 AND a.text_value IS NOT NULL

@@ -62,19 +62,28 @@ public final class Sql {
         return name;
     }
 
+    // Upserts on the durable step_id, not the surrogate id — a renamed step gets a new
+    // surrogate id on its next version row, and re-keying on step_id (see the Kimball Type 2
+    // migration) is what stops that from splitting historical/new respondents across two
+    // dim_step rows. `id` is deliberately excluded from the DO UPDATE SET: it must stay
+    // stable once assigned (fact_sections.step_key FKs it with no ON UPDATE CASCADE) — the
+    // first surrogate id ever seen for a given step_id becomes its permanent dim_step.id,
+    // and later versions of the same step only update `value`.
     public static final String UPDATE_STEPS_DIMENSION_TABLE_SQL = """
-            INSERT INTO surveyreport.dim_step(id, value)
-            select s.id, s.dimension_name
+            INSERT INTO surveyreport.dim_step(id, step_id, value)
+            select s.id, s.step_id, s.dimension_name
             from survey.steps s
-            ON CONFLICT (id) DO UPDATE
+            WHERE s.effective_from <= NOW() AND s.effective_to > NOW()
+            ON CONFLICT (step_id) DO UPDATE
                 SET value = excluded.value
             """;
 
     public static final String UPDATE_SECTIONS_DIMENSION_TABLE_SQL = """
-            INSERT INTO surveyreport.dim_section(id, value)
-            select s.id, s.dimension_name
+            INSERT INTO surveyreport.dim_section(id, section_id, value)
+            select s.id, s.section_id, s.dimension_name
             from survey.sections s
-            ON CONFLICT (id) DO UPDATE
+            WHERE s.effective_from <= NOW() AND s.effective_to > NOW()
+            ON CONFLICT (section_id) DO UPDATE
                 SET value = excluded.value
             """;
     public static final String FIND_NEW_DIMENSION_TABLES_SQL = """
@@ -102,8 +111,10 @@ public final class Sql {
                                select distinct lower('dim_' || replace(o2.tag,' ','_')) name
                                from survey.metadata md2
                                join survey.ontology o2 on md2.ontology_id = o2.id
-                               join survey.steps_sections ss2 ON md2.step_section_id = ss2.id
-                               join survey.sections s2 on ss2.section_id = s2.id
+                               join survey.steps_sections ss2 ON md2.steps_sections_id = ss2.steps_sections_id
+                                   AND ss2.effective_from <= NOW() AND ss2.effective_to > NOW()
+                               join survey.sections s2 on ss2.section_id = s2.section_id
+                                   AND s2.effective_from <= NOW() AND s2.effective_to > NOW()
                                where o2.dimension is null
                 and lower('dim_' || replace(o2.tag,' ','_')) not in (
                                    SELECT t2.table_name
@@ -114,8 +125,10 @@ public final class Sql {
                                select distinct lower('dim_' || replace(o3.tag,' ','_')) name
                                from survey.metadata md3
                                join survey.ontology o3 on md3.ontology_id = o3.id
-                               join survey.sections_questions sq3 ON md3.section_question_id = sq3.id
-                               join survey.questions q3 on sq3.question_id = q3.id
+                               join survey.sections_questions sq3 ON md3.sections_question_id = sq3.sections_question_id
+                                   AND sq3.effective_from <= NOW() AND sq3.effective_to > NOW()
+                               join survey.questions q3 on sq3.question_id = q3.question_id
+                                   AND q3.effective_from <= NOW() AND q3.effective_to > NOW()
                                where o3.dimension is null
                                and lower('dim_' || replace(o3.tag,' ','_')) not in (
                                    SELECT t3.table_name
@@ -154,8 +167,8 @@ public final class Sql {
                                  end AS val,
                                 a1.respondent_id
                                 FROM survey.answers a1
-                                  JOIN survey.metadata m1 ON a1.question_id = m1.question_id AND m1.survey_id = a1.survey_id
-                                  JOIN survey.questions q1 ON m1.question_id = q1.id
+                                  JOIN survey.questions q1 ON q1.id = a1.question_id
+                                  JOIN survey.metadata m1 ON m1.question_id = q1.question_id AND m1.survey_id = a1.survey_id
                                   JOIN survey.ontology o1 ON m1.ontology_id = o1.id
                                   JOIN survey.dimensions d1 on d1.id = o1.dimension
                     --Question Tags from Ontology table
@@ -167,8 +180,8 @@ public final class Sql {
                                  end AS val,
                                 a2.respondent_id
                                 FROM survey.answers a2
-                                  JOIN survey.metadata m2 ON a2.question_id = m2.question_id AND m2.survey_id = a2.survey_id
-                                  JOIN survey.questions q2 ON m2.question_id = q2.id
+                                  JOIN survey.questions q2 ON q2.id = a2.question_id
+                                  JOIN survey.metadata m2 ON m2.question_id = q2.question_id AND m2.survey_id = a2.survey_id
                                   JOIN survey.ontology o2 ON m2.ontology_id = o2.id
                                 WHERE o2.dimension IS NULL
                      --Section_Question Tags from Dimension table
@@ -181,8 +194,8 @@ public final class Sql {
                                 a3.respondent_id
                                 FROM survey.answers a3
                                   JOIN survey.sections_questions sq3 ON a3.section_question_id = sq3.id AND a3.survey_id = sq3.survey_id
-                                  JOIN survey.questions q3 ON sq3.question_id = q3.id
-                                  JOIN survey.metadata m3 ON sq3.id = m3.section_question_id AND m3.survey_id = a3.survey_id
+                                  JOIN survey.questions q3 ON sq3.question_id = q3.question_id
+                                  JOIN survey.metadata m3 ON sq3.sections_question_id = m3.sections_question_id AND m3.survey_id = a3.survey_id
                                   JOIN survey.ontology o3 ON m3.ontology_id = o3.id
                                   JOIN survey.dimensions d3 on d3.id = o3.dimension
                     --Section_Question Tags from Ontology table
@@ -195,8 +208,8 @@ public final class Sql {
                                 a4.respondent_id
                                 FROM survey.answers a4
                                   JOIN survey.sections_questions sq4 ON a4.section_question_id = sq4.id AND a4.survey_id = sq4.survey_id
-                                  JOIN survey.questions q4 ON sq4.question_id = q4.id
-                                  JOIN survey.metadata m4 ON sq4.id = m4.section_question_id AND m4.survey_id = a4.survey_id
+                                  JOIN survey.questions q4 ON sq4.question_id = q4.question_id
+                                  JOIN survey.metadata m4 ON sq4.sections_question_id = m4.sections_question_id AND m4.survey_id = a4.survey_id
                                   JOIN survey.ontology o4 ON m4.ontology_id = o4.id
                                 WHERE o4.dimension IS NULL
                        --Step_Sections Tags from Dimension table
@@ -209,7 +222,7 @@ public final class Sql {
                                 a5.respondent_id
                                 FROM survey.answers a5
                                   JOIN survey.steps_sections ss5 ON a5.step = ss5.step_display_order AND a5.section = ss5.section_display_order and a5.survey_id = ss5.survey_id
-                                  JOIN survey.metadata m5 ON ss5.id = m5.step_section_id AND m5.survey_id = a5.survey_id
+                                  JOIN survey.metadata m5 ON ss5.steps_sections_id = m5.steps_sections_id AND m5.survey_id = a5.survey_id
                                   JOIN survey.ontology o5 ON m5.ontology_id = o5.id
                                   JOIN survey.dimensions d5 on d5.id = o5.dimension
                        --Step_Sections Tags from Ontology table
@@ -222,7 +235,7 @@ public final class Sql {
                                 a6.respondent_id
                                 FROM survey.answers a6
                                   JOIN survey.steps_sections ss6 ON a6.step = ss6.step_display_order AND a6.section = ss6.section_display_order and a6.survey_id = ss6.survey_id
-                                  JOIN survey.metadata m6 ON ss6.id = m6.step_section_id AND m6.survey_id = a6.survey_id
+                                  JOIN survey.metadata m6 ON ss6.steps_sections_id = m6.steps_sections_id AND m6.survey_id = a6.survey_id
                                   JOIN survey.ontology o6 ON m6.ontology_id = o6.id
                                  WHERE o6.dimension IS NULL
                                ) x
@@ -285,7 +298,15 @@ public final class Sql {
             a.section_instance
             FROM survey.answers a
             JOIN survey.respondents r on a.respondent_id = r.id
-            JOIN survey.steps s on a.step = s.id
+            -- a.step stores a display-order value, not a surrogate id (see
+            -- research/Kimball_type_2.md, "INSERT_MISSING_FACT_SECTION_SQL -- Display-Order
+            -- Join Fix"). r.first_access_dt anchors this to the step version the respondent
+            -- actually saw, even if display_order was reordered after they answered.
+            JOIN survey.steps s
+                ON s.survey_id = a.survey_id
+               AND s.display_order = a.step
+               AND s.effective_from <= r.first_access_dt
+               AND s.effective_to > r.first_access_dt
             where a.deleted!= true
             and a.text_value IS NOT NULL
             and a.saved_dt is not null
@@ -431,8 +452,8 @@ public final class Sql {
                                                 AND f1.section_key = a1.section
                                                 AND f1.section_instance = a1.section_instance
                                                 AND f1.survey_id = a1.survey_id
-                                          JOIN survey.metadata m1 ON a1.question_id = m1.question_id AND m1.survey_id = a1.survey_id
-                                          JOIN survey.questions q1 ON m1.question_id = q1.id
+                                          JOIN survey.questions q1 ON q1.id = a1.question_id
+                                          JOIN survey.metadata m1 ON m1.question_id = q1.question_id AND m1.survey_id = a1.survey_id
                                           JOIN survey.ontology o1 ON m1.ontology_id = o1.id
                                           JOIN survey.dimensions d1 ON d1.id = o1.dimension
             					where lower(o1.tag) = '<TAG>'
@@ -453,8 +474,8 @@ public final class Sql {
                                                 AND f2.section_instance = a2.section_instance
                                                 AND f2.survey_id = a2.survey_id
                                             JOIN survey.sections_questions sq2 ON a2.section_question_id = sq2.id AND a2.survey_id = sq2.survey_id
-                                            JOIN survey.questions q2 ON sq2.question_id = q2.id
-                                            JOIN survey.metadata m2 ON sq2.id = m2.section_question_id AND m2.survey_id = a2.survey_id
+                                            JOIN survey.questions q2 ON sq2.question_id = q2.question_id
+                                            JOIN survey.metadata m2 ON sq2.sections_question_id = m2.sections_question_id AND m2.survey_id = a2.survey_id
                                             JOIN survey.ontology o2 ON m2.ontology_id = o2.id
                                            JOIN survey.dimensions d2 ON d2.id = o2.dimension
             					where lower(o2.tag) = '<TAG>'
@@ -475,7 +496,7 @@ public final class Sql {
                                                 AND f3.section_instance = a3.section_instance
                                                 AND f3.survey_id = a3.survey_id
                                             JOIN survey.steps_sections ss3 ON a3.step = ss3.step_display_order AND a3.section = ss3.section_display_order AND a3.survey_id = ss3.survey_id
-                                            JOIN survey.metadata m3 ON ss3.id = m3.step_section_id AND m3.survey_id = a3.survey_id
+                                            JOIN survey.metadata m3 ON ss3.steps_sections_id = m3.steps_sections_id AND m3.survey_id = a3.survey_id
                                             JOIN survey.ontology o3 ON m3.ontology_id = o3.id
                                            JOIN survey.dimensions d3 ON d3.id = o3.dimension
             							   where lower(o3.tag) = '<TAG>'
@@ -503,8 +524,8 @@ public final class Sql {
                              AND f1.section_key = a1.section
                              AND f1.section_instance = a1.section_instance
                              AND f1.survey_id = a1.survey_id
-                       JOIN survey.metadata m1 ON a1.question_id = m1.question_id AND m1.survey_id = a1.survey_id
-                       JOIN survey.questions q1 ON m1.question_id = q1.id
+                       JOIN survey.questions q1 ON q1.id = a1.question_id
+                       JOIN survey.metadata m1 ON m1.question_id = q1.question_id AND m1.survey_id = a1.survey_id
                        JOIN survey.ontology o1 ON m1.ontology_id = o1.id
                        JOIN survey.dimensions d1 ON d1.id = o1.dimension
             --Question Tags from Ontology table
@@ -522,8 +543,8 @@ public final class Sql {
                              AND f2.section_key = a2.section
                              AND f2.section_instance = a2.section_instance
                              AND f2.survey_id = a2.survey_id
-                       JOIN survey.metadata m2 ON a2.question_id = m2.question_id AND m2.survey_id = a2.survey_id
-                       JOIN survey.questions q2 ON m2.question_id = q2.id
+                       JOIN survey.questions q2 ON q2.id = a2.question_id
+                       JOIN survey.metadata m2 ON m2.question_id = q2.question_id AND m2.survey_id = a2.survey_id
                        JOIN survey.ontology o2 ON m2.ontology_id = o2.id
                      WHERE o2.dimension IS NULL
             --Section_Question Tags from Dimensions table
@@ -542,8 +563,8 @@ public final class Sql {
                              AND f3.section_instance = a3.section_instance
                              AND f3.survey_id = a3.survey_id
                          JOIN survey.sections_questions sq3 ON a3.section_question_id = sq3.id AND a3.survey_id = sq3.survey_id
-                         JOIN survey.questions q3 ON sq3.question_id = q3.id
-                         JOIN survey.metadata m3 ON sq3.id = m3.section_question_id AND m3.survey_id = a3.survey_id
+                         JOIN survey.questions q3 ON sq3.question_id = q3.question_id
+                         JOIN survey.metadata m3 ON sq3.sections_question_id = m3.sections_question_id AND m3.survey_id = a3.survey_id
                          JOIN survey.ontology o3 ON m3.ontology_id = o3.id
                         JOIN survey.dimensions d3 ON d3.id = o3.dimension
             --Section_Question Tags from Ontology table
@@ -562,8 +583,8 @@ public final class Sql {
                              AND f4.section_instance = a4.section_instance
                              AND f4.survey_id = a4.survey_id
                          JOIN survey.sections_questions sq4 ON a4.section_question_id = sq4.id AND a4.survey_id = sq4.survey_id
-                         JOIN survey.questions q4 ON sq4.question_id = q4.id
-                         JOIN survey.metadata m4 ON sq4.id = m4.section_question_id AND m4.survey_id = a4.survey_id
+                         JOIN survey.questions q4 ON sq4.question_id = q4.question_id
+                         JOIN survey.metadata m4 ON sq4.sections_question_id = m4.sections_question_id AND m4.survey_id = a4.survey_id
                          JOIN survey.ontology o4 ON m4.ontology_id = o4.id
                        WHERE o4.dimension IS NULL
               --Step_Sections Tags from Dimensions table
@@ -582,7 +603,7 @@ public final class Sql {
                              AND f5.section_instance = a5.section_instance
                              AND f5.survey_id = a5.survey_id
                          JOIN survey.steps_sections ss5 ON a5.step = ss5.step_display_order AND a5.section = ss5.section_display_order AND a5.survey_id = ss5.survey_id
-                         JOIN survey.metadata m5 ON ss5.id = m5.step_section_id AND m5.survey_id = a5.survey_id
+                         JOIN survey.metadata m5 ON ss5.steps_sections_id = m5.steps_sections_id AND m5.survey_id = a5.survey_id
                          JOIN survey.ontology o5 ON m5.ontology_id = o5.id
                         JOIN survey.dimensions d5 ON d5.id = o5.dimension
              --Step_Sections Tags from Ontology table
@@ -601,7 +622,7 @@ public final class Sql {
                              AND f6.section_instance = a6.section_instance
                              AND f6.survey_id = a6.survey_id
                          JOIN survey.steps_sections ss6 ON a6.step = ss6.step_display_order AND a6.section = ss6.section_display_order AND a6.survey_id = ss6.survey_id
-                         JOIN survey.metadata m6 ON ss6.id = m6.step_section_id AND m6.survey_id = a6.survey_id
+                         JOIN survey.metadata m6 ON ss6.steps_sections_id = m6.steps_sections_id AND m6.survey_id = a6.survey_id
                          JOIN survey.ontology o6 ON m6.ontology_id = o6.id
                       WHERE o6.dimension IS NULL
                      ) x

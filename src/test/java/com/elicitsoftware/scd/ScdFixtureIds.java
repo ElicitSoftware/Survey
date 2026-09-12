@@ -54,7 +54,7 @@ final class ScdFixtureIds {
 
     static Integer selectItemId(EntityManager em) {
         return (Integer) em.createNativeQuery(
-                "SELECT id FROM survey.select_items WHERE group_id = " + selectGroupId(em) + " AND display_text = 'Option A'").getSingleResult();
+                "SELECT id FROM survey.select_items WHERE select_group_id = " + selectGroupId(em) + " AND display_text = 'Option A'").getSingleResult();
     }
 
     static Integer questionId(EntityManager em) {

@@ -50,7 +50,7 @@ public class SelectItem extends PanacheEntityBase {
     @Column(name = "display_text", length = 255)
     public String displayText;
 
-    @Column(name = "group_id", nullable = false)
+    @Column(name = "select_group_id", nullable = false)
     public Integer selectGroupId;
 
     @Column(name = "display_order", nullable = false, precision = 20)

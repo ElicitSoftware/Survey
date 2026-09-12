@@ -65,7 +65,7 @@ BEGIN
   VALUES (NEXTVAL('survey.select_groups_seq'), v_survey_id, 'ScdSelectGroup', 'Single select group', 'Text')
   RETURNING id INTO v_sg_id;
 
-  INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+  INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
   VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_id, 'Option A', 1, 'A');
 
   -- type_id 7 = RADIO, seeded by V003/earlier migrations (see survey.question_types).
@@ -84,7 +84,7 @@ BEGIN
   -- — a trivial self-referential-shaped relationship, present only so
   -- RelationshipsVersioningSpecTest has a row to version.
   INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id,
-                                    downstream_step_id, downstream_s_id, downstream_sq_id,
+                                    downstream_step_id, downstream_ss_id, downstream_sq_id,
                                     operator_id, action_id, description, token, reference_value)
   VALUES (NEXTVAL('survey.relationships_seq'), v_survey_id, v_step_id, v_sq_id,
           v_step_id, NULL, v_sq_id,

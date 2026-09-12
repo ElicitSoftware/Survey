@@ -1,0 +1,21 @@
+-- ***LICENSE_START***
+-- Elicit Survey
+-- %%
+-- Copyright (C) 2025 The Regents of the University of Michigan - Rogel Cancer Center
+-- %%
+-- PolyForm Noncommercial License 1.0.0
+-- <https://polyformproject.org/licenses/noncommercial/1.0.0>
+-- ***LICENSE_END***
+---
+
+-- Intentional no-op. The greenfield track's V001__Create_Survey_Schema.sql /
+-- V002__Create_Reporting_Schema.sql already create the Kimball Type 2 SCD schema directly
+-- (durable-key columns baked into the original CREATE TABLE statements) — there is no DDL
+-- left for a V010 to apply here.
+--
+-- This file exists purely to keep the greenfield track's version number aligned with the
+-- upgrade track's (db/migration-v3/V010__Kimball_Type2_SCD.sql, the real ALTER-based
+-- migration that upgrades an existing v2.x database). Both tracks now report "current
+-- version: 010" after their first migrate(), so every migration from V011 onward can be
+-- added to both db/migration and db/migration-v3 at the same version number without
+-- either track falling out of step with the other.

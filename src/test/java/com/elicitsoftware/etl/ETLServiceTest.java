@@ -258,8 +258,8 @@ class ETLServiceTest {
                     .setParameter(1, SURVEY_ID).setParameter(2, "Gap Probe " + tag).setParameter(3, tag)
                     .getSingleResult()).intValue();
             em.createNativeQuery(
-                    "INSERT INTO survey.metadata (id, survey_id, section_question_id, ontology_id) "
-                            + "SELECT NEXTVAL('survey.metadata_seq'), ?1, sq.id, ?2 "
+                    "INSERT INTO survey.metadata (id, survey_id, sections_question_id, ontology_id) "
+                            + "SELECT NEXTVAL('survey.metadata_seq'), ?1, sq.sections_question_id, ?2 "
                             + "FROM survey.sections_questions sq WHERE sq.section_id = ?3 LIMIT 1")
                     .setParameter(1, SURVEY_ID).setParameter(2, newOntologyId).setParameter(3, WELCOME_SECTION_ID)
                     .executeUpdate();

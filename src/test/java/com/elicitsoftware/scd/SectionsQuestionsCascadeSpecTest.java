@@ -18,7 +18,6 @@ import com.elicitsoftware.PostgresTestResource;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceException;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;
@@ -33,7 +32,6 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @QuarkusTest
 @QuarkusTestResource(PostgresTestResource.class)
-@Disabled("Enable once the sections_questions Type 2 migration lands — see research/Kimball_type_2.md 'Schema Changes Per Table -> sections_questions'")
 class SectionsQuestionsCascadeSpecTest {
 
     @Inject

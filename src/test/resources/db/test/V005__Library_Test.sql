@@ -720,7 +720,7 @@ RETURNING id INTO v_sq69;  -- sq69: Q69 TEXT alternate contact
 -- RELATIONSHIPS.
 --
 -- Columns: id, survey_id, upstream_step_id, upstream_sq_id,
---          downstream_step_id, downstream_sq_id, downstream_s_id,
+--          downstream_step_id, downstream_sq_id, downstream_ss_id,
 --          operator_id, action_id, token, description,
 --          reference_value, default_upstream_value
 --
@@ -747,23 +747,23 @@ RETURNING id INTO v_sq69;  -- sq69: Q69 TEXT alternate contact
 
 -- R18: Q37(sq37) BOOLEAN SHOW → Q38(sq38)
 --      Operator: BOOLEAN | Action: SHOW | Exercises: BOOLEAN op; show confirmation after terms checked
-INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_s_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
+INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_ss_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
 VALUES (NEXTVAL('survey.relationships_seq'), v_survey_id, v_step_welcome, v_sq37, NULL, v_sq38, NULL, 1, 1, NULL, 'Show terms-confirmed message when patron checks the agreement box', '', '');
 
 -- R19: Q37(sq37) BOOLEAN SHOW → Step: Patron / Section: Patron Information (ss_patron)
 --      Operator: BOOLEAN | Action: SHOW | Makes the Patron step visible when the patron accepts the terms.
---      Setting both downstream_step_id and downstream_s_id ensures buildDisplayKey uses the correct step
+--      Setting both downstream_step_id and downstream_ss_id ensures buildDisplayKey uses the correct step
 --      display order (2) so section answers are stored under the right display key. Filter 3 in
 --      getInitialStepSectionsQuestion excludes ss_patron questions from init(), saving DB space when
 --      the patron does not accept.
-INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_s_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
+INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_ss_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
 VALUES (NEXTVAL('survey.relationships_seq'), v_survey_id, v_step_welcome, v_sq37, v_step_patron, NULL, v_ss_patron, 1, 1, NULL, 'Show Patron step when patron accepts the terms of use', '', '');
 
 -- R20: Q37(sq37) BOOLEAN SHOW → Step: Preferences / Section: Collection Preferences (ss_collprefs)
 --      Operator: BOOLEAN | Action: SHOW | Makes the Preferences step visible when the patron accepts the terms.
---      Same pattern as R19 — both downstream_step_id and downstream_s_id are set so the display key
+--      Same pattern as R19 — both downstream_step_id and downstream_ss_id are set so the display key
 --      is correct and ss_collprefs questions are excluded from init() until Q37 fires.
-INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_s_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
+INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_ss_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
 VALUES (NEXTVAL('survey.relationships_seq'), v_survey_id, v_step_welcome, v_sq37, v_step_prefs, NULL, v_ss_collprefs, 1, 1, NULL, 'Show Preferences step when patron accepts the terms of use', '', '');
 
 -- R_em: Q41(sq41) FIELD_EXIST TEXT 'em' → ss_digital
@@ -771,27 +771,27 @@ VALUES (NEXTVAL('survey.relationships_seq'), v_survey_id, v_step_welcome, v_sq37
 --       replaceText(R_em) runs sectionSQL → finds ss_digital section header → stores Dependent.
 --       getSectionKeyValues(Q48) then resolves {EMAIL} from that Dependent when Q48 is shown.
 --       Operator: FIELD_EXIST | Action: TEXT | Token: EMAIL
-INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_s_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
+INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_ss_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
 VALUES (NEXTVAL('survey.relationships_seq'), v_survey_id, v_step_patron, v_sq41, NULL, 13, v_ss_digital, 5, 3, 'EMAIL', 'Substitute {EMAIL} token in Digital Access section with patron email address', '', '');
 
 -- R_phone: Q43(sq43) FIELD_EXIST TEXT 'phone' → ss_digital
 --          Same pattern as R_em. getSectionKeyValues(Q48b) resolves {PHONE} when Q48b is shown.
 --          Operator: FIELD_EXIST | Action: TEXT | Token: phone
-INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_s_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
+INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_ss_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
 VALUES (NEXTVAL('survey.relationships_seq'), v_survey_id, v_step_patron, v_sq43, NULL, 14, v_ss_digital, 5, 3, 'PHONE', 'Substitute {PHONE} token in Digital Access section with patron phone number', '', '');
 
 -- R21: Q45(sq45) EQUAL 'TRUE' SHOW → Digital Access section (ss_digital)
 --      Operator: EQUAL | Action: SHOW | Exercises: EQUAL op, conditional section show
-INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_s_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
+INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_ss_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
 VALUES (NEXTVAL('survey.relationships_seq'), v_survey_id, v_step_patron, v_sq45, NULL, NULL, v_ss_digital, 3, 1, NULL, 'Show Digital Access section when patron opts in to digital library', 'TRUE', '');
 
 -- R22: Q47(sq47) BOOLEAN SHOW → Q48(sq48)
 --      Operator: BOOLEAN | Action: SHOW | Exercises: second BOOLEAN SHOW (within conditional section)
-INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_s_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
+INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_ss_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
 VALUES (NEXTVAL('survey.relationships_seq'), v_survey_id, v_step_patron, v_sq47, NULL, v_sq48, NULL, 1, 1, NULL, 'Show email notification checkbox when patron opts in to arrival alerts', '', '');
 
 -- R22b: Q47(sq47) BOOLEAN SHOW → Q48b(sq48b)
-INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_s_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
+INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_ss_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
 VALUES (NEXTVAL('survey.relationships_seq'), v_survey_id, v_step_patron, v_sq47, NULL, v_sq48b, NULL, 1, 1, NULL, 'Show SMS notification checkbox when patron opts in to arrival alerts', '', '');
 
 -- R23: Q49(sq49) GREATER_THAN '0' REPEAT → Checkout section (ss_checkout) in CheckoutRequest step
@@ -799,49 +799,49 @@ VALUES (NEXTVAL('survey.relationships_seq'), v_survey_id, v_step_patron, v_sq47,
 --      downstream_step_id = v_step_checkout is required so:
 --        (a) buildRepeatedSections stores repeated instances under step 4 (not step 3 where Q49 lives), and
 --        (b) sqlStep filter 1 excludes ss_checkout from buildInitialStepAnswers (prevents phantom instance 0).
-INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_s_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
+INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_ss_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
 VALUES (NEXTVAL('survey.relationships_seq'), v_survey_id, v_step_prefs, v_sq49, v_step_checkout, NULL, v_ss_checkout, 2, 2, NULL, 'Repeat Checkout section once for each item the patron wants to check out', '0', '');
 
 -- R24: Q50(sq50) CONTAINS 'dvd' SHOW → Media Preferences section (ss_mediaprefs)
 --      Operator: CONTAINS | Action: SHOW | Exercises: CONTAINS on CHECKBOX_GROUP, conditional section
-INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_s_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
+INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_ss_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
 VALUES (NEXTVAL('survey.relationships_seq'), v_survey_id, v_step_prefs, v_sq50, NULL, NULL, v_ss_mediaprefs, 6, 1, NULL, 'Show Media Preferences section when DVDs are selected', 'dvd', '');
 
 -- R25: Q50(sq50) CONTAINS 'audiobook' SHOW → Q51(sq51)   [chain level 1 → 2]
 --      Operator: CONTAINS | Action: SHOW | Exercises: start of 3-level nested SHOW chain
-INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_s_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
+INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_ss_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
 VALUES (NEXTVAL('survey.relationships_seq'), v_survey_id, v_step_prefs, v_sq50, NULL, v_sq51, NULL, 6, 1, NULL, 'Show favorite narrator question when audio books are selected', 'audiobook', '');
 
 -- R26: Q51(sq51) FIELD_EXIST SHOW → Q52(sq52)   [chain level 2 → 3]
 --      Operator: FIELD_EXIST | Action: SHOW | Exercises: second link of 3-level nested chain
-INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_s_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
+INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_ss_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
 VALUES (NEXTVAL('survey.relationships_seq'), v_survey_id, v_step_prefs, v_sq51, NULL, v_sq52, NULL, 5, 1, NULL, 'Show preferred streaming service question once a narrator has been entered (nested chain L3)', '', '');
 
 -- R27: Q53(sq53) CONTAINS 'mystery' SHOW → Q54(sq54)
 --      Operator: CONTAINS | Action: SHOW | Exercises: CONTAINS on MULTI_SELECT, show TEXTAREA
-INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_s_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
+INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_ss_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
 VALUES (NEXTVAL('survey.relationships_seq'), v_survey_id, v_step_prefs, v_sq53, NULL, v_sq54, NULL, 6, 1, NULL, 'Show mystery author textarea when Mystery/Thriller genre is selected', 'mystery', '');
 
 -- R28: Q56(sq56) NOT_EQUAL 'never' SHOW → Q57(sq57)
 --      Operator: NOT_EQUAL | Action: SHOW | Exercises: NOT_EQUAL op; show branch for in-person visitors
-INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_s_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
+INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_ss_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
 VALUES (NEXTVAL('survey.relationships_seq'), v_survey_id, v_step_prefs, v_sq56, NULL, v_sq57, NULL, 4, 1, NULL, 'Show preferred branch question when patron visits at least rarely', 'never', '');
 
 -- R29: Q62(sq62) GREATER_THAN '0' REPEAT → Renewal section (ss_renewal) in Checkout step
 --      Operator: GREATER_THAN | Action: REPEAT | Exercises: REPEAT on section (within repeated section).
 --      downstream_step_id = v_step_checkout is required so repeated renewal instances land in step 4
 --      and sqlStep filter 1 excludes ss_renewal from buildInitialStepAnswers (prevents phantom instance 0).
-INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_s_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
+INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_ss_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
 VALUES (NEXTVAL('survey.relationships_seq'), v_survey_id, v_step_checkout, v_sq62, v_step_checkout, NULL, v_ss_renewal, 2, 2, NULL, 'Repeat Renewal section once for each renewal period the patron needs', '0', '');
 
 -- R30: Q63(sq63) NOT_EQUAL 'book' SHOW → Q64(sq64)
 --      Operator: NOT_EQUAL | Action: SHOW | Exercises: second NOT_EQUAL; show format notes for DVD/audio
-INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_s_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
+INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_ss_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
 VALUES (NEXTVAL('survey.relationships_seq'), v_survey_id, v_step_checkout, v_sq63, NULL, v_sq64, NULL, 4, 1, NULL, 'Show format/edition notes for DVDs, audio books, and eMagazines', 'book', '');
 
 -- R31: Q65(sq65) BOOLEAN SHOW → Q66(sq66)
 --      Operator: BOOLEAN | Action: SHOW | Exercises: third BOOLEAN SHOW (in repeated step context)
-INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_s_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
+INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, downstream_step_id, downstream_sq_id, downstream_ss_id, operator_id, action_id, token, description, reference_value, default_upstream_value)
 VALUES (NEXTVAL('survey.relationships_seq'), v_survey_id, v_step_checkout, v_sq65, NULL, v_sq66, NULL, 1, 1, NULL, 'Show hold instructions textarea when patron requests a hold', '', '');
 
 -- R32 and R33 removed: both had the upstream question (Q61/Q67) inside the downstream section (ss_checkout/ss_renewal).
@@ -922,39 +922,39 @@ RETURNING id INTO v_ont26;
 -- value = NULL → ETL uses the respondent's actual answer text_value.
 -- value = 'constant' → ETL uses the fixed string for every respondent (used for
 --                       step/section-level tags where the value is always the same).
--- Columns: id, survey_id, step_section_id, question_id, section_question_id, ontology_id, value
+-- Columns: id, survey_id, steps_sections_id, question_id, sections_question_id, ontology_id, value
 -- ============================================================
-INSERT INTO survey.metadata(id, survey_id, step_section_id, question_id, section_question_id, ontology_id, value)
+INSERT INTO survey.metadata(id, survey_id, steps_sections_id, question_id, sections_question_id, ontology_id, value)
 VALUES (NEXTVAL('survey.metadata_seq'), v_survey_id, NULL, NULL, v_sq37, v_ont16, 'Consented');  -- sq37 Q37 terms consent → terms_consent (constant: show 'Consented' not raw boolean)
 
-INSERT INTO survey.metadata(id, survey_id, step_section_id, question_id, section_question_id, ontology_id, value)
+INSERT INTO survey.metadata(id, survey_id, steps_sections_id, question_id, sections_question_id, ontology_id, value)
 VALUES (NEXTVAL('survey.metadata_seq'), v_survey_id, NULL, NULL, v_sq45, v_ont17, NULL);  -- sq45 Q45 digital access    → digital_access
 
-INSERT INTO survey.metadata(id, survey_id, step_section_id, question_id, section_question_id, ontology_id, value)
+INSERT INTO survey.metadata(id, survey_id, steps_sections_id, question_id, sections_question_id, ontology_id, value)
 VALUES (NEXTVAL('survey.metadata_seq'), v_survey_id, NULL, NULL, v_sq46, v_ont18, NULL);  -- sq46 Q46 ebook format      → ebook_format
 
-INSERT INTO survey.metadata(id, survey_id, step_section_id, question_id, section_question_id, ontology_id, value)
+INSERT INTO survey.metadata(id, survey_id, steps_sections_id, question_id, sections_question_id, ontology_id, value)
 VALUES (NEXTVAL('survey.metadata_seq'), v_survey_id, NULL, NULL, v_sq50, v_ont19, NULL);  -- sq50 Q50 media interest    → media_interest
 
-INSERT INTO survey.metadata(id, survey_id, step_section_id, question_id, section_question_id, ontology_id, value)
+INSERT INTO survey.metadata(id, survey_id, steps_sections_id, question_id, sections_question_id, ontology_id, value)
 VALUES (NEXTVAL('survey.metadata_seq'), v_survey_id, NULL, NULL, v_sq53, v_ont20, NULL);  -- sq53 Q53 literary genre    → literary_genre
 
-INSERT INTO survey.metadata(id, survey_id, step_section_id, question_id, section_question_id, ontology_id, value)
+INSERT INTO survey.metadata(id, survey_id, steps_sections_id, question_id, sections_question_id, ontology_id, value)
 VALUES (NEXTVAL('survey.metadata_seq'), v_survey_id, NULL, NULL, v_sq63, v_ont21, NULL);  -- sq63 Q63 item type         → item_type
 
-INSERT INTO survey.metadata(id, survey_id, step_section_id, question_id, section_question_id, ontology_id, value)
+INSERT INTO survey.metadata(id, survey_id, steps_sections_id, question_id, sections_question_id, ontology_id, value)
 VALUES (NEXTVAL('survey.metadata_seq'), v_survey_id, NULL, NULL, v_sq65, v_ont22, NULL);  -- sq65 Q65 hold request      → hold_request
 
-INSERT INTO survey.metadata(id, survey_id, step_section_id, question_id, section_question_id, ontology_id, value)
+INSERT INTO survey.metadata(id, survey_id, steps_sections_id, question_id, sections_question_id, ontology_id, value)
 VALUES (NEXTVAL('survey.metadata_seq'), v_survey_id, NULL, NULL, v_sq68, v_ont23, NULL);  -- sq68 Q68 pickup branch     → pickup_branch
 
-INSERT INTO survey.metadata(id, survey_id, step_section_id, question_id, section_question_id, ontology_id, value)
+INSERT INTO survey.metadata(id, survey_id, steps_sections_id, question_id, sections_question_id, ontology_id, value)
 VALUES (NEXTVAL('survey.metadata_seq'), v_survey_id, NULL, NULL, v_sq51, v_ont24, NULL);  -- sq51 Q51 favorite narrator → favorite_narrator
 
-INSERT INTO survey.metadata(id, survey_id, step_section_id, question_id, section_question_id, ontology_id, value)
+INSERT INTO survey.metadata(id, survey_id, steps_sections_id, question_id, sections_question_id, ontology_id, value)
 VALUES (NEXTVAL('survey.metadata_seq'), v_survey_id, NULL, NULL, v_sq55, v_ont25, NULL);  -- sq55 Q55 reading hours     → reading_hours
 
-INSERT INTO survey.metadata(id, survey_id, step_section_id, question_id, section_question_id, ontology_id, value)
+INSERT INTO survey.metadata(id, survey_id, steps_sections_id, question_id, sections_question_id, ontology_id, value)
 VALUES (NEXTVAL('survey.metadata_seq'), v_survey_id, NULL, NULL, v_sq61, v_ont26, NULL);  -- sq61 Q61 item title        → item_title
 
 -- ============================================================
@@ -986,79 +986,79 @@ VALUES (NEXTVAL('survey.post_survey_actions_seq'), v_survey_id,
 
 -- ============================================================
 -- SELECT ITEMS
--- Columns: id, survey_id, group_id, display_text, display_order, coded_value
+-- Columns: id, survey_id, select_group_id, display_text, display_order, coded_value
 -- ============================================================
 
 -- Group: YesNo --
-INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
 VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_yesno, 'Yes', 1, 'TRUE');
-INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
 VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_yesno, 'No',  2, 'FALSE');
 
 -- Group: MediaType — coded_values match CONTAINS reference_values in R24 and R25 --
-INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
 VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_mediatype, 'Books',       1, 'book');
-INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
 VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_mediatype, 'DVDs',        2, 'dvd');
-INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
 VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_mediatype, 'Audio Books', 3, 'audiobook');
-INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
 VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_mediatype, 'eBooks',      4, 'ebook');
 
 -- Group: LiteraryGenre — coded_value 'mystery' matches R27 reference_value --
-INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
 VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_literarygenre, 'Mystery / Thriller', 1, 'mystery');
-INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
 VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_literarygenre, 'Sci-Fi / Fantasy',   2, 'scifi');
-INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
 VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_literarygenre, 'Romance',            3, 'romance');
-INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
 VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_literarygenre, 'Non-Fiction',        4, 'nonfiction');
-INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
 VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_literarygenre, 'Biography',          5, 'biography');
-INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
 VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_literarygenre, 'History',            6, 'history');
 
 -- Group: PickupBranch — used by Q68 COMBOBOX in Renewal section --
-INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
 VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_pickupbranch, 'Main Branch',  1, 'main');
-INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
 VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_pickupbranch, 'North Branch', 2, 'north');
-INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
 VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_pickupbranch, 'South Branch', 3, 'south');
-INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
 VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_pickupbranch, 'East Branch',  4, 'east');
-INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
 VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_pickupbranch, 'West Branch',  5, 'west');
 
 -- Group: VisitFrequency — coded_value 'never' matches R28 reference_value --
-INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
 VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_visitfreq, 'Daily',   1, 'daily');
-INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
 VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_visitfreq, 'Weekly',  2, 'weekly');
-INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
 VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_visitfreq, 'Monthly', 3, 'monthly');
-INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
 VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_visitfreq, 'Rarely',  4, 'rarely');
-INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
 VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_visitfreq, 'Never',   5, 'never');
 
 -- Group: ItemType — coded_value 'book' matches R30 NOT_EQUAL reference_value --
-INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
 VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_itemtype, 'Book',       1, 'book');
-INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
 VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_itemtype, 'DVD',        2, 'dvd');
-INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
 VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_itemtype, 'Audio Book', 3, 'audiobook');
-INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
 VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_itemtype, 'eMagazine',  4, 'emagazine');
 
 -- Group: EbookFormat — used by Q46 COMBOBOX in Digital Access section --
-INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
 VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_ebookformat, 'EPUB', 1, 'epub');
-INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
 VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_ebookformat, 'PDF',  2, 'pdf');
-INSERT INTO survey.select_items(id, survey_id, group_id, display_text, display_order, coded_value)
+INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
 VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_ebookformat, 'MOBI', 3, 'mobi');
 
 END $$;

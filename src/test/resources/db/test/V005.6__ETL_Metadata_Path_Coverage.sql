@@ -12,7 +12,7 @@
 -- ETL fixture gap-fill: every metadata->answers join path exercised.
 --
 -- V005's 11 metadata rows all join through `section_question_id`. The
--- `question_id`-direct and `step_section_id` join paths used by
+-- `question_id`-direct and `steps_sections_id` join paths used by
 -- Sql.FIND_DIMENSTION_VALUES_SQL / Sql.FIND_MISSING_FACT_SECTION_DIMENSIONS_SQL
 -- had no fixture coverage at all. Two new tag-only (dimension = NULL)
 -- ontology entries are added here, each wired through one of the
@@ -38,14 +38,14 @@ DECLARE
 BEGIN
 
   -- Tag-only ontology entry (no survey.dimensions row) exercised via the
-  -- step_section_id join path. metadata.value is a constant, so the
+  -- steps_sections_id join path. metadata.value is a constant, so the
   -- resulting dimension value does not depend on which specific answer
   -- row (section header vs. question) within Welcome/Welcome matches.
   INSERT INTO survey.ontology(id, survey_id, name, tag, dimension)
   VALUES (NEXTVAL('survey.ontology_seq'), 1, 'Welcome Step Reached', 'welcome_reached', NULL)
   RETURNING id INTO v_ont_step_probe;
 
-  INSERT INTO survey.metadata(id, survey_id, step_section_id, question_id, section_question_id, ontology_id, value)
+  INSERT INTO survey.metadata(id, survey_id, steps_sections_id, question_id, sections_question_id, ontology_id, value)
   VALUES (NEXTVAL('survey.metadata_seq'), 1, 1, NULL, NULL, v_ont_step_probe, 'WelcomeStepReached');
 
   -- Tag-only ontology entry exercised via the question_id-direct join
@@ -55,7 +55,7 @@ BEGIN
   VALUES (NEXTVAL('survey.ontology_seq'), 1, 'Terms Consent Direct Probe', 'terms_consent_direct_probe', NULL)
   RETURNING id INTO v_ont_question_probe;
 
-  INSERT INTO survey.metadata(id, survey_id, step_section_id, question_id, section_question_id, ontology_id, value)
+  INSERT INTO survey.metadata(id, survey_id, steps_sections_id, question_id, sections_question_id, ontology_id, value)
   VALUES (NEXTVAL('survey.metadata_seq'), 1, NULL, 2, NULL, v_ont_question_probe, NULL);
 
 END $$;
