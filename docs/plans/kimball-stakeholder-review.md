@@ -80,14 +80,13 @@ someone deliberately re-runs an analysis with the new mapping?
 
 ---
 
-## What happens next
+## Outcome
 
-- If both behaviors are acceptable as described: no further work needed here — this
-  document can be filed as the record of that decision.
-- If either behavior needs to change: that requires new engineering work (the system
-  would need to start keeping a dated history of category assignments, similar to what
-  it already does for question wording) — flag which one(s) need to change and this can
-  be scoped as a follow-up.
+Both behaviors were reviewed and accepted as described — see the sign-off table below.
+No further engineering work is required for either one. If that decision is ever
+revisited, changing either behavior would require new work (the system would need to
+start keeping a dated history of category assignments, similar to what it already does
+for question wording).
 
 **Reference for engineers:** this reflects Gap ETL-1 and Gap ETL-5 in
 `Survey/research/Kimball_type_2.md`, called out in that document's "Implementation
@@ -95,4 +94,4 @@ Readiness Notes" as needing this sign-off before being treated as fully closed.
 
 | Reviewer | Role | Decision | Date |
 |---|---|---|---|
-| | | ☐ Both acceptable as-is  ☐ Behavior 1 needs to change  ☐ Behavior 2 needs to change | |
+| Matthew Demerath | | ☑ Both acceptable as-is  ☐ Behavior 1 needs to change  ☐ Behavior 2 needs to change | 2026-09-12 |
