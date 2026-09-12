@@ -14,6 +14,8 @@ package com.elicitsoftware.model;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 
+import java.time.OffsetDateTime;
+
 /**
  * Represents a mapping between sections and questions in the "sections_questions" table
  * within the "survey" schema. This entity is used to associate a question with a specific
@@ -41,14 +43,52 @@ public class SectionsQuestion extends PanacheEntityBase {
     @Column(name = "display_order", nullable = false, precision = 3)
     public Integer displayOrder;
 
+    // sections_questions.question_id now holds the durable questions.question_id
+    // (Kimball Type 2 SCD retarget), not questions.id — referencedColumnName must
+    // point at that durable column or this association silently matches nothing.
     @ManyToOne
-    @JoinColumn(name = "question_id", nullable = false)
+    @JoinColumn(name = "question_id", referencedColumnName = "question_id", nullable = false)
     public Question question;
 
+    // section_id is now the durable sections.section_id (Kimball Type 2 SCD retarget);
+    // kept as a plain column (not an association) since callers only ever use it as an
+    // opaque id for native-SQL joins, never navigate it as a Section object.
     @Column(name = "section_id", nullable = false, precision = 20)
     public Integer sectionId;
 
     @Column(name = "survey_id", nullable = false, precision = 20)
     public Integer surveyId;
+
+    // Kimball Type 2 SCD (research/Kimball_type_2.md) — sections_question_id is the
+    // durable key that survives re-versioning; id (above) is the surrogate, per-version
+    // row id, and is what answers.section_question_id pins to at response time.
+    @Column(name = "sections_question_id", nullable = false)
+    public Integer sectionsQuestionId;
+
+    @Column(name = "version", nullable = false)
+    public Integer version = 0;
+
+    @Column(name = "effective_from")
+    public OffsetDateTime effectiveFrom;
+
+    @Column(name = "effective_to")
+    public OffsetDateTime effectiveTo;
+
+    @Column(name = "is_draft", nullable = false)
+    public boolean isDraft = false;
+
+    @Column(name = "published_by")
+    public String publishedBy;
+
+    @Column(name = "published_comment")
+    public String publishedComment;
+
+    // FK-companion columns pinning the referenced rows to their entity-existence checks
+    // (always 0 — see research/Kimball_type_2.md's "Resolving the FK Cascade Problem").
+    @Column(name = "question_version", nullable = false)
+    public Integer questionVersion = 0;
+
+    @Column(name = "section_version", nullable = false)
+    public Integer sectionVersion = 0;
 
 }

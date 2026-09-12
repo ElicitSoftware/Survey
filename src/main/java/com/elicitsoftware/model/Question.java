@@ -14,6 +14,8 @@ package com.elicitsoftware.model;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 
+import java.time.OffsetDateTime;
+
 
 /**
  * The Question class represents a survey question entity stored in the "questions" table
@@ -89,11 +91,43 @@ public class Question extends PanacheEntityBase {
     @JoinColumn(name = "type_id", nullable = false)
     public QuestionType questionType;
 
-    //uni-directional many-to-one association to SelectGroup
+    // uni-directional many-to-one association to SelectGroup.
+    // questions.select_group_id now holds the durable select_groups.select_group_id
+    // (Kimball Type 2 SCD retarget), not select_groups.id — referencedColumnName must
+    // point at that durable column or this association silently matches nothing.
     @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "select_group_id")
+    @JoinColumn(name = "select_group_id", referencedColumnName = "select_group_id")
     public SelectGroup selectGroup;
 
     @Column(name = "variant", length = 255)
     public String variant;
+
+    // Kimball Type 2 SCD (research/Kimball_type_2.md) — question_id is the durable key
+    // that survives re-versioning; id (above) is the surrogate, per-version row id, and
+    // is what answers.question_id pins to at response time.
+    @Column(name = "question_id", nullable = false)
+    public Integer questionId;
+
+    @Column(name = "version", nullable = false)
+    public Integer version = 0;
+
+    @Column(name = "effective_from")
+    public OffsetDateTime effectiveFrom;
+
+    @Column(name = "effective_to")
+    public OffsetDateTime effectiveTo;
+
+    @Column(name = "is_draft", nullable = false)
+    public boolean isDraft = false;
+
+    @Column(name = "published_by")
+    public String publishedBy;
+
+    @Column(name = "published_comment")
+    public String publishedComment;
+
+    // FK-companion column pinning the referenced select_groups row to its entity-existence
+    // check (always 0 — see research/Kimball_type_2.md's "Resolving the FK Cascade Problem").
+    @Column(name = "select_group_version", nullable = false)
+    public Integer selectGroupVersion = 0;
 }

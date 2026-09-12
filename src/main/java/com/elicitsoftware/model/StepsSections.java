@@ -16,6 +16,7 @@ import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import io.quarkus.panache.common.Parameters;
 import jakarta.persistence.*;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
 /**
@@ -66,15 +67,20 @@ public class StepsSections extends PanacheEntityBase {
     @Column(name = "survey_id", nullable = false, precision = 20)
     public Integer surveyId;
 
+    // steps_sections.step_id now holds the durable steps.step_id (Kimball Type 2 SCD
+    // retarget), not steps.id — referencedColumnName must point at that durable column
+    // or this association silently matches nothing.
     @ManyToOne
-    @JoinColumn(name = "step_id", nullable = false)
+    @JoinColumn(name = "step_id", referencedColumnName = "step_id", nullable = false)
     public Step step;
 
     @Column(name = "step_display_order", nullable = false, precision = 4)
     public Integer stepDisplayOrder;
 
+    // steps_sections.section_id now holds the durable sections.section_id (Kimball Type 2
+    // SCD retarget), not sections.id — same referencedColumnName requirement as step above.
     @ManyToOne
-    @JoinColumn(name = "section_id", nullable = false)
+    @JoinColumn(name = "section_id", referencedColumnName = "section_id", nullable = false)
     public Section section;
 
     @Column(name = "section_display_order", nullable = false, precision = 4)
@@ -83,20 +89,42 @@ public class StepsSections extends PanacheEntityBase {
     @Column(name = "display_key", nullable = false, length = 34)
     public String displaykey;
 
+    // Kimball Type 2 SCD (research/Kimball_type_2.md) — steps_sections_id is the durable
+    // key that survives re-versioning; id (above) is the surrogate, per-version row id.
+    @Column(name = "steps_sections_id", nullable = false)
+    public Integer stepsSectionsId;
+
+    @Column(name = "version", nullable = false)
+    public Integer version = 0;
+
+    @Column(name = "effective_from")
+    public OffsetDateTime effectiveFrom;
+
+    @Column(name = "effective_to")
+    public OffsetDateTime effectiveTo;
+
+    @Column(name = "is_draft", nullable = false)
+    public boolean isDraft = false;
+
+    @Column(name = "published_by")
+    public String publishedBy;
+
+    @Column(name = "published_comment")
+    public String publishedComment;
+
+    // FK-companion columns pinning the referenced rows to their entity-existence checks
+    // (always 0 — see research/Kimball_type_2.md's "Resolving the FK Cascade Problem").
+    @Column(name = "step_version", nullable = false)
+    public Integer stepVersion = 0;
+
+    @Column(name = "section_version", nullable = false)
+    public Integer sectionVersion = 0;
+
     @Transient
     private DisplayKey key;
 
-    public static List<StepsSections> findByDisplayKeyQuery(String key) {
-        return find("#StepsSections.findByDisplayKeyQuery", Parameters.with("displaykey", key)).list();
-    }
-
-    public static StepsSections findFirstByDisplayKeyQuery(String key) {
-        return find("#StepsSections.findByDisplayKeyQuery", Parameters.with("displaykey", key)).firstResult();
-    }
-
     public static StepsSections findByDisplayKey(DisplayKey key) {
-        StepsSections stepsSections = find("#StepsSections.findByDisplayKey", Parameters.with("displaykey", key.getValue())).firstResult();
-        return stepsSections;
+        return find("#StepsSections.findByDisplayKey", Parameters.with("displaykey", key.getValue())).firstResult();
     }
 
     public static List<StepsSections> findBySurveyId(int surveyId) {
@@ -104,37 +132,56 @@ public class StepsSections extends PanacheEntityBase {
     }
 
     /**
-     * Optimized query that fetches StepsSections with Step and Section relationships
-     * in a single query to avoid N+1 problems. Use this instead of findBySurveyId()
-     * when you need to access step and section details.
+     * Snapshot-anchored (research/Kimball_type_2.md) variant of findByDisplayKeyQuery:
+     * resolves only the steps_sections row whose effective window covers {@code asOf}
+     * (the respondent's firstAccessDt, or NOW() for a brand-new respondent).
+     */
+    public static List<StepsSections> findByDisplayKeyQueryAsOf(String key, OffsetDateTime asOf) {
+        return find("displaykey like ?1 and effectiveFrom <= ?2 and effectiveTo > ?2 order by displaykey",
+                key, asOf).list();
+    }
+
+    public static StepsSections findFirstByDisplayKeyQueryAsOf(String key, OffsetDateTime asOf) {
+        return find("displaykey like ?1 and effectiveFrom <= ?2 and effectiveTo > ?2 order by displaykey",
+                key, asOf).firstResult();
+    }
+
+    /**
+     * Snapshot-anchored (research/Kimball_type_2.md) variant of findBySurveyIdWithJoins:
+     * resolves only steps_sections rows whose effective window covers {@code asOf}
+     * (the respondent's firstAccessDt, or NOW() for a brand-new respondent). Also fetches
+     * Step and Section relationships in a single query to avoid N+1 problems.
      *
      * @param surveyId the ID of the survey
+     * @param asOf     the snapshot instant to resolve structural rows as of
      * @return list of StepsSections with eager-loaded step and section relationships
      */
-    public static List<StepsSections> findBySurveyIdWithJoins(int surveyId) {
+    public static List<StepsSections> findBySurveyIdWithJoinsAsOf(int surveyId, OffsetDateTime asOf) {
         return find("SELECT DISTINCT ss FROM StepsSections ss " +
                     "LEFT JOIN FETCH ss.step " +
                     "LEFT JOIN FETCH ss.section " +
-                    "WHERE ss.surveyId = :surveyId " +
-                    "ORDER BY ss.displaykey", 
-                    Parameters.with("surveyId", surveyId))
+                    "WHERE ss.surveyId = ?1 AND ss.effectiveFrom <= ?2 AND ss.effectiveTo > ?2 " +
+                    "ORDER BY ss.displaykey",
+                    surveyId, asOf)
                 .list();
     }
 
     /**
-     * Optimized query that fetches a single StepsSections with Step and Section relationships
-     * in a single query to avoid N+1 problems. Use this instead of findByDisplayKey()
-     * when you need to access step and section details.
+     * Snapshot-anchored (research/Kimball_type_2.md) variant of findByDisplayKeyWithJoins:
+     * resolves only the steps_sections row whose effective window covers {@code asOf}
+     * (the respondent's firstAccessDt, or NOW() for a brand-new respondent). Also fetches
+     * Step and Section relationships in a single query to avoid N+1 problems.
      *
-     * @param key the DisplayKey to search for
+     * @param key  the DisplayKey to search for
+     * @param asOf the snapshot instant to resolve structural rows as of
      * @return StepsSections with eager-loaded step and section relationships
      */
-    public static StepsSections findByDisplayKeyWithJoins(DisplayKey key) {
+    public static StepsSections findByDisplayKeyWithJoinsAsOf(DisplayKey key, OffsetDateTime asOf) {
         return find("SELECT ss FROM StepsSections ss " +
                     "LEFT JOIN FETCH ss.step " +
                     "LEFT JOIN FETCH ss.section " +
-                    "WHERE ss.displaykey = :displaykey", 
-                    Parameters.with("displaykey", key.getValue()))
+                    "WHERE ss.displaykey = ?1 AND ss.effectiveFrom <= ?2 AND ss.effectiveTo > ?2",
+                    key.getValue(), asOf)
                 .firstResult();
     }
 

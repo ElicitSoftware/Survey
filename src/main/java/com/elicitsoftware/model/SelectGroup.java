@@ -14,6 +14,7 @@ package com.elicitsoftware.model;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
 
@@ -54,8 +55,34 @@ public class SelectGroup extends PanacheEntityBase {
     @Column(length = 255)
     public String name;
 
+    // Kimball Type 2 SCD (research/Kimball_type_2.md) — select_group_id is the durable key
+    // that survives re-versioning; id (above) is the surrogate, per-version row id.
+    @Column(name = "select_group_id", nullable = false)
+    public Integer selectGroupId;
+
+    @Column(name = "version", nullable = false)
+    public Integer version = 0;
+
+    @Column(name = "effective_from")
+    public OffsetDateTime effectiveFrom;
+
+    @Column(name = "effective_to")
+    public OffsetDateTime effectiveTo;
+
+    @Column(name = "is_draft", nullable = false)
+    public boolean isDraft = false;
+
+    @Column(name = "published_by")
+    public String publishedBy;
+
+    @Column(name = "published_comment")
+    public String publishedComment;
+
+    // select_items.select_group_id now holds the durable select_group_id (not
+    // select_groups.id) — referencedColumnName must point at that durable column,
+    // not the default surrogate @Id, or this association silently matches nothing.
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
-    @JoinColumn(name = "select_group_id")
+    @JoinColumn(name = "select_group_id", referencedColumnName = "select_group_id")
     @OrderBy("displayOrder ASC")
     public List<SelectItem> selectItems;
 }

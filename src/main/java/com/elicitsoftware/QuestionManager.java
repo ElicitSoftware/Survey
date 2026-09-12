@@ -23,6 +23,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import jakarta.transaction.Transactional;
 
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -131,6 +132,22 @@ public class QuestionManager {
     }
 
     /**
+     * Resolves the snapshot instant (research/Kimball_type_2.md, "Snapshot Anchor") that
+     * structural queries (questions, sections, steps, relationships, ...) must be resolved
+     * as of for the given respondent: their {@code firstAccessDt} once set, or NOW() for a
+     * brand-new respondent who has not yet been anchored. This guarantees a respondent stays
+     * pinned to the survey definition as it existed when they first accessed it, even if a
+     * researcher publishes a new version of a question/section/relationship afterward.
+     *
+     * @param respondentId the respondent whose snapshot instant is being resolved
+     * @return the timestamp to bind against every {@code effective_from}/{@code effective_to} guard
+     */
+    private OffsetDateTime resolveAsOf(int respondentId) {
+        Respondent respondent = Respondent.findById(respondentId);
+        return (respondent != null && respondent.firstAccessDt != null) ? respondent.firstAccessDt : OffsetDateTime.now();
+    }
+
+    /**
      * Initializes the initial answers for a specified respondent based on the survey steps
      * associated with the given key.
      *
@@ -142,8 +159,10 @@ public class QuestionManager {
 
         DisplayKey displaykey = new DisplayKey(key);
 
-        // Use optimized query with joins to avoid N+1 problem
-        List<StepsSections> steps = StepsSections.findBySurveyIdWithJoins(displaykey.getSurvey());
+        // Use optimized query with joins to avoid N+1 problem. Snapshot-anchored (research/
+        // Kimball_type_2.md) to this respondent's firstAccessDt so they stay pinned to the
+        // survey definition as it existed when they first accessed it.
+        List<StepsSections> steps = StepsSections.findBySurveyIdWithJoinsAsOf(displaykey.getSurvey(), resolveAsOf(respondentId));
         for (StepsSections step : steps) {
             buildInitialAnswers(respondentId, step.getKey());
         }
@@ -194,16 +213,18 @@ public class QuestionManager {
      * attempts to find and return the associated Section from the database.
      * If no matching Section is found or an exception occurs, null is returned.
      *
+     * @param respondentId the respondent whose snapshot instant this lookup is anchored to
      * @param key the display key used to locate the associated Section
      * @return the Section object corresponding to the provided display key,
      * or null if no match is found or an exception occurs
      */
-    private Section getSectionByDisplayKey(String key) {
+    private Section getSectionByDisplayKey(int respondentId, String key) {
         DisplayKey dkey = new DisplayKey(key);
         dkey.setStepInstance(0);
         try {
-            // Use optimized query with joins to avoid N+1 problem
-            StepsSections stepsSections = StepsSections.findByDisplayKeyWithJoins(dkey);
+            // Use optimized query with joins to avoid N+1 problem. Snapshot-anchored
+            // (research/Kimball_type_2.md) to this respondent's firstAccessDt.
+            StepsSections stepsSections = StepsSections.findByDisplayKeyWithJoinsAsOf(dkey, resolveAsOf(respondentId));
             return stepsSections.section;
         } catch (Exception e) {
             // There may not be one in the database. Return the null value;
@@ -216,19 +237,21 @@ public class QuestionManager {
      * The method queries the database using the provided DisplayKey to find the step.
      * It handles potential exceptions, such as missing data, and returns null if no matching step is found.
      *
+     * @param respondentId the respondent whose snapshot instant this lookup is anchored to
      * @param key the DisplayKey used to locate the step. The key contains identifiers
      *            for querying either a section or step in the database.
      * @return the Step object corresponding to the provided DisplayKey, or null if no matching step is found
      * or an exception occurs.
      */
-    private Step getStepByDisplayKey(DisplayKey key) {
+    private Step getStepByDisplayKey(int respondentId, DisplayKey key) {
 
         StepsSections stepsSections;
         try {
+            OffsetDateTime asOf = resolveAsOf(respondentId);
             if (key.getSection() != 0) {
-                stepsSections = StepsSections.findFirstByDisplayKeyQuery(key.getSectionQueryString());
+                stepsSections = StepsSections.findFirstByDisplayKeyQueryAsOf(key.getSectionQueryString(), asOf);
             } else {
-                stepsSections = StepsSections.findFirstByDisplayKeyQuery(key.getStepQueryString());
+                stepsSections = StepsSections.findFirstByDisplayKeyQueryAsOf(key.getStepQueryString(), asOf);
             }
         } catch (Exception e) {
             // There may not be one in the database. Return the null value;
@@ -264,7 +287,7 @@ public class QuestionManager {
         navItems = ls.toArray(navItems);
         NavigationItem curreNavItem = getCurrentNavItem(navItems, sectionDisplaykey);
 
-        Step step = getStepByDisplayKey(key);
+        Step step = getStepByDisplayKey(respondentId, key);
 
         return new NavResponse(step, curreNavItem, answers, navItems);
     }
@@ -339,20 +362,30 @@ public class QuestionManager {
         // or downstream step.
         ArrayList<SectionsQuestion> sectionsQuestions = new ArrayList<>();
 
+        // SS.ID/SQ.ID below are replaced with SS.steps_sections_id/SQ.sections_question_id
+        // (the durable keys) wherever compared against R.DOWNSTREAM_SS_ID/R.DOWNSTREAM_SQ_ID —
+        // those relationship columns were retargeted to durable ids by the Kimball Type 2 SCD
+        // migration (research/Kimball_type_2.md), while SS.ID/SQ.ID remain each row's surrogate,
+        // per-version id. EFFECTIVE_FROM/EFFECTIVE_TO guards snapshot-anchor the resolution to
+        // this respondent's firstAccessDt so they stay pinned to what they first saw.
         String sqlStep = "SELECT SQ.ID, SQ.DISPLAY_ORDER FROM SURVEY.SECTIONS_QUESTIONS SQ "
                 + "JOIN SURVEY.STEPS_SECTIONS SS ON SQ.SECTION_ID = SS.SECTION_ID AND SQ.SURVEY_ID = SS.SURVEY_ID "
                 + "WHERE SS.SURVEY_ID = :surveyId AND SS.STEP_ID = :stepId AND SS.SECTION_DISPLAY_ORDER = :displayOrder "
-                + "AND SS.ID NOT IN (SELECT R.DOWNSTREAM_SS_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.DOWNSTREAM_STEP_ID = SS.STEP_ID AND R.DOWNSTREAM_SQ_ID IS NULL AND R.DOWNSTREAM_SS_ID IS NOT NULL AND R.ACTION_ID != 3) "
-                + "AND Sq.id NOT IN (SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.UPSTREAM_STEP_ID = SS.STEP_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_SS_ID IS NOT NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL) "
+                + "AND SS.EFFECTIVE_FROM <= :asOf AND SS.EFFECTIVE_TO > :asOf "
+                + "AND SQ.EFFECTIVE_FROM <= :asOf AND SQ.EFFECTIVE_TO > :asOf "
+                + "AND SS.STEPS_SECTIONS_ID NOT IN (SELECT R.DOWNSTREAM_SS_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.DOWNSTREAM_STEP_ID = SS.STEP_ID AND R.DOWNSTREAM_SQ_ID IS NULL AND R.DOWNSTREAM_SS_ID IS NOT NULL AND R.ACTION_ID != 3 AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf) "
+                + "AND Sq.SECTIONS_QUESTION_ID NOT IN (SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.UPSTREAM_STEP_ID = SS.STEP_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_SS_ID IS NOT NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf) "
                 + "order by SQ.DISPLAY_ORDER";
 
         String sqlSection = "SELECT SQ.ID, SQ.DISPLAY_ORDER FROM SURVEY.SECTIONS_QUESTIONS SQ "
                 + "JOIN SURVEY.STEPS_SECTIONS SS ON SQ.SECTION_ID = SS.SECTION_ID AND SQ.SURVEY_ID = SS.SURVEY_ID "
                 + "WHERE SS.SURVEY_ID = :surveyId AND SS.STEP_ID = :stepId AND SS.SECTION_DISPLAY_ORDER = :displayOrder "
-                + "AND Sq.id NOT IN ( "
-                + "SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.UPSTREAM_STEP_ID = SS.STEP_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_SS_ID IS NOT NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL "
+                + "AND SS.EFFECTIVE_FROM <= :asOf AND SS.EFFECTIVE_TO > :asOf "
+                + "AND SQ.EFFECTIVE_FROM <= :asOf AND SQ.EFFECTIVE_TO > :asOf "
+                + "AND Sq.SECTIONS_QUESTION_ID NOT IN ( "
+                + "SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.UPSTREAM_STEP_ID = SS.STEP_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_SS_ID IS NOT NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf "
                 + "UNION "
-                + "SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_SS_ID IS NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL) "
+                + "SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_SS_ID IS NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf) "
                 + "order by SQ.DISPLAY_ORDER";
 
         Query q;
@@ -366,6 +399,7 @@ public class QuestionManager {
         q.setParameter("surveyId", key.getSurvey());
         q.setParameter("stepId", key.getStep());
         q.setParameter("displayOrder", key.getSection());
+        q.setParameter("asOf", resolveAsOf(respondentId));
 
         @SuppressWarnings("unchecked")
         List<Object[]> rs = q.getResultList();
@@ -401,12 +435,22 @@ public class QuestionManager {
         // section
         // or downstream step.
         ArrayList<SectionsQuestion> sectionsQuestions = new ArrayList<>();
+        // S.ID NOT IN (...R.DOWNSTREAM_SQ_ID...) and the nested SS.ID = R.DOWNSTREAM_SS_ID join
+        // are replaced with the durable S.SECTIONS_QUESTION_ID / SS.STEPS_SECTIONS_ID columns —
+        // R.DOWNSTREAM_SQ_ID/R.DOWNSTREAM_SS_ID were retargeted to durable ids by the Kimball
+        // Type 2 SCD migration (research/Kimball_type_2.md). The A.SECTION_QUESTION_ID = S.ID
+        // and SS.STEP_ID = R.DOWNSTREAM_STEP_ID comparisons are unaffected — the former compares
+        // two surrogate ids (answers pin the exact surrogate row), the latter compares two
+        // already-durable ids. EFFECTIVE_FROM/EFFECTIVE_TO guards snapshot-anchor the
+        // resolution to this respondent's firstAccessDt.
         String sql = "SELECT S.ID, S.DISPLAY_ORDER " + "FROM SURVEY.SECTIONS_QUESTIONS S "
                 + "Join SURVEY.STEPS_SECTIONS SS on S.SECTION_ID = SS.SECTION_ID AND S.SURVEY_ID = SS.SURVEY_ID "
                 + "WHERE SS.SURVEY_ID = :surveyId AND SS.STEP_DISPLAY_ORDER = :stepDisplayOrder "
-                + "AND S.ID NOT IN (SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.DOWNSTREAM_SQ_ID IS NOT NULL) "
+                + "AND SS.EFFECTIVE_FROM <= :asOf AND SS.EFFECTIVE_TO > :asOf "
+                + "AND S.EFFECTIVE_FROM <= :asOf AND S.EFFECTIVE_TO > :asOf "
+                + "AND S.SECTIONS_QUESTION_ID NOT IN (SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.DOWNSTREAM_SQ_ID IS NOT NULL AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf) "
                 + "AND S.ID NOT IN (SELECT A.SECTION_QUESTION_ID FROM SURVEY.Answers A WHERE A.RESPONDENT_ID = :respondentId and A.SECTION_QUESTION_ID = S.ID ) "
-                + "AND S.ID NOT IN (SELECT SQ.ID from SURVEY.SECTIONS_QUESTIONS SQ JOIN SURVEY.STEPS_SECTIONS SS on SQ.SECTION_ID = SS.SECTION_ID JOIN SURVEY.RELATIONSHIPS R ON SS.ID = R.DOWNSTREAM_SS_ID WHERE R.DOWNSTREAM_SS_ID IS NOT NULL) "
+                + "AND S.ID NOT IN (SELECT SQ.ID from SURVEY.SECTIONS_QUESTIONS SQ JOIN SURVEY.STEPS_SECTIONS SS on SQ.SECTION_ID = SS.SECTION_ID JOIN SURVEY.RELATIONSHIPS R ON SS.STEPS_SECTIONS_ID = R.DOWNSTREAM_SS_ID WHERE R.DOWNSTREAM_SS_ID IS NOT NULL AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf) "
                 + "AND S.ID NOT IN (SELECT T.ID FROM SURVEY.SECTIONS_QUESTIONS T JOIN SURVEY.STEPS_SECTIONS SS ON T.SECTION_ID = SS.SECTION_ID JOIN SURVEY.RELATIONSHIPS R ON SS.STEP_ID = R.DOWNSTREAM_STEP_ID) "
                 + "order by S.DISPLAY_ORDER";
 
@@ -416,6 +460,7 @@ public class QuestionManager {
         q.setParameter("surveyId", key.getSurvey());
         q.setParameter("respondentId", respondentId);
         q.setParameter("stepDisplayOrder", key.getStep());
+        q.setParameter("asOf", resolveAsOf(respondentId));
 
         @SuppressWarnings("unchecked")
         List<Object[]> rs = q.getResultList();
@@ -491,7 +536,7 @@ public class QuestionManager {
         Answer sectionAanswer = getAnswerByDisplayKey(respondentId, key, true);
         if (sectionAanswer == null) {
 
-            Section section = getSectionByDisplayKey(key);
+            Section section = getSectionByDisplayKey(respondentId, key);
             assert section != null;
             Answer answer = new Answer(new DisplayKey(key), null, section.name, respondentId);
             saveAnswer(answer, dependents);
@@ -513,11 +558,11 @@ public class QuestionManager {
                                  HashMap<Integer, Dependent> dependents) {
 
         DisplayKey dkey = new DisplayKey(key);
-        Step step = getStepByDisplayKey(dkey);
+        Step step = getStepByDisplayKey(upstream.respondentId, dkey);
         assert step != null;
         Answer answer = new Answer(dkey, null, step.name, upstream.respondentId);
         // Find upstream relationships by downstream section id
-        List<Relationship> relationships = Relationship.findRepeatByDownstreamStep(dkey.getSurvey(), dkey.getStep());
+        List<Relationship> relationships = Relationship.findRepeatByDownstreamStep(dkey.getSurvey(), dkey.getStep(), resolveAsOf(upstream.respondentId));
         Answer a;
         Dependent dependent;
         for (Relationship r : relationships) {
@@ -682,12 +727,17 @@ public class QuestionManager {
     private ArrayList<Answer> getDownstreamSectionAnswers(Relationship relationship, Integer respondentId) {
         ArrayList<Answer> answers = new ArrayList<>();
 
-        // SS.STEP_ID is now a durable step reference (Kimball Type 2 SCD retarget), not a
-        // display-order value — join on STEP_DISPLAY_ORDER instead, matching the section side.
-        String sql = "SELECT A.ID FROM survey.RELATIONSHIPS R " + " JOIN survey.STEPS_SECTIONS SS ON R.DOWNSTREAM_SS_ID = SS.ID "
+        // R.DOWNSTREAM_SS_ID is now the durable steps_sections_id (Kimball Type 2 SCD
+        // retarget) — join on SS.STEPS_SECTIONS_ID, not the surrogate SS.ID. SS.STEP_ID is
+        // likewise durable, not a display-order value — join the ANSWERS row on
+        // STEP_DISPLAY_ORDER/SECTION_DISPLAY_ORDER instead. EFFECTIVE_FROM/EFFECTIVE_TO guards
+        // snapshot-anchor the resolution to this respondent's firstAccessDt.
+        String sql = "SELECT A.ID FROM survey.RELATIONSHIPS R " + " JOIN survey.STEPS_SECTIONS SS ON R.DOWNSTREAM_SS_ID = SS.STEPS_SECTIONS_ID "
                 + " JOIN survey.ANSWERS A ON SS.STEP_DISPLAY_ORDER = A.STEP AND SS.SECTION_DISPLAY_ORDER = A.SECTION "
                 + " WHERE A.DELETED = false AND R.SURVEY_ID = :surveyId" + " AND A.SURVEY_ID = :surveyId"
                 + " AND A.RESPONDENT_ID = :respondentId" + " AND R.ID = :rid"
+                + " AND SS.EFFECTIVE_FROM <= :asOf AND SS.EFFECTIVE_TO > :asOf"
+                + " AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf"
                 + " ORDER BY A.DISPLAY_KEY";
 
         //entityManager.joinTransaction();
@@ -695,6 +745,7 @@ public class QuestionManager {
         q.setParameter("surveyId", relationship.surveyId);
         q.setParameter("respondentId", respondentId);
         q.setParameter("rid", relationship.id);
+        q.setParameter("asOf", resolveAsOf(respondentId));
 
         @SuppressWarnings("unchecked")
         List<Integer> rs = q.getResultList();
@@ -719,10 +770,15 @@ public class QuestionManager {
      */
     private void replaceText(Relationship relationship, Answer upstreamAnswer) {
 
-        // SS.STEP_ID is now a durable step reference (Kimball Type 2 SCD retarget) — join on
-        // STEP_DISPLAY_ORDER instead, matching the section side (see getDownstreamSectionAnswers above).
-        String sectionSQL = "SELECT A.ID,  A.SECTION, A.SECTION_QUESTION_ID FROM survey.RELATIONSHIPS R JOIN survey.STEPS_SECTIONS SS ON R.DOWNSTREAM_SS_ID = SS.ID JOIN survey.ANSWERS A ON SS.STEP_DISPLAY_ORDER = A.STEP AND SS.SECTION_DISPLAY_ORDER = A.SECTION WHERE A.DELETED = false AND R.ID = :rid AND A.RESPONDENT_ID = :respondentId ORDER BY A.DISPLAY_KEY";
-        String questionSQL = "SELECT A.ID,  A.SECTION, A.SECTION_QUESTION_ID FROM survey.RELATIONSHIPS R JOIN survey.SECTIONS_QUESTIONS SQ ON R.DOWNSTREAM_SQ_ID = SQ.ID JOIN survey.ANSWERS A ON SQ.ID = A.SECTION_QUESTION_ID WHERE A.DELETED = false AND R.ID = :rid AND A.RESPONDENT_ID = :respondentId ORDER BY A.DISPLAY_KEY";
+        // R.DOWNSTREAM_SS_ID/R.DOWNSTREAM_SQ_ID are now durable ids (Kimball Type 2 SCD
+        // retarget) — join on SS.STEPS_SECTIONS_ID / SQ.SECTIONS_QUESTION_ID, not the surrogate
+        // SS.ID/SQ.ID. SS.STEP_ID is likewise durable, not a display-order value — join the
+        // ANSWERS row on STEP_DISPLAY_ORDER/SECTION_DISPLAY_ORDER instead (see
+        // getDownstreamSectionAnswers above). SQ.ID = A.SECTION_QUESTION_ID is unaffected —
+        // both are surrogate ids (answers pin the exact surrogate row). EFFECTIVE_FROM/
+        // EFFECTIVE_TO guards snapshot-anchor the resolution to this respondent's firstAccessDt.
+        String sectionSQL = "SELECT A.ID,  A.SECTION, A.SECTION_QUESTION_ID FROM survey.RELATIONSHIPS R JOIN survey.STEPS_SECTIONS SS ON R.DOWNSTREAM_SS_ID = SS.STEPS_SECTIONS_ID JOIN survey.ANSWERS A ON SS.STEP_DISPLAY_ORDER = A.STEP AND SS.SECTION_DISPLAY_ORDER = A.SECTION WHERE A.DELETED = false AND R.ID = :rid AND A.RESPONDENT_ID = :respondentId AND SS.EFFECTIVE_FROM <= :asOf AND SS.EFFECTIVE_TO > :asOf AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf ORDER BY A.DISPLAY_KEY";
+        String questionSQL = "SELECT A.ID,  A.SECTION, A.SECTION_QUESTION_ID FROM survey.RELATIONSHIPS R JOIN survey.SECTIONS_QUESTIONS SQ ON R.DOWNSTREAM_SQ_ID = SQ.SECTIONS_QUESTION_ID JOIN survey.ANSWERS A ON SQ.ID = A.SECTION_QUESTION_ID WHERE A.DELETED = false AND R.ID = :rid AND A.RESPONDENT_ID = :respondentId AND SQ.EFFECTIVE_FROM <= :asOf AND SQ.EFFECTIVE_TO > :asOf AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf ORDER BY A.DISPLAY_KEY";
 
         Query q;
         //entityManager.joinTransaction();
@@ -735,6 +791,7 @@ public class QuestionManager {
 
         q.setParameter("rid", relationship.id);
         q.setParameter("respondentId", upstreamAnswer.respondentId);
+        q.setParameter("asOf", resolveAsOf(upstreamAnswer.respondentId));
 
         @SuppressWarnings("unchecked")
         List<Object[]> rs = q.getResultList();
@@ -745,7 +802,7 @@ public class QuestionManager {
                 answer.displayText = answer.question.text;
             } else {
 
-                Section section = getSectionByDisplayKey(answer.getDisplayKey());
+                Section section = getSectionByDisplayKey(answer.respondentId, answer.getDisplayKey());
                 answer.displayText = section.name;
             }
             buildDipslayText(answer);
@@ -772,7 +829,7 @@ public class QuestionManager {
         // Relationships may not have a downstream step.
         if (relationship.downstreamStep != null) {
             //MFD this will have to be reworked ID will not work!!
-            key.setStep(getStepDisplayOrder(relationship.surveyId, relationship.downstreamStep.id));
+            key.setStep(getStepDisplayOrder(relationship.surveyId, relationship.downstreamStep.id, upstreamAnswer.respondentId));
             // if the section is empty then create an instance of the step.
             if (relationship.downstreamSection == null) {
                 key.setStepInstance(upstreamAnswer.question_instance);
@@ -782,7 +839,7 @@ public class QuestionManager {
 
         if (relationship.downstreamSection != null) {
             //MFD this will have to be reworked ID will not work!!
-            key.setSection(getSectionDisplayOrder(relationship.surveyId, relationship.downstreamSection.id));
+            key.setSection(getSectionDisplayOrder(relationship.surveyId, relationship.downstreamSection.id, upstreamAnswer.respondentId));
             // if the step is empty set the instance on the section.
             if (relationship.downstreamStep == null) {
                 key.setSectionInstance(upstreamAnswer.question_instance);
@@ -798,22 +855,26 @@ public class QuestionManager {
     /**
      * Retrieves the display order of a specific step within a survey.
      *
-     * @param surveyId the identifier of the survey to which the step belongs
-     * @param stepId   the identifier of the step whose display order is to be retrieved
+     * @param surveyId     the identifier of the survey to which the step belongs
+     * @param stepId       the identifier of the step whose display order is to be retrieved
+     * @param respondentId the respondent whose snapshot instant this lookup is anchored to
      * @return the step display order as an Integer, or -1 if an exception occurs
      */
-    private Integer getStepDisplayOrder(long surveyId, long stepId) {
+    private Integer getStepDisplayOrder(long surveyId, long stepId, int respondentId) {
         try {
             // stepId is the surrogate Step.id (from a @ManyToOne relationship field); steps_sections.step_id
             // is now the durable step_id (Kimball Type 2 SCD retarget), so resolve through survey.steps to
-            // bridge surrogate -> durable before joining.
+            // bridge surrogate -> durable before joining. EFFECTIVE_FROM/EFFECTIVE_TO guards snapshot-anchor
+            // the resolution to this respondent's firstAccessDt.
             String sql = "select distinct ss.step_display_order from survey.steps_sections ss "
-                    + "join survey.steps s on s.step_id = ss.step_id "
-                    + "where ss.survey_id = :surveyId and s.id = :stepId order by ss.step_display_order";
+                    + "join survey.steps s on s.step_id = ss.step_id and s.effective_from <= :asOf and s.effective_to > :asOf "
+                    + "where ss.survey_id = :surveyId and s.id = :stepId "
+                    + "and ss.effective_from <= :asOf and ss.effective_to > :asOf order by ss.step_display_order";
             // entityManager.joinTransaction();
             Query q = entityManager.createNativeQuery(sql);
             q.setParameter("surveyId", surveyId);
             q.setParameter("stepId", stepId);
+            q.setParameter("asOf", resolveAsOf(respondentId));
             // step_display_order is NUMERIC (decimal midpoint insertion support), not INTEGER — JDBC
             // returns BigDecimal, so go through Number rather than casting straight to Integer.
             return ((Number) q.getSingleResult()).intValue();
@@ -825,17 +886,23 @@ public class QuestionManager {
     /**
      * Retrieves the display order of a specific section within a survey.
      *
-     * @param surveyId  the identifier of the survey
-     * @param sectionId the identifier of the section within the survey
+     * @param surveyId     the identifier of the survey
+     * @param sectionId    the identifier of the section within the survey
+     * @param respondentId the respondent whose snapshot instant this lookup is anchored to
      * @return the display order of the section as an Integer or -1 in case of an exception
      */
-    private Integer getSectionDisplayOrder(long surveyId, long sectionId) {
+    private Integer getSectionDisplayOrder(long surveyId, long sectionId, int respondentId) {
         try {
-            String sql = "select distinct ss.section_display_order from survey.steps_sections ss where ss.survey_id = :surveyId and ss.id = :sectionId order by ss.section_display_order";
+            // sectionId here is StepsSections' own surrogate id (from relationship.downstreamSection.id,
+            // a @ManyToOne resolved via the durable steps_sections_id join) — no surrogate/durable
+            // bridge needed. EFFECTIVE_FROM/EFFECTIVE_TO guards snapshot-anchor the resolution to this
+            // respondent's firstAccessDt.
+            String sql = "select distinct ss.section_display_order from survey.steps_sections ss where ss.survey_id = :surveyId and ss.id = :sectionId and ss.effective_from <= :asOf and ss.effective_to > :asOf order by ss.section_display_order";
             // entityManager.joinTransaction();
             Query q = entityManager.createNativeQuery(sql);
             q.setParameter("surveyId", surveyId);
             q.setParameter("sectionId", sectionId);
+            q.setParameter("asOf", resolveAsOf(respondentId));
             // section_display_order is NUMERIC (decimal midpoint insertion support), not INTEGER —
             // JDBC returns BigDecimal, so go through Number rather than casting straight to Integer.
             return ((Number) q.getSingleResult()).intValue();
@@ -853,12 +920,21 @@ public class QuestionManager {
      * @return An ArrayList of Relationship objects that match the upstream question criteria.
      */
     private ArrayList<Relationship> findRelationshipsByUpstreamQuestion(Answer upstreamAnswer) {
-        String sql = "SELECT r.ID FROM survey.RELATIONSHIPS r WHERE r.UPSTREAM_SQ_ID = :upstream_sq_id and r.SURVEY_ID = :surveyId and (r.UPSTREAM_STEP_ID = :upstream_step_id or r.UPSTREAM_STEP_ID is null) order by r.ID";
+        // upstreamAnswer.section_question_id is the surrogate sections_questions.id pinned at
+        // response time, but r.UPSTREAM_SQ_ID is now the durable sections_question_id (Kimball
+        // Type 2 SCD retarget) — bridge through sections_questions rather than comparing
+        // directly. EFFECTIVE_FROM/EFFECTIVE_TO guards snapshot-anchor the relationship
+        // resolution to this respondent's firstAccessDt.
+        String sql = "SELECT r.ID FROM survey.RELATIONSHIPS r "
+                + "JOIN survey.SECTIONS_QUESTIONS sq ON r.UPSTREAM_SQ_ID = sq.SECTIONS_QUESTION_ID "
+                + "WHERE sq.ID = :upstream_sq_id and r.SURVEY_ID = :surveyId and (r.UPSTREAM_STEP_ID = :upstream_step_id or r.UPSTREAM_STEP_ID is null) "
+                + "and r.EFFECTIVE_FROM <= :asOf and r.EFFECTIVE_TO > :asOf order by r.ID";
         // entityManager.joinTransaction();
         Query q = entityManager.createNativeQuery(sql);
         q.setParameter("surveyId", upstreamAnswer.surveyId);
         q.setParameter("upstream_sq_id", upstreamAnswer.section_question_id);
         q.setParameter("upstream_step_id", upstreamAnswer.getKey().getStep());
+        q.setParameter("asOf", resolveAsOf(upstreamAnswer.respondentId));
 
         @SuppressWarnings("unchecked")
         List<Integer> rs = q.getResultList();
@@ -894,7 +970,7 @@ public class QuestionManager {
                                          HashMap<Integer, Dependent> dependents) {
         // We want to build the initial section questions for all sections in
         // this step
-        List<StepsSections> sections = StepsSections.findByDisplayKeyQuery(sectionKey.getStepQueryString());
+        List<StepsSections> sections = StepsSections.findByDisplayKeyQueryAsOf(sectionKey.getStepQueryString(), resolveAsOf(upstreamAnswer.respondentId));
         for (StepsSections stepSection : sections) {
             stepSection.getKey().setStepInstance(sectionKey.getStepInstance());
             buildInitialSectionAnswers(r, upstreamAnswer, stepSection.getKey(), dependents, true);
@@ -924,16 +1000,16 @@ public class QuestionManager {
         if (sectionAanswer == null) {
             if (r.downstreamStep == null) {
                 // use the current step
-                section = getSectionByDisplayKey(upstreamAnswer.getKey().getSectionString());
+                section = getSectionByDisplayKey(upstreamAnswer.respondentId, upstreamAnswer.getKey().getSectionString());
             } else {
                 if (r.downstreamSection != null) {
                     section = r.downstreamSection.section;
                 } else {
-                    section = getSectionByDisplayKey(sectionKey.getValue());
+                    section = getSectionByDisplayKey(upstreamAnswer.respondentId, sectionKey.getValue());
                 }
             }
         } else {
-            section = getSectionByDisplayKey(sectionKey.getSectionString());
+            section = getSectionByDisplayKey(upstreamAnswer.respondentId, sectionKey.getSectionString());
         }
 
         List<Answer> answers = new ArrayList<>();
@@ -975,8 +1051,8 @@ public class QuestionManager {
         // answers.
 
         DisplayKey answerKey = new DisplayKey(upstreamAnswer.getDisplayKey());
-        answerKey.setStep(getStepDisplayOrder(relationship.surveyId, relationship.downstreamStep.id));
-        answerKey.setSection(getSectionDisplayOrder(relationship.surveyId, relationship.downstreamSection.id));
+        answerKey.setStep(getStepDisplayOrder(relationship.surveyId, relationship.downstreamStep.id, respondentId));
+        answerKey.setSection(getSectionDisplayOrder(relationship.surveyId, relationship.downstreamSection.id, respondentId));
         answerKey.setQuestion(relationship.downstreamQuestion.displayOrder);
 
         List<Answer> answers = Answer.findByAnswerQueryString(respondentId, answerKey.getAnswerQueryString());
@@ -988,12 +1064,12 @@ public class QuestionManager {
             Answer answer;
             DisplayKey key = new DisplayKey(upstreamAnswer.getDisplayKey());
             if (relationship.downstreamStep != null) {
-                key.setStep(getStepDisplayOrder(relationship.surveyId, relationship.downstreamStep.id));
+                key.setStep(getStepDisplayOrder(relationship.surveyId, relationship.downstreamStep.id, respondentId));
             }
 
             if (relationship.downstreamSection != null) {
                 //MFD this will have to be reworked ID will not work!!
-                key.setSection(getSectionDisplayOrder(relationship.surveyId, relationship.downstreamSection.id));
+                key.setSection(getSectionDisplayOrder(relationship.surveyId, relationship.downstreamSection.id, respondentId));
             }
             if (downstreamQuestion.displayOrder != null) {
                 key.setQuestion(downstreamQuestion.displayOrder);
@@ -1034,9 +1110,9 @@ public class QuestionManager {
 
             DisplayKey answerKey = new DisplayKey(upstreamAnswer.getDisplayKey());
             //MFD this will have to be reworked ID will not work!!
-            answerKey.setStep(getStepDisplayOrder(r.surveyId, r.downstreamStep.id));
+            answerKey.setStep(getStepDisplayOrder(r.surveyId, r.downstreamStep.id, upstreamAnswer.respondentId));
             //MFD this will have to be reworked ID will not work!!
-            answerKey.setSection(getSectionDisplayOrder(r.surveyId, r.downstreamSection.id));
+            answerKey.setSection(getSectionDisplayOrder(r.surveyId, r.downstreamSection.id, upstreamAnswer.respondentId));
 
             List<Answer> answers = Answer.findBySectionInstancesQueryString(relationshipId, answerKey);
 
@@ -1092,13 +1168,13 @@ public class QuestionManager {
             text = answer.question.text;
         } else if (answer.sectionId != null) {
             // use the section name
-            Section s = getSectionByDisplayKey(answer.getDisplayKey());
+            Section s = getSectionByDisplayKey(answer.respondentId, answer.getDisplayKey());
             if (s != null) {
                 text = s.name;
             }
         } else {
             // use the step name
-            Step s = getStepByDisplayKey(answer.getKey());
+            Step s = getStepByDisplayKey(answer.respondentId, answer.getKey());
             if (s != null) {
                 text = s.name;
             }
@@ -1499,7 +1575,7 @@ public class QuestionManager {
         // Question or Section Step?
         if (relationship.downstreamQuestion != null) {
             // Questions
-            List<Relationship> relationships = Relationship.findByDownstream_SQ_ID(relationship.surveyId, relationship.downstreamQuestion.id);
+            List<Relationship> relationships = Relationship.findByDownstream_SQ_ID(relationship.surveyId, relationship.downstreamQuestion.id, resolveAsOf(answer.respondentId));
             for (Relationship r : relationships) {
                 // Find all upstreamAnswers for this relationship
                 Answer upstreamAnswer = getUpstreamAnswer(r, answer);
@@ -1517,7 +1593,7 @@ public class QuestionManager {
             } else {
                 stepId = relationship.upstreamStep.id;
             }
-            List<Relationship> relationships = Relationship.findByDownstream_SS_ID(relationship.surveyId, relationship.downstreamSection.id, stepId);
+            List<Relationship> relationships = Relationship.findByDownstream_SS_ID(relationship.surveyId, relationship.downstreamSection.id, stepId, resolveAsOf(answer.respondentId));
             for (Relationship r : relationships) {
                 Answer upstreamAnswer = getUpstreamAnswer(r, answer);
                 if (!r.evaluateOperator(upstreamAnswer)) {
@@ -1534,7 +1610,7 @@ public class QuestionManager {
             } else {
                 stepId = relationship.upstreamStep.id;
             }
-            List<Relationship> relationships = Relationship.findByDownstream_Step_ID(relationship.surveyId, relationship.downstreamStep.id, stepId);
+            List<Relationship> relationships = Relationship.findByDownstream_Step_ID(relationship.surveyId, relationship.downstreamStep.id, stepId, resolveAsOf(answer.respondentId));
             for (Relationship r : relationships) {
                 // Answer upstreamAnswer = getUpstreamAnswer(r, answer);
                 if (!r.evaluateOperator(answer)) {
@@ -1557,11 +1633,20 @@ public class QuestionManager {
      */
     private Answer getUpstreamAnswer(Relationship r, Answer a) {
 
-        String sql = "SELECT a.ID FROM survey.RELATIONSHIPS r join survey.SECTIONS_QUESTIONS sq on r.UPSTREAM_SQ_ID = sq.id "
-                + "join survey.QUESTIONS q on sq.QUESTION_ID = q.ID left join survey.ANSWERS a on q.ID = a.QUESTION_ID  "
+        // r.UPSTREAM_SQ_ID and sq.QUESTION_ID are now durable ids (Kimball Type 2 SCD
+        // retarget) — join on sq.SECTIONS_QUESTION_ID / q.QUESTION_ID, not the surrogate
+        // sq.id/q.ID. q.ID = a.QUESTION_ID is unaffected — both are surrogate ids (answers
+        // pin the exact surrogate row). EFFECTIVE_FROM/EFFECTIVE_TO guards snapshot-anchor
+        // the resolution to this respondent's firstAccessDt.
+        String sql = "SELECT a.ID FROM survey.RELATIONSHIPS r join survey.SECTIONS_QUESTIONS sq on r.UPSTREAM_SQ_ID = sq.SECTIONS_QUESTION_ID "
+                + "join survey.QUESTIONS q on sq.QUESTION_ID = q.QUESTION_ID left join survey.ANSWERS a on q.ID = a.QUESTION_ID  "
                 + "WHERE a.deleted = false and a.RESPONDENT_ID = :respondentId and r.id = :relationshioId "
                 + "and a.step = :stepId and a.STEP_INSTANCE = :stepInstance and a.section = :sectionId "
-                + "and a.SECTION_INSTANCE = :sectionInstance order by a.display_key";
+                + "and a.SECTION_INSTANCE = :sectionInstance "
+                + "and sq.EFFECTIVE_FROM <= :asOf and sq.EFFECTIVE_TO > :asOf "
+                + "and q.EFFECTIVE_FROM <= :asOf and q.EFFECTIVE_TO > :asOf "
+                + "and r.EFFECTIVE_FROM <= :asOf and r.EFFECTIVE_TO > :asOf "
+                + "order by a.display_key";
         //entityManager.joinTransaction();
         Query q = entityManager.createNativeQuery(sql);
         q.setParameter("relationshioId", r.id);
@@ -1570,6 +1655,7 @@ public class QuestionManager {
         q.setParameter("stepInstance", a.stepInstance);
         q.setParameter("sectionId", a.sectionId);
         q.setParameter("sectionInstance", a.sectionInstance);
+        q.setParameter("asOf", resolveAsOf(a.respondentId));
 
         @SuppressWarnings("unchecked")
         List<Object[]> rs = q.getResultList();

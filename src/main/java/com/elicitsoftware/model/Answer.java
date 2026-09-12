@@ -260,6 +260,16 @@ public class Answer extends PanacheEntityBase {
     public Integer section_question_id;
 
     /**
+     * Pins the {@code questions.version} the respondent actually saw at response time
+     * (research/Kimball_type_2.md, Gap ETL-2) — question.id already pins the exact surrogate
+     * row, but this makes the version explicit for reporting joins against dim_question
+     * without a lookup. Defaults to 0 (matches the DB column's default) until the associated
+     * question is resolved in the constructor below.
+     */
+    @Column(name = "question_version", nullable = false)
+    public Integer questionVersion = 0;
+
+    /**
      * Indicates whether the answer has been marked as deleted.
      * The default value is `false`, meaning the answer is not deleted.
      * This field is used for soft deletion, allowing the answer to be marked
@@ -341,6 +351,10 @@ public class Answer extends PanacheEntityBase {
         if (sectionsQuestion != null) {
             this.question = sectionsQuestion.question;
             this.section_question_id = sectionsQuestion.id;
+            // Pin the version of the question actually shown, per research/Kimball_type_2.md
+            // Gap ETL-2 — question.id already pins the exact surrogate row, so this is safe
+            // even if a later reword closes it out and inserts a new version.
+            this.questionVersion = this.question.version;
         }
     }
 
@@ -362,6 +376,10 @@ public class Answer extends PanacheEntityBase {
         if (sectionsQuestion != null) {
             this.question = sectionsQuestion.question;
             this.section_question_id = sectionsQuestion.id;
+            // Pin the version of the question actually shown, per research/Kimball_type_2.md
+            // Gap ETL-2 — question.id already pins the exact surrogate row, so this is safe
+            // even if a later reword closes it out and inserts a new version.
+            this.questionVersion = this.question.version;
         }
         if (textValue != null) {
             this.textValue = textValue;

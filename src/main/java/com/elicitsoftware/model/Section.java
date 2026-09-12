@@ -14,6 +14,8 @@ package com.elicitsoftware.model;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 
+import java.time.OffsetDateTime;
+
 /**
  * The Section class represents an entity in the "sections" table within the "survey" schema.
  * Each Section is associated with a survey and represents a specific section
@@ -52,4 +54,27 @@ public class Section extends PanacheEntityBase {
 
     @Column(length = 255)
     public String description;
+
+    // Kimball Type 2 SCD (research/Kimball_type_2.md) — section_id is the durable key
+    // that survives re-versioning; id (above) is the surrogate, per-version row id.
+    @Column(name = "section_id", nullable = false)
+    public Integer sectionId;
+
+    @Column(name = "version", nullable = false)
+    public Integer version = 0;
+
+    @Column(name = "effective_from")
+    public OffsetDateTime effectiveFrom;
+
+    @Column(name = "effective_to")
+    public OffsetDateTime effectiveTo;
+
+    @Column(name = "is_draft", nullable = false)
+    public boolean isDraft = false;
+
+    @Column(name = "published_by")
+    public String publishedBy;
+
+    @Column(name = "published_comment")
+    public String publishedComment;
 }

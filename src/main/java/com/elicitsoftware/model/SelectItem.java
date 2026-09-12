@@ -14,6 +14,8 @@ package com.elicitsoftware.model;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 
+import java.time.OffsetDateTime;
+
 /**
  * The SelectItem class represents a selectable item within a survey and
  * corresponds to the "SELECT_ITEMS" table in the database under the "survey" schema.
@@ -55,5 +57,33 @@ public class SelectItem extends PanacheEntityBase {
 
     @Column(name = "display_order", nullable = false, precision = 20)
     public Integer displayOrder;
+
+    // Kimball Type 2 SCD (research/Kimball_type_2.md) — select_item_id is the durable key;
+    // id (above) is the surrogate, per-version row id.
+    @Column(name = "select_item_id", nullable = false)
+    public Integer selectItemId;
+
+    @Column(name = "version", nullable = false)
+    public Integer version = 0;
+
+    @Column(name = "effective_from")
+    public OffsetDateTime effectiveFrom;
+
+    @Column(name = "effective_to")
+    public OffsetDateTime effectiveTo;
+
+    @Column(name = "is_draft", nullable = false)
+    public boolean isDraft = false;
+
+    @Column(name = "published_by")
+    public String publishedBy;
+
+    @Column(name = "published_comment")
+    public String publishedComment;
+
+    // FK-companion column pinning the referenced select_groups row to its entity-existence
+    // check (always 0 — see research/Kimball_type_2.md's "Resolving the FK Cascade Problem").
+    @Column(name = "select_group_version", nullable = false)
+    public Integer selectGroupVersion = 0;
 
 }

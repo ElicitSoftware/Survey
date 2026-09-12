@@ -221,7 +221,7 @@ public final class Sql {
                                  end AS val,
                                 a5.respondent_id
                                 FROM survey.answers a5
-                                  JOIN survey.steps_sections ss5 ON a5.step = ss5.step_display_order AND a5.section = ss5.section_display_order and a5.survey_id = ss5.survey_id
+                                  JOIN survey.steps_sections ss5 ON a5.step = ss5.step_display_order AND a5.section = ss5.section_display_order and a5.survey_id = ss5.survey_id AND ss5.effective_from <= NOW() AND ss5.effective_to > NOW()
                                   JOIN survey.metadata m5 ON ss5.steps_sections_id = m5.steps_sections_id AND m5.survey_id = a5.survey_id
                                   JOIN survey.ontology o5 ON m5.ontology_id = o5.id
                                   JOIN survey.dimensions d5 on d5.id = o5.dimension
@@ -234,7 +234,7 @@ public final class Sql {
                                  end AS val,
                                 a6.respondent_id
                                 FROM survey.answers a6
-                                  JOIN survey.steps_sections ss6 ON a6.step = ss6.step_display_order AND a6.section = ss6.section_display_order and a6.survey_id = ss6.survey_id
+                                  JOIN survey.steps_sections ss6 ON a6.step = ss6.step_display_order AND a6.section = ss6.section_display_order and a6.survey_id = ss6.survey_id AND ss6.effective_from <= NOW() AND ss6.effective_to > NOW()
                                   JOIN survey.metadata m6 ON ss6.steps_sections_id = m6.steps_sections_id AND m6.survey_id = a6.survey_id
                                   JOIN survey.ontology o6 ON m6.ontology_id = o6.id
                                  WHERE o6.dimension IS NULL
@@ -495,7 +495,7 @@ public final class Sql {
                                                 AND f3.section_key = a3.section
                                                 AND f3.section_instance = a3.section_instance
                                                 AND f3.survey_id = a3.survey_id
-                                            JOIN survey.steps_sections ss3 ON a3.step = ss3.step_display_order AND a3.section = ss3.section_display_order AND a3.survey_id = ss3.survey_id
+                                            JOIN survey.steps_sections ss3 ON a3.step = ss3.step_display_order AND a3.section = ss3.section_display_order AND a3.survey_id = ss3.survey_id AND ss3.effective_from <= NOW() AND ss3.effective_to > NOW()
                                             JOIN survey.metadata m3 ON ss3.steps_sections_id = m3.steps_sections_id AND m3.survey_id = a3.survey_id
                                             JOIN survey.ontology o3 ON m3.ontology_id = o3.id
                                            JOIN survey.dimensions d3 ON d3.id = o3.dimension
@@ -602,7 +602,7 @@ public final class Sql {
                              AND f5.section_key = a5.section
                              AND f5.section_instance = a5.section_instance
                              AND f5.survey_id = a5.survey_id
-                         JOIN survey.steps_sections ss5 ON a5.step = ss5.step_display_order AND a5.section = ss5.section_display_order AND a5.survey_id = ss5.survey_id
+                         JOIN survey.steps_sections ss5 ON a5.step = ss5.step_display_order AND a5.section = ss5.section_display_order AND a5.survey_id = ss5.survey_id AND ss5.effective_from <= NOW() AND ss5.effective_to > NOW()
                          JOIN survey.metadata m5 ON ss5.steps_sections_id = m5.steps_sections_id AND m5.survey_id = a5.survey_id
                          JOIN survey.ontology o5 ON m5.ontology_id = o5.id
                         JOIN survey.dimensions d5 ON d5.id = o5.dimension
@@ -621,7 +621,7 @@ public final class Sql {
                              AND f6.section_key = a6.section
                              AND f6.section_instance = a6.section_instance
                              AND f6.survey_id = a6.survey_id
-                         JOIN survey.steps_sections ss6 ON a6.step = ss6.step_display_order AND a6.section = ss6.section_display_order AND a6.survey_id = ss6.survey_id
+                         JOIN survey.steps_sections ss6 ON a6.step = ss6.step_display_order AND a6.section = ss6.section_display_order AND a6.survey_id = ss6.survey_id AND ss6.effective_from <= NOW() AND ss6.effective_to > NOW()
                          JOIN survey.metadata m6 ON ss6.steps_sections_id = m6.steps_sections_id AND m6.survey_id = a6.survey_id
                          JOIN survey.ontology o6 ON m6.ontology_id = o6.id
                       WHERE o6.dimension IS NULL
