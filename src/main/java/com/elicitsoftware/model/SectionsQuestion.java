@@ -14,6 +14,7 @@ package com.elicitsoftware.model;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 /**
@@ -40,8 +41,13 @@ public class SectionsQuestion extends PanacheEntityBase {
     @Column(unique = true, nullable = false, precision = 20)
     public Integer id;
 
+    // NUMERIC, not INTEGER (Kimball Type 2 SCD, research/Kimball_type_2.md's "Adding a new
+    // question" section) -- supports decimal-midpoint insertion between existing positions.
+    // DisplayKey's fixed-width zero-padded string encoding does not support decimals, so
+    // every read into a DisplayKey segment truncates via .intValue() until that encoding is
+    // redesigned as part of a future Author Tool effort.
     @Column(name = "display_order", nullable = false, precision = 3)
-    public Integer displayOrder;
+    public BigDecimal displayOrder;
 
     // sections_questions.question_id now holds the durable questions.question_id
     // (Kimball Type 2 SCD retarget), not questions.id — referencedColumnName must

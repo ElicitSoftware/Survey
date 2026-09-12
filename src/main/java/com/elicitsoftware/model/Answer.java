@@ -20,6 +20,7 @@ import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -127,9 +128,13 @@ public class Answer extends PanacheEntityBase {
      * <p>
      * Typically relates to the "Step" entity in the system, which defines
      * the steps within a survey.
+     * <p>
+     * NUMERIC, not INTEGER (Kimball Type 2 SCD, research/Kimball_type_2.md) — stores the
+     * step's display_order at response time, which is itself NUMERIC to support decimal-
+     * midpoint insertion; matching the type here keeps it lossless.
      */
     @Column(name = "step", nullable = false, precision = 4)
-    public Integer stepId;
+    public BigDecimal stepId;
 
     /**
      * Represents the specific instance of a step within a survey or section.
@@ -152,9 +157,12 @@ public class Answer extends PanacheEntityBase {
      * Attributes:
      * - The column is non-nullable, ensuring that an answer is always associated with a valid section.
      * - Precision of 20 denotes the maximum size of the integer value.
+     * <p>
+     * NUMERIC, not INTEGER (Kimball Type 2 SCD, research/Kimball_type_2.md) — stores the
+     * section's display_order at response time; same reasoning as stepId above.
      */
     @Column(name = "section", nullable = false, precision = 20)
-    public Integer sectionId;
+    public BigDecimal sectionId;
 
     /**
      * Represents the instance of a specific section in a survey. This field
@@ -513,13 +521,15 @@ public class Answer extends PanacheEntityBase {
         // In the Display key they are value 0 but in this class null. see valueOrNull
         this.displayKey = displayKey.getValue();
         this.surveyId = displayKey.getSurvey();
-        this.stepId = displayKey.getStep();
+        this.stepId = BigDecimal.valueOf(displayKey.getStep());
         this.stepInstance = displayKey.getStepInstance();
         // survey.answers.section is nullable and FK'd to survey.sections(id), which never
         // has a row with id 0 -- valueOrNull() (already applied to section_question_id above)
         // must apply here too, or a step-only relationship (no downstream section) fails
-        // answers_section_fk on every save.
-        this.sectionId = valueOrNull(displayKey.getSection());
+        // answers_section_fk on every save. sectionId is NUMERIC (see its field doc above),
+        // so wrap directly rather than reusing valueOrNull()'s Integer-typed helper.
+        Integer section = valueOrNull(displayKey.getSection());
+        this.sectionId = section == null ? null : BigDecimal.valueOf(section);
         this.sectionInstance = displayKey.getSectionInstance();
         this.section_question_id = valueOrNull(displayKey.getQuestion());
         this.question_instance = displayKey.getQuestionInstance();

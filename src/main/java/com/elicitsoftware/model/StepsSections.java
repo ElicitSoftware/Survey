@@ -16,6 +16,7 @@ import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import io.quarkus.panache.common.Parameters;
 import jakarta.persistence.*;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -74,8 +75,10 @@ public class StepsSections extends PanacheEntityBase {
     @JoinColumn(name = "step_id", referencedColumnName = "step_id", nullable = false)
     public Step step;
 
+    // NUMERIC, not INTEGER (Kimball Type 2 SCD, research/Kimball_type_2.md's "Adding a new
+    // question" section) -- supports decimal-midpoint insertion between existing positions.
     @Column(name = "step_display_order", nullable = false, precision = 4)
-    public Integer stepDisplayOrder;
+    public BigDecimal stepDisplayOrder;
 
     // steps_sections.section_id now holds the durable sections.section_id (Kimball Type 2
     // SCD retarget), not sections.id — same referencedColumnName requirement as step above.
@@ -83,8 +86,9 @@ public class StepsSections extends PanacheEntityBase {
     @JoinColumn(name = "section_id", referencedColumnName = "section_id", nullable = false)
     public Section section;
 
+    // NUMERIC, not INTEGER -- same reasoning as stepDisplayOrder above.
     @Column(name = "section_display_order", nullable = false, precision = 4)
-    public Integer sectionDisplayOrder;
+    public BigDecimal sectionDisplayOrder;
 
     @Column(name = "display_key", nullable = false, length = 34)
     public String displaykey;

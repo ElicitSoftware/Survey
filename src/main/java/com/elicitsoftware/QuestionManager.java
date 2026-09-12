@@ -512,7 +512,7 @@ public class QuestionManager {
             for (SectionsQuestion sectionsQuestion : sectionsQuestions) {
                 // Build a display key for the answer
                 dkey = new DisplayKey(key.getValue());
-                dkey.setQuestion(sectionsQuestion.displayOrder);
+                dkey.setQuestion(sectionsQuestion.displayOrder.intValue());
                 answer = new Answer(dkey, sectionsQuestion, sectionsQuestion.question.text, respondentId, sectionsQuestion.question.defaultValue);
                 answer = saveAnswer(answer, null);
                 if ("HTML".equals(sectionsQuestion.question.questionType.name) || answer.getTextValue() != null) {
@@ -609,7 +609,7 @@ public class QuestionManager {
                             if (relationship.downstreamQuestion != null) {
                                 DisplayKey key = buildDisplayKey(upstreamAnswer, relationship);
 
-                                key.setQuestion(relationship.downstreamQuestion.displayOrder);
+                                key.setQuestion(relationship.downstreamQuestion.displayOrder.intValue());
                                 // this may be the first answer in a section
                                 buildSectionAnswer(upstreamAnswer.respondentId, key.getSectionString(), dependents);
                                 Answer a = new Answer(key, relationship.downstreamQuestion,
@@ -670,7 +670,7 @@ public class QuestionManager {
                     if (relationship.downstreamQuestion != null) {
                         // a question
                         DisplayKey key = buildDisplayKey(upstreamAnswer, relationship);
-                        key.setQuestion(relationship.downstreamQuestion.displayOrder);
+                        key.setQuestion(relationship.downstreamQuestion.displayOrder.intValue());
                         Answer a = getAnswerByDisplayKey(upstreamAnswer.respondentId, key.getValue(), false);
                         if (a != null) {
                             dependents.put(relationship.id,
@@ -698,7 +698,7 @@ public class QuestionManager {
                     if (relationship.downstreamQuestion != null) {
                         // a question
                         DisplayKey key = buildDisplayKey(upstreamAnswer, relationship);
-                        key.setQuestion(relationship.downstreamQuestion.displayOrder);
+                        key.setQuestion(relationship.downstreamQuestion.displayOrder.intValue());
                         Answer a = getAnswerByDisplayKey(upstreamAnswer.respondentId, key.getValue(), false);
                         if (a != null) {
                             saveAnswer(a, dependents);
@@ -1022,7 +1022,7 @@ public class QuestionManager {
             Answer answer;
             for (SectionsQuestion sectionsQuestion : initial) {
                 DisplayKey dkey = new DisplayKey(sectionKey.getValue());
-                dkey.setQuestion(sectionsQuestion.displayOrder);
+                dkey.setQuestion(sectionsQuestion.displayOrder.intValue());
                 answer = new Answer(dkey, sectionsQuestion, sectionsQuestion.question.text,
                         upstreamAnswer.respondentId, sectionsQuestion.question.defaultValue);
                 answer = saveAnswer(answer, dependents);
@@ -1053,7 +1053,7 @@ public class QuestionManager {
         DisplayKey answerKey = new DisplayKey(upstreamAnswer.getDisplayKey());
         answerKey.setStep(getStepDisplayOrder(relationship.surveyId, relationship.downstreamStep.id, respondentId));
         answerKey.setSection(getSectionDisplayOrder(relationship.surveyId, relationship.downstreamSection.id, respondentId));
-        answerKey.setQuestion(relationship.downstreamQuestion.displayOrder);
+        answerKey.setQuestion(relationship.downstreamQuestion.displayOrder.intValue());
 
         List<Answer> answers = Answer.findByAnswerQueryString(respondentId, answerKey.getAnswerQueryString());
 
@@ -1072,7 +1072,7 @@ public class QuestionManager {
                 key.setSection(getSectionDisplayOrder(relationship.surveyId, relationship.downstreamSection.id, respondentId));
             }
             if (downstreamQuestion.displayOrder != null) {
-                key.setQuestion(downstreamQuestion.displayOrder);
+                key.setQuestion(downstreamQuestion.displayOrder.intValue());
             }
             DisplayKey newKey;
             for (int i = answers.size() + 1; i <= repeatValue; i++) {
@@ -1589,7 +1589,7 @@ public class QuestionManager {
             // Section
             int stepId;
             if (relationship.upstreamStep == null) {
-                stepId = answer.stepId;
+                stepId = answer.stepId.intValue();
             } else {
                 stepId = relationship.upstreamStep.id;
             }
@@ -1606,7 +1606,7 @@ public class QuestionManager {
             // Step
             int stepId;
             if (relationship.upstreamStep == null) {
-                stepId = answer.stepId;
+                stepId = answer.stepId.intValue();
             } else {
                 stepId = relationship.upstreamStep.id;
             }

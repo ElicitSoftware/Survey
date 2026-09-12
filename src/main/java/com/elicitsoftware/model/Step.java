@@ -14,6 +14,7 @@ package com.elicitsoftware.model;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 /**
@@ -43,8 +44,11 @@ public class Step extends PanacheEntityBase {
     @Column(name = "survey_id", nullable = false, precision = 20)
     public Integer surveyId;
 
+    // NUMERIC, not INTEGER (Kimball Type 2 SCD, research/Kimball_type_2.md's "Adding a new
+    // question" section) -- supports decimal-midpoint insertion between existing positions
+    // without renumbering, once an eventual Author Tool can create fractional values here.
     @Column(name = "display_order", nullable = false, precision = 3)
-    public Integer displayOrder;
+    public BigDecimal displayOrder;
 
     @Column(length = 255)
     public String description;

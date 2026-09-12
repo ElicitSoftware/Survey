@@ -25,6 +25,8 @@ import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -226,12 +228,14 @@ class QuestionManagerBranchCoverageTest {
         assertNull(r.downstreamSection,
                 "R_show_step deliberately leaves downstream_s_id NULL (step-only SHOW)");
         assertNotNull(r.downstreamStep, "R_show_step.downstreamStep must be populated");
-        assertEquals(stepTwoId(surveyId), r.downstreamStep.displayOrder,
+        assertEquals(BigDecimal.valueOf(stepTwoId(surveyId)), r.downstreamStep.displayOrder,
                 "downstreamStep must resolve to BranchStepTwo (display_order == its own id, by fixture construction)");
     }
 
     @Test
-    void stepAndSectionDisplayOrder_roundTripAsIntegerToday() {
+    void stepAndSectionDisplayOrder_roundTripAsBigDecimal() {
+        // display_order is NUMERIC, not INTEGER (Kimball Type 2 SCD, research/Kimball_type_2.md's
+        // "Adding a new question" section) -- supports decimal-midpoint insertion.
         Integer surveyId = surveyId();
         Step stepOne = Step.find("surveyId = ?1 and name = ?2", surveyId, "BranchStepOne").firstResult();
         Step stepTwo = Step.find("surveyId = ?1 and name = ?2", surveyId, "BranchStepTwo").firstResult();
@@ -243,10 +247,10 @@ class QuestionManagerBranchCoverageTest {
         assertNotNull(sectionOne);
         assertNotNull(sectionTwo);
 
-        assertEquals(stepOneId(surveyId), stepOne.displayOrder, "Step.displayOrder must round-trip as Integer");
-        assertEquals(stepTwoId(surveyId), stepTwo.displayOrder, "Step.displayOrder must round-trip as Integer");
-        assertEquals(sectionOneId(surveyId), sectionOne.displayOrder, "Section.displayOrder must round-trip as Integer");
-        assertEquals(sectionTwoId(surveyId), sectionTwo.displayOrder, "Section.displayOrder must round-trip as Integer");
+        assertEquals(BigDecimal.valueOf(stepOneId(surveyId)), stepOne.displayOrder, "Step.displayOrder must round-trip as BigDecimal");
+        assertEquals(BigDecimal.valueOf(stepTwoId(surveyId)), stepTwo.displayOrder, "Step.displayOrder must round-trip as BigDecimal");
+        assertEquals(BigDecimal.valueOf(sectionOneId(surveyId)), sectionOne.displayOrder, "Section.displayOrder must round-trip as BigDecimal");
+        assertEquals(BigDecimal.valueOf(sectionTwoId(surveyId)), sectionTwo.displayOrder, "Section.displayOrder must round-trip as BigDecimal");
     }
 
     @Test

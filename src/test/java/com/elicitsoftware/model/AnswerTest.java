@@ -14,6 +14,7 @@ package com.elicitsoftware.model;
 import com.elicitsoftware.DisplayKey;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -71,7 +72,7 @@ class AnswerTest {
         assertSame(question, answer.question);
         assertEquals(99, answer.section_question_id);
         assertEquals(1, answer.surveyId);
-        assertEquals(3, answer.sectionId);
+        assertEquals(BigDecimal.valueOf(3), answer.sectionId);
     }
 
     @Test
@@ -96,7 +97,7 @@ class AnswerTest {
 
         assertNull(answer.section_question_id);
         assertEquals(0, answer.sectionInstance);
-        assertEquals(3, answer.sectionId);
+        assertEquals(BigDecimal.valueOf(3), answer.sectionId);
     }
 
     @Test
