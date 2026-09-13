@@ -49,24 +49,25 @@ can be dropped — a separate, later effort, not part of this fix), and physical
 on the ALTER-based tables (confirmed harmless — no `SELECT *` or positional column access
 anywhere in the codebase).
 
-### Finding #2 — `survey.dimensions_seq` never granted `USAGE` to `survey_user` on a fresh greenfield install
+### Finding #2 — `survey.dimensions_seq` `USAGE` grant: brownfield-only gap, not greenfield
 
-Every other sequence created in `db/migration/V001__Create_Survey_Schema.sql` gets `GRANT
-USAGE ON SEQUENCE ... TO ${survey_user}` immediately after its `CREATE SEQUENCE` statement.
-`survey.dimensions_seq` is the one exception — that grant line was simply never written for
-it. `db/migration-v3/V010__Kimball_Type2_SCD.sql` already patches this for upgraded databases,
-with a comment acknowledging the gap explicitly: *"Pre-existing gap in
-V001__Create_Survey_Schema.sql (frozen history, cannot be fixed there): every other sequence
-gets GRANT USAGE except this one. Harmless to add here since a new migration can't
-retroactively edit an already-applied one."* But the greenfield file itself was never
-corrected, so a brand-new greenfield install still lacks this grant today — the inverse
-situation of Finding #1 (there, brownfield was the buggy side; here, greenfield is).
+Originally reported as a gap on *both* tracks. On re-verification via `git log -S` against
+`db/migration/V001__Create_Survey_Schema.sql`, the `GRANT USAGE ON SEQUENCE
+survey.dimensions_seq TO ${survey_user}` line has been present since that file's first
+commit (`21e5f8d`) — greenfield was never missing it. The gap is real only on the brownfield
+track: the frozen `db/migration-v3/V001` (replicating actual pre-Kimball prod history) lacks
+the grant, and `db/migration-v3/V010__Kimball_Type2_SCD.sql` patches it there, with a comment
+acknowledging the gap explicitly: *"Pre-existing gap in V001__Create_Survey_Schema.sql
+(frozen history, cannot be fixed there): every other sequence gets GRANT USAGE except this
+one. Harmless to add here since a new migration can't retroactively edit an already-applied
+one."* That comment's own framing (implying the greenfield file was also missing it) is what
+led to the original mis-write of this finding.
 
-**Status: Fixed.** `db/migration/V012__Grant_Dimensions_Seq_Usage.sql` adds the real grant on
-the greenfield track. `db/migration-v3/V012__Grant_Dimensions_Seq_Usage.sql` mirrors it at the
-same version number for the two tracks' numbering to stay aligned — since `V010` already
-granted this there, it's a harmless, idempotent re-grant (Postgres `GRANT` doesn't error on
-re-granting an already-held privilege).
+**Status: Fixed (and correctly scoped).** `db/migration-v3/V012__Grant_Dimensions_Seq_Usage.sql`
+is the real fix, for brownfield databases only. `db/migration/V012__Grant_Dimensions_Seq_Usage.sql`
+exists purely so the two tracks' Flyway version numbers stay aligned — since greenfield's
+`V001` already granted this, it's a harmless, idempotent no-op re-grant there (Postgres
+`GRANT` doesn't error on re-granting an already-held privilege).
 
 ## Open question (not verified, flag for follow-up)
 
