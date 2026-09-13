@@ -41,7 +41,10 @@ import java.util.Map;
 // Tries db/migration (the greenfield v3 schema) first. If it validates cleanly there — either a
 // genuinely fresh database, or a v2.x database that has already been through the upgrade-and-repair
 // cycle below on a prior boot — it stays there permanently; every future migration (V011+) only
-// ever needs to exist in this one location. If db/migration's checksums DON'T match (a v2.x
+// ever needs to exist in this one location. (src/test/resources/db/test/'s test-only data
+// fixtures live in a separate Flyway location layered on top of this one only under the
+// %test profile, numbered from V9xxx specifically so they never collide with a real
+// migration version here.) If db/migration's checksums DON'T match (a v2.x
 // database that hasn't been upgraded yet), it migrates via db/migration-v3 (the ALTER-based
 // upgrade path) instead, then immediately repairs its history against db/migration so the NEXT
 // boot's validate() against db/migration succeeds and this database converges onto it for good.

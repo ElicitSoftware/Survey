@@ -37,8 +37,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * Written entirely against native SQL (no new Panache entity fields), so it compiles
  * today; it only fails to *run* until the {@code questions} migration exists. Enable
  * by removing {@code @Disabled} once that migration lands, then iterate until green.
- * Uses the isolated V011__SCD_Spec_Fixture.sql fixture (survey "ScdSpecFixture") —
- * never the V005/Tess fixture that QuestionManagerTest/ETLServiceTest depend on.
+ * Uses the isolated V9011__SCD_Spec_Fixture.sql fixture (survey "ScdSpecFixture") —
+ * never the V9005/Tess fixture that QuestionManagerTest/ETLServiceTest depend on.
  */
 @QuarkusTest
 @QuarkusTestResource(PostgresTestResource.class)

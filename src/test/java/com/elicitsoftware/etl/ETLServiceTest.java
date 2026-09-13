@@ -35,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * suite proves nothing regressed for pre-migration (epoch-dated) data — see that doc's
  * Migration Strategy step 7 and Open Question 1's testing checklist.
  * <p>
- * Driven by the V005/V005.5/V005.6 "Library Card Registration" fixture (survey_id=1,
+ * Driven by the V9005/V9005.5/V9005.6 "Library Card Registration" fixture (survey_id=1,
  * Tess Tester = respondent_id=1, already finalized). {@code ETLService.init()} is
  * {@code @Startup}, so by the time any test method runs, dim_step/dim_section/the
  * dim_* tag tables/fact_sections have already been populated once for the whole test
@@ -232,7 +232,7 @@ class ETLServiceTest {
 
     @Test
     void given_metadataOntologyDimensionsChain_when_buildDimensionTables_then_expectedTablesExist() {
-        // Spot-check a couple of tables the V005 fixture's metadata/ontology/dimensions
+        // Spot-check a couple of tables the V9005 fixture's metadata/ontology/dimensions
         // chain must have produced (PatronProfile dimension covers terms_consent +
         // digital_access; Branch is a tag-only-looking name but is dimensioned).
         long patronProfile = nativeCount(ownerEm,
@@ -378,7 +378,7 @@ class ETLServiceTest {
 
     @Test
     void given_stepSectionIdPathFixture_when_populateFactSectionTable_then_welcomeReachedKeyResolves() {
-        // V005.6 fixture: step_section_id-path metadata row with a constant value —
+        // V9005.6 fixture: step_section_id-path metadata row with a constant value —
         // exercises the previously-uncovered steps_sections join in FIND_DIMENSTION_VALUES_SQL
         // / FIND_MISSING_FACT_SECTION_DIMENSIONS_SQL.
         etlService.populateFactSectionTable(TESS_RESPONDENT_ID);
@@ -390,7 +390,7 @@ class ETLServiceTest {
 
     @Test
     void given_questionIdPathFixture_when_populateFactSectionTable_then_directProbeKeyResolvesToAnswerText() {
-        // V005.6 fixture: question_id-direct-path metadata row with value=NULL — exercises
+        // V9005.6 fixture: question_id-direct-path metadata row with value=NULL — exercises
         // the previously-uncovered "a.question_id = m.question_id" join, and the raw
         // answers.text_value ('true' for Tess's Q37) fallback branch of the CASE.
         etlService.populateFactSectionTable(TESS_RESPONDENT_ID);

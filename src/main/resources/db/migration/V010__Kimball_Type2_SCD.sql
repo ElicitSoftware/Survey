@@ -16,6 +16,9 @@
 -- This file exists purely to keep the greenfield track's version number aligned with the
 -- upgrade track's (db/migration-v3/V010__Kimball_Type2_SCD.sql, the real ALTER-based
 -- migration that upgrades an existing v2.x database). Both tracks now report "current
--- version: 010" after their first migrate(), so every migration from V011 onward can be
+-- version: 010" after their first migrate(), so every migration after this one can be
 -- added to both db/migration and db/migration-v3 at the same version number without
--- either track falling out of step with the other.
+-- either track falling out of step with the other. Note src/test/resources/db/test/'s
+-- test-only data fixtures (a separate Flyway location layered on top of db/migration only
+-- under the %test profile) start numbering at V9xxx specifically to stay out of this real
+-- migration sequence's way — don't reuse a low version number for test-only fixtures.

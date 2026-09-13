@@ -14,10 +14,10 @@ package com.elicitsoftware.scd;
 import jakarta.persistence.EntityManager;
 
 /**
- * Looks up the durable ids in the V011__SCD_Spec_Fixture.sql fixture by name/marker
+ * Looks up the durable ids in the V9011__SCD_Spec_Fixture.sql fixture by name/marker
  * rather than by hardcoded numeric id — the fixture is inserted after every other test
- * migration (V005/V005.5/V005.6), so its actual sequence-assigned ids are not fixed
- * small numbers the way the V005 fixture's are.
+ * migration (V9005/V9005.5/V9005.6), so its actual sequence-assigned ids are not fixed
+ * small numbers the way the V9005 fixture's are.
  * <p>
  * Every method here queries TODAY's columns only (id, name/text, survey_id, ...) so this
  * class compiles and works both before and after the Type 2 migration lands.

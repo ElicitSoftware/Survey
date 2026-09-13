@@ -1357,6 +1357,13 @@ versions, and the ontology assignment travels with it.
    - `metadata.steps_sections_id` ← `steps_sections.steps_sections_id` via `metadata.step_section_id`
    - Replace `metadata_un` unique constraint to cover the three new durable integer columns.
    - Drop `metadata_question_fk`, `metadata_sect_quest_fk`, `metadata_section_fk` constraints.
+   - Explicitly drop and recreate `metadata_element_ck` against the three new durable
+     columns. Renaming the old surrogate columns makes Postgres rewrite the constraint's
+     column references automatically, but only onto the renamed-away surrogate names —
+     never onto the new durable columns rows are actually populated with going forward.
+     Relying on the rename-rewrite here silently breaks the "at least one element column
+     is set" invariant on every upgraded database; it must be dropped and recreated
+     explicitly, matching the greenfield `CREATE TABLE`'s constraint exactly.
 5. Populate durable integer column on `dim_step` and `dim_section`:
    - `dim_step.step_id` ← `steps.step_id` via current `dim_step.id = steps.id` (surrogate, one-time backfill)
    - `dim_section.section_id` ← `sections.section_id` similarly
@@ -1367,6 +1374,17 @@ versions, and the ontology assignment travels with it.
    constants automatically.
 8. Drop old surrogate FK columns from all structural tables and `metadata` once all six
    checks in Open Question 1 pass in a staging environment.
+
+**Known, accepted divergence — physical column ordering**: because the upgrade track
+adds every new column via `ALTER TABLE ... ADD COLUMN` (which always appends at the end)
+while the greenfield track lays every column out deliberately in one `CREATE TABLE`, an
+upgraded database's `pg_attribute` column order differs from a fresh database's on every
+SCD-altered table (`select_items`, `questions`, `steps_sections`, `sections_questions`,
+`relationships`, `answers`, and the `is_draft`/`published_by`/`published_comment` triad
+order is swapped on all of them). This is harmless for named-column access — the
+application never uses `SELECT *` or a column-less `INSERT ... VALUES` against any of
+these tables — and fixing it would require a full table rebuild for no functional
+benefit. Documented here so it isn't mistaken for an oversight later.
 
 **Rollback strategy**: no Flyway down-migration (`undo`) script will be authored for
 this schema change. If a defect is discovered after the migration runs in production,

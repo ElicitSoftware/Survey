@@ -28,6 +28,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Exercises {@link ManualSchemaMigrator}'s upgrade branch — the one path in
@@ -47,9 +48,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * those are verbatim copies of the original pre-Kimball V001-V009 (see V010's own header
  * comment in that location) — then drives {@code ManualSchemaMigrator}'s exact sequence:
  * validate against {@code db/migration} (must fail, since its V001 now has Kimball baked in
- * and therefore a different checksum), migrate via {@code db/migration-v3} (applies V010),
- * repair against {@code db/migration}, then validate against {@code db/migration} again
- * (must now succeed, proving every future boot converges there directly).
+ * and therefore a different checksum), migrate via {@code db/migration-v3} (applies V010 and
+ * V011), repair against {@code db/migration}, then validate against {@code db/migration} again
+ * (must now succeed, proving every future boot converges there directly). A second test method
+ * covers the case of a database that already upgraded before V011 existed.
  */
 class ManualSchemaMigratorUpgradeTest {
 
@@ -89,8 +91,9 @@ class ManualSchemaMigratorUpgradeTest {
                         + "differs now that Kimball is baked in");
 
         // ManualSchemaMigrator's upgrade branch: migrate via db/migration-v3 (applies V010,
-        // the ALTER-based Kimball migration on top of the existing V001-V009 history), then
-        // repair against db/migration so every future boot's validate() succeeds there directly.
+        // the ALTER-based Kimball migration, and V011, the metadata_element_ck fix, on top of
+        // the existing V001-V009 history), then repair against db/migration so every future
+        // boot's validate() succeeds there directly.
         flywayFor("classpath:db/migration-v3", null).migrate();
         flywayFor("classpath:db/migration", null).repair();
 
@@ -100,6 +103,40 @@ class ManualSchemaMigratorUpgradeTest {
                 "After repair(), db/migration must validate cleanly so every future boot uses it directly");
 
         assertKimballSchemaPresent();
+
+        // A database that upgrades AFTER V011 exists in db/migration-v3 must get the correct
+        // constraint in the very same boot -- no second reboot needed.
+        assertMetadataElementCheckReferencesDurableColumns();
+    }
+
+    /**
+     * Reproduces the exact bug found in db/migration-v3's original V010: a database that
+     * upgraded BEFORE V011 existed (i.e. ran only V001-V010, then got repaired onto
+     * db/migration) ends up with {@code metadata_element_ck} enforcing against the renamed-
+     * away {@code *_surrogate} columns instead of the new durable columns. Confirms
+     * ManualSchemaMigrator's ordinary next-boot path -- plain {@code migrate()} against
+     * db/migration, no special-cased repair logic -- picks up the now-pending V011 and fixes
+     * the constraint in place.
+     */
+    @Test
+    void upgradeTrack_appliedBeforeV011Existed_convergesOnNextPlainMigrate() throws SQLException {
+        // Simulate a database that upgraded when db/migration-v3's latest version was still
+        // V010 (i.e. before this fix shipped): apply only through V010, then repair -- exactly
+        // what a real already-upgraded database's history looks like today.
+        flywayFor("classpath:db/migration-v3", "10").migrate();
+        flywayFor("classpath:db/migration", "10").repair();
+
+        assertMetadataElementCheckDefinition(
+                "CHECK ((((step_section_id_surrogate + question_id_surrogate) + section_question_id_surrogate) > 0))",
+                "A database upgraded via the old (pre-fix) V010 must reproduce the bug: the "
+                        + "constraint still enforces against the renamed-away surrogate columns");
+
+        // The next ordinary boot: ManualSchemaMigrator.validatesCleanly() passes (V001-V010
+        // checksums already match db/migration after the repair above), so it takes the plain
+        // migrate() branch -- which now finds V011 pending and applies it.
+        flywayFor("classpath:db/migration", null).migrate();
+
+        assertMetadataElementCheckReferencesDurableColumns();
     }
 
     private Flyway flywayFor(String location, String targetVersion) {
@@ -146,6 +183,23 @@ class ManualSchemaMigratorUpgradeTest {
                     "surveyreport.dim_step must gain the durable step_id column via the upgrade path");
             assertEquals(1, countColumn(conn, "surveyreport", "dim_section", "section_id"),
                     "surveyreport.dim_section must gain the durable section_id column via the upgrade path");
+        }
+    }
+
+    private void assertMetadataElementCheckReferencesDurableColumns() throws SQLException {
+        assertMetadataElementCheckDefinition(
+                "CHECK ((((steps_sections_id + question_id) + sections_question_id) > 0))",
+                "metadata_element_ck must enforce against the durable columns, matching what "
+                        + "db/migration's V001 creates directly on a fresh database");
+    }
+
+    private void assertMetadataElementCheckDefinition(String expectedDefinition, String message) throws SQLException {
+        try (Connection conn = DriverManager.getConnection(container.getJdbcUrl(), OWNER_USER, PASSWORD);
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'metadata_element_ck'");
+             ResultSet rs = ps.executeQuery()) {
+            assertTrue(rs.next(), "metadata_element_ck must exist");
+            assertEquals(expectedDefinition, rs.getString(1), message);
         }
     }
 

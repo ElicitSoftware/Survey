@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Queries — Time-Range Guards"); this is the query-level "before" picture the
  * rewrite must reproduce (modulo the join column itself).
  * <p>
- * Uses the V005/V005.5/V005.6 fixture (survey_id=1, Tess Tester = respondent_id=1).
+ * Uses the V005/V9005.5/V9005.6 fixture (survey_id=1, Tess Tester = respondent_id=1).
  */
 @QuarkusTest
 @QuarkusTestResource(PostgresTestResource.class)
@@ -69,7 +69,7 @@ class SqlDimensionResolutionTest {
     @Test
     void given_tess_when_findDimensionValues_then_stepSectionIdPathResolvesConstant() {
         // Path: answers -> steps_sections (display-order join) -> metadata.step_section_id
-        // -> ontology (tag-only). V005.6 fixture-added coverage.
+        // -> ontology (tag-only). V9005.6 fixture-added coverage.
         List<Object[]> rows = findDimensionValuesForTess();
         assertTrue(containsTuple(rows, "dim_welcome_reached", "welcomestepreached"),
                 "step_section_id join path must resolve the constant metadata.value for ss_welcome");
@@ -79,7 +79,7 @@ class SqlDimensionResolutionTest {
     void given_tess_when_findDimensionValues_then_questionIdDirectPathResolvesAnswerText() {
         // Path: answers.question_id -> metadata.question_id (direct) -> ontology (tag-only).
         // metadata.value IS NULL here, so resolution falls back to the raw answers.text_value
-        // ('true' for Tess's Q37 CHECKBOX answer). V005.6 fixture-added coverage.
+        // ('true' for Tess's Q37 CHECKBOX answer). V9005.6 fixture-added coverage.
         List<Object[]> rows = findDimensionValuesForTess();
         assertTrue(containsTuple(rows, "dim_terms_consent_direct_probe", "true"),
                 "question_id-direct join path must fall back to the respondent's raw answer text");

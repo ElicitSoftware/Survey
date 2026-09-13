@@ -571,11 +571,14 @@ ALTER TABLE survey.metadata
     DROP CONSTRAINT metadata_un,
     ADD CONSTRAINT metadata_un UNIQUE (steps_sections_id, question_durable_id, sections_question_id, ontology_id, value);
 
--- metadata_element_ck is left untouched: Postgres transparently rewrites a CHECK
--- constraint's column references when the underlying column is renamed (the three
--- RENAME COLUMN statements above already did this), so the constraint continues
--- enforcing "at least one element column is set" against the *_surrogate columns,
--- exactly as the doc specifies (it does not ask for this constraint to be touched).
+-- metadata_element_ck is deliberately left untouched HERE: yes, Postgres transparently
+-- rewrites a CHECK constraint's column references when the underlying column is renamed
+-- (the three RENAME COLUMN statements above already did this) — but that means the
+-- constraint keeps enforcing "at least one element column is set" against the now-dead
+-- *_surrogate columns forever, never against the durable columns rows actually get
+-- populated with. That's a real enforcement gap, not the intended behavior — see
+-- V011__Fix_Metadata_Element_Check.sql, which drops and recreates this constraint
+-- against the durable columns, matching db/migration's V001 directly.
 
 ALTER TABLE survey.metadata
     DROP CONSTRAINT metadata_question_fk,

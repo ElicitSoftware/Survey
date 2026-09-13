@@ -36,7 +36,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * says it will rename, retype, or rewire, so that an unmodified re-run of this suite
  * proves nothing regressed once that migration lands.
  * <p>
- * Uses its own isolated, generic (non-FHHS) fixture — V012__QuestionManager_Branch_Fixture.sql
+ * Uses its own isolated, generic (non-FHHS) fixture — V9012__QuestionManager_Branch_Fixture.sql
  * — because every relationship in the existing Library/Tess fixture that sets
  * downstream_step_id also sets downstream_s_id, so {@link QuestionManager}'s
  * downstream-step-*only* SHOW branch and its (currently stubbed) REPEAT branch are

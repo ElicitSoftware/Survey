@@ -41,11 +41,11 @@ class QuestionManagerTest {
     @Inject
     EntityManager em;
 
-    // V005.5 Tess Tester — completed respondent, all active paths walked
+    // V9005.5 Tess Tester — completed respondent, all active paths walked
     static final int TESS_RESPONDENT_ID = 1;
     static final int SURVEY_ID = 1;
 
-    // Display key constants derived from V005/V005.5 fixture
+    // Display key constants derived from V9005/V9005.5 fixture
     static final String WELCOME_SECTION      = "0001-0001-0000-0001-0000-0000-0000";
     static final String PATRON_SECTION       = "0001-0002-0000-0002-0000-0000-0000";
     static final String DIGITAL_SECTION      = "0001-0002-0000-0003-0000-0000-0000";
