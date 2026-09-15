@@ -55,10 +55,45 @@ CREATE SEQUENCE survey.relationships_durable_seq;
 GRANT USAGE ON SEQUENCE survey.relationships_durable_seq TO ${survey_user};
 
 --------------------------------
+-- 0b. Generic Type 2 SCD trigger, shared by every structural table below
+-- (questions, select_groups, select_items, sections, steps, steps_sections,
+-- sections_questions, relationships). BEFORE INSERT so it can close the
+-- predecessor's effective_to before the new "current" row lands, avoiding any
+-- collision with that table's *_one_current_un partial unique index. A no-op
+-- when no predecessor exists (a brand-new durable id from a create-import) —
+-- the row keeps its schema-default sentinel effective_from in that case.
+-- NOT applied to surveys itself, which stays Type 1 (see section 10 below).
+-- Matches db/migration's greenfield V001 (survey.scd_close_predecessor).
+--------------------------------
+CREATE OR REPLACE FUNCTION survey.scd_close_predecessor() RETURNS trigger AS $$
+DECLARE
+    durable_col text := TG_ARGV[0];
+    durable_val integer;
+BEGIN
+    IF NEW.effective_from = '1970-01-01 00:00:00+00' THEN
+        NEW.effective_from := now();
+    END IF;
+    IF NEW.effective_to = '9999-12-31 23:59:59+00' THEN
+        EXECUTE format('SELECT ($1).%I', durable_col) INTO durable_val USING NEW;
+        EXECUTE format(
+            'UPDATE %I.%I SET effective_to = $1 WHERE %I = $2 AND effective_to = $3 AND id <> $4',
+            TG_TABLE_SCHEMA, TG_TABLE_NAME, durable_col
+        ) USING NEW.effective_from, durable_val, '9999-12-31 23:59:59+00'::timestamptz, NEW.id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+--------------------------------
 -- 1. questions — Type 2 columns
 --------------------------------
 ALTER TABLE survey.questions
     ADD COLUMN question_id      integer NOT NULL DEFAULT nextval('survey.questions_durable_seq'),
+    -- Cross-instance-portable identity — see survey_key on surveys (section 10 below)
+    -- for the same pattern one level up. random()'s ~52 bits of entropy per row
+    -- evaluation during this table rewrite is enough on its own for uniqueness; no
+    -- UUID extension is enabled in this schema, so this avoids depending on one.
+    ADD COLUMN question_key     uuid NOT NULL DEFAULT (md5(random()::text || clock_timestamp()::text))::uuid,
     ADD COLUMN version          integer NOT NULL DEFAULT 0,
     ADD COLUMN effective_from   timestamp with time zone DEFAULT '1970-01-01 00:00:00+00',
     ADD COLUMN effective_to     timestamp with time zone DEFAULT '9999-12-31 23:59:59+00',
@@ -74,9 +109,20 @@ CREATE UNIQUE INDEX questions_one_draft_un
     ON survey.questions (question_id)
     WHERE is_draft = true;
 
-ALTER TABLE survey.questions ADD CONSTRAINT questions_id_version_un UNIQUE (question_id, version);
+CREATE TRIGGER questions_scd_close_predecessor BEFORE INSERT ON survey.questions
+    FOR EACH ROW EXECUTE FUNCTION survey.scd_close_predecessor('question_id');
 
-CREATE INDEX questions_durable_id_idx ON survey.questions (question_id);
+ALTER TABLE survey.questions ADD CONSTRAINT questions_id_version_un UNIQUE (question_id, version);
+ALTER TABLE survey.questions ADD CONSTRAINT questions_key_version_un UNIQUE (question_key, version);
+CREATE INDEX questions_key_idx ON survey.questions (question_key, effective_from, effective_to);
+
+-- Composite (durable key + effective range) index for as-of point-in-time resolution —
+-- the actual dominant runtime access pattern (e.g. "resolve questions.question_id as of
+-- :asOf" in QuestionManager.java's native SQL), which a plain durable-id index alone can't
+-- satisfy without a Filter step. Supersedes a plain (question_id) index: the composite
+-- already serves equality-only lookups via its leading column. Matches db/migration's
+-- greenfield V001 (questions_durable_range_idx).
+CREATE INDEX questions_durable_range_idx ON survey.questions (question_id, effective_from, effective_to);
 CREATE INDEX questions_active_range_idx ON survey.questions (survey_id, effective_from, effective_to);
 
 --------------------------------
@@ -84,6 +130,8 @@ CREATE INDEX questions_active_range_idx ON survey.questions (survey_id, effectiv
 --------------------------------
 ALTER TABLE survey.select_groups
     ADD COLUMN select_group_id  integer NOT NULL DEFAULT nextval('survey.select_groups_durable_seq'),
+    -- Cross-instance-portable identity — see question_key above.
+    ADD COLUMN select_group_key uuid NOT NULL DEFAULT (md5(random()::text || clock_timestamp()::text))::uuid,
     ADD COLUMN version          integer NOT NULL DEFAULT 0,
     ADD COLUMN effective_from   timestamp with time zone DEFAULT '1970-01-01 00:00:00+00',
     ADD COLUMN effective_to     timestamp with time zone DEFAULT '9999-12-31 23:59:59+00',
@@ -99,9 +147,17 @@ CREATE UNIQUE INDEX select_groups_one_draft_un
     ON survey.select_groups (select_group_id)
     WHERE is_draft = true;
 
-ALTER TABLE survey.select_groups ADD CONSTRAINT select_groups_id_version_un UNIQUE (select_group_id, version);
+CREATE TRIGGER select_groups_scd_close_predecessor BEFORE INSERT ON survey.select_groups
+    FOR EACH ROW EXECUTE FUNCTION survey.scd_close_predecessor('select_group_id');
 
-CREATE INDEX select_groups_durable_id_idx ON survey.select_groups (select_group_id);
+ALTER TABLE survey.select_groups ADD CONSTRAINT select_groups_id_version_un UNIQUE (select_group_id, version);
+ALTER TABLE survey.select_groups ADD CONSTRAINT select_groups_key_version_un UNIQUE (select_group_key, version);
+CREATE INDEX select_groups_key_idx ON survey.select_groups (select_group_key, effective_from, effective_to);
+
+-- Composite (durable key + effective range) index — see questions_durable_range_idx above
+-- for the access pattern this serves. Supersedes a plain (select_group_id) index. Matches
+-- db/migration's greenfield V001 (select_groups_durable_range_idx).
+CREATE INDEX select_groups_durable_range_idx ON survey.select_groups (select_group_id, effective_from, effective_to);
 CREATE INDEX select_groups_active_range_idx ON survey.select_groups (survey_id, effective_from, effective_to);
 
 -- Business-key uniqueness must be scoped to the currently-active row only — a
@@ -116,6 +172,8 @@ CREATE UNIQUE INDEX select_groups_name_un
 --------------------------------
 ALTER TABLE survey.select_items
     ADD COLUMN select_item_id   integer NOT NULL DEFAULT nextval('survey.select_items_durable_seq'),
+    -- Cross-instance-portable identity — see question_key above.
+    ADD COLUMN select_item_key  uuid NOT NULL DEFAULT (md5(random()::text || clock_timestamp()::text))::uuid,
     ADD COLUMN version          integer NOT NULL DEFAULT 0,
     ADD COLUMN effective_from   timestamp with time zone DEFAULT '1970-01-01 00:00:00+00',
     ADD COLUMN effective_to     timestamp with time zone DEFAULT '9999-12-31 23:59:59+00',
@@ -164,9 +222,17 @@ CREATE UNIQUE INDEX select_items_one_draft_un
     ON survey.select_items (select_item_id)
     WHERE is_draft = true;
 
-ALTER TABLE survey.select_items ADD CONSTRAINT select_items_id_version_un UNIQUE (select_item_id, version);
+CREATE TRIGGER select_items_scd_close_predecessor BEFORE INSERT ON survey.select_items
+    FOR EACH ROW EXECUTE FUNCTION survey.scd_close_predecessor('select_item_id');
 
-CREATE INDEX select_items_durable_id_idx ON survey.select_items (select_item_id);
+ALTER TABLE survey.select_items ADD CONSTRAINT select_items_id_version_un UNIQUE (select_item_id, version);
+ALTER TABLE survey.select_items ADD CONSTRAINT select_items_key_version_un UNIQUE (select_item_key, version);
+CREATE INDEX select_items_key_idx ON survey.select_items (select_item_key, effective_from, effective_to);
+
+-- Composite (durable key + effective range) index — see questions_durable_range_idx above
+-- for the access pattern this serves. Supersedes a plain (select_item_id) index. Matches
+-- db/migration's greenfield V001 (select_items_durable_range_idx).
+CREATE INDEX select_items_durable_range_idx ON survey.select_items (select_item_id, effective_from, effective_to);
 CREATE INDEX select_items_select_group_id_idx ON survey.select_items (select_group_id);
 CREATE INDEX select_items_active_range_idx ON survey.select_items (survey_id, effective_from, effective_to);
 
@@ -183,6 +249,8 @@ CREATE UNIQUE INDEX select_items_display_text_un
 --------------------------------
 ALTER TABLE survey.sections
     ADD COLUMN section_id      integer NOT NULL DEFAULT nextval('survey.sections_durable_seq'),
+    -- Cross-instance-portable identity — see question_key above.
+    ADD COLUMN section_key     uuid NOT NULL DEFAULT (md5(random()::text || clock_timestamp()::text))::uuid,
     ADD COLUMN version         integer NOT NULL DEFAULT 0,
     ADD COLUMN effective_from  timestamp with time zone DEFAULT '1970-01-01 00:00:00+00',
     ADD COLUMN effective_to    timestamp with time zone DEFAULT '9999-12-31 23:59:59+00',
@@ -198,9 +266,17 @@ CREATE UNIQUE INDEX sections_one_draft_un
     ON survey.sections (section_id)
     WHERE is_draft = true;
 
-ALTER TABLE survey.sections ADD CONSTRAINT sections_id_version_un UNIQUE (section_id, version);
+CREATE TRIGGER sections_scd_close_predecessor BEFORE INSERT ON survey.sections
+    FOR EACH ROW EXECUTE FUNCTION survey.scd_close_predecessor('section_id');
 
-CREATE INDEX sections_durable_id_idx ON survey.sections (section_id);
+ALTER TABLE survey.sections ADD CONSTRAINT sections_id_version_un UNIQUE (section_id, version);
+ALTER TABLE survey.sections ADD CONSTRAINT sections_key_version_un UNIQUE (section_key, version);
+CREATE INDEX sections_key_idx ON survey.sections (section_key, effective_from, effective_to);
+
+-- Composite (durable key + effective range) index — see questions_durable_range_idx above
+-- for the access pattern this serves. Supersedes a plain (section_id) index. Matches
+-- db/migration's greenfield V001 (sections_durable_range_idx).
+CREATE INDEX sections_durable_range_idx ON survey.sections (section_id, effective_from, effective_to);
 CREATE INDEX sections_active_range_idx ON survey.sections (survey_id, effective_from, effective_to);
 
 -- Business-key uniqueness scoped to the currently-active row only (see select_groups above).
@@ -216,6 +292,8 @@ ALTER TABLE survey.sections ALTER COLUMN display_order TYPE NUMERIC;
 --------------------------------
 ALTER TABLE survey.steps
     ADD COLUMN step_id         integer NOT NULL DEFAULT nextval('survey.steps_durable_seq'),
+    -- Cross-instance-portable identity — see question_key above.
+    ADD COLUMN step_key        uuid NOT NULL DEFAULT (md5(random()::text || clock_timestamp()::text))::uuid,
     ADD COLUMN version         integer NOT NULL DEFAULT 0,
     ADD COLUMN effective_from  timestamp with time zone DEFAULT '1970-01-01 00:00:00+00',
     ADD COLUMN effective_to    timestamp with time zone DEFAULT '9999-12-31 23:59:59+00',
@@ -231,9 +309,17 @@ CREATE UNIQUE INDEX steps_one_draft_un
     ON survey.steps (step_id)
     WHERE is_draft = true;
 
-ALTER TABLE survey.steps ADD CONSTRAINT steps_id_version_un UNIQUE (step_id, version);
+CREATE TRIGGER steps_scd_close_predecessor BEFORE INSERT ON survey.steps
+    FOR EACH ROW EXECUTE FUNCTION survey.scd_close_predecessor('step_id');
 
-CREATE INDEX steps_durable_id_idx ON survey.steps (step_id);
+ALTER TABLE survey.steps ADD CONSTRAINT steps_id_version_un UNIQUE (step_id, version);
+ALTER TABLE survey.steps ADD CONSTRAINT steps_key_version_un UNIQUE (step_key, version);
+CREATE INDEX steps_key_idx ON survey.steps (step_key, effective_from, effective_to);
+
+-- Composite (durable key + effective range) index — see questions_durable_range_idx above
+-- for the access pattern this serves. Supersedes a plain (step_id) index. Matches
+-- db/migration's greenfield V001 (steps_durable_range_idx).
+CREATE INDEX steps_durable_range_idx ON survey.steps (step_id, effective_from, effective_to);
 CREATE INDEX steps_active_range_idx ON survey.steps (survey_id, effective_from, effective_to);
 
 -- Business-key uniqueness scoped to the currently-active row only (see select_groups above).
@@ -278,6 +364,8 @@ ALTER TABLE survey.questions
 --------------------------------
 ALTER TABLE survey.steps_sections
     ADD COLUMN steps_sections_id integer NOT NULL DEFAULT nextval('survey.steps_sections_durable_seq'),
+    -- Cross-instance-portable identity — see question_key above.
+    ADD COLUMN steps_sections_key uuid NOT NULL DEFAULT (md5(random()::text || clock_timestamp()::text))::uuid,
     ADD COLUMN version           integer NOT NULL DEFAULT 0,
     ADD COLUMN effective_from    timestamp with time zone DEFAULT '1970-01-01 00:00:00+00',
     ADD COLUMN effective_to      timestamp with time zone DEFAULT '9999-12-31 23:59:59+00',
@@ -321,10 +409,30 @@ CREATE UNIQUE INDEX steps_sections_one_draft_un
     ON survey.steps_sections (steps_sections_id)
     WHERE is_draft = true;
 
-ALTER TABLE survey.steps_sections ADD CONSTRAINT steps_sections_id_version_un UNIQUE (steps_sections_id, version);
+CREATE TRIGGER steps_sections_scd_close_predecessor BEFORE INSERT ON survey.steps_sections
+    FOR EACH ROW EXECUTE FUNCTION survey.scd_close_predecessor('steps_sections_id');
 
-CREATE INDEX steps_sections_durable_id_idx ON survey.steps_sections (steps_sections_id);
+ALTER TABLE survey.steps_sections ADD CONSTRAINT steps_sections_id_version_un UNIQUE (steps_sections_id, version);
+ALTER TABLE survey.steps_sections ADD CONSTRAINT steps_sections_key_version_un UNIQUE (steps_sections_key, version);
+CREATE INDEX steps_sections_key_idx ON survey.steps_sections (steps_sections_key, effective_from, effective_to);
+
+-- Composite (durable key + effective range) index — see questions_durable_range_idx above
+-- for the access pattern this serves. Supersedes a plain (steps_sections_id) index. Matches
+-- db/migration's greenfield V001 (steps_sections_durable_range_idx).
+CREATE INDEX steps_sections_durable_range_idx ON survey.steps_sections (steps_sections_id, effective_from, effective_to);
 CREATE INDEX steps_sections_active_range_idx ON survey.steps_sections (survey_id, effective_from, effective_to);
+-- display_key is not a durable key but hits the identical as-of access pattern on the
+-- hottest runtime path (QuestionManager.navigate(), via StepsSections.findByDisplayKeyWithJoinsAsOf/
+-- findByDisplayKeyQueryAsOf) and had no supporting index at all outside the current-only
+-- partial unique index (steps_sections_un, which a ">"-bound :asOf predicate can't match).
+-- varchar_pattern_ops on the leading column is required because findByDisplayKeyQueryAsOf
+-- issues trailing-wildcard LIKE 'nnnn-nnnn-%' patterns (DisplayKey.getStepQueryString()/
+-- getSectionQueryString()) — a plain btree index only supports index-scan prefix-LIKE
+-- matching under C locale, which nothing here pins the database to. varchar_pattern_ops
+-- supports both "=" and prefix LIKE regardless of collation. Matches db/migration's
+-- greenfield V001 (steps_sections_display_key_range_idx).
+CREATE INDEX steps_sections_display_key_range_idx
+    ON survey.steps_sections (display_key varchar_pattern_ops, effective_from, effective_to);
 
 -- Business-key uniqueness scoped to the currently-active row only (see select_groups above).
 ALTER TABLE survey.steps_sections DROP CONSTRAINT steps_sections_un;
@@ -342,6 +450,8 @@ ALTER TABLE survey.steps_sections ALTER COLUMN section_display_order TYPE NUMERI
 --------------------------------
 ALTER TABLE survey.sections_questions
     ADD COLUMN sections_question_id integer NOT NULL DEFAULT nextval('survey.sections_questions_durable_seq'),
+    -- Cross-instance-portable identity — see question_key above.
+    ADD COLUMN sections_question_key uuid NOT NULL DEFAULT (md5(random()::text || clock_timestamp()::text))::uuid,
     ADD COLUMN version              integer NOT NULL DEFAULT 0,
     ADD COLUMN effective_from       timestamp with time zone DEFAULT '1970-01-01 00:00:00+00',
     ADD COLUMN effective_to         timestamp with time zone DEFAULT '9999-12-31 23:59:59+00',
@@ -393,9 +503,17 @@ CREATE UNIQUE INDEX sections_questions_one_draft_un
     ON survey.sections_questions (sections_question_id)
     WHERE is_draft = true;
 
-ALTER TABLE survey.sections_questions ADD CONSTRAINT sections_questions_id_version_un UNIQUE (sections_question_id, version);
+CREATE TRIGGER sections_questions_scd_close_predecessor BEFORE INSERT ON survey.sections_questions
+    FOR EACH ROW EXECUTE FUNCTION survey.scd_close_predecessor('sections_question_id');
 
-CREATE INDEX sections_questions_durable_id_idx ON survey.sections_questions (sections_question_id);
+ALTER TABLE survey.sections_questions ADD CONSTRAINT sections_questions_id_version_un UNIQUE (sections_question_id, version);
+ALTER TABLE survey.sections_questions ADD CONSTRAINT sections_questions_key_version_un UNIQUE (sections_question_key, version);
+CREATE INDEX sections_questions_key_idx ON survey.sections_questions (sections_question_key, effective_from, effective_to);
+
+-- Composite (durable key + effective range) index — see questions_durable_range_idx above
+-- for the access pattern this serves. Supersedes a plain (sections_question_id) index.
+-- Matches db/migration's greenfield V001 (sections_questions_durable_range_idx).
+CREATE INDEX sections_questions_durable_range_idx ON survey.sections_questions (sections_question_id, effective_from, effective_to);
 CREATE INDEX sections_questions_active_range_idx ON survey.sections_questions (survey_id, effective_from, effective_to);
 
 -- Business-key uniqueness scoped to the currently-active row only (see select_groups above).
@@ -413,6 +531,8 @@ ALTER TABLE survey.sections_questions ALTER COLUMN display_order TYPE NUMERIC;
 --------------------------------
 ALTER TABLE survey.relationships
     ADD COLUMN relationship_id         integer NOT NULL DEFAULT nextval('survey.relationships_durable_seq'),
+    -- Cross-instance-portable identity — see question_key above.
+    ADD COLUMN relationship_key        uuid NOT NULL DEFAULT (md5(random()::text || clock_timestamp()::text))::uuid,
     ADD COLUMN version                 integer NOT NULL DEFAULT 0,
     ADD COLUMN effective_from          timestamp with time zone DEFAULT '1970-01-01 00:00:00+00',
     ADD COLUMN effective_to            timestamp with time zone DEFAULT '9999-12-31 23:59:59+00',
@@ -503,17 +623,59 @@ CREATE UNIQUE INDEX relationships_one_draft_un
     ON survey.relationships (relationship_id)
     WHERE is_draft = true;
 
-ALTER TABLE survey.relationships ADD CONSTRAINT relationships_id_version_un UNIQUE (relationship_id, version);
+CREATE TRIGGER relationships_scd_close_predecessor BEFORE INSERT ON survey.relationships
+    FOR EACH ROW EXECUTE FUNCTION survey.scd_close_predecessor('relationship_id');
 
-CREATE INDEX relationships_durable_id_idx ON survey.relationships (relationship_id);
+ALTER TABLE survey.relationships ADD CONSTRAINT relationships_id_version_un UNIQUE (relationship_id, version);
+ALTER TABLE survey.relationships ADD CONSTRAINT relationships_key_version_un UNIQUE (relationship_key, version);
+CREATE INDEX relationships_key_idx ON survey.relationships (relationship_key, effective_from, effective_to);
+
+-- Composite (durable key + effective range) index — see questions_durable_range_idx above
+-- for the access pattern this serves. Supersedes a plain (relationship_id) index. Matches
+-- db/migration's greenfield V001 (relationships_durable_range_idx).
+CREATE INDEX relationships_durable_range_idx ON survey.relationships (relationship_id, effective_from, effective_to);
 CREATE INDEX relationships_active_range_idx ON survey.relationships (survey_id, effective_from, effective_to);
 
+-- Upgrade the five pre-Kimball plain FK-lookup indexes (created by this same
+-- migration-v3/'s V001 baseline, under the pre-rename column names where applicable) to
+-- composite (fk-durable-column + effective range) form. These five columns are the durable
+-- keys of steps/sections_questions/steps_sections after the retarget above, and every named
+-- query/native SQL that filters on one of them also carries an effective_from/effective_to
+-- as-of guard (Relationship.java's @NamedQueries, QuestionManager.java's native SQL) — a
+-- plain single-column index forces a Filter step for that range predicate. Matches
+-- db/migration's greenfield V001 (relationships_*_range_idx).
+DROP INDEX IF EXISTS survey.relationships_upstream_step_index;
+DROP INDEX IF EXISTS survey.relationships_upstream_sq_index;
+DROP INDEX IF EXISTS survey.relationships_downstream_step_index;
+DROP INDEX IF EXISTS survey.relationships_downstream_section_index;
+DROP INDEX IF EXISTS survey.relationships_downstream_sq_index;
+
+CREATE INDEX relationships_upstream_step_range_idx ON survey.relationships (upstream_step_id, effective_from, effective_to);
+CREATE INDEX relationships_upstream_sq_range_idx ON survey.relationships (upstream_sq_id, effective_from, effective_to);
+CREATE INDEX relationships_downstream_step_range_idx ON survey.relationships (downstream_step_id, effective_from, effective_to);
+CREATE INDEX relationships_downstream_section_range_idx ON survey.relationships (downstream_ss_id, effective_from, effective_to);
+CREATE INDEX relationships_downstream_sq_range_idx ON survey.relationships (downstream_sq_id, effective_from, effective_to);
+
 --------------------------------
--- 10. surveys — SCD Type 1 (in-place), no version/effective columns
+-- 10. surveys — SCD Type 1 (in-place), no version/effective columns.
+-- survey_key is a stable, cross-instance-portable identity (preserved verbatim
+-- across a create-import, unlike the durable keys above which are reallocated
+-- per-instance) — not part of Type 2 versioning, just a permanent business key
+-- alongside the existing surrogate id. Backfilled here since this path runs
+-- against an already-populated legacy database; no UUID extension is enabled
+-- in this schema, so this avoids depending on one.
 --------------------------------
 ALTER TABLE survey.surveys
     ADD COLUMN published_by      text,
-    ADD COLUMN published_comment text;
+    ADD COLUMN published_comment text,
+    ADD COLUMN survey_key        uuid;
+
+UPDATE survey.surveys
+   SET survey_key = md5(random()::text || clock_timestamp()::text || id::text)::uuid
+ WHERE survey_key IS NULL;
+
+ALTER TABLE survey.surveys ALTER COLUMN survey_key SET NOT NULL;
+ALTER TABLE survey.surveys ADD CONSTRAINT surveys_survey_key_un UNIQUE (survey_key);
 
 --------------------------------
 -- 11. answers — pin the exact question version seen

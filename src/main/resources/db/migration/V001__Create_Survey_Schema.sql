@@ -29,6 +29,15 @@ GRANT USAGE ON SEQUENCE survey.surveys_seq TO ${surveyadmin_user};
 CREATE TABLE IF NOT EXISTS survey.surveys
 (
     id                  integer                NOT NULL,
+    -- Stable, cross-instance-portable identity for this authored survey.
+    -- Unlike the durable keys on the structural tables below (step_id,
+    -- question_id, etc.), which are reallocated per-instance on every import,
+    -- survey_key is preserved verbatim across a create-import — it is the one
+    -- identifier that has to mean "the same authored survey" across separate
+    -- deployed databases (e.g. two institutions importing the same survey).
+    -- See research/Kimball_type_2.md "surveys" — surveys itself stays Type 1
+    -- (id never changes; no version/effective_from/effective_to).
+    survey_key          uuid                   NOT NULL,
     name                character varying(255) NOT NULL,
     display_order       integer                NOT NULL,
     title               character varying(255) NOT NULL,
@@ -40,6 +49,7 @@ CREATE TABLE IF NOT EXISTS survey.surveys
     published_by        text,
     published_comment   text,
     CONSTRAINT surveys_pk PRIMARY KEY (id),
+    CONSTRAINT surveys_survey_key_un UNIQUE (survey_key),
     CONSTRAINT surveys_name_un UNIQUE (name),
     CONSTRAINT surveys_display_order_un UNIQUE (display_order)
 );
@@ -106,6 +116,34 @@ CREATE TABLE IF NOT EXISTS survey.action_types
 );
 GRANT DELETE, UPDATE, INSERT, SELECT ON TABLE survey.action_types TO ${survey_user};
 --------------------------------
+-- Generic Type 2 SCD trigger, shared by every structural table below
+-- (select_groups, select_items, steps, sections, steps_sections, questions,
+-- sections_questions, relationships). BEFORE INSERT so it can close the
+-- predecessor's effective_to before the new "current" row lands, avoiding any
+-- collision with that table's *_one_current_un partial unique index. A no-op
+-- when no predecessor exists (a brand-new durable id from a create-import) —
+-- the row keeps its schema-default sentinel effective_from in that case.
+-- NOT applied to surveys itself, which stays Type 1 (see surveys table above).
+--------------------------------
+CREATE OR REPLACE FUNCTION survey.scd_close_predecessor() RETURNS trigger AS $$
+DECLARE
+    durable_col text := TG_ARGV[0];
+    durable_val integer;
+BEGIN
+    IF NEW.effective_from = '1970-01-01 00:00:00+00' THEN
+        NEW.effective_from := now();
+    END IF;
+    IF NEW.effective_to = '9999-12-31 23:59:59+00' THEN
+        EXECUTE format('SELECT ($1).%I', durable_col) INTO durable_val USING NEW;
+        EXECUTE format(
+            'UPDATE %I.%I SET effective_to = $1 WHERE %I = $2 AND effective_to = $3 AND id <> $4',
+            TG_TABLE_SCHEMA, TG_TABLE_NAME, durable_col
+        ) USING NEW.effective_from, durable_val, '9999-12-31 23:59:59+00'::timestamptz, NEW.id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+--------------------------------
 -- select_groups — Type 2 SCD structural table (durable key: select_group_id)
 --------------------------------
 CREATE SEQUENCE survey.select_groups_seq INCREMENT 1 START 1;
@@ -120,6 +158,11 @@ CREATE TABLE IF NOT EXISTS survey.select_groups
     description        character varying(255),
     data_type          CHARACTER VARYING(50) NOT NULL DEFAULT 'Text',
     select_group_id    integer NOT NULL DEFAULT nextval('survey.select_groups_durable_seq'),
+    -- Cross-instance-portable identity (unlike select_group_id above, which is
+    -- per-instance-local and reallocated fresh on every import). Preserved verbatim
+    -- across import/update — see survey_key on surveys for the same pattern, one
+    -- level up. Copied forward onto each new version row, never regenerated.
+    select_group_key   uuid NOT NULL,
     version            integer NOT NULL DEFAULT 0,
     effective_from     timestamp with time zone DEFAULT '1970-01-01 00:00:00+00',
     effective_to       timestamp with time zone DEFAULT '9999-12-31 23:59:59+00',
@@ -127,7 +170,8 @@ CREATE TABLE IF NOT EXISTS survey.select_groups
     published_by       text,
     published_comment  text,
     CONSTRAINT select_groups_pk PRIMARY KEY (id),
-    CONSTRAINT select_groups_id_version_un UNIQUE (select_group_id, version)
+    CONSTRAINT select_groups_id_version_un UNIQUE (select_group_id, version),
+    CONSTRAINT select_groups_key_version_un UNIQUE (select_group_key, version)
 );
 -- Business-key uniqueness is scoped to the currently-active row only — a
 -- retired version and its successor legitimately share (survey_id, name).
@@ -140,8 +184,16 @@ CREATE UNIQUE INDEX select_groups_one_current_un
 CREATE UNIQUE INDEX select_groups_one_draft_un
     ON survey.select_groups (select_group_id)
     WHERE is_draft = true;
-CREATE INDEX select_groups_durable_id_idx ON survey.select_groups (select_group_id);
+CREATE TRIGGER select_groups_scd_close_predecessor BEFORE INSERT ON survey.select_groups
+    FOR EACH ROW EXECUTE FUNCTION survey.scd_close_predecessor('select_group_id');
+-- Composite (durable key + effective range) index for as-of point-in-time resolution —
+-- the actual dominant runtime access pattern (e.g. "resolve select_groups.select_group_id
+-- as of :asOf"), which the plain durable-id index alone can't satisfy without a Filter
+-- step. Supersedes a plain (select_group_id) index: the composite already serves
+-- equality-only lookups via its leading column.
+CREATE INDEX select_groups_durable_range_idx ON survey.select_groups (select_group_id, effective_from, effective_to);
 CREATE INDEX select_groups_active_range_idx ON survey.select_groups (survey_id, effective_from, effective_to);
+CREATE INDEX select_groups_key_idx ON survey.select_groups (select_group_key, effective_from, effective_to);
 GRANT DELETE, UPDATE, INSERT, SELECT ON TABLE survey.select_groups TO ${survey_user};
 --------------------------------
 -- select_items — Type 2 SCD structural table (durable key: select_item_id)
@@ -162,6 +214,8 @@ CREATE TABLE IF NOT EXISTS survey.select_items
     display_order        integer NOT NULL,
     coded_value          character varying(255),
     select_item_id        integer NOT NULL DEFAULT nextval('survey.select_items_durable_seq'),
+    -- Cross-instance-portable identity — see select_group_key above.
+    select_item_key       uuid NOT NULL,
     version               integer NOT NULL DEFAULT 0,
     effective_from        timestamp with time zone DEFAULT '1970-01-01 00:00:00+00',
     effective_to          timestamp with time zone DEFAULT '9999-12-31 23:59:59+00',
@@ -170,6 +224,7 @@ CREATE TABLE IF NOT EXISTS survey.select_items
     published_comment     text,
     CONSTRAINT select_items_pk PRIMARY KEY (id),
     CONSTRAINT select_items_id_version_un UNIQUE (select_item_id, version),
+    CONSTRAINT select_items_key_version_un UNIQUE (select_item_key, version),
     -- version = 0: entity-existence check only; the correct current version of
     -- select_groups is resolved at query time via the time-range predicate.
     CONSTRAINT select_items_select_group_version_ck CHECK (select_group_version = 0),
@@ -187,7 +242,12 @@ CREATE UNIQUE INDEX select_items_one_current_un
 CREATE UNIQUE INDEX select_items_one_draft_un
     ON survey.select_items (select_item_id)
     WHERE is_draft = true;
-CREATE INDEX select_items_durable_id_idx ON survey.select_items (select_item_id);
+CREATE TRIGGER select_items_scd_close_predecessor BEFORE INSERT ON survey.select_items
+    FOR EACH ROW EXECUTE FUNCTION survey.scd_close_predecessor('select_item_id');
+-- Composite (durable key + effective range) index — see select_groups_durable_range_idx
+-- above for the access pattern this serves. Supersedes a plain (select_item_id) index.
+CREATE INDEX select_items_durable_range_idx ON survey.select_items (select_item_id, effective_from, effective_to);
+CREATE INDEX select_items_key_idx ON survey.select_items (select_item_key, effective_from, effective_to);
 CREATE INDEX select_items_select_group_id_idx ON survey.select_items (select_group_id);
 CREATE INDEX select_items_active_range_idx ON survey.select_items (survey_id, effective_from, effective_to);
 GRANT DELETE, UPDATE, INSERT, SELECT ON TABLE survey.select_items TO ${survey_user};
@@ -209,6 +269,8 @@ CREATE TABLE IF NOT EXISTS survey.steps
     dimension_name CHARACTER VARYING(50) NOT NULL,
     description    character varying(255),
     step_id            integer NOT NULL DEFAULT nextval('survey.steps_durable_seq'),
+    -- Cross-instance-portable identity — see select_group_key above.
+    step_key           uuid NOT NULL,
     version            integer NOT NULL DEFAULT 0,
     effective_from     timestamp with time zone DEFAULT '1970-01-01 00:00:00+00',
     effective_to       timestamp with time zone DEFAULT '9999-12-31 23:59:59+00',
@@ -216,7 +278,8 @@ CREATE TABLE IF NOT EXISTS survey.steps
     published_by       text,
     published_comment  text,
     CONSTRAINT steps_pk PRIMARY KEY (id),
-    CONSTRAINT steps_id_version_un UNIQUE (step_id, version)
+    CONSTRAINT steps_id_version_un UNIQUE (step_id, version),
+    CONSTRAINT steps_key_version_un UNIQUE (step_key, version)
 );
 CREATE UNIQUE INDEX steps_survey_name_un
     ON survey.steps (survey_id, name)
@@ -230,8 +293,13 @@ CREATE UNIQUE INDEX steps_one_current_un
 CREATE UNIQUE INDEX steps_one_draft_un
     ON survey.steps (step_id)
     WHERE is_draft = true;
-CREATE INDEX steps_durable_id_idx ON survey.steps (step_id);
+CREATE TRIGGER steps_scd_close_predecessor BEFORE INSERT ON survey.steps
+    FOR EACH ROW EXECUTE FUNCTION survey.scd_close_predecessor('step_id');
+-- Composite (durable key + effective range) index — see select_groups_durable_range_idx
+-- above for the access pattern this serves. Supersedes a plain (step_id) index.
+CREATE INDEX steps_durable_range_idx ON survey.steps (step_id, effective_from, effective_to);
 CREATE INDEX steps_active_range_idx ON survey.steps (survey_id, effective_from, effective_to);
+CREATE INDEX steps_key_idx ON survey.steps (step_key, effective_from, effective_to);
 GRANT DELETE, UPDATE, INSERT, SELECT ON TABLE survey.steps TO ${survey_user};
 --------------------------------
 -- sections — Type 2 SCD structural table (durable key: section_id)
@@ -249,6 +317,8 @@ CREATE TABLE IF NOT EXISTS survey.sections
     dimension_name CHARACTER VARYING(50) NOT NULL,
     description    character varying(255),
     section_id         integer NOT NULL DEFAULT nextval('survey.sections_durable_seq'),
+    -- Cross-instance-portable identity — see select_group_key above.
+    section_key        uuid NOT NULL,
     version            integer NOT NULL DEFAULT 0,
     effective_from     timestamp with time zone DEFAULT '1970-01-01 00:00:00+00',
     effective_to       timestamp with time zone DEFAULT '9999-12-31 23:59:59+00',
@@ -256,7 +326,8 @@ CREATE TABLE IF NOT EXISTS survey.sections
     published_by       text,
     published_comment  text,
     CONSTRAINT sections_pk PRIMARY KEY (id),
-    CONSTRAINT sections_id_version_un UNIQUE (section_id, version)
+    CONSTRAINT sections_id_version_un UNIQUE (section_id, version),
+    CONSTRAINT sections_key_version_un UNIQUE (section_key, version)
 );
 CREATE UNIQUE INDEX sections_survey_order_un
     ON survey.sections (survey_id, display_order)
@@ -267,8 +338,13 @@ CREATE UNIQUE INDEX sections_one_current_un
 CREATE UNIQUE INDEX sections_one_draft_un
     ON survey.sections (section_id)
     WHERE is_draft = true;
-CREATE INDEX sections_durable_id_idx ON survey.sections (section_id);
+CREATE TRIGGER sections_scd_close_predecessor BEFORE INSERT ON survey.sections
+    FOR EACH ROW EXECUTE FUNCTION survey.scd_close_predecessor('section_id');
+-- Composite (durable key + effective range) index — see select_groups_durable_range_idx
+-- above for the access pattern this serves. Supersedes a plain (section_id) index.
+CREATE INDEX sections_durable_range_idx ON survey.sections (section_id, effective_from, effective_to);
 CREATE INDEX sections_active_range_idx ON survey.sections (survey_id, effective_from, effective_to);
+CREATE INDEX sections_key_idx ON survey.sections (section_key, effective_from, effective_to);
 GRANT DELETE, UPDATE, INSERT, SELECT ON TABLE survey.sections TO ${survey_user};
 --------------------------------
 -- steps_sections — join table; Type 2 SCD (durable key: steps_sections_id),
@@ -290,6 +366,8 @@ CREATE TABLE IF NOT EXISTS survey.steps_sections
     section_display_order NUMERIC               NOT NULL,
     display_key           character varying(34) NOT NULL,
     steps_sections_id      integer NOT NULL DEFAULT nextval('survey.steps_sections_durable_seq'),
+    -- Cross-instance-portable identity — see select_group_key above.
+    steps_sections_key     uuid NOT NULL,
     version                integer NOT NULL DEFAULT 0,
     effective_from         timestamp with time zone DEFAULT '1970-01-01 00:00:00+00',
     effective_to           timestamp with time zone DEFAULT '9999-12-31 23:59:59+00',
@@ -298,6 +376,7 @@ CREATE TABLE IF NOT EXISTS survey.steps_sections
     published_comment      text,
     CONSTRAINT steps_sections_pk PRIMARY KEY (id),
     CONSTRAINT steps_sections_id_version_un UNIQUE (steps_sections_id, version),
+    CONSTRAINT steps_sections_key_version_un UNIQUE (steps_sections_key, version),
     -- version = 0: entity-existence check only; the correct current version of
     -- the referenced step/section is resolved at query time via the time-range predicate.
     CONSTRAINT steps_sections_ref_versions_ck CHECK (step_version = 0 AND section_version = 0),
@@ -323,9 +402,25 @@ CREATE UNIQUE INDEX steps_sections_one_current_un
 CREATE UNIQUE INDEX steps_sections_one_draft_un
     ON survey.steps_sections (steps_sections_id)
     WHERE is_draft = true;
+CREATE TRIGGER steps_sections_scd_close_predecessor BEFORE INSERT ON survey.steps_sections
+    FOR EACH ROW EXECUTE FUNCTION survey.scd_close_predecessor('steps_sections_id');
 CREATE INDEX IF NOT EXISTS steps_sections_survey_index ON survey.steps_sections USING btree (survey_id ASC NULLS LAST);
-CREATE INDEX steps_sections_durable_id_idx ON survey.steps_sections (steps_sections_id);
+-- Composite (durable key + effective range) index — see select_groups_durable_range_idx
+-- above for the access pattern this serves. Supersedes a plain (steps_sections_id) index.
+CREATE INDEX steps_sections_durable_range_idx ON survey.steps_sections (steps_sections_id, effective_from, effective_to);
 CREATE INDEX steps_sections_active_range_idx ON survey.steps_sections (survey_id, effective_from, effective_to);
+CREATE INDEX steps_sections_key_idx ON survey.steps_sections (steps_sections_key, effective_from, effective_to);
+-- display_key is not a durable key but hits the identical as-of access pattern on the
+-- hottest runtime path (QuestionManager.navigate(), via StepsSections.findByDisplayKeyWithJoinsAsOf/
+-- findByDisplayKeyQueryAsOf) and had no supporting index at all outside the current-only
+-- partial unique index (steps_sections_un, which a ">"-bound :asOf predicate can't match).
+-- varchar_pattern_ops on the leading column (rather than the default opclass) is required
+-- because findByDisplayKeyQueryAsOf issues trailing-wildcard LIKE 'nnnn-nnnn-%' patterns
+-- (DisplayKey.getStepQueryString()/getSectionQueryString()) — a plain btree index only
+-- supports index-scan prefix-LIKE matching under C locale, which nothing here pins the
+-- database to. varchar_pattern_ops supports both "=" and prefix LIKE regardless of collation.
+CREATE INDEX steps_sections_display_key_range_idx
+    ON survey.steps_sections (display_key varchar_pattern_ops, effective_from, effective_to);
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE survey.steps_sections TO ${survey_user};
 --------------------------------
 -- questions — Type 2 SCD structural table (durable key: question_id)
@@ -353,6 +448,8 @@ CREATE TABLE IF NOT EXISTS survey.questions
     default_value         character varying(255) COLLATE pg_catalog."default",
     variant               character varying(255) COLLATE pg_catalog."default",
     question_id           integer NOT NULL DEFAULT nextval('survey.questions_durable_seq'),
+    -- Cross-instance-portable identity — see select_group_key above.
+    question_key          uuid NOT NULL,
     version               integer NOT NULL DEFAULT 0,
     effective_from        timestamp with time zone DEFAULT '1970-01-01 00:00:00+00',
     effective_to          timestamp with time zone DEFAULT '9999-12-31 23:59:59+00',
@@ -361,6 +458,7 @@ CREATE TABLE IF NOT EXISTS survey.questions
     published_comment     text,
     CONSTRAINT questions_pk PRIMARY KEY (id),
     CONSTRAINT questions_id_version_un UNIQUE (question_id, version),
+    CONSTRAINT questions_key_version_un UNIQUE (question_key, version),
     CONSTRAINT questions_select_group_version_ck CHECK (select_group_version = 0),
     CONSTRAINT select_groups_fk FOREIGN KEY (select_group_id, select_group_version)
         REFERENCES survey.select_groups (select_group_id, version)
@@ -377,8 +475,13 @@ CREATE UNIQUE INDEX questions_one_current_un
 CREATE UNIQUE INDEX questions_one_draft_un
     ON survey.questions (question_id)
     WHERE is_draft = true;
-CREATE INDEX questions_durable_id_idx ON survey.questions (question_id);
+CREATE TRIGGER questions_scd_close_predecessor BEFORE INSERT ON survey.questions
+    FOR EACH ROW EXECUTE FUNCTION survey.scd_close_predecessor('question_id');
+-- Composite (durable key + effective range) index — see select_groups_durable_range_idx
+-- above for the access pattern this serves. Supersedes a plain (question_id) index.
+CREATE INDEX questions_durable_range_idx ON survey.questions (question_id, effective_from, effective_to);
 CREATE INDEX questions_active_range_idx ON survey.questions (survey_id, effective_from, effective_to);
+CREATE INDEX questions_key_idx ON survey.questions (question_key, effective_from, effective_to);
 GRANT DELETE, UPDATE, INSERT, SELECT ON TABLE survey.questions TO ${survey_user};
 --------------------------------
 -- sections_questions — join table; Type 2 SCD (durable key: sections_question_id),
@@ -398,6 +501,8 @@ CREATE TABLE IF NOT EXISTS survey.sections_questions
     section_version      integer NOT NULL DEFAULT 0,
     display_order        NUMERIC NOT NULL,
     sections_question_id  integer NOT NULL DEFAULT nextval('survey.sections_questions_durable_seq'),
+    -- Cross-instance-portable identity — see select_group_key above.
+    sections_question_key uuid NOT NULL,
     version               integer NOT NULL DEFAULT 0,
     effective_from        timestamp with time zone DEFAULT '1970-01-01 00:00:00+00',
     effective_to          timestamp with time zone DEFAULT '9999-12-31 23:59:59+00',
@@ -406,6 +511,7 @@ CREATE TABLE IF NOT EXISTS survey.sections_questions
     published_comment     text,
     CONSTRAINT sections_questions_pk PRIMARY KEY (id),
     CONSTRAINT sections_questions_id_version_un UNIQUE (sections_question_id, version),
+    CONSTRAINT sections_questions_key_version_un UNIQUE (sections_question_key, version),
     CONSTRAINT sections_questions_ref_versions_ck CHECK (question_version = 0 AND section_version = 0),
     CONSTRAINT sections_questions_question_fk FOREIGN KEY (question_id, question_version)
         REFERENCES survey.questions (question_id, version)
@@ -429,9 +535,14 @@ CREATE UNIQUE INDEX sections_questions_one_current_un
 CREATE UNIQUE INDEX sections_questions_one_draft_un
     ON survey.sections_questions (sections_question_id)
     WHERE is_draft = true;
+CREATE TRIGGER sections_questions_scd_close_predecessor BEFORE INSERT ON survey.sections_questions
+    FOR EACH ROW EXECUTE FUNCTION survey.scd_close_predecessor('sections_question_id');
 CREATE INDEX IF NOT EXISTS sections_questions_survey_index ON survey.sections_questions USING btree (survey_id ASC NULLS LAST);
-CREATE INDEX sections_questions_durable_id_idx ON survey.sections_questions (sections_question_id);
+-- Composite (durable key + effective range) index — see select_groups_durable_range_idx
+-- above for the access pattern this serves. Supersedes a plain (sections_question_id) index.
+CREATE INDEX sections_questions_durable_range_idx ON survey.sections_questions (sections_question_id, effective_from, effective_to);
 CREATE INDEX sections_questions_active_range_idx ON survey.sections_questions (survey_id, effective_from, effective_to);
+CREATE INDEX sections_questions_key_idx ON survey.sections_questions (sections_question_key, effective_from, effective_to);
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE survey.sections_questions TO ${survey_user};
 --------------------------------
 -- relationships — Type 2 SCD structural table (durable key: relationship_id);
@@ -465,6 +576,8 @@ CREATE TABLE IF NOT EXISTS survey.relationships
     default_upstream_value  character varying(255),
     override_upstream_value character varying(255),
     relationship_id         integer NOT NULL DEFAULT nextval('survey.relationships_durable_seq'),
+    -- Cross-instance-portable identity — see select_group_key above.
+    relationship_key        uuid NOT NULL,
     version                 integer NOT NULL DEFAULT 0,
     effective_from          timestamp with time zone DEFAULT '1970-01-01 00:00:00+00',
     effective_to            timestamp with time zone DEFAULT '9999-12-31 23:59:59+00',
@@ -473,6 +586,7 @@ CREATE TABLE IF NOT EXISTS survey.relationships
     published_comment       text,
     CONSTRAINT relationships_pk PRIMARY KEY (id),
     CONSTRAINT relationships_id_version_un UNIQUE (relationship_id, version),
+    CONSTRAINT relationships_key_version_un UNIQUE (relationship_key, version),
     CONSTRAINT relationships_ref_versions_ck CHECK (
         upstream_step_version   = 0 AND
         upstream_sq_version     = 0 AND
@@ -520,14 +634,25 @@ CREATE UNIQUE INDEX relationships_one_current_un
 CREATE UNIQUE INDEX relationships_one_draft_un
     ON survey.relationships (relationship_id)
     WHERE is_draft = true;
-CREATE INDEX IF NOT EXISTS relationships_downstream_section_index ON survey.relationships USING btree (downstream_ss_id ASC NULLS LAST);
-CREATE INDEX IF NOT EXISTS relationships_downstream_sq_index ON survey.relationships USING btree (downstream_sq_id ASC NULLS LAST);
-CREATE INDEX IF NOT EXISTS relationships_downstream_step_index ON survey.relationships USING btree (downstream_step_id ASC NULLS LAST);
+CREATE TRIGGER relationships_scd_close_predecessor BEFORE INSERT ON survey.relationships
+    FOR EACH ROW EXECUTE FUNCTION survey.scd_close_predecessor('relationship_id');
+-- Composite (fk-durable-column + effective range) indexes — these five reference columns
+-- are the durable keys of steps/sections_questions/steps_sections (Kimball Type 2 SCD
+-- retarget), and every named query/native SQL that filters on one of them also carries an
+-- effective_from/effective_to as-of guard (Relationship.java's @NamedQueries,
+-- QuestionManager.java's native SQL). A plain single-column index on the fk alone forces a
+-- Filter step for the range predicate; these supersede that.
+CREATE INDEX relationships_downstream_section_range_idx ON survey.relationships (downstream_ss_id, effective_from, effective_to);
+CREATE INDEX relationships_downstream_sq_range_idx ON survey.relationships (downstream_sq_id, effective_from, effective_to);
+CREATE INDEX relationships_downstream_step_range_idx ON survey.relationships (downstream_step_id, effective_from, effective_to);
 CREATE INDEX IF NOT EXISTS relationships_survey_index ON survey.relationships USING btree (survey_id ASC NULLS LAST);
-CREATE INDEX IF NOT EXISTS relationships_upstream_sq_index ON survey.relationships USING btree (upstream_sq_id ASC NULLS LAST);
-CREATE INDEX IF NOT EXISTS relationships_upstream_step_index ON survey.relationships USING btree (upstream_step_id ASC NULLS LAST);
-CREATE INDEX relationships_durable_id_idx ON survey.relationships (relationship_id);
+CREATE INDEX relationships_upstream_sq_range_idx ON survey.relationships (upstream_sq_id, effective_from, effective_to);
+CREATE INDEX relationships_upstream_step_range_idx ON survey.relationships (upstream_step_id, effective_from, effective_to);
+-- Composite (durable key + effective range) index — see select_groups_durable_range_idx
+-- above for the access pattern this serves. Supersedes a plain (relationship_id) index.
+CREATE INDEX relationships_durable_range_idx ON survey.relationships (relationship_id, effective_from, effective_to);
 CREATE INDEX relationships_active_range_idx ON survey.relationships (survey_id, effective_from, effective_to);
+CREATE INDEX relationships_key_idx ON survey.relationships (relationship_key, effective_from, effective_to);
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE survey.relationships TO ${survey_user};
 --------------------------------
 CREATE SEQUENCE survey.answers_seq INCREMENT 1 START 1;

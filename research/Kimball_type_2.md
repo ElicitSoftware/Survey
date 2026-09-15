@@ -230,9 +230,18 @@ CREATE UNIQUE INDEX questions_one_draft_un
 
 ALTER TABLE survey.questions ADD CONSTRAINT questions_id_version_un UNIQUE (question_id, version);
 
-CREATE INDEX questions_durable_id_idx ON survey.questions (question_id);
+-- Composite (durable key + effective range) index for as-of point-in-time resolution —
+-- the dominant runtime access pattern ("resolve this durable id as of :asOf", used
+-- throughout QuestionManager.java's native SQL and every structural entity's FK joins).
+-- `_one_current_un` above can't serve it: partial-index matching requires the query
+-- predicate to textually imply the index's WHERE clause, and an `effective_to > :asOf`
+-- bind parameter doesn't imply `effective_to = '9999-12-31 23:59:59+00'`. This composite
+-- also supersedes a plain (question_id) index — it already serves equality-only lookups
+-- via its leading column, so a separate narrower index only adds write overhead.
+CREATE INDEX questions_durable_range_idx ON survey.questions (question_id, effective_from, effective_to);
 
--- Composite index for the respondent/ETL time-range predicate
+-- Composite index for the survey-scoped bulk range scan (e.g. loading every currently-
+-- active row for a survey, as opposed to resolving one specific durable id)
 CREATE INDEX questions_active_range_idx ON survey.questions (survey_id, effective_from, effective_to);
 ```
 
@@ -287,9 +296,11 @@ CREATE UNIQUE INDEX select_groups_one_draft_un
 
 ALTER TABLE survey.select_groups ADD CONSTRAINT select_groups_id_version_un UNIQUE (select_group_id, version);
 
-CREATE INDEX select_groups_durable_id_idx ON survey.select_groups (select_group_id);
+-- Composite (durable key + effective range) index — see questions_durable_range_idx above
+-- for the access pattern this serves.
+CREATE INDEX select_groups_durable_range_idx ON survey.select_groups (select_group_id, effective_from, effective_to);
 
--- Composite index for the respondent/ETL time-range predicate
+-- Composite index for the survey-scoped bulk range scan
 CREATE INDEX select_groups_active_range_idx ON survey.select_groups (survey_id, effective_from, effective_to);
 ```
 
@@ -349,10 +360,12 @@ CREATE UNIQUE INDEX select_items_one_draft_un
 
 ALTER TABLE survey.select_items ADD CONSTRAINT select_items_id_version_un UNIQUE (select_item_id, version);
 
-CREATE INDEX select_items_durable_id_idx ON survey.select_items (select_item_id);
+-- Composite (durable key + effective range) index — see questions_durable_range_idx above
+-- for the access pattern this serves.
+CREATE INDEX select_items_durable_range_idx ON survey.select_items (select_item_id, effective_from, effective_to);
 CREATE INDEX select_items_select_group_id_idx ON survey.select_items (select_group_id);
 
--- Composite index for the respondent/ETL time-range predicate
+-- Composite index for the survey-scoped bulk range scan
 CREATE INDEX select_items_active_range_idx ON survey.select_items (survey_id, effective_from, effective_to);
 ```
 
@@ -385,9 +398,11 @@ CREATE UNIQUE INDEX sections_one_draft_un
 
 ALTER TABLE survey.sections ADD CONSTRAINT sections_id_version_un UNIQUE (section_id, version);
 
-CREATE INDEX sections_durable_id_idx ON survey.sections (section_id);
+-- Composite (durable key + effective range) index — see questions_durable_range_idx above
+-- for the access pattern this serves.
+CREATE INDEX sections_durable_range_idx ON survey.sections (section_id, effective_from, effective_to);
 
--- Composite index for the respondent/ETL time-range predicate
+-- Composite index for the survey-scoped bulk range scan
 CREATE INDEX sections_active_range_idx ON survey.sections (survey_id, effective_from, effective_to);
 
 -- display_order must be NUMERIC to support decimal midpoint insertion (see Adding a new question)
@@ -420,9 +435,11 @@ CREATE UNIQUE INDEX steps_one_draft_un
 
 ALTER TABLE survey.steps ADD CONSTRAINT steps_id_version_un UNIQUE (step_id, version);
 
-CREATE INDEX steps_durable_id_idx ON survey.steps (step_id);
+-- Composite (durable key + effective range) index — see questions_durable_range_idx above
+-- for the access pattern this serves.
+CREATE INDEX steps_durable_range_idx ON survey.steps (step_id, effective_from, effective_to);
 
--- Composite index for the respondent/ETL time-range predicate
+-- Composite index for the survey-scoped bulk range scan
 CREATE INDEX steps_active_range_idx ON survey.steps (survey_id, effective_from, effective_to);
 
 -- display_order must be NUMERIC to support decimal midpoint insertion (see Adding a new question)
@@ -504,10 +521,23 @@ CREATE UNIQUE INDEX steps_sections_one_draft_un
 
 ALTER TABLE survey.steps_sections ADD CONSTRAINT steps_sections_id_version_un UNIQUE (steps_sections_id, version);
 
-CREATE INDEX steps_sections_durable_id_idx ON survey.steps_sections (steps_sections_id);
+-- Composite (durable key + effective range) index — see questions_durable_range_idx above
+-- for the access pattern this serves.
+CREATE INDEX steps_sections_durable_range_idx ON survey.steps_sections (steps_sections_id, effective_from, effective_to);
 
--- Composite index for the respondent/ETL time-range predicate
+-- Composite index for the survey-scoped bulk range scan
 CREATE INDEX steps_sections_active_range_idx ON survey.steps_sections (survey_id, effective_from, effective_to);
+
+-- display_key is not a durable key but hits the identical as-of access pattern on the
+-- hottest runtime path (QuestionManager.navigate(), via StepsSections.findByDisplayKeyWithJoinsAsOf/
+-- findByDisplayKeyQueryAsOf) and had no supporting index at all outside the current-only
+-- partial unique index above (which a ">"-bound :asOf predicate can't match).
+-- varchar_pattern_ops on the leading column is required because findByDisplayKeyQueryAsOf
+-- issues trailing-wildcard LIKE 'nnnn-nnnn-%' patterns (DisplayKey.getStepQueryString()/
+-- getSectionQueryString()) — a plain btree index only supports index-scan prefix-LIKE
+-- matching under C locale, which nothing in this repo pins the database to.
+CREATE INDEX steps_sections_display_key_range_idx
+    ON survey.steps_sections (display_key varchar_pattern_ops, effective_from, effective_to);
 
 -- display_order must be NUMERIC to support decimal midpoint insertion (see Adding a new question)
 ALTER TABLE survey.steps_sections ALTER COLUMN display_order TYPE NUMERIC;
@@ -575,9 +605,11 @@ CREATE UNIQUE INDEX sections_questions_one_draft_un
 
 ALTER TABLE survey.sections_questions ADD CONSTRAINT sections_questions_id_version_un UNIQUE (sections_question_id, version);
 
-CREATE INDEX sections_questions_durable_id_idx ON survey.sections_questions (sections_question_id);
+-- Composite (durable key + effective range) index — see questions_durable_range_idx above
+-- for the access pattern this serves.
+CREATE INDEX sections_questions_durable_range_idx ON survey.sections_questions (sections_question_id, effective_from, effective_to);
 
--- Composite index for the respondent/ETL time-range predicate
+-- Composite index for the survey-scoped bulk range scan
 CREATE INDEX sections_questions_active_range_idx ON survey.sections_questions (survey_id, effective_from, effective_to);
 
 -- display_order must be NUMERIC to support decimal midpoint insertion (see Adding a new question)
@@ -692,10 +724,31 @@ CREATE UNIQUE INDEX relationships_one_draft_un
 
 ALTER TABLE survey.relationships ADD CONSTRAINT relationships_id_version_un UNIQUE (relationship_id, version);
 
-CREATE INDEX relationships_durable_id_idx ON survey.relationships (relationship_id);
+-- Composite (durable key + effective range) index — see questions_durable_range_idx above
+-- for the access pattern this serves.
+CREATE INDEX relationships_durable_range_idx ON survey.relationships (relationship_id, effective_from, effective_to);
 
--- Composite index for the respondent/ETL time-range predicate
+-- Composite index for the survey-scoped bulk range scan
 CREATE INDEX relationships_active_range_idx ON survey.relationships (survey_id, effective_from, effective_to);
+
+-- Upgrade the five pre-Kimball plain FK-lookup indexes (relationships_upstream_step_index,
+-- etc., already present from before this migration) to composite (fk-durable-column +
+-- effective range) form. These five columns are the durable keys of steps/
+-- sections_questions/steps_sections after the retarget above, and every named query/native
+-- SQL that filters on one of them also carries an effective_from/effective_to as-of guard
+-- (Relationship.java's @NamedQueries, QuestionManager.java's native SQL) — a plain
+-- single-column index forces a Filter step for that range predicate.
+DROP INDEX IF EXISTS survey.relationships_upstream_step_index;
+DROP INDEX IF EXISTS survey.relationships_upstream_sq_index;
+DROP INDEX IF EXISTS survey.relationships_downstream_step_index;
+DROP INDEX IF EXISTS survey.relationships_downstream_section_index;
+DROP INDEX IF EXISTS survey.relationships_downstream_sq_index;
+
+CREATE INDEX relationships_upstream_step_range_idx ON survey.relationships (upstream_step_id, effective_from, effective_to);
+CREATE INDEX relationships_upstream_sq_range_idx ON survey.relationships (upstream_sq_id, effective_from, effective_to);
+CREATE INDEX relationships_downstream_step_range_idx ON survey.relationships (downstream_step_id, effective_from, effective_to);
+CREATE INDEX relationships_downstream_section_range_idx ON survey.relationships (downstream_ss_id, effective_from, effective_to);
+CREATE INDEX relationships_downstream_sq_range_idx ON survey.relationships (downstream_sq_id, effective_from, effective_to);
 ```
 
 ---
@@ -2058,6 +2111,17 @@ on every structural table, the Author Tool UI being out of scope for this docume
 schema down-migration (backup/restore instead), and — in Admin's doc — no
 backward-compatible import of pre-Kimball export files.
 
+A follow-up indexing review (2026-09-14) added a second composite per structural table —
+`(durable_key, effective_from, effective_to)` — plus the equivalent for `relationships`'
+five FK-reference durable columns and for `steps_sections.display_key`. The
+`(survey_id, ...)` composite above only serves survey-scoped bulk range scans; it does not
+help the "resolve this one durable id as of `:asOf`" pattern that dominates
+`QuestionManager.java`/`Relationship.java`, since neither the survey-scoped composite nor
+the `_one_current_un` partial index (which requires the literal `effective_to = infinity`
+predicate, not a `> :asOf` bind parameter) can serve an equality lookup on a durable key
+combined with an inequality range. See the `_durable_range_idx`/`_range_idx` entries in the
+DDL blocks above.
+
 The following risks surfaced in that review remain **open** — no decision has been made
 on them yet, and they are called out here so whoever implements this doc doesn't treat
 the design as fully closed on these points:
@@ -2073,6 +2137,10 @@ the design as fully closed on these points:
   A missed clause anywhere fails silently (wrong or duplicate version rows), not loudly.
   During implementation, do a full search across `src/main/java` and `Sql.java` for every
   query against a structural table, not just the ones this document calls out by name.
+  *(2026-09-14: that search was done as part of the indexing follow-up above — every
+  hit uses the `<durable_fk> = ? AND effective_from <= ? AND effective_to > ?` shape,
+  which is what the new `_durable_range_idx`/`_range_idx` composites target. The search
+  found query coverage itself intact; the gap was indexing, not a missing clause.)*
 - **`display_order` type conversion cost.** `ALTER TABLE ... ALTER COLUMN display_order
   TYPE NUMERIC` (and the same for `answers.step`/`answers.section`) is a lossless cast but
   still triggers a full table rewrite in PostgreSQL. Check `answers`' row count before
