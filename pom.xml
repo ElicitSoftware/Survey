@@ -303,6 +303,31 @@
                         <phase>test</phase>
                         <goals><goal>report</goal></goals>
                     </execution>
+                    <execution>
+                        <!--
+                            Coverage gate. Fails the build if bundle line coverage drops below
+                            the minimum, locking in the 58.6% -> 70.2% gain rather than letting
+                            it silently regress. Uses this plugin's default exec file (not
+                            jacoco-quarkus.exec) to match the report execution above.
+                        -->
+                        <id>jacoco-check</id>
+                        <phase>verify</phase>
+                        <goals><goal>check</goal></goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.70</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
             <plugin>
