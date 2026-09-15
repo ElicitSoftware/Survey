@@ -1,6 +1,27 @@
 {
   "enabledPlugins": {
     "aiup-core@ai-unified-process-marketplace": true,
-    "vaadin-skills@vaadin-marketplace": true
+    "vaadin-skills@vaadin-marketplace": true,
+    "quarkus-agent@quarkus-tools": true
+  },
+  "extraKnownMarketplaces": {
+    "ai-unified-process-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "AI-Unified-Process/marketplace"
+      }
+    },
+    "quarkus-tools": {
+      "source": {
+        "source": "github",
+        "repo": "quarkusio/quarkus-agent-mcp"
+      }
+    },
+    "vaadin-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "vaadin/agent-marketplace"
+      }
+    }
   }
 }
