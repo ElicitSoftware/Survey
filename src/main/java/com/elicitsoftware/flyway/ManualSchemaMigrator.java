@@ -31,6 +31,18 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+// TEMPORARY — DO NOT CARRY THIS FORWARD INDEFINITELY.
+// This class exists solely to support upgrading existing pre-Kimball ("V2.x") Survey
+// deployments to V3.0.0 (Kimball Type 2 SCD) via db/migration-v3. Once every real Survey
+// deployment has been upgraded to V3 (confirmed by every environment's flyway_history having
+// converged onto db/migration — see the repair() call below), this class, db/migration-v3/,
+// ManualSchemaMigratorUpgradeTest.java, and ManualSchemaMigratorScaleTest.java (which only
+// times db/migration-v3's ALTER migration — see its own header) should ALL be deleted, and
+// quarkus.flyway.owner.migrate-at-start should revert to the plain Quarkus-managed
+// auto-migration this class replaced (see application.properties). Tracked in
+// research/Kimball_type_2.md and the repo-root DeploymentScript.md — check those before
+// removing, and update them when this class is actually deleted.
+//
 // Runs Flyway manually against a database-detected brownfield/greenfield/converged location,
 // replacing Quarkus's migrate-at-start (deliberately disabled — see the comment on
 // quarkus.flyway.owner.migrate-at-start in application.properties for why a

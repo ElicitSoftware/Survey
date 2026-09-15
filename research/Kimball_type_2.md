@@ -1384,6 +1384,18 @@ versions, and the ontology assignment travels with it.
 
 ## Migration Strategy for Existing Data
 
+> **Implementation note — this whole upgrade path is temporary scaffolding.** The strategy
+> below is implemented by `db/migration-v3/` and routed to at runtime by
+> `com.elicitsoftware.flyway.ManualSchemaMigrator`. Both exist solely to upgrade already-deployed
+> pre-Kimball ("V2.x") Survey databases to V3. **Once every real Survey deployment has upgraded**
+> (every environment's `flyway_history` converged onto `db/migration` — logged by
+> `ManualSchemaMigrator` when it happens), `ManualSchemaMigrator.java`, `db/migration-v3/`, and
+> `ManualSchemaMigratorUpgradeTest.java`/`ManualSchemaMigratorScaleTest.java` should all be
+> deleted. See the `README.md` inside `db/migration-v3/` and the repo-root `DeploymentScript.md`.
+> **Do not let this get pulled into a build forever out of inertia** — track removal as a real
+> follow-up once the V2→V3 rollout is confirmed complete. (The sibling FHHS app has the identical
+> pattern, on the same removal timeline.)
+
 0. Create all durable key sequences: one per structural table
    (`survey.questions_durable_seq`, `survey.sections_durable_seq`, etc.).
 1. Add all new `*_id` integer durable key columns with `DEFAULT nextval('survey.{table}_durable_seq')` —
