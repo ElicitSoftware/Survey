@@ -42,41 +42,41 @@ DECLARE
   v_sq_id       bigint;
 BEGIN
 
-  INSERT INTO survey.surveys(id, name, display_order, title, description, initial_display_key, post_survey_url)
+  INSERT INTO survey.surveys(id, name, display_order, title, description, initial_display_key, post_survey_url, survey_key)
   VALUES (NEXTVAL('survey.surveys_seq'), 'ScdSpecFixture', 900,
           'SCD Spec Fixture', 'Minimal survey used only by the Type 2 SCD spec test suite.',
-          NULL, NULL)
+          NULL, NULL, gen_random_uuid())
   RETURNING id INTO v_survey_id;
 
-  INSERT INTO survey.steps(id, survey_id, display_order, name, dimension_name, description)
-  VALUES (NEXTVAL('survey.steps_seq'), v_survey_id, 1, 'ScdStep', 'ScdStep', 'Single step')
+  INSERT INTO survey.steps(id, survey_id, display_order, name, dimension_name, description, step_key)
+  VALUES (NEXTVAL('survey.steps_seq'), v_survey_id, 1, 'ScdStep', 'ScdStep', 'Single step', gen_random_uuid())
   RETURNING id INTO v_step_id;
 
-  INSERT INTO survey.sections(id, survey_id, display_order, name, dimension_name, description)
-  VALUES (NEXTVAL('survey.sections_seq'), v_survey_id, 1, 'ScdSection', 'ScdSection', 'Single section')
+  INSERT INTO survey.sections(id, survey_id, display_order, name, dimension_name, description, section_key)
+  VALUES (NEXTVAL('survey.sections_seq'), v_survey_id, 1, 'ScdSection', 'ScdSection', 'Single section', gen_random_uuid())
   RETURNING id INTO v_section_id;
 
-  INSERT INTO survey.steps_sections(id, survey_id, step_id, step_display_order, section_id, section_display_order, display_key)
+  INSERT INTO survey.steps_sections(id, survey_id, step_id, step_display_order, section_id, section_display_order, display_key, steps_sections_key)
   VALUES (NEXTVAL('survey.steps_sections_seq'), v_survey_id, v_step_id, 1, v_section_id, 1,
-          LPAD(v_survey_id::text, 4, '0') || '-0001-0000-0001-0000-0000-0000')
+          LPAD(v_survey_id::text, 4, '0') || '-0001-0000-0001-0000-0000-0000', gen_random_uuid())
   RETURNING id INTO v_ss_id;
 
-  INSERT INTO survey.select_groups(id, survey_id, name, description, data_type)
-  VALUES (NEXTVAL('survey.select_groups_seq'), v_survey_id, 'ScdSelectGroup', 'Single select group', 'Text')
+  INSERT INTO survey.select_groups(id, survey_id, name, description, data_type, select_group_key)
+  VALUES (NEXTVAL('survey.select_groups_seq'), v_survey_id, 'ScdSelectGroup', 'Single select group', 'Text', gen_random_uuid())
   RETURNING id INTO v_sg_id;
 
-  INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
-  VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_id, 'Option A', 1, 'A');
+  INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value, select_item_key)
+  VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_id, 'Option A', 1, 'A', gen_random_uuid());
 
   -- type_id 7 = RADIO, seeded by V003/earlier migrations (see survey.question_types).
   INSERT INTO survey.questions(id, survey_id, type_id, text, short_text, tool_tip, required,
-                                min_value, max_value, validation_text, select_group_id, mask, placeholder, default_value, variant)
+                                min_value, max_value, validation_text, select_group_id, mask, placeholder, default_value, variant, question_key)
   VALUES (NEXTVAL('survey.questions_seq'), v_survey_id, 7, 'Original wording', 'ScdQ', '', false,
-          NULL, NULL, NULL, v_sg_id, NULL, NULL, NULL, NULL)
+          NULL, NULL, NULL, v_sg_id, NULL, NULL, NULL, NULL, gen_random_uuid())
   RETURNING id INTO v_question_id;
 
-  INSERT INTO survey.sections_questions(id, survey_id, question_id, section_id, display_order)
-  VALUES (NEXTVAL('survey.sections_questions_seq'), v_survey_id, v_question_id, v_section_id, 1)
+  INSERT INTO survey.sections_questions(id, survey_id, question_id, section_id, display_order, sections_question_key)
+  VALUES (NEXTVAL('survey.sections_questions_seq'), v_survey_id, v_question_id, v_section_id, 1, gen_random_uuid())
   RETURNING id INTO v_sq_id;
 
   -- operator_id 1 = BOOLEAN, action_id 1 = SHOW (see survey.operator_types / action_types
@@ -85,9 +85,9 @@ BEGIN
   -- RelationshipsVersioningSpecTest has a row to version.
   INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id,
                                     downstream_step_id, downstream_ss_id, downstream_sq_id,
-                                    operator_id, action_id, description, token, reference_value)
+                                    operator_id, action_id, description, token, reference_value, relationship_key)
   VALUES (NEXTVAL('survey.relationships_seq'), v_survey_id, v_step_id, v_sq_id,
           v_step_id, NULL, v_sq_id,
-          1, 1, 'ScdSpecFixture self-reference', NULL, 'TRUE');
+          1, 1, 'ScdSpecFixture self-reference', NULL, 'TRUE', gen_random_uuid());
 
 END $$;

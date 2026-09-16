@@ -68,10 +68,10 @@ class RelationshipsVersioningSpecTest {
         em.createNativeQuery("UPDATE survey.relationships SET effective_to = ?2 WHERE relationship_id = ?1 AND effective_to = ?3")
                 .setParameter(1, durableRelationshipId).setParameter(2, publishInstant).setParameter(3, MAX_SENTINEL).executeUpdate();
         em.createNativeQuery(
-                "INSERT INTO survey.relationships (id, relationship_id, version, survey_id, upstream_step_id, upstream_sq_id, "
+                "INSERT INTO survey.relationships (id, relationship_id, relationship_key, version, survey_id, upstream_step_id, upstream_sq_id, "
                         + "downstream_step_id, downstream_ss_id, downstream_sq_id, operator_id, action_id, reference_value, "
                         + "effective_from, effective_to, is_draft) "
-                        + "SELECT nextval('survey.relationships_seq'), relationship_id, ?2, survey_id, upstream_step_id, upstream_sq_id, "
+                        + "SELECT nextval('survey.relationships_seq'), relationship_id, relationship_key, ?2, survey_id, upstream_step_id, upstream_sq_id, "
                         + "downstream_step_id, downstream_ss_id, downstream_sq_id, operator_id, action_id, 'FALSE', "
                         + "?3, ?4, false FROM survey.relationships WHERE relationship_id = ?1 AND version = ?5")
                 .setParameter(1, durableRelationshipId).setParameter(2, currentVersion + 1).setParameter(3, publishInstant)

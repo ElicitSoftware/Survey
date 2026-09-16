@@ -53,9 +53,9 @@ class SnapshotAnchorRespondentPathSpecTest {
         em.createNativeQuery("UPDATE survey.questions SET effective_to = ?2 WHERE question_id = ?1 AND effective_to = ?3")
                 .setParameter(1, durableId).setParameter(2, publishInstant).setParameter(3, MAX_SENTINEL).executeUpdate();
         em.createNativeQuery(
-                "INSERT INTO survey.questions (id, question_id, version, survey_id, type_id, text, required, "
+                "INSERT INTO survey.questions (id, question_id, question_key, version, survey_id, type_id, text, required, "
                         + "effective_from, effective_to, is_draft) "
-                        + "SELECT nextval('survey.questions_seq'), question_id, ?2, survey_id, type_id, ?3, required, "
+                        + "SELECT nextval('survey.questions_seq'), question_id, question_key, ?2, survey_id, type_id, ?3, required, "
                         + "?4, ?5, false FROM survey.questions WHERE question_id = ?1 AND version = ?6")
                 .setParameter(1, durableId).setParameter(2, currentVersion + 1).setParameter(3, newText)
                 .setParameter(4, publishInstant).setParameter(5, MAX_SENTINEL).setParameter(6, currentVersion)
@@ -145,9 +145,9 @@ class SnapshotAnchorRespondentPathSpecTest {
         em.createNativeQuery("UPDATE survey.steps SET effective_to = ?2 WHERE step_id = ?1 AND effective_to = ?3")
                 .setParameter(1, durableStepId).setParameter(2, reorderInstant).setParameter(3, MAX_SENTINEL).executeUpdate();
         em.createNativeQuery(
-                "INSERT INTO survey.steps (id, step_id, version, survey_id, display_order, name, dimension_name, "
+                "INSERT INTO survey.steps (id, step_id, step_key, version, survey_id, display_order, name, dimension_name, "
                         + "effective_from, effective_to, is_draft) "
-                        + "SELECT nextval('survey.steps_seq'), step_id, ?2, survey_id, 3, name, dimension_name, "
+                        + "SELECT nextval('survey.steps_seq'), step_id, step_key, ?2, survey_id, 3, name, dimension_name, "
                         + "?3, ?4, false FROM survey.steps WHERE step_id = ?1 AND version = ?5")
                 .setParameter(1, durableStepId).setParameter(2, currentVersion + 1).setParameter(3, reorderInstant)
                 .setParameter(4, MAX_SENTINEL).setParameter(5, currentVersion).executeUpdate();

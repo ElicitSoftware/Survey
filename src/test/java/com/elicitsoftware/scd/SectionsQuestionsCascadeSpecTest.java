@@ -79,9 +79,9 @@ class SectionsQuestionsCascadeSpecTest {
         em.createNativeQuery("UPDATE survey.questions SET effective_to = ?2 WHERE question_id = ?1 AND effective_to = ?3")
                 .setParameter(1, durableQuestionId).setParameter(2, publishInstant).setParameter(3, MAX_SENTINEL).executeUpdate();
         em.createNativeQuery(
-                "INSERT INTO survey.questions (id, question_id, version, survey_id, type_id, text, required, "
+                "INSERT INTO survey.questions (id, question_id, question_key, version, survey_id, type_id, text, required, "
                         + "select_group_id, effective_from, effective_to, is_draft) "
-                        + "SELECT nextval('survey.questions_seq'), question_id, ?2, survey_id, type_id, 'Reworded via cascade test', required, "
+                        + "SELECT nextval('survey.questions_seq'), question_id, question_key, ?2, survey_id, type_id, 'Reworded via cascade test', required, "
                         + "select_group_id, ?3, ?4, false FROM survey.questions WHERE question_id = ?1 AND version = ?5")
                 .setParameter(1, durableQuestionId).setParameter(2, currentVersion + 1).setParameter(3, publishInstant)
                 .setParameter(4, MAX_SENTINEL).setParameter(5, currentVersion).executeUpdate();

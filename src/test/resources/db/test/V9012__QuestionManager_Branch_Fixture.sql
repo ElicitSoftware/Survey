@@ -63,25 +63,25 @@ DECLARE
   v_sq_c          bigint;
 BEGIN
 
-  INSERT INTO survey.surveys(id, name, display_order, title, description, initial_display_key, post_survey_url)
+  INSERT INTO survey.surveys(id, name, display_order, title, description, initial_display_key, post_survey_url, survey_key)
   VALUES (NEXTVAL('survey.surveys_seq'), 'BranchFixture', 901,
           'Branch Coverage Fixture', 'Minimal generic survey used only by QuestionManagerBranchCoverageTest.',
-          NULL, NULL)
+          NULL, NULL, gen_random_uuid())
   RETURNING id INTO v_survey_id;
 
   -- Placeholder display_order values (-1/-2/-3) must be distinct within the survey to
   -- satisfy steps_survey_display_order / sections_survey_order_un until the follow-up
   -- UPDATE below sets each row's real display_order equal to its own id.
-  INSERT INTO survey.steps(id, survey_id, display_order, name, dimension_name, description)
-  VALUES (NEXTVAL('survey.steps_seq'), v_survey_id, -1, 'BranchStepOne', 'BranchStepOne', 'Step containing the upstream questions')
+  INSERT INTO survey.steps(id, survey_id, display_order, name, dimension_name, description, step_key)
+  VALUES (NEXTVAL('survey.steps_seq'), v_survey_id, -1, 'BranchStepOne', 'BranchStepOne', 'Step containing the upstream questions', gen_random_uuid())
   RETURNING id INTO v_step_one;
 
-  INSERT INTO survey.steps(id, survey_id, display_order, name, dimension_name, description)
-  VALUES (NEXTVAL('survey.steps_seq'), v_survey_id, -2, 'BranchStepTwo', 'BranchStepTwo', 'Step reached only via the SHOW downstream-step-only relationship')
+  INSERT INTO survey.steps(id, survey_id, display_order, name, dimension_name, description, step_key)
+  VALUES (NEXTVAL('survey.steps_seq'), v_survey_id, -2, 'BranchStepTwo', 'BranchStepTwo', 'Step reached only via the SHOW downstream-step-only relationship', gen_random_uuid())
   RETURNING id INTO v_step_two;
 
-  INSERT INTO survey.steps(id, survey_id, display_order, name, dimension_name, description)
-  VALUES (NEXTVAL('survey.steps_seq'), v_survey_id, -3, 'BranchStepThree', 'BranchStepThree', 'Step targeted only by the REPEAT downstream-step-only relationship')
+  INSERT INTO survey.steps(id, survey_id, display_order, name, dimension_name, description, step_key)
+  VALUES (NEXTVAL('survey.steps_seq'), v_survey_id, -3, 'BranchStepThree', 'BranchStepThree', 'Step targeted only by the REPEAT downstream-step-only relationship', gen_random_uuid())
   RETURNING id INTO v_step_three;
 
   -- Make each step's display_order equal to its own id (see note above).
@@ -89,83 +89,83 @@ BEGIN
   UPDATE survey.steps SET display_order = id WHERE id = v_step_two;
   UPDATE survey.steps SET display_order = id WHERE id = v_step_three;
 
-  INSERT INTO survey.sections(id, survey_id, display_order, name, dimension_name, description)
-  VALUES (NEXTVAL('survey.sections_seq'), v_survey_id, -1, 'BranchSectionOne', 'BranchSectionOne', 'Section holding Q_A and Q_B')
+  INSERT INTO survey.sections(id, survey_id, display_order, name, dimension_name, description, section_key)
+  VALUES (NEXTVAL('survey.sections_seq'), v_survey_id, -1, 'BranchSectionOne', 'BranchSectionOne', 'Section holding Q_A and Q_B', gen_random_uuid())
   RETURNING id INTO v_section_one;
 
-  INSERT INTO survey.sections(id, survey_id, display_order, name, dimension_name, description)
-  VALUES (NEXTVAL('survey.sections_seq'), v_survey_id, -2, 'BranchSectionTwo', 'BranchSectionTwo', 'Section holding Q_C, inside StepTwo')
+  INSERT INTO survey.sections(id, survey_id, display_order, name, dimension_name, description, section_key)
+  VALUES (NEXTVAL('survey.sections_seq'), v_survey_id, -2, 'BranchSectionTwo', 'BranchSectionTwo', 'Section holding Q_C, inside StepTwo', gen_random_uuid())
   RETURNING id INTO v_section_two;
 
-  INSERT INTO survey.sections(id, survey_id, display_order, name, dimension_name, description)
-  VALUES (NEXTVAL('survey.sections_seq'), v_survey_id, -3, 'BranchSectionThree', 'BranchSectionThree', 'Section inside StepThree; never reached because buildRepeatedStep is a stub')
+  INSERT INTO survey.sections(id, survey_id, display_order, name, dimension_name, description, section_key)
+  VALUES (NEXTVAL('survey.sections_seq'), v_survey_id, -3, 'BranchSectionThree', 'BranchSectionThree', 'Section inside StepThree; never reached because buildRepeatedStep is a stub', gen_random_uuid())
   RETURNING id INTO v_section_three;
 
   UPDATE survey.sections SET display_order = id WHERE id = v_section_one;
   UPDATE survey.sections SET display_order = id WHERE id = v_section_two;
   UPDATE survey.sections SET display_order = id WHERE id = v_section_three;
 
-  INSERT INTO survey.steps_sections(id, survey_id, step_id, step_display_order, section_id, section_display_order, display_key)
+  INSERT INTO survey.steps_sections(id, survey_id, step_id, step_display_order, section_id, section_display_order, display_key, steps_sections_key)
   VALUES (NEXTVAL('survey.steps_sections_seq'), v_survey_id, v_step_one, v_step_one, v_section_one, v_section_one,
           LPAD(v_survey_id::text, 4, '0') || '-' || LPAD(v_step_one::text, 4, '0') || '-0000-'
-              || LPAD(v_section_one::text, 4, '0') || '-0000-0000-0000');
+              || LPAD(v_section_one::text, 4, '0') || '-0000-0000-0000', gen_random_uuid());
 
-  INSERT INTO survey.steps_sections(id, survey_id, step_id, step_display_order, section_id, section_display_order, display_key)
+  INSERT INTO survey.steps_sections(id, survey_id, step_id, step_display_order, section_id, section_display_order, display_key, steps_sections_key)
   VALUES (NEXTVAL('survey.steps_sections_seq'), v_survey_id, v_step_two, v_step_two, v_section_two, v_section_two,
           LPAD(v_survey_id::text, 4, '0') || '-' || LPAD(v_step_two::text, 4, '0') || '-0000-'
-              || LPAD(v_section_two::text, 4, '0') || '-0000-0000-0000');
+              || LPAD(v_section_two::text, 4, '0') || '-0000-0000-0000', gen_random_uuid());
 
-  INSERT INTO survey.steps_sections(id, survey_id, step_id, step_display_order, section_id, section_display_order, display_key)
+  INSERT INTO survey.steps_sections(id, survey_id, step_id, step_display_order, section_id, section_display_order, display_key, steps_sections_key)
   VALUES (NEXTVAL('survey.steps_sections_seq'), v_survey_id, v_step_three, v_step_three, v_section_three, v_section_three,
           LPAD(v_survey_id::text, 4, '0') || '-' || LPAD(v_step_three::text, 4, '0') || '-0000-'
-              || LPAD(v_section_three::text, 4, '0') || '-0000-0000-0000');
+              || LPAD(v_section_three::text, 4, '0') || '-0000-0000-0000', gen_random_uuid());
 
   UPDATE survey.surveys
   SET initial_display_key = LPAD(v_survey_id::text, 4, '0') || '-' || LPAD(v_step_one::text, 4, '0') || '-0000-'
       || LPAD(v_section_one::text, 4, '0') || '-0000-0000-0000'
   WHERE id = v_survey_id;
 
-  INSERT INTO survey.select_groups(id, survey_id, name, description, data_type)
-  VALUES (NEXTVAL('survey.select_groups_seq'), v_survey_id, 'BranchChoice', 'Used only to round-trip SelectItem.selectGroupId', 'Text')
+  INSERT INTO survey.select_groups(id, survey_id, name, description, data_type, select_group_key)
+  VALUES (NEXTVAL('survey.select_groups_seq'), v_survey_id, 'BranchChoice', 'Used only to round-trip SelectItem.selectGroupId', 'Text', gen_random_uuid())
   RETURNING id INTO v_sg_choice;
 
-  INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
-  VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_choice, 'Alpha', 1, 'alpha');
-  INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value)
-  VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_choice, 'Beta', 2, 'beta');
+  INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value, select_item_key)
+  VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_choice, 'Alpha', 1, 'alpha', gen_random_uuid());
+  INSERT INTO survey.select_items(id, survey_id, select_group_id, display_text, display_order, coded_value, select_item_key)
+  VALUES (NEXTVAL('survey.select_items_seq'), v_survey_id, v_sg_choice, 'Beta', 2, 'beta', gen_random_uuid());
 
   -- Q_A: CHECKBOX (type_id 1) — drives the SHOW step-only branch via BOOLEAN operator.
   INSERT INTO survey.questions(id, survey_id, type_id, text, short_text, tool_tip, required,
-                                min_value, max_value, validation_text, select_group_id, mask, placeholder, default_value)
+                                min_value, max_value, validation_text, select_group_id, mask, placeholder, default_value, question_key)
   VALUES (NEXTVAL('survey.questions_seq'), v_survey_id, 1, 'Show StepTwo?', 'Q_A', '', false,
-          NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+          NULL, NULL, NULL, NULL, NULL, NULL, NULL, gen_random_uuid())
   RETURNING id INTO v_q_a;
 
   -- Q_B: INTEGER (type_id 5) — drives the REPEAT step-only branch via GREATER_THAN operator.
   INSERT INTO survey.questions(id, survey_id, type_id, text, short_text, tool_tip, required,
-                                min_value, max_value, validation_text, select_group_id, mask, placeholder, default_value)
+                                min_value, max_value, validation_text, select_group_id, mask, placeholder, default_value, question_key)
   VALUES (NEXTVAL('survey.questions_seq'), v_survey_id, 5, 'How many times should StepThree repeat?', 'Q_B', '', false,
-          0, 10, NULL, NULL, NULL, NULL, NULL)
+          0, 10, NULL, NULL, NULL, NULL, NULL, gen_random_uuid())
   RETURNING id INTO v_q_b;
 
   -- Q_C: RADIO (type_id 7) — in SectionTwo/StepTwo; only reachable if the SHOW branch fires;
   -- also used to round-trip SelectItem.selectGroupId.
   INSERT INTO survey.questions(id, survey_id, type_id, text, short_text, tool_tip, required,
-                                min_value, max_value, validation_text, select_group_id, mask, placeholder, default_value)
+                                min_value, max_value, validation_text, select_group_id, mask, placeholder, default_value, question_key)
   VALUES (NEXTVAL('survey.questions_seq'), v_survey_id, 7, 'Pick one', 'Q_C', '', false,
-          NULL, NULL, NULL, v_sg_choice, NULL, NULL, NULL)
+          NULL, NULL, NULL, v_sg_choice, NULL, NULL, NULL, gen_random_uuid())
   RETURNING id INTO v_q_c;
 
-  INSERT INTO survey.sections_questions(id, survey_id, question_id, section_id, display_order)
-  VALUES (NEXTVAL('survey.sections_questions_seq'), v_survey_id, v_q_a, v_section_one, 1)
+  INSERT INTO survey.sections_questions(id, survey_id, question_id, section_id, display_order, sections_question_key)
+  VALUES (NEXTVAL('survey.sections_questions_seq'), v_survey_id, v_q_a, v_section_one, 1, gen_random_uuid())
   RETURNING id INTO v_sq_a;
 
-  INSERT INTO survey.sections_questions(id, survey_id, question_id, section_id, display_order)
-  VALUES (NEXTVAL('survey.sections_questions_seq'), v_survey_id, v_q_b, v_section_one, 2)
+  INSERT INTO survey.sections_questions(id, survey_id, question_id, section_id, display_order, sections_question_key)
+  VALUES (NEXTVAL('survey.sections_questions_seq'), v_survey_id, v_q_b, v_section_one, 2, gen_random_uuid())
   RETURNING id INTO v_sq_b;
 
-  INSERT INTO survey.sections_questions(id, survey_id, question_id, section_id, display_order)
-  VALUES (NEXTVAL('survey.sections_questions_seq'), v_survey_id, v_q_c, v_section_two, 1)
+  INSERT INTO survey.sections_questions(id, survey_id, question_id, section_id, display_order, sections_question_key)
+  VALUES (NEXTVAL('survey.sections_questions_seq'), v_survey_id, v_q_c, v_section_two, 1, gen_random_uuid())
   RETURNING id INTO v_sq_c;
 
   -- R_show_step: Q_A BOOLEAN SHOW -> StepTwo only (downstream_ss_id and downstream_sq_id
@@ -176,10 +176,10 @@ BEGIN
   -- which is v_step_one too (display_order was set equal to id above).
   INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id,
                                     downstream_step_id, downstream_ss_id, downstream_sq_id,
-                                    operator_id, action_id, description, token, reference_value, default_upstream_value)
+                                    operator_id, action_id, description, token, reference_value, default_upstream_value, relationship_key)
   VALUES (NEXTVAL('survey.relationships_seq'), v_survey_id, v_step_one, v_sq_a,
           v_step_two, NULL, NULL,
-          1, 1, 'Show StepTwo (step-only SHOW branch) when Q_A is checked', NULL, '', '');
+          1, 1, 'Show StepTwo (step-only SHOW branch) when Q_A is checked', NULL, '', '', gen_random_uuid());
 
   -- R_repeat_step: Q_B GREATER_THAN '0' REPEAT -> StepThree only (a separate downstream
   -- step from R_show_step's — see header comment on allRelationshipsSatisfide). buildRepeatedStep
@@ -187,9 +187,9 @@ BEGIN
   -- so this relationship is expected to be a no-op today — see repeatStepOnlyBranch_isCurrentlyANoOp.
   INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id,
                                     downstream_step_id, downstream_ss_id, downstream_sq_id,
-                                    operator_id, action_id, description, token, reference_value, default_upstream_value)
+                                    operator_id, action_id, description, token, reference_value, default_upstream_value, relationship_key)
   VALUES (NEXTVAL('survey.relationships_seq'), v_survey_id, v_step_one, v_sq_b,
           v_step_three, NULL, NULL,
-          2, 2, 'Repeat StepThree (step-only REPEAT branch, buildRepeatedStep stub) when Q_B > 0', NULL, '0', '');
+          2, 2, 'Repeat StepThree (step-only REPEAT branch, buildRepeatedStep stub) when Q_B > 0', NULL, '0', '', gen_random_uuid());
 
 END $$;

@@ -133,9 +133,9 @@ class DraftPublishWorkflowSpecTest {
 
     private void insertDraft(Integer durableId, String text) {
         em.createNativeQuery(
-                "INSERT INTO survey.questions (id, question_id, version, survey_id, type_id, text, required, "
+                "INSERT INTO survey.questions (id, question_id, question_key, version, survey_id, type_id, text, required, "
                         + "effective_from, effective_to, is_draft) "
-                        + "SELECT nextval('survey.questions_seq'), question_id, "
+                        + "SELECT nextval('survey.questions_seq'), question_id, question_key, "
                         + "(SELECT MAX(version) FROM survey.questions WHERE question_id = ?1) + 1, "
                         + "survey_id, type_id, ?2, required, NULL, NULL, true "
                         + "FROM survey.questions WHERE question_id = ?1 AND effective_to = ?3 LIMIT 1")

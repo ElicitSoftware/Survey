@@ -93,9 +93,9 @@ class DimStepSectionRekeySpecTest {
                 em.createNativeQuery("UPDATE survey.steps SET effective_to = ?2 WHERE step_id = ?1 AND effective_to = ?3")
                         .setParameter(1, durableStepId).setParameter(2, OffsetDateTime.now()).setParameter(3, MAX_SENTINEL).executeUpdate();
                 em.createNativeQuery(
-                        "INSERT INTO survey.steps (id, step_id, version, survey_id, display_order, name, dimension_name, "
+                        "INSERT INTO survey.steps (id, step_id, step_key, version, survey_id, display_order, name, dimension_name, "
                                 + "effective_from, effective_to, is_draft) "
-                                + "SELECT nextval('survey.steps_seq'), step_id, ?2, survey_id, display_order, name, 'ScdStepRekeyed', "
+                                + "SELECT nextval('survey.steps_seq'), step_id, step_key, ?2, survey_id, display_order, name, 'ScdStepRekeyed', "
                                 + "?3, ?4, false FROM survey.steps WHERE step_id = ?1 AND version = ?5")
                         .setParameter(1, durableStepId).setParameter(2, currentVersion + 1).setParameter(3, OffsetDateTime.now())
                         .setParameter(4, MAX_SENTINEL).setParameter(5, currentVersion).executeUpdate();
