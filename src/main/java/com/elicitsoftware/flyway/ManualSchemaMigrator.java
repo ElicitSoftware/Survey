@@ -52,8 +52,15 @@ import java.util.Map;
 //
 // Tries db/migration (the greenfield v3 schema) first. If it validates cleanly there — either a
 // genuinely fresh database, or a v2.x database that has already been through the upgrade-and-repair
-// cycle below on a prior boot — it stays there permanently; every future migration (V011+) only
-// ever needs to exist in this one location. (src/test/resources/db/test/'s test-only data
+// cycle below on a prior boot — it stays there permanently. Note that "stays there" describes
+// where an ALREADY-CONVERGED database reads from; it does NOT mean a new migration can be added
+// to db/migration alone. Every version must exist in BOTH locations at the same version number,
+// because a database still on the upgrade path runs db/migration-v3 and is then repaired against
+// db/migration: any version present only in db/migration would be left unapplied, and the
+// post-repair validate() would fail on it as a pending migration. V011, V012 and V013 all follow
+// this rule — same version number in both, with track-specific wording in each. Adding one to
+// only db/migration breaks ManualSchemaMigratorUpgradeTest, which exists to catch exactly that.
+// (src/test/resources/db/test/'s test-only data
 // fixtures live in a separate Flyway location layered on top of this one only under the
 // %test profile, numbered from V9xxx specifically so they never collide with a real
 // migration version here.) If db/migration's checksums DON'T match (a v2.x

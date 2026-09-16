@@ -17,7 +17,6 @@ import io.quarkus.test.common.QuarkusTestResource;
 import com.elicitsoftware.PostgresTestResource;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceException;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -76,17 +75,17 @@ class StepsVersioningSpecTest {
         Integer surveyId = ScdFixtureIds.surveyId(em);
         em.createNativeQuery(
                 "INSERT INTO survey.steps (id, survey_id, display_order, name, dimension_name, "
-                        + "step_id, version, effective_from, effective_to, is_draft) "
+                        + "step_id, step_key, version, effective_from, effective_to, is_draft) "
                         + "VALUES (nextval('survey.steps_seq'), ?1, 2, 'ScdStepSibling', 'ScdStepSibling', "
-                        + "nextval('survey.steps_durable_seq'), 0, ?2, ?3, false)")
+                        + "nextval('survey.steps_durable_seq'), gen_random_uuid(), 0, ?2, ?3, false)")
                 .setParameter(1, surveyId).setParameter(2, OffsetDateTime.now()).setParameter(3, MAX_SENTINEL)
                 .executeUpdate();
 
         Integer midpointId = (Integer) em.createNativeQuery(
                 "INSERT INTO survey.steps (id, survey_id, display_order, name, dimension_name, "
-                        + "step_id, version, effective_from, effective_to, is_draft) "
+                        + "step_id, step_key, version, effective_from, effective_to, is_draft) "
                         + "VALUES (nextval('survey.steps_seq'), ?1, 1.5, 'ScdStepMidpoint', 'ScdStepMidpoint', "
-                        + "nextval('survey.steps_durable_seq'), 0, ?2, ?3, false) RETURNING id")
+                        + "nextval('survey.steps_durable_seq'), gen_random_uuid(), 0, ?2, ?3, false) RETURNING id")
                 .setParameter(1, surveyId).setParameter(2, OffsetDateTime.now()).setParameter(3, MAX_SENTINEL)
                 .getSingleResult();
 
@@ -97,17 +96,34 @@ class StepsVersioningSpecTest {
 
     @Test
     @TestTransaction
-    void onlyOneCurrentRowPerDurableId_isEnforced() {
+    void insertingASecondCurrentRow_closesThePredecessorInsteadOfColliding() {
         Integer stepId = ScdFixtureIds.stepId(em);
-        assertThrows(PersistenceException.class, () -> {
-            em.createNativeQuery(
-                    "INSERT INTO survey.steps (id, step_id, version, survey_id, display_order, name, dimension_name, "
-                            + "effective_from, effective_to, is_draft) "
-                            + "SELECT nextval('survey.steps_seq'), step_id, version + 1, survey_id, display_order, name, dimension_name, "
-                            + "?2, ?3, false FROM survey.steps WHERE id = ?1")
-                    .setParameter(1, stepId).setParameter(2, OffsetDateTime.now()).setParameter(3, MAX_SENTINEL)
-                    .executeUpdate();
-            em.flush();
-        }, "steps_one_current_un must reject a second current row for the same step_id");
+        Integer durableId = (Integer) em.createNativeQuery(
+                "SELECT step_id FROM survey.steps WHERE id = ?1").setParameter(1, stepId).getSingleResult();
+        OffsetDateTime newStart = OffsetDateTime.now();
+
+        // survey.scd_close_predecessor() closes the outgoing row BEFORE INSERT, so this
+        // succeeds rather than colliding with steps_one_current_un. The index is the
+        // backstop; the trigger is what keeps the invariant true.
+        em.createNativeQuery(
+                "INSERT INTO survey.steps (id, step_id, step_key, version, survey_id, display_order, name, dimension_name, "
+                        + "effective_from, effective_to, is_draft) "
+                        + "SELECT nextval('survey.steps_seq'), step_id, step_key, version + 1, survey_id, display_order, name, dimension_name, "
+                        + "?2, ?3, false FROM survey.steps WHERE id = ?1")
+                .setParameter(1, stepId).setParameter(2, newStart).setParameter(3, MAX_SENTINEL)
+                .executeUpdate();
+        em.flush();
+
+        Number current = (Number) em.createNativeQuery(
+                "SELECT count(*) FROM survey.steps WHERE step_id = ?1 AND effective_to = ?2")
+                .setParameter(1, durableId).setParameter(2, MAX_SENTINEL).getSingleResult();
+        assertEquals(1, current.intValue(),
+                "steps_one_current_un's invariant must still hold: exactly one current row per step_id");
+
+        Number closedAtNewStart = (Number) em.createNativeQuery(
+                "SELECT count(*) FROM survey.steps WHERE id = ?1 AND effective_to = ?2")
+                .setParameter(1, stepId).setParameter(2, newStart).getSingleResult();
+        assertEquals(1, closedAtNewStart.intValue(),
+                "the superseded row must be closed at the incoming row's effective_from, leaving no gap");
     }
 }

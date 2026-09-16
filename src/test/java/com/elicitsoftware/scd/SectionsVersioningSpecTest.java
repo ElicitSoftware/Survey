@@ -17,7 +17,6 @@ import io.quarkus.test.common.QuarkusTestResource;
 import com.elicitsoftware.PostgresTestResource;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceException;
 import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;
@@ -56,18 +55,35 @@ class SectionsVersioningSpecTest {
 
     @Test
     @TestTransaction
-    void onlyOneCurrentRowPerDurableId_isEnforced() {
+    void insertingASecondCurrentRow_closesThePredecessorInsteadOfColliding() {
         Integer sectionId = ScdFixtureIds.sectionId(em);
-        assertThrows(PersistenceException.class, () -> {
-            em.createNativeQuery(
-                    "INSERT INTO survey.sections (id, section_id, version, survey_id, display_order, name, dimension_name, "
-                            + "effective_from, effective_to, is_draft) "
-                            + "SELECT nextval('survey.sections_seq'), section_id, version + 1, survey_id, display_order, name, dimension_name, "
-                            + "?2, ?3, false FROM survey.sections WHERE id = ?1")
-                    .setParameter(1, sectionId).setParameter(2, OffsetDateTime.now()).setParameter(3, MAX_SENTINEL)
-                    .executeUpdate();
-            em.flush();
-        }, "sections_one_current_un must reject a second current row for the same section_id");
+        Integer durableId = (Integer) em.createNativeQuery(
+                "SELECT section_id FROM survey.sections WHERE id = ?1").setParameter(1, sectionId).getSingleResult();
+        OffsetDateTime newStart = OffsetDateTime.now();
+
+        // survey.scd_close_predecessor() closes the outgoing row BEFORE INSERT, so this
+        // succeeds rather than colliding with sections_one_current_un. The index is the
+        // backstop; the trigger is what keeps the invariant true.
+        em.createNativeQuery(
+                "INSERT INTO survey.sections (id, section_id, section_key, version, survey_id, display_order, name, dimension_name, "
+                        + "effective_from, effective_to, is_draft) "
+                        + "SELECT nextval('survey.sections_seq'), section_id, section_key, version + 1, survey_id, display_order, name, dimension_name, "
+                        + "?2, ?3, false FROM survey.sections WHERE id = ?1")
+                .setParameter(1, sectionId).setParameter(2, newStart).setParameter(3, MAX_SENTINEL)
+                .executeUpdate();
+        em.flush();
+
+        Number current = (Number) em.createNativeQuery(
+                "SELECT count(*) FROM survey.sections WHERE section_id = ?1 AND effective_to = ?2")
+                .setParameter(1, durableId).setParameter(2, MAX_SENTINEL).getSingleResult();
+        assertEquals(1, current.intValue(),
+                "sections_one_current_un's invariant must still hold: exactly one current row per section_id");
+
+        Number closedAtNewStart = (Number) em.createNativeQuery(
+                "SELECT count(*) FROM survey.sections WHERE id = ?1 AND effective_to = ?2")
+                .setParameter(1, sectionId).setParameter(2, newStart).getSingleResult();
+        assertEquals(1, closedAtNewStart.intValue(),
+                "the superseded row must be closed at the incoming row's effective_from, leaving no gap");
     }
 
     @Test
@@ -84,9 +100,9 @@ class SectionsVersioningSpecTest {
         em.createNativeQuery("UPDATE survey.sections SET effective_to = ?2 WHERE section_id = ?1 AND effective_to = ?3")
                 .setParameter(1, durableSectionId).setParameter(2, publishInstant).setParameter(3, MAX_SENTINEL).executeUpdate();
         em.createNativeQuery(
-                "INSERT INTO survey.sections (id, section_id, version, survey_id, display_order, name, dimension_name, "
+                "INSERT INTO survey.sections (id, section_id, section_key, version, survey_id, display_order, name, dimension_name, "
                         + "effective_from, effective_to, is_draft) "
-                        + "SELECT nextval('survey.sections_seq'), section_id, ?2, survey_id, display_order, 'ScdSectionRenamed', dimension_name, "
+                        + "SELECT nextval('survey.sections_seq'), section_id, section_key, ?2, survey_id, display_order, 'ScdSectionRenamed', dimension_name, "
                         + "?3, ?4, false FROM survey.sections WHERE section_id = ?1 AND version = ?5")
                 .setParameter(1, durableSectionId).setParameter(2, currentVersion + 1).setParameter(3, publishInstant)
                 .setParameter(4, MAX_SENTINEL).setParameter(5, currentVersion).executeUpdate();

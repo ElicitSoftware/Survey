@@ -17,7 +17,6 @@ import io.quarkus.test.common.QuarkusTestResource;
 import com.elicitsoftware.PostgresTestResource;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceException;
 import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;
@@ -55,18 +54,36 @@ class SelectGroupsVersioningSpecTest {
 
     @Test
     @TestTransaction
-    void onlyOneCurrentRowPerDurableId_isEnforced() {
+    void insertingASecondCurrentRow_closesThePredecessorInsteadOfColliding() {
         Integer selectGroupId = ScdFixtureIds.selectGroupId(em);
-        assertThrows(PersistenceException.class, () -> {
-            em.createNativeQuery(
-                    "INSERT INTO survey.select_groups (id, select_group_id, version, survey_id, name, data_type, "
-                            + "effective_from, effective_to, is_draft) "
-                            + "SELECT nextval('survey.select_groups_seq'), select_group_id, version + 1, survey_id, name, data_type, "
-                            + "?2, ?3, false FROM survey.select_groups WHERE id = ?1")
-                    .setParameter(1, selectGroupId).setParameter(2, OffsetDateTime.now()).setParameter(3, MAX_SENTINEL)
-                    .executeUpdate();
-            em.flush();
-        }, "select_groups_one_current_un must reject a second current row for the same select_group_id");
+        Integer durableId = (Integer) em.createNativeQuery(
+                "SELECT select_group_id FROM survey.select_groups WHERE id = ?1")
+                .setParameter(1, selectGroupId).getSingleResult();
+        OffsetDateTime newStart = OffsetDateTime.now();
+
+        // survey.scd_close_predecessor() closes the outgoing row BEFORE INSERT, so this
+        // succeeds rather than colliding with select_groups_one_current_un. The index is
+        // the backstop; the trigger is what keeps the invariant true.
+        em.createNativeQuery(
+                "INSERT INTO survey.select_groups (id, select_group_id, select_group_key, version, survey_id, name, data_type, "
+                        + "effective_from, effective_to, is_draft) "
+                        + "SELECT nextval('survey.select_groups_seq'), select_group_id, select_group_key, version + 1, survey_id, name, data_type, "
+                        + "?2, ?3, false FROM survey.select_groups WHERE id = ?1")
+                .setParameter(1, selectGroupId).setParameter(2, newStart).setParameter(3, MAX_SENTINEL)
+                .executeUpdate();
+        em.flush();
+
+        Number current = (Number) em.createNativeQuery(
+                "SELECT count(*) FROM survey.select_groups WHERE select_group_id = ?1 AND effective_to = ?2")
+                .setParameter(1, durableId).setParameter(2, MAX_SENTINEL).getSingleResult();
+        assertEquals(1, current.intValue(),
+                "select_groups_one_current_un's invariant must still hold: exactly one current row per select_group_id");
+
+        Number closedAtNewStart = (Number) em.createNativeQuery(
+                "SELECT count(*) FROM survey.select_groups WHERE id = ?1 AND effective_to = ?2")
+                .setParameter(1, selectGroupId).setParameter(2, newStart).getSingleResult();
+        assertEquals(1, closedAtNewStart.intValue(),
+                "the superseded row must be closed at the incoming row's effective_from, leaving no gap");
     }
 
     @Test
@@ -86,9 +103,9 @@ class SelectGroupsVersioningSpecTest {
         em.createNativeQuery("UPDATE survey.select_groups SET effective_to = ?2 WHERE select_group_id = ?1 AND effective_to = ?3")
                 .setParameter(1, durableGroupId).setParameter(2, publishInstant).setParameter(3, MAX_SENTINEL).executeUpdate();
         em.createNativeQuery(
-                "INSERT INTO survey.select_groups (id, select_group_id, version, survey_id, name, data_type, "
+                "INSERT INTO survey.select_groups (id, select_group_id, select_group_key, version, survey_id, name, data_type, "
                         + "effective_from, effective_to, is_draft) "
-                        + "SELECT nextval('survey.select_groups_seq'), select_group_id, ?2, survey_id, 'ScdSelectGroupRenamed', data_type, "
+                        + "SELECT nextval('survey.select_groups_seq'), select_group_id, select_group_key, ?2, survey_id, 'ScdSelectGroupRenamed', data_type, "
                         + "?3, ?4, false FROM survey.select_groups WHERE select_group_id = ?1 AND version = ?5")
                 .setParameter(1, durableGroupId).setParameter(2, currentVersion + 1).setParameter(3, publishInstant)
                 .setParameter(4, MAX_SENTINEL).setParameter(5, currentVersion).executeUpdate();

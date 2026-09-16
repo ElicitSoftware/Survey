@@ -87,23 +87,41 @@ class QuestionsVersioningSpecTest {
 
     @Test
     @TestTransaction
-    void onlyOneCurrentRowPerDurableId_isEnforced() {
+    void insertingASecondCurrentRow_closesThePredecessorInsteadOfColliding() {
         Integer questionId = ScdFixtureIds.questionId(em);
+        Integer durableId = (Integer) em.createNativeQuery(
+                "SELECT question_id FROM survey.questions WHERE id = ?1")
+                .setParameter(1, questionId).getSingleResult();
+        OffsetDateTime newStart = OffsetDateTime.now();
 
-        // A second row claiming to be current for the same durable id must violate
-        // questions_one_current_un.
-        assertThrows(PersistenceException.class, () -> {
-            em.createNativeQuery(
-                    "INSERT INTO survey.questions (id, question_id, version, survey_id, type_id, text, required, "
-                            + "effective_from, effective_to, is_draft) "
-                            + "SELECT nextval('survey.questions_seq'), question_id, version + 1, survey_id, type_id, text, required, "
-                            + "?2, ?3, false FROM survey.questions WHERE id = ?1")
-                    .setParameter(1, questionId)
-                    .setParameter(2, OffsetDateTime.now())
-                    .setParameter(3, MAX_SENTINEL)
-                    .executeUpdate();
-            em.flush();
-        }, "questions_one_current_un must reject a second effective_to = max row for the same question_id");
+        // survey.scd_close_predecessor() closes the outgoing row BEFORE INSERT, so this
+        // succeeds rather than colliding with questions_one_current_un. The index is the
+        // backstop; the trigger is what keeps the invariant true.
+        em.createNativeQuery(
+                "INSERT INTO survey.questions (id, question_id, question_key, version, survey_id, type_id, text, required, "
+                        + "effective_from, effective_to, is_draft) "
+                        + "SELECT nextval('survey.questions_seq'), question_id, question_key, version + 1, survey_id, type_id, text, required, "
+                        + "?2, ?3, false FROM survey.questions WHERE id = ?1")
+                .setParameter(1, questionId)
+                .setParameter(2, newStart)
+                .setParameter(3, MAX_SENTINEL)
+                .executeUpdate();
+        em.flush();
+
+        Number current = (Number) em.createNativeQuery(
+                "SELECT count(*) FROM survey.questions WHERE question_id = ?1 AND effective_to = ?2")
+                .setParameter(1, durableId).setParameter(2, MAX_SENTINEL).getSingleResult();
+        assertEquals(1, current.intValue(),
+                "questions_one_current_un's invariant must still hold: exactly one current row per question_id");
+
+        // Compared in SQL rather than with OffsetDateTime.equals, which is offset-sensitive:
+        // the driver returns the same instant as UTC, so an equals() against a local-offset
+        // value fails despite both being the same moment.
+        Number closedAtNewStart = (Number) em.createNativeQuery(
+                "SELECT count(*) FROM survey.questions WHERE id = ?1 AND effective_to = ?2")
+                .setParameter(1, questionId).setParameter(2, newStart).getSingleResult();
+        assertEquals(1, closedAtNewStart.intValue(),
+                "the superseded row must be closed at the incoming row's effective_from, leaving no gap");
     }
 
     @Test
@@ -245,9 +263,9 @@ class QuestionsVersioningSpecTest {
 
     private void insertDraft(Integer durableId, String text) {
         em.createNativeQuery(
-                "INSERT INTO survey.questions (id, question_id, version, survey_id, type_id, text, required, "
+                "INSERT INTO survey.questions (id, question_id, question_key, version, survey_id, type_id, text, required, "
                         + "effective_from, effective_to, is_draft) "
-                        + "SELECT nextval('survey.questions_seq'), question_id, "
+                        + "SELECT nextval('survey.questions_seq'), question_id, question_key, "
                         + "(SELECT MAX(version) FROM survey.questions WHERE question_id = ?1) + 1, "
                         + "survey_id, type_id, ?2, required, NULL, NULL, true "
                         + "FROM survey.questions WHERE question_id = ?1 AND effective_to = ?3 LIMIT 1")
@@ -266,9 +284,9 @@ class QuestionsVersioningSpecTest {
         assertEquals(1, updated, "Exactly one current row must be closed");
 
         em.createNativeQuery(
-                "INSERT INTO survey.questions (id, question_id, version, survey_id, type_id, text, required, "
+                "INSERT INTO survey.questions (id, question_id, question_key, version, survey_id, type_id, text, required, "
                         + "select_group_id, effective_from, effective_to, is_draft) "
-                        + "SELECT nextval('survey.questions_seq'), question_id, ?2, survey_id, type_id, ?3, required, "
+                        + "SELECT nextval('survey.questions_seq'), question_id, question_key, ?2, survey_id, type_id, ?3, required, "
                         + "select_group_id, ?4, ?5, false "
                         + "FROM survey.questions WHERE question_id = ?1 AND version = ?6")
                 .setParameter(1, durableId).setParameter(2, currentVersion + 1).setParameter(3, newText)
