@@ -670,6 +670,17 @@ ALTER TABLE survey.surveys
     ADD COLUMN published_comment text,
     ADD COLUMN survey_key        uuid;
 
+-- FHHS's V0.0.1 seeds this same authored survey with a fixed literal survey_key on a
+-- greenfield install. Pin the upgraded row to that literal first so both install paths
+-- agree on the key, and a survey definition exported from an upgraded instance still
+-- imports into a fresh one as the same survey rather than a new one. Matched on name,
+-- which surveys_name_un makes unique; any other survey falls through to the random
+-- backfill below.
+UPDATE survey.surveys
+   SET survey_key = '5e91c606-59a1-450a-a8d7-2f1530ff472b'
+ WHERE name = 'Family History Survey'
+   AND survey_key IS NULL;
+
 UPDATE survey.surveys
    SET survey_key = md5(random()::text || clock_timestamp()::text || id::text)::uuid
  WHERE survey_key IS NULL;
