@@ -57,17 +57,37 @@ public class ETLService {
 
     /**
      * Handles the application startup event and initializes the ETL process.
-     *
+     * <p>
+     * Does nothing when no survey is installed yet: see
+     * {@link #shouldBuildReportingSchema(long, long)} for why an empty
+     * {@code survey.surveys} has to short-circuit the build rather than run it against
+     * empty source tables.
      */
     // void onStart(@Observes StartupEvent ev) {
     @Startup
     void init() {
 
+        long surveys = countSurveys();
+        if (surveys == 0) {
+            // Nothing to build a reporting schema from: every dimension and fact this
+            // method derives comes from survey.steps/sections/dimensions/ontology, which
+            // are all empty until a survey definition is imported. Skipping leaves
+            // surveyreport.dim_section empty, so the next startup after an import runs the
+            // full build -- import the survey, then restart this application.
+            // WARN, not INFO: containers default to quarkus.log.level=WARN, and this is the
+            // one startup condition an operator has to act on -- at INFO it would be invisible
+            // in exactly the deployment where it matters.
+            Log.warn("No survey is defined in the database (survey.surveys is empty). "
+                    + "Reporting schema generation skipped. Import a survey definition through "
+                    + "the Admin application, then restart this application to build it.");
+            return;
+        }
+
         // Replace this SQL with the appropriate SQL for checking table existence for your DB
         Query checkQuery = entityManager.createNativeQuery("SELECT COUNT(*) FROM surveyreport.dim_section");
 
         Long rows = (Long) checkQuery.getSingleResult();
-        if (rows == 0) {
+        if (shouldBuildReportingSchema(surveys, rows)) {
             Log.info("ETL Service initialization.");
             Log.info("Initializing ETL");
             Log.info("Update Step Dimension Table: " + updateStepDimensionTable());
@@ -80,6 +100,34 @@ public class ETLService {
             Log.info("ETL Service Init found records in surveyreport.dim_section, No initialization needed.");
         }
         populateAllFactSectionsTable();
+    }
+
+    /**
+     * Decides whether {@link #init()} should generate the reporting schema.
+     * <p>
+     * Two conditions have to hold. There must be at least one survey -- the dimension and
+     * fact structures are derived from a survey definition, so with none there is nothing
+     * to derive and the build would produce an empty schema that a later import could not
+     * add to (the {@code dimSectionRows > 0} arm below would then skip it forever).
+     * And {@code surveyreport.dim_section} must still be empty, which is this schema's
+     * marker for "never built here".
+     *
+     * @param surveyCount    rows in {@code survey.surveys}
+     * @param dimSectionRows rows in {@code surveyreport.dim_section}
+     * @return {@code true} when the reporting schema should be built now
+     */
+    static boolean shouldBuildReportingSchema(long surveyCount, long dimSectionRows) {
+        return surveyCount > 0 && dimSectionRows == 0;
+    }
+
+    /**
+     * Counts the survey definitions currently installed.
+     *
+     * @return the number of rows in {@code survey.surveys}
+     */
+    long countSurveys() {
+        Query query = entityManager.createNativeQuery("SELECT COUNT(*) FROM survey.surveys");
+        return ((Number) query.getSingleResult()).longValue();
     }
 
     /**

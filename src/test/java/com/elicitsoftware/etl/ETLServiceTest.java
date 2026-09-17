@@ -125,6 +125,25 @@ class ETLServiceTest {
         return r;
     }
 
+    // ── no-survey guard ─────────────────────────────────────────────────────
+
+    /**
+     * Ties {@link ETLService#shouldBuildReportingSchema(long, long)} to the live query that
+     * feeds it. The matrix of decisions that function makes is covered without a database in
+     * {@link ETLServiceNoSurveyTest}; what cannot be checked there is that
+     * {@link ETLService#countSurveys()} actually reads survey.surveys, so a schema change to
+     * that table would surface here rather than silently making init() skip forever.
+     */
+    @Test
+    void countSurveysSeesTheFixtureSurvey() {
+        long expected = nativeCount("SELECT COUNT(*) FROM survey.surveys");
+        assertTrue(expected > 0, "fixture must install at least one survey");
+        assertEquals(expected, etlService.countSurveys(),
+                "countSurveys() must report the rows actually in survey.surveys");
+        assertTrue(ETLService.shouldBuildReportingSchema(etlService.countSurveys(), 0),
+                "with the fixture survey installed, an unbuilt schema must be built");
+    }
+
     // ── dim_step / dim_section ──────────────────────────────────────────────
 
     @Test
