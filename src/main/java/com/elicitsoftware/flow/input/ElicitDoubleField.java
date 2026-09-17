@@ -86,7 +86,7 @@ public class ElicitDoubleField extends ElicitComponent<NumberField> {
             component.setRequired(answer.question.required);
             component.setRequiredIndicatorVisible(answer.question.required);
             this.binder.forField(component)
-                    .asRequired(answer.question.validationText)
+                    .asRequired(requiredMessage(answer))
                     .bind(Answer::getDouble, Answer::setDouble);
         }
 
@@ -94,7 +94,7 @@ public class ElicitDoubleField extends ElicitComponent<NumberField> {
             this.binder.forField(component)
                     .withValidator(
                             value -> value != null && value >= answer.question.minValue && value <= answer.question.maxValue,
-                            answer.question.validationText
+                            rangeMessage(answer)
                     )
                     .bind(Answer::getDouble, Answer::setDouble);
         }

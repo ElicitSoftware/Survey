@@ -74,7 +74,7 @@ public class ElicitPasswordField extends ElicitComponent<PasswordField> {
             component.setRequired(answer.question.required);
             component.setRequiredIndicatorVisible(answer.question.required);
             this.binder.forField(component)
-                    .asRequired(answer.question.validationText)
+                    .asRequired(requiredMessage(answer))
                     .bind(Answer::getTextValue, Answer::setTextValue);
         }
 
@@ -82,7 +82,7 @@ public class ElicitPasswordField extends ElicitComponent<PasswordField> {
             binder.forField(component)
                     .withValidator(textValue -> textValue.length() >= answer.question.minValue
                                     && textValue.length() <= answer.question.maxValue,
-                            answer.question.validationText)
+                            lengthMessage(answer))
                     .bind(Answer::getTextValue, Answer::setTextValue);
         }
 

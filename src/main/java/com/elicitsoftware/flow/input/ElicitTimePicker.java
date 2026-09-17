@@ -72,7 +72,7 @@ public class ElicitTimePicker extends ElicitComponent<TimePicker> {
             component.setRequired(answer.question.required);
             component.setRequiredIndicatorVisible(answer.question.required);
             this.binder.forField(component)
-                    .asRequired(answer.question.validationText)
+                    .asRequired(requiredMessage(answer))
                     .bind(Answer::getLocalTime, Answer::setLocalTime);
         }
         if (answer.question.minValue != null) {

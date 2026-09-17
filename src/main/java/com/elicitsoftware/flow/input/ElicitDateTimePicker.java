@@ -74,7 +74,7 @@ public class ElicitDateTimePicker extends ElicitComponent<DateTimePicker> {
         if (answer.question.required) {
             component.setRequiredIndicatorVisible(answer.question.required);
             this.binder.forField(component)
-                    .asRequired(answer.question.validationText)
+                    .asRequired(requiredMessage(answer))
                     .bind(Answer::getLocalDateTime, Answer::setLocalDateTime);
             //Need to add a validator.
         } else {

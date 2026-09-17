@@ -72,13 +72,13 @@ public class ElicitTextArea extends ElicitComponent<TextArea> {
             component.setRequired(answer.question.required);
             component.setRequiredIndicatorVisible(answer.question.required);
             binder.forField(component)
-                    .asRequired(answer.question.validationText)
+                    .asRequired(requiredMessage(answer))
                     .bind(Answer::getTextValue, Answer::setTextValue);
         }
 
         if (answer.question.minValue != null && answer.question.maxValue != null) {
             binder.forField(component)
-                    .withValidator(textValue -> textValue.length() >= answer.question.minValue && textValue.length() <= answer.question.maxValue, answer.question.validationText)
+                    .withValidator(textValue -> textValue.length() >= answer.question.minValue && textValue.length() <= answer.question.maxValue, lengthMessage(answer))
                     .bind(Answer::getTextValue, Answer::setTextValue);
         }
 

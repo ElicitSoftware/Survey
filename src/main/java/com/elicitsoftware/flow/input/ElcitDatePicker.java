@@ -93,7 +93,7 @@ public class ElcitDatePicker extends ElicitComponent<DatePicker> {
             component.setRequired(answer.question.required);
             component.setRequiredIndicatorVisible(answer.question.required);
             this.binder.forField(component)
-                    .asRequired(answer.question.validationText)
+                    .asRequired(requiredMessage(answer))
                     .bind(Answer::getLocalDate, Answer::setLocalDate);
         }
 

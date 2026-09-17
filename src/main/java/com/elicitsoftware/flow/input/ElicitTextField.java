@@ -63,13 +63,13 @@ public class ElicitTextField extends ElicitComponent<TextField> {
             component.setRequired(answer.question.required);
             component.setRequiredIndicatorVisible(answer.question.required);
             binder.forField(component)
-                    .asRequired(answer.question.validationText)
+                    .asRequired(requiredMessage(answer))
                     .bind(Answer::getTextValue, Answer::setTextValue);
         }
 
         if (answer.question.minValue != null && answer.question.maxValue != null) {
             binder.forField(component)
-                    .withValidator(text -> text.length() >= answer.question.minValue && text.length() <= answer.question.maxValue, answer.question.validationText)
+                    .withValidator(text -> text.length() >= answer.question.minValue && text.length() <= answer.question.maxValue, lengthMessage(answer))
                     .bind(Answer::getTextValue, Answer::setTextValue);
         }
     }

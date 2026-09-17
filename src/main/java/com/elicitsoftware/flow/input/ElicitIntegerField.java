@@ -66,13 +66,13 @@ public class ElicitIntegerField extends ElicitComponent<IntegerField> {
             component.setRequired(answer.question.required);
             component.setRequiredIndicatorVisible(answer.question.required);
             this.binder.forField(component)
-                    .asRequired(answer.question.validationText)
+                    .asRequired(requiredMessage(answer))
                     .bind(Answer::getInteger, Answer::setInteger);
         }
 
         if (answer.question.minValue != null && answer.question.maxValue != null) {
             this.binder.forField(component)
-                    .withValidator(createRangeValidator(answer.question.minValue, answer.question.maxValue, answer.question.validationText))
+                    .withValidator(createRangeValidator(answer.question.minValue, answer.question.maxValue, rangeMessage(answer)))
                     .bind(Answer::getInteger, Answer::setInteger);
         }
     }

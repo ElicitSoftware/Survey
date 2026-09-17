@@ -112,6 +112,61 @@ public abstract class ElicitComponent<T extends Component> {
             return binder;
         }
         /**
+         * Returns the message to show when a question's answer fails validation.
+         * <p>
+         * {@code questions.validation_text} is nullable, and most authored surveys leave it
+         * unset -- but Vaadin's {@code ValidationResult.create} rejects a null message with a
+         * NullPointerException, thrown from inside the binder rather than surfaced to the user.
+         * Passing the raw column straight to {@code asRequired}/{@code withValidator} therefore
+         * makes a required question with no validation text impossible to get past: the
+         * exception aborts the write, no error is rendered, and the Next button just does
+         * nothing. Falling back to a generic message keeps that data valid.
+         *
+         * @param answer   the answer whose question supplies the authored message, if any
+         * @param fallback the message to use when the question has no validation text
+         * @return the authored validation text, or {@code fallback} when it is null or blank
+         */
+        static String validationMessage(Answer answer, String fallback) {
+            String authored = answer.question.validationText;
+            return (authored == null || authored.isBlank()) ? fallback : authored;
+        }
+
+        /**
+         * Returns the message to show when a required question has been left unanswered.
+         *
+         * @param answer the answer whose question supplies the authored message, if any
+         * @return the authored validation text, or a generic required-field message
+         * @see #validationMessage(Answer, String)
+         */
+        static String requiredMessage(Answer answer) {
+            return validationMessage(answer, "This question requires an answer.");
+        }
+
+        /**
+         * Returns the message for a min/max length validator.
+         *
+         * @param answer the answer whose question supplies the authored message and bounds
+         * @return the authored validation text, or a generic length message
+         * @see #validationMessage(Answer, String)
+         */
+        static String lengthMessage(Answer answer) {
+            return validationMessage(answer, "Enter between " + answer.question.minValue
+                    + " and " + answer.question.maxValue + " characters.");
+        }
+
+        /**
+         * Returns the message for a min/max value validator.
+         *
+         * @param answer the answer whose question supplies the authored message and bounds
+         * @return the authored validation text, or a generic range message
+         * @see #validationMessage(Answer, String)
+         */
+        static String rangeMessage(Answer answer) {
+            return validationMessage(answer, "Enter a value between " + answer.question.minValue
+                    + " and " + answer.question.maxValue + ".");
+        }
+
+        /**
          * Sets the value of this component using the provided answer.
          *
          * @param answer the answer object containing the value to be set

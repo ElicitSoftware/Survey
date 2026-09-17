@@ -74,7 +74,7 @@ public class ElicitMultiSelectComboBox extends ElicitComponent<MultiSelectComboB
         if (answer.question.required) {
             component.setRequired(answer.question.required);
             component.setRequiredIndicatorVisible(answer.question.required);
-            this.binder.forField(component).asRequired(answer.question.validationText)
+            this.binder.forField(component).asRequired(requiredMessage(answer))
                     .bind(Answer::getSelectedItems, Answer::setSelectedItems);
             // No min or max for Combo Multi select
         }
