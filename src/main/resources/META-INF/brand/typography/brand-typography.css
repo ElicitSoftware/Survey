@@ -35,7 +35,7 @@
   --brand-font-weight-bold: 700;
 
   /* Font Sizes */
-  --brand-font-size-xs: 0.75rem;    /* 12px - token pills, captions */
+  --brand-font-size-xs: 0.75rem;    /* 12px - access-code pills, captions */
   --brand-font-size-sm: 0.875rem;   /* 14px */
   --brand-font-size-base: 1rem;     /* 16px */
   --brand-font-size-lg: 1.125rem;   /* 18px */
@@ -114,7 +114,7 @@ code, pre {
   letter-spacing: 0.02em;
 }
 
-/* Token / identifier text -- specimen-label style, used for survey tokens,
+/* Identifier text -- specimen-label style, used for access codes,
    department codes, and other structured identifiers throughout the grid */
 .elicit-mono {
   font-family: var(--brand-font-monospace);

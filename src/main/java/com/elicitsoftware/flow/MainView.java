@@ -12,7 +12,7 @@ package com.elicitsoftware.flow;
  */
 
 import com.elicitsoftware.QuestionService;
-import com.elicitsoftware.TokenService;
+import com.elicitsoftware.AccessCodeService;
 import com.elicitsoftware.UISessionDataService;
 import com.elicitsoftware.model.Respondent;
 import com.elicitsoftware.model.Survey;
@@ -48,7 +48,7 @@ import java.util.List;
  * application and dynamically updates its title based on the current locale.
  * <p>
  * This class extends `VerticalLayout` and implements `HasDynamicTitle` to define the main layout
- * and its dynamic page title. It utilizes dependency injection for `TokenService` and
+ * and its dynamic page title. It utilizes dependency injection for `AccessCodeService` and
  * `QuestionService` to interact with business logic related to user authentication and survey
  * initialization.
  * <p>
@@ -58,7 +58,7 @@ import java.util.List;
  * <p>
  * Key Features:
  * - Language-sensitive layout direction (LTR/RTL).
- * - Login functionality using a token supplied by the user.
+ * - Login functionality using an access code supplied by the user.
  * - Survey selection with support for multiple or single available surveys.
  * - Navigation to different views (`section` or `report`) depending on the respondent's state.
  * - Accessibility and enhanced user experience with theme variants, tooltips, and keyboard shortcuts.
@@ -69,7 +69,7 @@ import java.util.List;
 public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrlParameter<String> {
 
     @Inject
-    TokenService tokenService;
+    AccessCodeService accessCodeService;
 
     @Inject
     QuestionService questionService;
@@ -78,8 +78,8 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
     UISessionDataService sessionDataService;
 
     // Simple field-level validation without bean binding
-    private boolean isTokenValid = false;
-    private TextField txtToken; // Make txtToken a field so it can be accessed from setParameter
+    private boolean isAccessCodeValid = false;
+    private TextField txtAccessCode; // Make txtAccessCode a field so it can be accessed from setParameter
 
     /**
      * Default constructor for MainView.
@@ -101,15 +101,15 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
      * Configures the user interface direction based on the current locale's language.
      * For Arabic, the interface is set to right-to-left; otherwise, it defaults to left-to-right.
      * <p>
-     * 2. Token Input Field:
-     * Creates a text field for entering the survey token. This field is required and includes:
+     * 2. Access Code Input Field:
+     * Creates a text field for entering the survey access code. This field is required and includes:
      * - A tooltip for guidance.
      * - A bordered style theme.
      * - Autofocus enabled for user convenience.
      * <p>
      * 3. Login Button Configuration:
      * Defines the behavior for the login button, which attempts to authenticate the respondent
-     * using the provided token. On successful authentication:
+     * using the provided access code. On successful authentication:
      * - Respondent and navigation data are set in the session.
      * - Navigation to the appropriate view is triggered, either the survey section or the report view,
      * based on the respondent's active status.
@@ -126,7 +126,7 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
      * Applies custom CSS class styling for layout adjustments in the view.
      * <p>
      * The method leverages the following application components:
-     * - {@code tokenService} for retrieving available surveys.
+     * - {@code accessCodeService} for retrieving available surveys.
      * - {@code questionService} for initializing the respondent's survey navigation.
      * - {@code session} for managing session attributes.
      */
@@ -174,9 +174,9 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
         this.setAlignItems(Alignment.CENTER);
 
         //Add instruction for auto register testing.
-        if (tokenService.isAutoRegister()) {
+        if (accessCodeService.isAutoRegister()) {
             Div autoRegisterInstructions = new Div();
-            autoRegisterInstructions.getElement().setProperty("innerHTML", "To test enter any value between 5 and 12 charaters. <br/>Tokens are case sensitive");
+            autoRegisterInstructions.getElement().setProperty("innerHTML", "To test enter any value between 5 and 12 charaters. <br/>Access codes are case sensitive");
             this.add(autoRegisterInstructions);
         }
 
@@ -185,32 +185,32 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
         loginLayout.setAlignItems(Alignment.CENTER);
 
         // Use TextField for standard text input with validation
-        txtToken = new TextField("Enter your login token");
-        txtToken.setId("login-token-field");
-        txtToken.setTooltipText("Token is case-sensitive");
-        txtToken.addThemeName("bordered");
-        txtToken.setAutofocus(true);
-        txtToken.addThemeVariants(TextFieldVariant.LUMO_SMALL);
+        txtAccessCode = new TextField("Enter your access code");
+        txtAccessCode.setId("login-access-code-field");
+        txtAccessCode.setTooltipText("Access code is case-sensitive");
+        txtAccessCode.addThemeName("bordered");
+        txtAccessCode.setAutofocus(true);
+        txtAccessCode.addThemeVariants(TextFieldVariant.LUMO_SMALL);
 
         // Add validation directly to the field
-        txtToken.addValueChangeListener(e -> {
-            String token = e.getValue();
-            if (token == null || token.trim().isEmpty()) {
-                txtToken.setErrorMessage("Token cannot be empty");
-                txtToken.setInvalid(true);
-                isTokenValid = false;
-            } else if (token.length() < 5) {
-                txtToken.setErrorMessage("Token must be at least 5 characters");
-                txtToken.setInvalid(true);
-                isTokenValid = false;
-            } else if (token.length() > 12) {
-                txtToken.setErrorMessage("Token must be at most 12 characters");
-                txtToken.setInvalid(true);
-                isTokenValid = false;
+        txtAccessCode.addValueChangeListener(e -> {
+            String accessCode = e.getValue();
+            if (accessCode == null || accessCode.trim().isEmpty()) {
+                txtAccessCode.setErrorMessage("Access code cannot be empty");
+                txtAccessCode.setInvalid(true);
+                isAccessCodeValid = false;
+            } else if (accessCode.length() < 5) {
+                txtAccessCode.setErrorMessage("Access code must be at least 5 characters");
+                txtAccessCode.setInvalid(true);
+                isAccessCodeValid = false;
+            } else if (accessCode.length() > 12) {
+                txtAccessCode.setErrorMessage("Access code must be at most 12 characters");
+                txtAccessCode.setInvalid(true);
+                isAccessCodeValid = false;
             } else {
-                txtToken.setInvalid(false);
-                txtToken.setErrorMessage(null);
-                isTokenValid = true;
+                txtAccessCode.setInvalid(false);
+                txtAccessCode.setErrorMessage(null);
+                isAccessCodeValid = true;
             }
         });
 
@@ -220,9 +220,9 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
         btnLogin.setId("login-button");
         btnLogin.addClickListener(e -> {
             // Trigger validation by setting the value to itself
-            txtToken.setValue(txtToken.getValue());
+            txtAccessCode.setValue(txtAccessCode.getValue());
             
-            if (isTokenValid && txtToken.getValue() != null && !txtToken.getValue().trim().isEmpty()) {
+            if (isAccessCodeValid && txtAccessCode.getValue() != null && !txtAccessCode.getValue().trim().isEmpty()) {
                 // Store survey ID before clearing session data to preserve it for login
                 Integer currentSurveyId = sessionDataService.getSurveyId();
                 
@@ -234,7 +234,7 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
                     sessionDataService.setSurveyId(currentSurveyId);
                 }
                 
-                Respondent respondent = login(sessionDataService.getSurveyId(), txtToken.getValue());
+                Respondent respondent = login(sessionDataService.getSurveyId(), txtAccessCode.getValue());
                 if (respondent != null) {
                     sessionDataService.setRespondent(respondent);
                     NavResponse navResponse = questionService.init(respondent.id, respondent.survey.initialDisplayKey);
@@ -248,7 +248,7 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
                         ui.navigate("report");
                     }
                 } else {
-                    Notification.show("Invalid token. Please check your token and try again.");
+                    Notification.show("Invalid access code. Please check your access code and try again.");
                 }
             } else {
                 Notification.show("Please correct the errors before logging in.");
@@ -263,7 +263,7 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
         // Example: Pressing enter in this view clicks the Button.
         btnLogin.addClickShortcut(Key.ENTER);
 
-        List<Survey> surveys = tokenService.getSurveys().get("Surveys");
+        List<Survey> surveys = accessCodeService.getSurveys().get("Surveys");
         if (surveys.isEmpty()) {
             loginLayout.add(new Paragraph("There are no surveys to login"));
         } else if (surveys.size() == 1) {
@@ -271,7 +271,7 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
         } else {
             ComboBox<Survey> comboBox = new ComboBox<>("Surveys");
             comboBox.setId("login-survey-select");
-            comboBox.setItems(tokenService.getSurveys().get("Surveys"));
+            comboBox.setItems(accessCodeService.getSurveys().get("Surveys"));
             comboBox.setItemLabelGenerator(survey -> survey.name);
             comboBox.onEnabledStateChanged(true);
             comboBox.addThemeVariants(ComboBoxVariant.LUMO_SMALL);
@@ -280,44 +280,44 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
             });
             loginLayout.add(comboBox);
         }
-        loginLayout.add(txtToken, btnLogin);
+        loginLayout.add(txtAccessCode, btnLogin);
 
         this.add(loginLayout);
 
         //Add the auto register WARNING
-        if (tokenService.isAutoRegister()) {
+        if (accessCodeService.isAutoRegister()) {
             Div autoRegisterWarning = new Div();
-            autoRegisterWarning.getElement().setProperty("innerHTML", "<h5>Warning: the property token.autoRegister is set to true.<br/>This is for testng only and should be removed for production.</h5>");
+            autoRegisterWarning.getElement().setProperty("innerHTML", "<h5>Warning: the property accessCode.autoRegister is set to true.<br/>This is for testng only and should be removed for production.</h5>");
             this.add(autoRegisterWarning);
         }
     }
 
     /**
-     * Logs in a respondent using the provided survey ID and token.
+     * Logs in a respondent using the provided survey ID and access code.
      *
      * @param surveyId the ID of the survey the respondent is attempting to access
-     * @param token    the authentication token for the respondent
+     * @param accessCode    the access code the respondent entered
      * @return the {@link Respondent} object representing the logged-in user
      */
-    private Respondent login(int surveyId, String token) {
-        return tokenService.login(surveyId, token);
+    private Respondent login(int surveyId, String accessCode) {
+        return accessCodeService.login(surveyId, accessCode);
     }
     /**
-     * Sets the URL parameter for the token when navigating to /login/{token}.
+     * Sets the URL parameter for the access code when navigating to /login/{accessCode}.
      * This method is called by Vaadin when the URL contains a parameter.
      * The parameter is optional, so /login works without a parameter.
-     * Only fills in the token if the URL path starts with "login".
-     * Since this is called before UI initialization, we store the token
-     * and apply it after the txtToken field is created.
+     * Only fills in the access code if the URL path starts with "login".
+     * Since this is called before UI initialization, we store the access code
+     * and apply it after the txtAccessCode field is created.
      *
      * @param event The before event
-     * @param token The token parameter from the URL (can be null)
+     * @param accessCode The access code parameter from the URL (can be null)
      */
     @Override
-    public void setParameter(BeforeEvent event, @OptionalParameter String token) {
+    public void setParameter(BeforeEvent event, @OptionalParameter String accessCode) {
         String location = event.getLocation().getPath();
-        if (token != null && !token.trim().isEmpty() && location.startsWith("login")) {
-            this.txtToken.setValue(token);
+        if (accessCode != null && !accessCode.trim().isEmpty() && location.startsWith("login")) {
+            this.txtAccessCode.setValue(accessCode);
         }
     }
 

@@ -139,6 +139,37 @@ class ManualSchemaMigratorUpgradeTest {
         assertMetadataElementCheckReferencesDurableColumns();
     }
 
+    /**
+     * UC-001: V014 renames the respondent's login credential from {@code token} to
+     * {@code access_code}. A respondent created on a pre-Kimball database must keep the value it
+     * logs in with after the upgrade path runs, and the column's unique constraint and indexes
+     * must carry the new names -- the same names db/migration's V014 produces on a fresh database.
+     */
+    @Test
+    void upgradeTrack_existingRespondent_keepsItsAccessCode() throws SQLException {
+        flywayFor("classpath:db/migration-v3", "9").migrate();
+
+        try (Connection conn = DriverManager.getConnection(container.getJdbcUrl(), OWNER_USER, PASSWORD);
+             var st = conn.createStatement()) {
+            st.execute("INSERT INTO survey.surveys (id, name, display_order, title) "
+                    + "VALUES (9001, 'AccessCodeUpgradeSurvey', 9001, 'Access code upgrade survey')");
+            st.execute("INSERT INTO survey.respondents (id, survey_id, token) "
+                    + "VALUES (nextval('survey.respondents_seq'), 9001, 'legacy-code-1')");
+        }
+
+        flywayFor("classpath:db/migration-v3", null).migrate();
+        flywayFor("classpath:db/migration", null).repair();
+        assertDoesNotThrow(() -> flywayFor("classpath:db/migration", null).validate());
+
+        try (Connection conn = DriverManager.getConnection(container.getJdbcUrl(), OWNER_USER, PASSWORD);
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT COUNT(*) FROM survey.respondents WHERE survey_id = 9001 AND access_code = 'legacy-code-1'");
+             ResultSet rs = ps.executeQuery()) {
+            rs.next();
+            assertEquals(1, rs.getLong(1), "A pre-upgrade respondent must keep its value under access_code");
+        }
+    }
+
     private Flyway flywayFor(String location, String targetVersion) {
         Map<String, String> placeholders = Map.of(
                 "survey_user", "survey_user",
@@ -178,11 +209,47 @@ class ManualSchemaMigratorUpgradeTest {
             assertHasColumns(conn, "relationships", "relationship_id", "upstream_step_id", "upstream_sq_id",
                     "downstream_step_id", "downstream_ss_id", "downstream_sq_id");
             assertHasColumns(conn, "answers", "question_version");
+            assertAccessCodeSchema(conn);
 
             assertEquals(1, countColumn(conn, "surveyreport", "dim_step", "step_id"),
                     "surveyreport.dim_step must gain the durable step_id column via the upgrade path");
             assertEquals(1, countColumn(conn, "surveyreport", "dim_section", "section_id"),
                     "surveyreport.dim_section must gain the durable section_id column via the upgrade path");
+        }
+    }
+
+    /**
+     * UC-001: after V014 the respondent credential is {@code access_code}, its unique constraint
+     * and three lookup indexes carry access-code names, and the unrelated question-text
+     * placeholder column {@code relationships.token} is untouched.
+     */
+    private void assertAccessCodeSchema(Connection conn) throws SQLException {
+        assertEquals(1, countColumn(conn, "survey", "respondents", "access_code"),
+                "survey.respondents must have access_code after the upgrade path runs");
+        assertEquals(0, countColumn(conn, "survey", "respondents", "token"),
+                "survey.respondents must no longer have a token column");
+        assertEquals(1, countColumn(conn, "survey", "relationships", "token"),
+                "survey.relationships.token is the question-text placeholder and must not be renamed");
+        assertEquals(1, countRows(conn,
+                        "SELECT COUNT(*) FROM pg_constraint WHERE conname = 'respondents_access_code_un'"),
+                "the respondents unique constraint must be renamed");
+        for (String index : new String[]{"idx_respondents_access_code", "idx_respondents_access_code_active",
+                "idx_respondents_survey_access_code"}) {
+            assertEquals(1, countRows(conn,
+                            "SELECT COUNT(*) FROM pg_indexes WHERE schemaname = 'survey' AND indexname = '" + index + "'"),
+                    "index " + index + " must exist");
+        }
+        assertEquals(0, countRows(conn,
+                        "SELECT COUNT(*) FROM pg_indexes WHERE schemaname = 'survey' AND tablename = 'respondents' "
+                                + "AND indexname LIKE '%token%'"),
+                "no respondents index may still be named after token");
+    }
+
+    private long countRows(Connection conn, String sql) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            rs.next();
+            return rs.getLong(1);
         }
     }
 

@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * UC-002: Answer Section Questions — Browserless coverage of SectionView's navigation
  * controls (section-previous-button / section-next-button), seeded with a fresh, isolated
  * respondent (not the shared "Tess Tester" fixture, which other tests mutate — see
- * TokenServiceTest.testDeactivate).
+ * AccessCodeServiceTest.testDeactivate).
  * <p>
  * No {@code @TestTransaction}: {@code QuestionService.init(...)} runs in its own
  * {@code REQUIRES_NEW} transaction (see the class javadoc on {@code QuestionServiceReviewTest}
@@ -82,7 +82,7 @@ class SectionViewTest extends QuarkusBrowserlessTest {
     private Respondent createFreshRespondent() {
         Respondent r = new Respondent();
         r.survey = Survey.findById(SURVEY_ID);
-        r.token = "test_" + System.nanoTime();
+        r.accessCode = "test_" + System.nanoTime();
         r.active = true;
         r.logins = 0;
         r.persist();

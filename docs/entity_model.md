@@ -84,20 +84,20 @@ A single configured questionnaire definition — the root of a decision-tree sur
 
 ### RESPONDENT
 
-A single person's attempt at taking a survey, identified by their login token; tracks login activity and completion state.
+A single person's attempt at taking a survey, identified by their access code; tracks login activity and completion state.
 
 | Attribute | Description | Data Type | Length/Precision | Validation Rules |
 |---|---|---|---|---|
 | id | Primary key. | Long | — | Primary Key, Sequence |
 | surveyId | The survey this respondent is taking. | Long | — | Not Null, Foreign Key (SURVEY.id) |
-| token | The login token issued to this respondent. | String | 255 | Not Null |
+| access_code | The access code issued to this respondent; the credential they enter to reach the survey. | String | 255 | Not Null |
 | active | Whether the respondent is still taking the survey (true) or has finalized/is inactive (false). | Boolean | — | Not Null, Default: true |
 | logins | Number of times this respondent has logged in. | Integer | — | Not Null, Default: 0 |
 | createdDt | When the respondent record was created. | DateTime | — | Not Null |
 | firstAccessDt | When the respondent first logged in. | DateTime | — | Optional |
 | finalizedDt | When the respondent finalized the survey. | DateTime | — | Optional |
 
-*Uniqueness note (from SQL, not enforced at the Java level as a bean-validation rule): `(survey_id, token)` is unique.*
+*Uniqueness note (from SQL, not enforced at the Java level as a bean-validation rule): `(survey_id, access_code)` is unique.*
 
 ### STEP
 

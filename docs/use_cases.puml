@@ -7,7 +7,7 @@ actor "External Report Service" as ReportSvc
 actor "External Post-Survey-Action Service" as PsaSvc
 
 rectangle "Elicit Survey" {
-  usecase "UC-001\nEnter Survey via Token" as UC001
+  usecase "UC-001\nEnter Survey via Access Code" as UC001
   usecase "UC-002\nAnswer Survey Questions" as UC002
   usecase "UC-003\nReview Answers" as UC003
   usecase "UC-004\nFinalize Survey" as UC004

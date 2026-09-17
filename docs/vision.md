@@ -15,9 +15,9 @@ produced them.
 ## Target Users
 
 - **Respondents** — patients, study participants, or members of the public
-  invited to complete a survey via a tokenized link in an email.
+  invited to complete a survey via an emailed link that contains their access code.
 - **Survey administrators** — staff (in the companion Admin app) who register
-  subjects, generate invitation tokens, and monitor completion.
+  subjects, generate invitation access codes, and monitor completion.
 - **Survey authors** — designers (in the companion Authoring tool) who define
   question banks, branching logic, and publish surveys to the database.
 - **Researchers / clinicians** — consumers of the recorded responses and the
@@ -40,7 +40,7 @@ Elicit Survey itself is the respondent-facing module of the broader
 ## Scope
 
 **In scope**
-- Token-based respondent entry from invitation emails.
+- Access-code-based respondent entry from invitation emails.
 - Question rendering, validation, branching, and submission via the Vaadin UI.
 - Persistence of answers and decision-tree paths in PostgreSQL.
 - PDF report generation for the respondent.
@@ -50,7 +50,7 @@ Elicit Survey itself is the respondent-facing module of the broader
 
 **Out of scope** (handled by sibling modules)
 - Authoring surveys / defining question trees → Authoring tool.
-- Subject registration, token generation, invitation email dispatch → Admin app.
+- Subject registration, access code generation, invitation email dispatch → Admin app.
 - Cross-survey analytics dashboards → downstream reporting tools.
 
 ## Constraints

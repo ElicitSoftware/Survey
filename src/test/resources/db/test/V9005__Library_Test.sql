@@ -978,10 +978,10 @@ VALUES (NEXTVAL('survey.post_survey_actions_seq'), v_survey_id,
 -- ============================================================
 -- RESPONDENTS  (survey_id = v_survey_id)
 -- ============================================================
--- INSERT INTO survey.respondents (id, survey_id, token, active, logins, created_dt, first_access_dt, finalized_dt)
+-- INSERT INTO survey.respondents (id, survey_id, access_code, active, logins, created_dt, first_access_dt, finalized_dt)
 -- VALUES (NEXTVAL('survey.respondents_seq'), v_survey_id, 'libtest', TRUE, 0, current_timestamp, NULL, NULL);
 
--- INSERT INTO survey.respondents (id, survey_id, token, active, logins, created_dt, first_access_dt, finalized_dt)
+-- INSERT INTO survey.respondents (id, survey_id, access_code, active, logins, created_dt, first_access_dt, finalized_dt)
 -- VALUES (NEXTVAL('survey.respondents_seq'), v_survey_id, 'lib-inactive', FALSE, 0, current_timestamp, NULL, NULL);
 
 -- ============================================================

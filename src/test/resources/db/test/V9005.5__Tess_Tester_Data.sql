@@ -10,7 +10,7 @@
 
 -- ============================================================
 -- Tess Tester — completed Library Card Registration response
--- Respondent: id=3, token='test1', survey_id=1 (LibraryCardReg)
+-- Respondent: id=3, access_code='test1', survey_id=1 (LibraryCardReg)
 --
 -- Covers all active paths through the V005 survey:
 --   Terms accepted → Patron + Preferences + Checkout steps shown
@@ -34,7 +34,7 @@ SET TIMEZONE TO 'America/Detroit';
 -- ============================================================
 -- RESPONDENT
 -- ============================================================
-INSERT INTO survey.respondents (id, survey_id, token, active, logins, created_dt, first_access_dt, finalized_dt)
+INSERT INTO survey.respondents (id, survey_id, access_code, active, logins, created_dt, first_access_dt, finalized_dt)
 VALUES (1, 1, 'test1', false, 1,
         '2026-05-07 20:41:43.912+00',
         '2026-05-07 20:41:43.890+00',
