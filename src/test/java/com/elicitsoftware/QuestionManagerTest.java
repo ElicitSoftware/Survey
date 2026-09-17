@@ -82,7 +82,7 @@ class QuestionManagerTest {
     Respondent createFreshRespondent() {
         Respondent r = new Respondent();
         r.survey = Survey.findById(SURVEY_ID);
-        r.token = "test_" + System.nanoTime();
+        r.accessCode = "test_" + System.nanoTime();
         r.active = true;
         r.logins = 0;
         r.persist();

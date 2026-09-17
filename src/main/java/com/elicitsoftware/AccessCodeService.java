@@ -29,36 +29,36 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Service class for managing and handling survey tokens and their associated
- * respondents. This class provides functionalities such as token generation,
+ * Service class for managing and handling survey access codes and their associated
+ * respondents. This class provides functionalities such as access code generation,
  * respondent registration, survey retrieval, user login, and deactivation.
  * <p>
- * The class uses a secure random token generator to create unique tokens for
- * surveys and manages these tokens associated with survey respondents. It
+ * The class uses a secure random access code generator to create unique access codes for
+ * surveys and manages these access codes associated with survey respondents. It
  * also provides transactional capabilities for database operations.
  */
 @RequestScoped
-public class TokenService {
+public class AccessCodeService {
 
-    private static final String TOKEN_ERROR = "Error Generating Token";
+    private static final String ACCESS_CODE_ERROR = "Error Generating Access Code";
 
     private final RandomStringGenerator randomStringGenerator;
 
-    @ConfigProperty(name = "token.autoRegister", defaultValue = "false")
+    @ConfigProperty(name = "accessCode.autoRegister", defaultValue = "false")
     boolean autoRegister;
 
     /**
-     * Constructs a new instance of the TokenService class.
+     * Constructs a new instance of the AccessCodeService class.
      * <p>
-     * This constructor initializes the TokenService with a specialized RandomStringGenerator
+     * This constructor initializes the AccessCodeService with a specialized RandomStringGenerator
      * that generates random strings of length 9, designed to use a combination of digits,
      * uppercase consonant characters, and a subset of lowercase letters. The random string
      * generator is seeded with a cryptographically secure random number generator.
      * <p>
      * The character set used for random string generation excludes ambiguous characters
-     * to ensure clarity and usability in generated tokens.
+     * to ensure clarity and usability in generated access codes.
      */
-    public TokenService() {
+    public AccessCodeService() {
         super();
         String easy = RandomStringGenerator.digits + "BCDFGHJKLMNPQRSTVWXZbcdfghjkmnpqrstvwxz2456789";
         randomStringGenerator = new RandomStringGenerator(9, new SecureRandom(), easy);
@@ -88,84 +88,84 @@ public class TokenService {
     }
 
     /**
-     * Adds a unique token for a respondent in the context of the specified survey.
+     * Adds a unique access code for a respondent in the context of the specified survey.
      * <p>
-     * This method delegates the token generation and respondent association to the {@code addToken}
-     * method. It ensures that the token is successfully created for the given survey and returns
+     * This method delegates the access code generation and respondent association to the {@code addAccessCode}
+     * method. It ensures that the access code is successfully created for the given survey and returns
      * the resulting response.
      *
-     * @param surveyId The unique identifier of the survey for which the token is to be added.
-     * @return An {@code AddResponse} object containing either the generated token and respondent ID
+     * @param surveyId The unique identifier of the survey for which the access code is to be added.
+     * @return An {@code AddResponse} object containing either the generated access code and respondent ID
      * or an error message, depending on the operation's success.
      */
     @Transactional
-    public AddResponse putToken(int surveyId) {
-        return addToken(surveyId);
+    public AddResponse putAccessCode(int surveyId) {
+        return addAccessCode(surveyId);
     }
 
     /**
-     * Adds a unique token for a respondent in the context of the specified survey.
+     * Adds a unique access code for a respondent in the context of the specified survey.
      * <p>
-     * The method generates a unique token for the given survey and associates it with a newly created
-     * respondent. If the survey does not exist or if token generation fails, the response contains
-     * an error indicating the issue. Otherwise, the response includes the generated token and the
+     * The method generates a unique access code for the given survey and associates it with a newly created
+     * respondent. If the survey does not exist or if access code generation fails, the response contains
+     * an error indicating the issue. Otherwise, the response includes the generated access code and the
      * respondent's ID.
      *
-     * @param surveyId The unique identifier of the survey for which the token is to be added.
-     * @return An {@code AddResponse} object containing either the generated token and respondent ID
+     * @param surveyId The unique identifier of the survey for which the access code is to be added.
+     * @return An {@code AddResponse} object containing either the generated access code and respondent ID
      * or an error message, depending on the operation's success.
      */
-    public AddResponse addToken(int surveyId) {
+    public AddResponse addAccessCode(int surveyId) {
         AddResponse ar = new AddResponse();
-        // Tokens have to be unique within a survey
-        String token = generateUniqueToken(4, 0, surveyId);
+        // Access codes have to be unique within a survey
+        String accessCode = generateUniqueAccessCode(4, 0, surveyId);
         Survey survey = Survey.findById(surveyId);
 
-        if (survey == null || Objects.equals(token, TOKEN_ERROR)) {
-            ar.setError(TOKEN_ERROR);
+        if (survey == null || Objects.equals(accessCode, ACCESS_CODE_ERROR)) {
+            ar.setError(ACCESS_CODE_ERROR);
             return ar;
         }
 
         Respondent respondent = new Respondent();
-        respondent.token = token;
+        respondent.accessCode = accessCode;
         respondent.survey = survey;
         DatabaseRetryUtil.executeWithRetry(
                 () -> respondent.persist(),
                 "adding new respondent for survey " + surveyId
         );
-        ar.setToken(respondent.token);
+        ar.setAccessCode(respondent.accessCode);
         ar.setRespondentId(respondent.id);
         return ar;
     }
 
     /**
-     * Generates a unique token for a given survey by attempting to create a random string
+     * Generates a unique access code for a given survey by attempting to create a random string
      * and checking if it already exists within the context of the specified survey.
-     * If a duplicate token is found, the method recursively tries again until a unique
-     * token is generated or the maximum number of attempts is reached.
+     * If a duplicate access code is found, the method recursively tries again until a unique
+     * access code is generated or the maximum number of attempts is reached.
      *
-     * @param maxTries   The maximum number of attempts allowed to generate a unique token.
-     * @param currentTry The current attempt number in the token generation process.
-     * @param surveyId   The unique identifier of the survey for which the token is being generated.
-     * @return The generated unique token as a String, or a predefined error token if the maximum
+     * @param maxTries   The maximum number of attempts allowed to generate a unique access code.
+     * @param currentTry The current attempt number in the access code generation process.
+     * @param surveyId   The unique identifier of the survey for which the access code is being generated.
+     * @return The generated unique access code as a String, or the predefined error value if the maximum
      * number of attempts is exceeded.
      */
-    private String generateUniqueToken(int maxTries, int currentTry, int surveyId) {
+    private String generateUniqueAccessCode(int maxTries, int currentTry, int surveyId) {
         if (currentTry >= maxTries) {
-            return TOKEN_ERROR;
+            return ACCESS_CODE_ERROR;
         }
-        //Generate a random string for the token.
-        String token = randomStringGenerator.nextString();
-        Respondent respondent = Respondent.findBySurveyAndToken(surveyId, token);
+        //Generate a random string for the access code.
+        String accessCode = randomStringGenerator.nextString();
+        Respondent respondent = Respondent.findBySurveyAndAccessCode(surveyId, accessCode);
         if (respondent == null) {
-            return token;
+            return accessCode;
         } else {
-            return generateUniqueToken(maxTries, currentTry + 1, surveyId);
+            return generateUniqueAccessCode(maxTries, currentTry + 1, surveyId);
         }
     }
 
     /**
-     * Logs in a respondent for a given survey using a provided unique token.
+     * Logs in a respondent for a given survey using a provided unique access code.
      * If no respondent exists, a new respondent may be auto-registered based
      * on the system's configuration.
      * <p>
@@ -174,23 +174,23 @@ public class TokenService {
      * - Sets the first access date if it's not already set.
      * - Persists these changes to the database.
      * <p>
-     * If no existing respondent is found for the given token:
+     * If no existing respondent is found for the given access code:
      * - Auto-registers a new respondent if the system allows it, assigns
-     * the survey ID, token, and active status, then persists the respondent.
+     * the survey ID, access code, and active status, then persists the respondent.
      *
      * @param surveyId The unique identifier of the survey for which the respondent
      *                 is logging in.
-     * @param token    The unique token associated with the respondent attempting to log in.
+     * @param accessCode    The unique access code associated with the respondent attempting to log in.
      * @return The {@code Respondent} object representing the logged-in user.
      * Returns a new or updated respondent object, or {@code null} if
      * the respondent cannot be determined and auto-registration is disabled.
      */
     @Timed(value = "survey.login", description = "Time to authenticate and login respondent", histogram = true)
     @Transactional
-    public Respondent login(int surveyId, String token) {
+    public Respondent login(int surveyId, String accessCode) {
         long start = System.currentTimeMillis();
         try {
-            Respondent user = getUser(surveyId, token);
+            Respondent user = getUser(surveyId, accessCode);
 
             Survey survey = Survey.findById(surveyId);
             //Check for a valid survey id
@@ -199,7 +199,7 @@ public class TokenService {
                     final Respondent newUser = new Respondent();
                     newUser.active = true;
                     newUser.survey = survey;
-                    newUser.token = token;
+                    newUser.accessCode = accessCode;
                     newUser.logins = newUser.logins + 1;
                     if (newUser.firstAccessDt == null) {
                         newUser.firstAccessDt = OffsetDateTime.now();
@@ -225,7 +225,7 @@ public class TokenService {
             }
             return user;
         } finally {
-            Log.info("Token login took: " + (System.currentTimeMillis() - start) + "ms");
+            Log.info("Access code login took: " + (System.currentTimeMillis() - start) + "ms");
         }
     }
 
@@ -234,27 +234,27 @@ public class TokenService {
     }
 
     /**
-     * Returns a respondent based on the specified survey ID and token following these rules:
+     * Returns a respondent based on the specified survey ID and access code following these rules:
      * 1) If a survey ID is provided (not zero), it retrieves the respondent associated
-     * with the given survey and token, regardless of the survey's active status.
+     * with the given survey and access code, regardless of the survey's active status.
      *
      * @param surveyId The unique identifier of the survey. A value of zero indicates no specific survey ID is provided.
-     * @param token    The unique token associated with the respondent.
-     * @return A {@code Respondent} object corresponding to the given survey ID and token,
+     * @param accessCode    The unique access code associated with the respondent.
+     * @return A {@code Respondent} object corresponding to the given survey ID and access code,
      * or {@code null} if no respondent is found matching the specified criteria.
      */
     // This method will return user based on this logic:
     // 1) return user from survey not based on active status if they
-    //    specifically request a survey and token.
-    // 2) search database by token for active survey if
+    //    specifically request a survey and access code.
+    // 2) search database by access code for active survey if
     //    found return the lowest survey number.
     //    e.g. fhhs survey or consent survey if fhhs is not active
     // 3) if all surveys are complete return the lowest survey
     //    e.g. fhhs if both are complete.
-    private Respondent getUser(int surveyId, String token) {
+    private Respondent getUser(int surveyId, String accessCode) {
         Respondent user = null;
         if (surveyId != 0) {
-            user = Respondent.findBySurveyAndToken(surveyId, token);
+            user = Respondent.findBySurveyAndAccessCode(surveyId, accessCode);
         }
         return user;
     }

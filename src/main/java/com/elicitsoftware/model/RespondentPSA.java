@@ -21,29 +21,12 @@ import java.time.OffsetDateTime;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Represents a respondent in a survey system. A respondent is associated with a survey
- * and interacts with it through various actions such as accessing and submitting responses.
- * This entity tracks key events and properties of the respondent's interaction with the survey.
+ * Tracks one post-survey action for one respondent. Maps the "respondent_psa" table in the
+ * "survey" schema.
  * <p>
- * The Respondent entity is mapped to the "respondents" table within the "survey" schema
- * and is managed through JPA. It supports named queries for retrieving specific respondent
- * data based on survey and token criteria.
- * <p>
- * Key features of this class include:
- * - Tracking of creation, first access, and finalization timestamps.
- * - Management of an active status to indicate if the respondent is currently participating.
- * - Storage of a unique token to identify individual respondents securely.
- * - Reference to the associated survey.
- * <p>
- * Named Queries:
- * - "Respondent.findBySurveyAndToken": Finds a respondent by the given survey ID and token.
- * - "Respondent.findActiveByToken": Retrieves active respondents associated with a specific token,
- * ordered by survey ID.
- * <p>
- * The entity includes utility methods such as:
- * - `findBySurveyAndToken`: Static method to retrieve a respondent based on survey ID and token.
- * - `getElapsedTime`: Calculates the elapsed time between the first access and finalization
- * timestamps, if available, formatted as HH:mm:ss.
+ * Each row links a respondent to a configured post-survey action (for example, uploading a
+ * generated report) and records the attempt count, the current status, the last error message,
+ * and when the action was created and completed.
  */
 @Entity
 @Table(name = "respondent_psa", schema = "survey")

@@ -11,8 +11,8 @@ package com.elicitsoftware.survey;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.AccessCodeService;
 import com.elicitsoftware.RandomStringGenerator;
-import com.elicitsoftware.TokenService;
 import com.elicitsoftware.model.Respondent;
 import com.elicitsoftware.model.Survey;
 import com.elicitsoftware.response.AddResponse;
@@ -26,15 +26,15 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * UC-001: Enter Survey via Token — covers survey lookup, token issuance,
- * and login (including auto-register) via TokenService.
+ * UC-001: Enter Survey via Access Code — covers survey lookup, access code issuance,
+ * and login (including auto-register) via AccessCodeService.
  */
 @QuarkusTest
 @QuarkusTestResource(PostgresTestResource.class)
-public class TokenServiceTest {
+public class AccessCodeServiceTest {
 
     @Inject
-    TokenService service;
+    AccessCodeService service;
 
 
     @Test
@@ -54,21 +54,43 @@ public class TokenServiceTest {
 
     @Test
     @Transactional
-    // UC-001: token issuance for a valid survey
-    public void testPutToken() {
-        AddResponse response = service.putToken(1);
-        assertNotNull(response.getToken());
+    // UC-001: access code issuance for a valid survey
+    public void testPutAccessCode() {
+        AddResponse response = service.putAccessCode(1);
+        assertNotNull(response.getAccessCode());
         assertNull(response.getError());
     }
 
     @Test
     @Transactional
-    // UC-001 A-flow: token issuance fails for an invalid survey id
-    public void testAddTokenForInvalidSurvey() {
+    // UC-001 main success scenario: an issued access code is stored on the respondent and
+    // logging in with it returns that same respondent, with the login recorded.
+    public void testLoginWithIssuedAccessCode() {
+        AddResponse response = service.putAccessCode(1);
+        String accessCode = response.getAccessCode();
+        assertNotNull(accessCode);
+
+        Respondent stored = Respondent.findBySurveyAndAccessCode(1, accessCode);
+        assertNotNull(stored);
+        assertEquals(response.getRespondentId(), stored.id);
+        assertEquals(accessCode, stored.accessCode);
+
+        stored.active = true;
+        Respondent loggedIn = service.login(1, accessCode);
+        assertNotNull(loggedIn);
+        assertEquals(stored.id, loggedIn.id);
+        assertEquals(1, loggedIn.logins);
+        assertNotNull(loggedIn.firstAccessDt);
+    }
+
+    @Test
+    @Transactional
+    // UC-001 A-flow: access code issuance fails for an invalid survey id
+    public void testAddAccessCodeForInvalidSurvey() {
         // A small hardcoded id (e.g. 3) previously collided with fixture-inserted survey rows
         // added for other tests. Integer.MAX_VALUE can never be a real fixture id.
-        AddResponse response = service.addToken(Integer.MAX_VALUE);
-        assertEquals("Error Generating Token", response.getError());
+        AddResponse response = service.addAccessCode(Integer.MAX_VALUE);
+        assertEquals("Error Generating Access Code", response.getError());
     }
 
     @Test
@@ -81,7 +103,7 @@ public class TokenServiceTest {
 
     @Test
     @Transactional
-    // UC-001 main success scenario: unrecognized token + auto-register enabled creates an active respondent
+    // UC-001 main success scenario: unrecognized access code + auto-register enabled creates an active respondent
     public void testLoginWithAutoRegister() {
 
         RandomStringGenerator generator = new RandomStringGenerator(10);

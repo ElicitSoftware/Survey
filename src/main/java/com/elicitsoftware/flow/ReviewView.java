@@ -64,7 +64,7 @@ public class ReviewView extends VerticalLayout {
      * This method retrieves the current survey, respondent, and navigation response from
      * the user session and updates the view accordingly. It includes:
      * - Setting the layout size to full.
-     * - Displaying information about the loaded survey and respondent token.
+     * - Displaying information about the loaded survey and respondent access code.
      * - Adding a thank-you message and instructions component.
      * - Dynamically adding review cards for survey sections if available.
      * - Adding navigation buttons (Previous and Finish) and configuring their actions.

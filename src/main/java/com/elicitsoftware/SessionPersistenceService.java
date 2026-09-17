@@ -32,11 +32,11 @@ public class SessionPersistenceService {
     
     private static final String SESSION_KEY_SURVEY_ID = "elicit.survey.id";
     private static final String SESSION_KEY_RESPONDENT_ID = "elicit.respondent.id";
-    private static final String SESSION_KEY_RESPONDENT_TOKEN = "elicit.respondent.token";
+    private static final String SESSION_KEY_RESPONDENT_ACCESS_CODE = "elicit.respondent.accessCode";
     private static final String SESSION_KEY_CURRENT_NAV_PATH = "elicit.current.nav.path";
     
     @Inject
-    TokenService tokenService;
+    AccessCodeService accessCodeService;
     
     @Inject
     QuestionService questionService;
@@ -64,7 +64,7 @@ public class SessionPersistenceService {
             
             if (respondent != null) {
                 session.setAttribute(SESSION_KEY_RESPONDENT_ID, respondent.id);
-                session.setAttribute(SESSION_KEY_RESPONDENT_TOKEN, respondent.token);
+                session.setAttribute(SESSION_KEY_RESPONDENT_ACCESS_CODE, respondent.accessCode);
             }
             
             if (navResponse != null && navResponse.getCurrentNavItem() != null) {
@@ -101,19 +101,19 @@ public class SessionPersistenceService {
             
             Integer surveyId = (Integer) session.getAttribute(SESSION_KEY_SURVEY_ID);
             Integer respondentId = (Integer) session.getAttribute(SESSION_KEY_RESPONDENT_ID);
-            String respondentToken = (String) session.getAttribute(SESSION_KEY_RESPONDENT_TOKEN);
+            String respondentAccessCode = (String) session.getAttribute(SESSION_KEY_RESPONDENT_ACCESS_CODE);
             String currentNavPath = (String) session.getAttribute(SESSION_KEY_CURRENT_NAV_PATH);
             
             // Check if we have all required session data for restoration
-            if (surveyId == null || respondentId == null || respondentToken == null) {
+            if (surveyId == null || respondentId == null || respondentAccessCode == null) {
                 Log.info("Incomplete session data found - Survey: " + surveyId + 
-                        ", Respondent: " + respondentId + ", Token: " + (respondentToken != null ? "present" : "null") +
+                        ", Respondent: " + respondentId + ", Access code: " + (respondentAccessCode != null ? "present" : "null") +
                         " - cannot restore");
                 return null;
             }
             
             // Verify the respondent still exists and is valid
-            Respondent respondent = tokenService.login(surveyId, respondentToken);
+            Respondent respondent = accessCodeService.login(surveyId, respondentAccessCode);
             if (respondent == null || !respondent.id.equals(respondentId)) {
                 Log.warn("Invalid respondent found during restoration, clearing session");
                 clearSessionData();
@@ -172,7 +172,7 @@ public class SessionPersistenceService {
             VaadinSession session = VaadinSession.getCurrent();
             session.setAttribute(SESSION_KEY_SURVEY_ID, null);
             session.setAttribute(SESSION_KEY_RESPONDENT_ID, null);
-            session.setAttribute(SESSION_KEY_RESPONDENT_TOKEN, null);
+            session.setAttribute(SESSION_KEY_RESPONDENT_ACCESS_CODE, null);
             session.setAttribute(SESSION_KEY_CURRENT_NAV_PATH, null);
             
             Log.info("Session data cleared");

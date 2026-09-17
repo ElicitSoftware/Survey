@@ -46,7 +46,7 @@ surveys
   ├── relationships      (survey_id, upstream_step_id, upstream_sq_id,
   │                       downstream_step_id, downstream_ss_id, downstream_sq_id)
   │
-  ├── respondents        (survey_id, token, first_access_dt, ...)   ← snapshot anchor
+  ├── respondents        (survey_id, access_code, first_access_dt, ...)   ← snapshot anchor
   │
   └── answers            (survey_id, respondent_id, question_id,    ← event record
                           section_question_id, display_key, text_value)
@@ -1729,13 +1729,13 @@ atomically with the question row.
 ```
 1. RESPONDENT OPENS SURVEY FOR THE FIRST TIME
    │
-   ├─ System identifies the respondent by token (URL parameter or session cookie).
-   ├─ No respondent row exists yet (first login via token):
+   ├─ System identifies the respondent by access code (URL parameter or session cookie).
+   ├─ No respondent row exists yet (first login via access code):
    │       UPDATE survey.respondents
    │          SET first_access_dt = NOW()
-   │        WHERE token = :token AND first_access_dt IS NULL;
+   │        WHERE access_code = :accessCode AND first_access_dt IS NULL;
    └─ firstAccessDt is now frozen. All subsequent structural queries use this timestamp.
-      Note: firstAccessDt is set on the very first token login. A returning respondent
+      Note: firstAccessDt is set on the very first access-code login. A returning respondent
       always has a non-null firstAccessDt — there is no null case on return.
 
 2. STRUCTURAL QUERIES — NEW RESPONDENT (firstAccessDt just set)
@@ -1759,9 +1759,9 @@ atomically with the question row.
 
 4. RESPONDENT RETURNS (in a later session)
    │
-   ├─ System retrieves firstAccessDt from respondents where token = :token.
+   ├─ System retrieves firstAccessDt from respondents where access_code = :accessCode.
    │    firstAccessDt is always non-null at this point — it is set on the respondent's
-   │    very first token login and never cleared.
+   │    very first access-code login and never cleared.
    ├─ Structural queries now use the time-range with firstAccessDt:
    │       effective_from <= :firstAccessDt
    │       AND effective_to > :firstAccessDt
@@ -1864,7 +1864,7 @@ version is returned regardless of when the cache miss occurs.
   gaps (a window where no row matches) and overlaps (two rows matching simultaneously).
   PostgreSQL `TIMESTAMPTZ` has microsecond precision, which is more than sufficient.
 
-- **Q-R2** ⏸️ **Deferred** — Token timeout duration will be determined by asking Survey
+- **Q-R2** ⏸️ **Deferred** — Access code expiry duration will be determined by asking Survey
   Authors what an appropriate expiry period is for in-progress respondents. No schema
   change is required until that decision is made.
 

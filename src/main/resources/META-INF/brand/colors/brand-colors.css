@@ -109,9 +109,9 @@
   --brand-border-light: var(--elicit-ledger-light);
   --brand-shadow: rgba(27, 98, 156, 0.12);
 
-  /* Token pill - the signature recurring device (specimen-label style token chips) */
-  --brand-token-bg: var(--elicit-verdigris-pale);
-  --brand-token-text: var(--elicit-ink);
+  /* Access-code pill - the signature recurring device (specimen-label style identifier chips) */
+  --brand-access-code-bg: var(--elicit-verdigris-pale);
+  --brand-access-code-text: var(--elicit-ink);
 
   /* Accessibility enhancements */
   --high-contrast-text: var(--elicit-black);
@@ -186,8 +186,8 @@ vaadin-button[theme~="secondary"]:focus-visible,
   outline-offset: 2px;
 }
 
-/* Token pill - specimen-label style chip for survey/subject tokens */
-.elicit-token {
+/* Access-code pill - specimen-label style chip for respondent access codes */
+.elicit-access-code {
   display: inline-block;
   font-family: var(--brand-font-monospace);
   font-size: 0.8125rem;
@@ -195,8 +195,8 @@ vaadin-button[theme~="secondary"]:focus-visible,
   letter-spacing: 0.02em;
   padding: 0.125rem 0.5rem;
   border-radius: 0.25rem;
-  background-color: var(--brand-token-bg);
-  color: var(--brand-token-text);
+  background-color: var(--brand-access-code-bg);
+  color: var(--brand-access-code-text);
   white-space: nowrap;
 }
 

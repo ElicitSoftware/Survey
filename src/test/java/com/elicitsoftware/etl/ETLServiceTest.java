@@ -118,7 +118,7 @@ class ETLServiceTest {
     private Respondent createFreshUnfinalizedRespondent() {
         Respondent r = new Respondent();
         r.survey = Survey.findById(SURVEY_ID);
-        r.token = "etl_test_" + System.nanoTime();
+        r.accessCode = "etl_test_" + System.nanoTime();
         r.active = true;
         r.logins = 0;
         r.persist();

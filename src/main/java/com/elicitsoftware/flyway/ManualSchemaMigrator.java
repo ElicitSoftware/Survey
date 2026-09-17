@@ -57,7 +57,7 @@ import java.util.Map;
 // to db/migration alone. Every version must exist in BOTH locations at the same version number,
 // because a database still on the upgrade path runs db/migration-v3 and is then repaired against
 // db/migration: any version present only in db/migration would be left unapplied, and the
-// post-repair validate() would fail on it as a pending migration. V011, V012 and V013 all follow
+// post-repair validate() would fail on it as a pending migration. V011 through V014 all follow
 // this rule — same version number in both, with track-specific wording in each. Adding one to
 // only db/migration breaks ManualSchemaMigratorUpgradeTest, which exists to catch exactly that.
 // (src/test/resources/db/test/'s test-only data

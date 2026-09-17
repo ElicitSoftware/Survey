@@ -93,7 +93,7 @@ class ReportViewTest extends QuarkusBrowserlessTest {
                 .firstResult();
         Respondent r = new Respondent();
         r.survey = survey;
-        r.token = "test_" + System.nanoTime();
+        r.accessCode = "test_" + System.nanoTime();
         r.active = false;
         r.logins = 1;
         r.persist();
