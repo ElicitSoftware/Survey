@@ -43,9 +43,9 @@ class SectionsQuestionsCascadeSpecTest {
     void migration_addsDurableKeyVersionColumnsAndFkCompanions() {
         long cols = ((Number) em.createNativeQuery(
                 "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='survey' AND table_name='sections_questions' "
-                        + "AND column_name IN ('sections_question_id','version','effective_from','effective_to','is_draft',"
+                        + "AND column_name IN ('sections_question_id','version','effective_from','effective_to',"
                         + "'question_version','section_version')").getSingleResult()).longValue();
-        assertEquals(7, cols);
+        assertEquals(6, cols);
     }
 
     @Test
@@ -80,9 +80,9 @@ class SectionsQuestionsCascadeSpecTest {
                 .setParameter(1, durableQuestionId).setParameter(2, publishInstant).setParameter(3, MAX_SENTINEL).executeUpdate();
         em.createNativeQuery(
                 "INSERT INTO survey.questions (id, question_id, question_key, version, survey_id, type_id, text, required, "
-                        + "select_group_id, effective_from, effective_to, is_draft) "
+                        + "select_group_id, effective_from, effective_to) "
                         + "SELECT nextval('survey.questions_seq'), question_id, question_key, ?2, survey_id, type_id, 'Reworded via cascade test', required, "
-                        + "select_group_id, ?3, ?4, false FROM survey.questions WHERE question_id = ?1 AND version = ?5")
+                        + "select_group_id, ?3, ?4 FROM survey.questions WHERE question_id = ?1 AND version = ?5")
                 .setParameter(1, durableQuestionId).setParameter(2, currentVersion + 1).setParameter(3, publishInstant)
                 .setParameter(4, MAX_SENTINEL).setParameter(5, currentVersion).executeUpdate();
         em.flush();

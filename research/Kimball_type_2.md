@@ -1,5 +1,18 @@
 # Kimball Type 2 Slowly Changing Dimensions for Survey Versioning
 
+> **Superseded in part (2026-09-17, Survey V015).** Authoring no longer happens inside a
+> deployed database. The Author app edits plain working copies in its own database and
+> exports an `ELICIT_SURVEY_EXPORT_V1` definition file; Admin's *Apply Survey Definition*
+> installs it or updates it in place (close current row, insert `version + 1`, matched by
+> the `*_key` UUIDs). Consequently the `is_draft` column and the `*_one_draft_un` indexes
+> described below were **dropped in V015**, and every passage about "the Author Tool"
+> creating or publishing draft rows, owning migration scripts, or clearing caches is
+> historical design rationale, not current behaviour. Removal of an element is expressed
+> as a closed `effective_to` carried in the definition file. The schema mechanics
+> (durable keys, `effective_from`/`effective_to`, as-of resolution, FK companion columns,
+> the `scd_close_predecessor` trigger) remain authoritative.
+
+
 ## Motivation
 
 Researchers need to iterate on survey instruments over time — rephrasing questions for clarity,

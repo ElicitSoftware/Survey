@@ -44,9 +44,9 @@ class StepsVersioningSpecTest {
     void migration_addsExpectedColumnsAndSequence() {
         long columns = ((Number) em.createNativeQuery(
                 "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'survey' AND table_name = 'steps' "
-                        + "AND column_name IN ('step_id','version','effective_from','effective_to','is_draft','published_by','published_comment')")
+                        + "AND column_name IN ('step_id','version','effective_from','effective_to','published_by','published_comment')")
                 .getSingleResult()).longValue();
-        assertEquals(7, columns);
+        assertEquals(6, columns);
     }
 
     @Test
@@ -75,17 +75,17 @@ class StepsVersioningSpecTest {
         Integer surveyId = ScdFixtureIds.surveyId(em);
         em.createNativeQuery(
                 "INSERT INTO survey.steps (id, survey_id, display_order, name, dimension_name, "
-                        + "step_id, step_key, version, effective_from, effective_to, is_draft) "
+                        + "step_id, step_key, version, effective_from, effective_to) "
                         + "VALUES (nextval('survey.steps_seq'), ?1, 2, 'ScdStepSibling', 'ScdStepSibling', "
-                        + "nextval('survey.steps_durable_seq'), gen_random_uuid(), 0, ?2, ?3, false)")
+                        + "nextval('survey.steps_durable_seq'), gen_random_uuid(), 0, ?2, ?3)")
                 .setParameter(1, surveyId).setParameter(2, OffsetDateTime.now()).setParameter(3, MAX_SENTINEL)
                 .executeUpdate();
 
         Integer midpointId = (Integer) em.createNativeQuery(
                 "INSERT INTO survey.steps (id, survey_id, display_order, name, dimension_name, "
-                        + "step_id, step_key, version, effective_from, effective_to, is_draft) "
+                        + "step_id, step_key, version, effective_from, effective_to) "
                         + "VALUES (nextval('survey.steps_seq'), ?1, 1.5, 'ScdStepMidpoint', 'ScdStepMidpoint', "
-                        + "nextval('survey.steps_durable_seq'), gen_random_uuid(), 0, ?2, ?3, false) RETURNING id")
+                        + "nextval('survey.steps_durable_seq'), gen_random_uuid(), 0, ?2, ?3) RETURNING id")
                 .setParameter(1, surveyId).setParameter(2, OffsetDateTime.now()).setParameter(3, MAX_SENTINEL)
                 .getSingleResult();
 
@@ -107,9 +107,9 @@ class StepsVersioningSpecTest {
         // backstop; the trigger is what keeps the invariant true.
         em.createNativeQuery(
                 "INSERT INTO survey.steps (id, step_id, step_key, version, survey_id, display_order, name, dimension_name, "
-                        + "effective_from, effective_to, is_draft) "
+                        + "effective_from, effective_to) "
                         + "SELECT nextval('survey.steps_seq'), step_id, step_key, version + 1, survey_id, display_order, name, dimension_name, "
-                        + "?2, ?3, false FROM survey.steps WHERE id = ?1")
+                        + "?2, ?3 FROM survey.steps WHERE id = ?1")
                 .setParameter(1, stepId).setParameter(2, newStart).setParameter(3, MAX_SENTINEL)
                 .executeUpdate();
         em.flush();

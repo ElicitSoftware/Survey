@@ -47,10 +47,10 @@ class RelationshipsVersioningSpecTest {
 
         long cols = ((Number) em.createNativeQuery(
                 "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='survey' AND table_name='relationships' "
-                        + "AND column_name IN ('relationship_id','version','effective_from','effective_to','is_draft',"
+                        + "AND column_name IN ('relationship_id','version','effective_from','effective_to',"
                         + "'downstream_ss_id','upstream_step_version','upstream_sq_version','downstream_step_version',"
                         + "'downstream_ss_version','downstream_sq_version')").getSingleResult()).longValue();
-        assertEquals(11, cols);
+        assertEquals(10, cols);
     }
 
     @Test
@@ -70,10 +70,10 @@ class RelationshipsVersioningSpecTest {
         em.createNativeQuery(
                 "INSERT INTO survey.relationships (id, relationship_id, relationship_key, version, survey_id, upstream_step_id, upstream_sq_id, "
                         + "downstream_step_id, downstream_ss_id, downstream_sq_id, operator_id, action_id, reference_value, "
-                        + "effective_from, effective_to, is_draft) "
+                        + "effective_from, effective_to) "
                         + "SELECT nextval('survey.relationships_seq'), relationship_id, relationship_key, ?2, survey_id, upstream_step_id, upstream_sq_id, "
                         + "downstream_step_id, downstream_ss_id, downstream_sq_id, operator_id, action_id, 'FALSE', "
-                        + "?3, ?4, false FROM survey.relationships WHERE relationship_id = ?1 AND version = ?5")
+                        + "?3, ?4 FROM survey.relationships WHERE relationship_id = ?1 AND version = ?5")
                 .setParameter(1, durableRelationshipId).setParameter(2, currentVersion + 1).setParameter(3, publishInstant)
                 .setParameter(4, MAX_SENTINEL).setParameter(5, currentVersion).executeUpdate();
         em.flush();

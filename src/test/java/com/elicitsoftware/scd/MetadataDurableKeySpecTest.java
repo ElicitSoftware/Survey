@@ -95,9 +95,9 @@ class MetadataDurableKeySpecTest {
                 .setParameter(1, durableQuestionId).setParameter(2, OffsetDateTime.now()).setParameter(3, MAX_SENTINEL).executeUpdate();
         em.createNativeQuery(
                 "INSERT INTO survey.questions (id, question_id, question_key, version, survey_id, type_id, text, required, "
-                        + "effective_from, effective_to, is_draft) "
+                        + "effective_from, effective_to) "
                         + "SELECT nextval('survey.questions_seq'), question_id, question_key, ?2, survey_id, type_id, 'Reworded', required, "
-                        + "?3, ?4, false FROM survey.questions WHERE question_id = ?1 AND version = ?5")
+                        + "?3, ?4 FROM survey.questions WHERE question_id = ?1 AND version = ?5")
                 .setParameter(1, durableQuestionId).setParameter(2, currentVersion + 1).setParameter(3, OffsetDateTime.now())
                 .setParameter(4, MAX_SENTINEL).setParameter(5, currentVersion).executeUpdate();
         em.flush();

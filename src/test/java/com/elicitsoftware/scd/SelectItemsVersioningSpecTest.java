@@ -50,8 +50,8 @@ class SelectItemsVersioningSpecTest {
         long durableAndVersionCols = ((Number) em.createNativeQuery(
                 "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='survey' AND table_name='select_items' "
                         + "AND column_name IN ('select_item_id','select_group_id','select_group_version','version',"
-                        + "'effective_from','effective_to','is_draft')").getSingleResult()).longValue();
-        assertEquals(7, durableAndVersionCols);
+                        + "'effective_from','effective_to')").getSingleResult()).longValue();
+        assertEquals(6, durableAndVersionCols);
     }
 
     @Test

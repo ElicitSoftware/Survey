@@ -43,9 +43,9 @@ class SelectGroupsVersioningSpecTest {
         long columns = ((Number) em.createNativeQuery(
                 "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'survey' "
                         + "AND table_name = 'select_groups' AND column_name IN "
-                        + "('select_group_id','version','effective_from','effective_to','is_draft','published_by','published_comment')")
+                        + "('select_group_id','version','effective_from','effective_to','published_by','published_comment')")
                 .getSingleResult()).longValue();
-        assertEquals(7, columns);
+        assertEquals(6, columns);
         long seq = ((Number) em.createNativeQuery(
                 "SELECT COUNT(*) FROM information_schema.sequences WHERE sequence_schema = 'survey' "
                         + "AND sequence_name = 'select_groups_durable_seq'").getSingleResult()).longValue();
@@ -66,9 +66,9 @@ class SelectGroupsVersioningSpecTest {
         // the backstop; the trigger is what keeps the invariant true.
         em.createNativeQuery(
                 "INSERT INTO survey.select_groups (id, select_group_id, select_group_key, version, survey_id, name, data_type, "
-                        + "effective_from, effective_to, is_draft) "
+                        + "effective_from, effective_to) "
                         + "SELECT nextval('survey.select_groups_seq'), select_group_id, select_group_key, version + 1, survey_id, name, data_type, "
-                        + "?2, ?3, false FROM survey.select_groups WHERE id = ?1")
+                        + "?2, ?3 FROM survey.select_groups WHERE id = ?1")
                 .setParameter(1, selectGroupId).setParameter(2, newStart).setParameter(3, MAX_SENTINEL)
                 .executeUpdate();
         em.flush();
@@ -104,9 +104,9 @@ class SelectGroupsVersioningSpecTest {
                 .setParameter(1, durableGroupId).setParameter(2, publishInstant).setParameter(3, MAX_SENTINEL).executeUpdate();
         em.createNativeQuery(
                 "INSERT INTO survey.select_groups (id, select_group_id, select_group_key, version, survey_id, name, data_type, "
-                        + "effective_from, effective_to, is_draft) "
+                        + "effective_from, effective_to) "
                         + "SELECT nextval('survey.select_groups_seq'), select_group_id, select_group_key, ?2, survey_id, 'ScdSelectGroupRenamed', data_type, "
-                        + "?3, ?4, false FROM survey.select_groups WHERE select_group_id = ?1 AND version = ?5")
+                        + "?3, ?4 FROM survey.select_groups WHERE select_group_id = ?1 AND version = ?5")
                 .setParameter(1, durableGroupId).setParameter(2, currentVersion + 1).setParameter(3, publishInstant)
                 .setParameter(4, MAX_SENTINEL).setParameter(5, currentVersion).executeUpdate();
         em.flush();

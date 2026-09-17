@@ -72,9 +72,6 @@ public class SelectItem extends PanacheEntityBase {
     @Column(name = "effective_to")
     public OffsetDateTime effectiveTo;
 
-    @Column(name = "is_draft", nullable = false)
-    public boolean isDraft = false;
-
     @Column(name = "published_by")
     public String publishedBy;
 

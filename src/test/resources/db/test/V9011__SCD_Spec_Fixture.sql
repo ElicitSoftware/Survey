@@ -20,7 +20,7 @@
 --
 -- Only plain inserts against TODAY's columns — this is harmless before the
 -- Type 2 migration exists (nothing references the not-yet-created
--- version/effective_from/effective_to/is_draft columns) and remains valid
+-- version/effective_from/effective_to columns) and remains valid
 -- afterward (those columns are added NOT NULL DEFAULT ..., so existing
 -- rows — including these — get backfilled automatically per the doc's
 -- Migration Strategy step 2).

@@ -197,7 +197,15 @@ class ManualSchemaMigratorUpgradeTest {
     private void assertKimballSchemaPresent() throws SQLException {
         try (Connection conn = DriverManager.getConnection(container.getJdbcUrl(), OWNER_USER, PASSWORD)) {
             assertHasColumns(conn, "questions", "question_id", "version", "effective_from", "effective_to",
-                    "is_draft", "published_by", "published_comment", "select_group_version");
+                    "published_by", "published_comment", "select_group_version");
+            // V015: Type 1 element keys present, is_draft gone from the structural tables.
+            assertHasColumns(conn, "reports", "report_key");
+            assertHasColumns(conn, "post_survey_actions", "post_survey_action_key");
+            assertHasColumns(conn, "dimensions", "dimension_key");
+            assertHasColumns(conn, "ontology", "ontology_key");
+            assertHasColumns(conn, "metadata", "metadata_key");
+            assertLacksColumn(conn, "questions", "is_draft");
+            assertLacksColumn(conn, "steps", "is_draft");
             assertHasColumns(conn, "select_groups", "select_group_id", "version", "effective_from", "effective_to");
             assertHasColumns(conn, "select_items", "select_item_id", "select_group_id", "select_group_version");
             assertHasColumns(conn, "sections", "section_id", "version", "effective_from", "effective_to");
@@ -275,6 +283,11 @@ class ManualSchemaMigratorUpgradeTest {
             assertEquals(1, countColumn(conn, "survey", table, column),
                     "survey." + table + " must have column " + column + " after the upgrade path runs");
         }
+    }
+
+    private void assertLacksColumn(Connection conn, String table, String column) throws SQLException {
+        assertEquals(0, countColumn(conn, "survey", table, column),
+                "survey." + table + " must no longer have column " + column + " after the upgrade path runs");
     }
 
     private long countColumn(Connection conn, String schema, String table, String column) throws SQLException {
