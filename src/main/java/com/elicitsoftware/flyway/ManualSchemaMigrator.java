@@ -152,7 +152,11 @@ public class ManualSchemaMigrator {
             return true;
         }
         try {
-            buildFlyway(greenfieldLocations).validate();
+            // Pending migrations are not conflicts: a converged database that has not yet received
+            // the newest db/migration version (or a fresh database whose schema the DBA scripts
+            // pre-created) must take the plain migrate() branch, which applies them. Only checksum
+            // or missing-version conflicts mean "unupgraded v2.x history".
+            buildFlyway(greenfieldLocations, true).validate();
             return true;
         } catch (FlywayValidateException e) {
             return false;
@@ -173,6 +177,10 @@ public class ManualSchemaMigrator {
     }
 
     private Flyway buildFlyway(List<String> locations) {
+        return buildFlyway(locations, false);
+    }
+
+    private Flyway buildFlyway(List<String> locations, boolean ignorePending) {
         Map<String, String> placeholders = new HashMap<>();
         placeholders.put("survey_user", surveyUser);
         placeholders.put("surveyadmin_user", surveyAdminUser);
@@ -189,6 +197,7 @@ public class ManualSchemaMigrator {
                 .validateOnMigrate(validateOnMigrate)
                 .connectRetries(connectRetries)
                 .placeholders(placeholders)
+                .ignoreMigrationPatterns(ignorePending ? new String[]{"*:future", "*:pending"} : new String[]{"*:future"})
                 .load();
     }
 
