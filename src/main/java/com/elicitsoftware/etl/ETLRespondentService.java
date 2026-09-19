@@ -58,7 +58,14 @@ public class ETLRespondentService {
      * @return a combined string summarizing the results of populating the dimension tables
      * and saving the section facts for the specified respondent.
      */
+    /** See {@link ETLService#etlEnabled}: a preview instance records answers but never reports them. */
+    @ConfigProperty(name = "elicit.etl.enabled", defaultValue = "true")
+    boolean etlEnabled;
+
     public String populateFactSectionTable(Integer respondentId) {
+        if (!etlEnabled) {
+            return "Reporting ETL disabled (elicit.etl.enabled=false)";
+        }
         String dim = populateDimensionTables(respondentId);
         String facts = saveSectionFacts(respondentId);
         return facts + System.lineSeparator() + dim + System.lineSeparator();

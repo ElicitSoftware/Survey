@@ -64,8 +64,21 @@ public class ETLService {
      * empty source tables.
      */
     // void onStart(@Observes StartupEvent ev) {
+    /**
+     * {@code elicit.etl.enabled=false} turns the reporting ETL off for an instance that only
+     * renders surveys -- the Author stack's preview instance runs against Author's working
+     * database, which holds many surveys whose step names collide in the site-wide
+     * {@code surveyreport.dim_step} and whose answers are never reported.
+     */
+    @ConfigProperty(name = "elicit.etl.enabled", defaultValue = "true")
+    boolean etlEnabled;
+
     @Startup
     void init() {
+        if (!etlEnabled) {
+            Log.warn("Reporting ETL is disabled (elicit.etl.enabled=false): the reporting schema is not built or updated by this instance.");
+            return;
+        }
 
         long surveys = countSurveys();
         if (surveys == 0) {
