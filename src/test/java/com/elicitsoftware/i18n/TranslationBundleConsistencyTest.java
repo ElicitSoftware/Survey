@@ -45,8 +45,11 @@ class TranslationBundleConsistencyTest {
 
     static final Path BUNDLE_DIR = Path.of("src/main/resources/vaadin-i18n");
     static final List<String> LOCALES = List.of("es_419", "ar");
-    private static final Pattern KEY_REF = Pattern.compile(
+    /** Keys passed straight to the translation API; these must exist. */
+    private static final Pattern STRICT_REF = Pattern.compile(
             "(?:getTranslation|translate|Translations\\.get)\\s*\\((?:[^\"()]*,\\s*)?\"([A-Za-z0-9_.\\-]+)\"");
+    /** Every key-like string literal (incl. ternaries and prefixes such as {@code "view.prefix."}); used for orphan detection. */
+    private static final Pattern KEY_REF = Pattern.compile("\"([a-z][A-Za-z0-9_]*(?:(?:\\.[A-Za-z0-9_\\-]+)+\\.?|\\.))\"");
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{(\\d+)");
 
     @Test
@@ -79,15 +82,17 @@ class TranslationBundleConsistencyTest {
         }
 
         // 2. source references
-        Set<String> referenced = referencedKeys(root.resolve("src/main/java"));
-        referenced.stream().filter(k -> !k.endsWith(".")).filter(k -> !defaults.containsKey(k))
+        Set<String> referenced = referencedKeys(root.resolve("src/main/java"), KEY_REF);
+        Set<String> strict = referencedKeys(root.resolve("src/main/java"), STRICT_REF);
+        strict.stream().filter(k -> !k.endsWith(".")).filter(k -> !defaults.containsKey(k))
                 .forEach(k -> problems.add("source references unknown key " + k));
-        referenced.stream().filter(k -> k.endsWith("."))
+        strict.stream().filter(k -> k.endsWith("."))
                 .filter(prefix -> defaults.keySet().stream().noneMatch(k -> k.startsWith(prefix)))
                 .forEach(prefix -> problems.add("source references dynamic key prefix with no keys " + prefix));
         for (String key : new TreeSet<>(defaults.keySet())) {
             boolean dynamic = context.getOrDefault(key, "").contains("dynamic");
-            if (!referenced.contains(key) && !dynamic && !isDynamicPrefix(key, referenced)) {
+            if (!referenced.contains(key) && !dynamic && !isDynamicPrefix(key, referenced)
+                    && !isSuffixed(key, referenced)) {
                 problems.add("orphan key (not referenced from source, not flagged dynamic): " + key);
             }
             if (!context.containsKey(key)) {
@@ -124,16 +129,22 @@ class TranslationBundleConsistencyTest {
                 + String.join("\n  ", problems));
     }
 
+    /** Keys completed with a suffix in code, e.g. {@code getTranslation(prefix + ".term")}. */
+    private static boolean isSuffixed(String key, Set<String> referenced) {
+        int dot = key.lastIndexOf('.');
+        return dot > 0 && referenced.contains(key.substring(0, dot));
+    }
+
     /** Keys built at runtime share a prefix flagged dynamic, e.g. {@code sectionView.error.} */
     private static boolean isDynamicPrefix(String key, Set<String> referenced) {
         return referenced.stream().anyMatch(r -> r.endsWith(".") && key.startsWith(r));
     }
 
-    private static Set<String> referencedKeys(Path srcRoot) throws IOException {
+    private static Set<String> referencedKeys(Path srcRoot, Pattern pattern) throws IOException {
         Set<String> keys = new TreeSet<>();
         try (Stream<Path> walk = Files.walk(srcRoot)) {
             for (Path p : walk.filter(f -> f.toString().endsWith(".java")).toList()) {
-                Matcher m = KEY_REF.matcher(Files.readString(p, StandardCharsets.UTF_8));
+                Matcher m = pattern.matcher(Files.readString(p, StandardCharsets.UTF_8));
                 while (m.find()) {
                     keys.add(m.group(1));
                 }
