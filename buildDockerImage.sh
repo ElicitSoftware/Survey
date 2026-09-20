@@ -3,4 +3,4 @@ jenv local 25
 export JAVA_HOME="$(jenv javahome)"
 echo "build survey"
 
-./mvnw clean package -Dmaven.test.skip=true -Dquarkus.profile=docker
+./mvnw clean package -Dquarkus.profile=docker
