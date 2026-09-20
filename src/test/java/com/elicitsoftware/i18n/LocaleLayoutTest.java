@@ -21,6 +21,8 @@ import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Path;
+import java.util.List;
 import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -97,5 +99,20 @@ class LocaleLayoutTest extends QuarkusBrowserlessTest {
         assertTrue(items.contains(Locale.forLanguageTag("ar")), items.toString());
         assertFalse(items.contains(ElicitI18NProvider.PSEUDO_LOCALE), "pseudo-locale is never offered to users");
         assertEquals(UI.getCurrent().getLocale().getLanguage(), switcher.getValue().getLanguage());
+    }
+
+    @Test
+    void switcher_isHidden_whenOnlyEnglishIsAvailable() {
+        ElicitI18NProvider englishOnly = new ElicitI18NProvider();
+        englishOnly.fileSystemPath = Path.of("target/no-such-i18n-mount").toString();
+        englishOnly.localPath = Path.of("target/no-such-i18n-local").toString();
+        englishOnly.appName = "survey";
+        englishOnly.bundledLocales = "en";
+        englishOnly.pseudoLocaleEnabled = false;
+
+        LanguageSwitcher switcher = new LanguageSwitcher(selection, englishOnly);
+
+        assertEquals(List.of(Locale.ENGLISH), switcher.getListDataView().getItems().toList());
+        assertFalse(switcher.isVisible(), "an English-only deployment must not show the language selector");
     }
 }

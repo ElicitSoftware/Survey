@@ -33,7 +33,7 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * UC-007 / NFR-009: the shipped translation bundles must agree with each other and with the
+ * UC-007 / NFR-009: the English bundle and the deployment's translation files must agree with each other and with the
  * source code. Checks: every locale file carries exactly the default keys; every key referenced
  * from {@code getTranslation("...")} / {@code translate(..., "...")} exists; every default key is
  * referenced (unless flagged {@code dynamic} in the context sidecar); {@code {n}} placeholders
@@ -44,7 +44,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class TranslationBundleConsistencyTest {
 
     static final Path BUNDLE_DIR = Path.of("src/main/resources/vaadin-i18n");
-    static final List<String> LOCALES = List.of("es_419", "ar");
+    /** The deployment translations directory the test profile mounts ({@code %test.i18n.file.system.path}). */
+    static final Path MOUNT_DIR = Path.of("../elicit-i18n/survey");
+    private static final Pattern LOCALE_FILE = Pattern.compile("translations_([A-Za-z0-9_]+)\\.properties");
     /** Keys passed straight to the translation API; these must exist. */
     private static final Pattern STRICT_REF = Pattern.compile(
             "(?:getTranslation|translate|Translations\\.get)\\s*\\((?:[^\"()]*,\\s*)?\"([A-Za-z0-9_.\\-]+)\"");
@@ -61,8 +63,21 @@ class TranslationBundleConsistencyTest {
         Map<String, String> defaults = load(dir.resolve("translations.properties"), problems);
         Map<String, String> context = load(dir.resolve("translations.context.properties"), problems);
         Map<String, Map<String, String>> locales = new LinkedHashMap<>();
-        for (String tag : LOCALES) {
-            locales.put(tag, load(dir.resolve("translations_" + tag + ".properties"), problems));
+        collectLocales(dir, locales, problems);
+        Path mount = root.resolve(MOUNT_DIR).normalize();
+        if (!Files.isDirectory(mount)) {
+            problems.add("deployment translations not found at " + mount
+                    + " (the module tests run inside the Elicit umbrella checkout, which provides elicit-i18n)");
+        } else {
+            Map<String, String> mountedDefaults = load(mount.resolve("translations.properties"), problems);
+            if (!mountedDefaults.equals(defaults)) {
+                problems.add("the mount's copy of translations.properties differs from the application's English file: "
+                        + mount.resolve("translations.properties"));
+            }
+            collectLocales(mount, locales, problems);
+            if (locales.isEmpty()) {
+                problems.add("no translations_<tag>.properties found in " + mount);
+            }
         }
         if (!problems.isEmpty()) {
             assertTrue(problems.isEmpty(), String.join("\n", problems));
@@ -151,6 +166,22 @@ class TranslationBundleConsistencyTest {
             }
         }
         return keys;
+    }
+
+    /** Every {@code translations_<tag>.properties} in {@code dir}; a tag present in two directories keeps the first. */
+    private static void collectLocales(Path dir, Map<String, Map<String, String>> locales, List<String> problems)
+            throws IOException {
+        if (!Files.isDirectory(dir)) {
+            return;
+        }
+        try (Stream<Path> files = Files.list(dir)) {
+            for (Path f : files.sorted().toList()) {
+                Matcher m = LOCALE_FILE.matcher(f.getFileName().toString());
+                if (m.matches() && !locales.containsKey(m.group(1))) {
+                    locales.put(m.group(1), load(f, problems));
+                }
+            }
+        }
     }
 
     static Map<String, String> load(Path file, List<String> problems) throws IOException {

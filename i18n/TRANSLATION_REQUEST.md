@@ -2,7 +2,10 @@
 
 This document is generated from the application's English text file and is meant to be handed,
 as is, to a translator or to an AI translation agent. It contains everything needed to produce a
-complete language file for one target language.
+complete language file for one target language. The application itself ships only the English
+file; a finished translation is placed in the deployment's translations directory
+(`elicit-i18n/survey/` in the Elicit umbrella repository, mounted at `/opt/i18n`), never inside
+the application.
 
 ## About the application
 

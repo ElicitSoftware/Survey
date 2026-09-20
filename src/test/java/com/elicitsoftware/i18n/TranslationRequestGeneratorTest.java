@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * UC-007 / FR-020: the committed translation handoff document must match what the generator
- * produces from the shipped bundle. The freshly generated copy is always written to
+ * produces from the English bundle; so must the copy in the deployment translations directory. The freshly generated copy is always written to
  * {@code target/i18n/TRANSLATION_REQUEST.md}; on drift, copy it over the committed file.
  */
 class TranslationRequestGeneratorTest {
@@ -39,5 +39,11 @@ class TranslationRequestGeneratorTest {
         String actual = Files.exists(committed) ? Files.readString(committed, StandardCharsets.UTF_8) : "";
         assertEquals(generated, actual,
                 "i18n/TRANSLATION_REQUEST.md is out of date; run: cp target/i18n/TRANSLATION_REQUEST.md i18n/TRANSLATION_REQUEST.md");
+
+        Path mounted = root.resolve(TranslationBundleConsistencyTest.MOUNT_DIR).resolve("TRANSLATION_REQUEST.md").normalize();
+        if (Files.exists(mounted)) {
+            assertEquals(generated, Files.readString(mounted, StandardCharsets.UTF_8),
+                    mounted + " is out of date; run: cp target/i18n/TRANSLATION_REQUEST.md " + mounted);
+        }
     }
 }

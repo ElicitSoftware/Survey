@@ -10,7 +10,7 @@
 
 ## Preconditions
 
-- The application ships English texts and at least one additional language (Latin American Spanish and Arabic in the reference deployment).
+- The application ships English texts only; the deployment's translations directory supplies every other language (Latin American Spanish and Arabic in the reference deployment).
 - The deployment may have mounted further language files or text overrides; if so, those languages are also available.
 - The respondent has an invitation link, which may carry a language, or navigates to the login page directly.
 

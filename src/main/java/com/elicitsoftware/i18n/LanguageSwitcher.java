@@ -38,6 +38,8 @@ public class LanguageSwitcher extends Select<Locale> implements LocaleChangeObse
                 .filter(l -> !ElicitI18NProvider.PSEUDO_LOCALE.getLanguage().equals(l.getLanguage()))
                 .toList();
         setItems(locales);
+        // English-only deployments (nothing mounted) have no choice to offer, so the selector stays out of the header.
+        setVisible(locales.size() > 1);
         setItemLabelGenerator(LanguageSwitcher::displayName);
         UI ui = UI.getCurrent();
         if (ui != null) {

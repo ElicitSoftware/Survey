@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * UC-007 BR-001/BR-002: the provider's three-tier resolution against a real mounted directory.
- * The provider's path fields are package-private (the BrandUtilTest pattern) so a @TempDir can
+ * The application ships English only; every other language comes from a mount. The provider's path fields are package-private (the BrandUtilTest pattern) so a @TempDir can
  * stand in for /opt/i18n without CDI.
  */
 class ElicitI18NProviderMountTest {
@@ -39,7 +39,7 @@ class ElicitI18NProviderMountTest {
         p.fileSystemPath = mount.toString();
         p.localPath = mount.resolve("no-local-dir").toString();
         p.appName = "survey";
-        p.bundledLocales = "en,es-419,ar";
+        p.bundledLocales = "en";
         p.pseudoLocaleEnabled = false;
         return p;
     }
@@ -53,13 +53,14 @@ class ElicitI18NProviderMountTest {
     @Test
     void providedLocales_defaultFirst_thenBundled_thenMounted(@TempDir Path mount) throws IOException {
         write(mount, "translations_fr.properties", "sideNav.about=À propos\n");
+        write(mount, "translations_es_419.properties", "sideNav.about=Acerca de\n");
 
         List<Locale> locales = provider(mount).getProvidedLocales();
 
         assertEquals(Locale.ENGLISH, locales.get(0));
-        assertTrue(locales.contains(ES_419), locales.toString());
-        assertTrue(locales.contains(AR), locales.toString());
+        assertTrue(locales.contains(ES_419), "mounted locale must be offered: " + locales);
         assertTrue(locales.contains(FR), "mount-only locale must be offered: " + locales);
+        assertFalse(locales.contains(AR), "a locale that is neither bundled nor mounted is not offered: " + locales);
         assertFalse(locales.contains(ElicitI18NProvider.PSEUDO_LOCALE));
     }
 
@@ -71,7 +72,7 @@ class ElicitI18NProviderMountTest {
 
         assertEquals("Entrar ahora", mounted.getTranslation("mainView.btnLogin", ES_419));
         assertEquals(plain.getTranslation("sideNav.about", ES_419), mounted.getTranslation("sideNav.about", ES_419),
-                "keys absent from the mounted file keep their shipped value");
+                "keys absent from the mounted file keep their fallback value");
     }
 
     @Test

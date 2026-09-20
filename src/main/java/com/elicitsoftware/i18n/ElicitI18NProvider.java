@@ -83,8 +83,8 @@ public class ElicitI18NProvider implements I18NProvider {
     @ConfigProperty(name = "i18n.app.name", defaultValue = "survey")
     String appName = "survey";
 
-    @ConfigProperty(name = "i18n.bundled.locales", defaultValue = "en,es-419,ar")
-    String bundledLocales = "en,es-419,ar";
+    @ConfigProperty(name = "i18n.bundled.locales", defaultValue = "en")
+    String bundledLocales = "en";
 
     @ConfigProperty(name = "i18n.pseudo-locale.enabled", defaultValue = "false")
     boolean pseudoLocaleEnabled;
