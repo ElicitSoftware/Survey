@@ -4,6 +4,7 @@
 <groupId>com.elicitsoftware</groupId>
     <artifactId>survey</artifactId>
     <version>3.0.0</version>
+    <packaging>quarkus</packaging>
 
     <properties>
         <compiler-plugin.version>3.15.0</compiler-plugin.version>
@@ -248,17 +249,11 @@
                 <groupId>${quarkus.platform.group-id}</groupId>
                 <artifactId>quarkus-maven-plugin</artifactId>
                 <version>${quarkus.platform.version}</version>
+                <!-- <packaging>quarkus</packaging> plus extensions=true already binds generate-code,
+                     generate-code-tests, build and native-image-agent through the plugin's lifecycle
+                     mapping. Do not add an <executions> block: it binds them a second time, so every
+                     augmentation and the container-image build run twice per `mvn package`. -->
                 <extensions>true</extensions>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>build</goal>
-                            <goal>generate-code</goal>
-                            <goal>generate-code-tests</goal>
-                            <goal>native-image-agent</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
             <plugin>
                 <artifactId>maven-compiler-plugin</artifactId>
