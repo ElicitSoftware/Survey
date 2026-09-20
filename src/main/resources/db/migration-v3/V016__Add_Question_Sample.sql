@@ -12,4 +12,4 @@
 -- Mirrors db/migration/V016 at the same version number (see ManualSchemaMigrator: every version
 -- must exist in both tracks). A database still on the upgrade path gets the column here; a
 -- converged one gets it from db/migration. IF NOT EXISTS keeps either order idempotent.
-ALTER TABLE survey.relationships ADD COLUMN IF NOT EXISTS sample character varying(255);
+ALTER TABLE survey.questions ADD COLUMN IF NOT EXISTS sample character varying(255);
