@@ -36,6 +36,9 @@ Elicit Survey itself is the respondent-facing module of the broader
 - Generate a respondent-facing report (PDF) summarizing what was submitted.
 - Integrate with downstream ETL for analytical reporting.
 - Operate as a Quarkus service deployable via Docker.
+- Present the application itself in the respondent's language (browser, invitation
+  link, or on-page choice), including right-to-left layout, with translations a
+  deployment can mount without rebuilding.
 
 ## Scope
 
@@ -58,8 +61,8 @@ Elicit Survey itself is the respondent-facing module of the broader
 - **License:** PolyForm Noncommercial 1.0.0.
 - **Stack (do not deviate without explicit approval):**
   - Java 25
-  - Quarkus 3.34.x
-  - Vaadin 25.1.x (Flow / server-side UI)
+  - Quarkus 3.39.x
+  - Vaadin 25.2.x (Flow / server-side UI)
   - Hibernate ORM with Panache (JPA) — *not* jOOQ
   - PostgreSQL
   - Maven build, Docker deploy

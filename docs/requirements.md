@@ -25,6 +25,12 @@
 | FR-013 | Download PDF Summary             | As a respondent, I want to download a PDF of my submitted answers so that I have a personal record of what I reported.                           | UC-005   | High     | Implemented |
 | FR-014 | Post-Survey Redirect             | As a respondent, I want to be sent to a configured external URL after viewing my reports (when one is configured) so that I can continue to any follow-up destination. | UC-005   | Low      | Implemented |
 | FR-015 | Log Out                          | As a respondent, I want to log out and clear my session so that my survey data isn't accessible to the next person using this device.            | UC-006   | Medium   | Implemented |
+| FR-016 | Localized UI Chrome              | As a respondent, I want every label, button, message and page title the application itself displays (including brand-supplied names) to appear in my language so that I can complete the survey without reading English. | UC-007   | High     | In Progress |
+| FR-017 | Language Selection               | As a respondent, I want the application to open in my browser's language, honor a language carried in my invitation link, and let me switch languages on the page so that I am never stuck in a language I do not read. | UC-007   | High     | In Progress |
+| FR-018 | Externally Mounted Translations  | As a deployment operator, I want to mount translation files for additional languages, or override individual texts, without rebuilding the application so that each site can serve the languages its respondents need. | UC-007   | High     | In Progress |
+| FR-019 | Right-to-Left Layout             | As a respondent whose language is written right-to-left, I want the whole page laid out right-to-left when that language is selected so that the survey reads naturally. | UC-007   | High     | In Progress |
+| FR-020 | Translation Handoff Package      | As a deployment operator, I want one generated document containing every translatable text with its context and translation rules so that I can hand it to a translator or an AI agent and receive a complete language file back. | UC-007   | Medium   | In Progress |
+| FR-021 | Localized Service Messages       | As a respondent, I want error messages produced by background services to appear in my language so that failures are understandable. | UC-007   | Low      | Planned     |
 
 ## Non-Functional Requirements
 
@@ -37,6 +43,8 @@
 | NFR-005 | Container Portability               | The system must build and run as a single, self-contained Docker image deployable without host-specific dependencies.             | Portability      | High     | Implemented |
 | NFR-006 | Session Resilience                  | On a transient browser disconnect/reconnect, the system must restore the respondent's in-progress session state without requiring re-authentication, for the life of the underlying HTTP session. | Availability     | Medium   | Implemented |
 | NFR-007 | Unguessable Report Artifact Keys    | Any publicly reachable, unauthenticated download link (e.g., the PDF cache key) must use a cryptographically random identifier, not one derived from predictable inputs such as timestamps. | Security         | High     | In Progress |
+| NFR-008 | Displayed-String Coverage           | 100% of user-visible text set by application code must be resolved through the translation mechanism; an automated test that scans the UI source fails on any remaining hard-coded literal. | Maintainability  | High     | In Progress |
+| NFR-009 | Missing-Translation Policy          | A text missing from a language file must fall back to the English text; a text missing from every language file must render as a visible `!key!` marker, never blank; a bundle-consistency test must fail when the language files disagree on keys or placeholders. | Usability        | High     | In Progress |
 
 ## Constraints
 
@@ -44,8 +52,8 @@
 |-------|-----------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|-------------|----------|-------------|
 | C-001 | License                          | The project must be licensed under PolyForm Noncommercial 1.0.0.                                                                                     | Regulatory  | High     | Implemented |
 | C-002 | Runtime Platform                 | Backend must run on Java 25.                                                                                                                          | Technical   | High     | Implemented |
-| C-003 | Application Framework            | Must use Quarkus 3.34.x.                                                                                                                              | Technical   | High     | Implemented |
-| C-004 | UI Framework                     | Must use Vaadin 25.1.x Flow (server-side UI); no client-side rewrite (e.g., Hilla/React) without explicit approval.                                  | Technical   | High     | Implemented |
+| C-003 | Application Framework            | Must use Quarkus 3.39.x.                                                                                                                              | Technical   | High     | Implemented |
+| C-004 | UI Framework                     | Must use Vaadin 25.2.x Flow (server-side UI); no client-side rewrite (e.g., Hilla/React) without explicit approval.                                  | Technical   | High     | Implemented |
 | C-005 | Data Access Layer                | Must use Hibernate ORM with Panache (JPA); jOOQ-specific patterns are prohibited.                                                                     | Technical   | High     | Implemented |
 | C-006 | Database Platform                | Must use PostgreSQL.                                                                                                                                   | Technical   | High     | Implemented |
 | C-007 | Build & Deployment               | Must build with Maven and deploy via Docker.                                                                                                          | Technical   | High     | Implemented |
@@ -54,6 +62,8 @@
 | C-010 | PHI Handling Obligation          | Deployments such as the Family Health History Survey may process PHI; respondent answer data must be handled as potentially sensitive under applicable regulatory obligations. | Regulatory  | High     | Open        |
 | C-011 | Accessible Component Usage       | Vaadin components must be used in a way that preserves the framework's built-in WCAG support; regenerated or refactored code must not bypass accessible component APIs with raw HTML. | Technical   | Medium   | Implemented |
 | C-012 | Terminology                      | The credential a respondent enters to reach a survey is the **access code** (`survey.respondents.access_code`). "Token" refers only to a question-text placeholder (`{KEY\|default}`, `survey.relationships.token`); it must not be used for the respondent credential in code, UI, configuration, or documentation. | Business    | Medium   | Implemented |
+| C-013 | Translation File Layout          | Translation files must use the Vaadin standard layout (`src/main/resources/vaadin-i18n/translations[_tag].properties`, `getTranslation` keys, `{0}` placeholders) so that Vaadin Copilot's internationalization tooling keeps working alongside hand-written extraction. | Technical   | Medium   | In Progress |
+| C-014 | Survey Content Language          | Only application chrome is localized. Survey content stored in the database (question text, answer options, section names, report text, message templates) is presented in the language it was authored in; content translation is tracked on a separate branch. | Business    | High     | Implemented |
 
 ## Known Gaps Affecting These Requirements
 
@@ -75,3 +85,6 @@ They're tracked in `docs/plans/fix-review-findings.md` and are called out here s
   deployed (reverse proxy/ingress termination, hosting environment) and cannot be verified from
   the application codebase alone — marked "Open" pending confirmation against the actual
   deployment configuration.
+- **FR-021:** Service-layer error messages (PDF generation, report services) are still produced in
+  English and shown verbatim; localizing them needs a message-key carrier on the exceptions and is
+  planned as a follow-up to the UI chrome localization (UC-007).

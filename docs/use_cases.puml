@@ -13,6 +13,7 @@ rectangle "Elicit Survey" {
   usecase "UC-004\nFinalize Survey" as UC004
   usecase "UC-005\nView Reports & Download PDF" as UC005
   usecase "UC-006\nLog Out" as UC006
+  usecase "UC-007\nComplete the Survey in My Language" as UC007
 }
 
 Respondent --> UC001
@@ -21,8 +22,10 @@ Respondent --> UC003
 Respondent --> UC004
 Respondent --> UC005
 Respondent --> UC006
+Respondent --> UC007
 
 UC004 ..> UC005 : <<include>>\n(navigates to report view)
+UC007 ..> UC001 : <<extend>>\n(language applies to every page)
 UC002 ..> UC002 : <<extend>>\n(branching shows/hides/repeats\ndownstream questions)
 
 UC004 --> PsaSvc : notifies (webhook POST)
