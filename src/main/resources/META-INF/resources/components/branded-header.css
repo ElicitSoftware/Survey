@@ -135,3 +135,15 @@
         transition: none;
     }
 }
+
+/* Language switcher (UC-007). A Select in the header would otherwise keep Lumo's
+   page-level tokens (dark body text on a translucent dark tint), so scope the
+   tokens it reads to the brand's header text colour. The overlay renders outside
+   the header and keeps the normal page styling. */
+.branded-header .language-switcher {
+    --lumo-body-text-color: var(--brand-header-text);
+    --lumo-secondary-text-color: var(--brand-header-text);
+    --lumo-contrast-60pct: var(--brand-header-text);
+    --lumo-contrast-10pct: color-mix(in srgb, var(--brand-header-text) 15%, transparent);
+    margin-inline-start: auto;
+}
