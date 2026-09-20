@@ -66,10 +66,12 @@ class DisplayedStringsCoverageTest {
             + "setSrc|setHref|setTarget|setName|setWidth|setHeight|setMaxWidth|setMinWidth|setMaxHeight|setMinHeight|"
             + "setPattern|setAllowedCharPattern|setAutocomplete|setType|"
             + "getResource|getLogger|valueOf|parse|ofPattern|header|type|status|ProcessBuilder|exec|command|"
-            + "assertEquals|assertTrue|assertFalse|assertNotNull)$");
+            + "assertEquals|assertTrue|assertFalse|assertNotNull|if|while|switch|case)$");
 
     /** Keys, paths, CSS tokens and SHOUTING_CONSTANTS are never prose. */
     private static final Pattern IDENTIFIER_LIKE = Pattern.compile("^([a-z0-9_.:/#%\\-]+|[A-Z0-9_]+)$");
+    /** Translation-key prefixes built at runtime, e.g. {@code "searchView.action."}. */
+    private static final Pattern KEY_LIKE = Pattern.compile("^[a-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_\\-]+)*\\.?$");
     private static final Pattern PROSE_LIKE = Pattern.compile("^(?=.*\\p{L})(.*\\s.*|\\p{Lu}.*|.*[.:!?])$", Pattern.DOTALL);
     private static final Pattern STRING_LITERAL = Pattern.compile("\"((?:[^\"\\\\\\n]|\\\\.)*)\"");
     private static final Pattern IDENT_BEFORE_PAREN = Pattern.compile("([A-Za-z_][A-Za-z0-9_]*)\\s*(?:<[^<>]*>\\s*)?$");
@@ -161,7 +163,8 @@ class DisplayedStringsCoverageTest {
             if (ignoredLines.contains(line) || allowlist.contains(literal)) {
                 continue;
             }
-            if (IDENTIFIER_LIKE.matcher(literal).matches() || !PROSE_LIKE.matcher(literal).matches()) {
+            if (IDENTIFIER_LIKE.matcher(literal).matches() || KEY_LIKE.matcher(literal).matches()
+                    || !PROSE_LIKE.matcher(literal).matches()) {
                 continue;
             }
             String context = openParens.isEmpty() ? "<field>" : identBefore(src, openParens.get(openParens.size() - 1));

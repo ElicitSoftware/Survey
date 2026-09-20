@@ -22,7 +22,7 @@ import java.util.Locale;
 /**
  * Language selector shown on every page (UC-007 step 4). Lists the provided locales (shipped plus
  * mounted), labelled in their own language; choosing one remembers it for the session and reloads
- * the page so every view is rebuilt in the new language.
+ * the page (dropping any {@code ?lang=} link parameter) so every view is rebuilt in the new language.
  */
 public class LanguageSwitcher extends Select<Locale> implements LocaleChangeObserver {
 
@@ -48,7 +48,9 @@ public class LanguageSwitcher extends Select<Locale> implements LocaleChangeObse
             if (event.isFromClient() && event.getValue() != null) {
                 UI current = UI.getCurrent();
                 selection.apply(current, event.getValue());
-                current.getPage().reload();
+                // Reload without any ?lang= parameter, otherwise the link's language would win again
+                current.getPage().executeJs(
+                        "const u = new URL(location.href); u.searchParams.delete('lang'); location.replace(u.toString());");
             }
         });
     }

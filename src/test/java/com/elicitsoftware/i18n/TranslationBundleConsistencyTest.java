@@ -80,8 +80,11 @@ class TranslationBundleConsistencyTest {
 
         // 2. source references
         Set<String> referenced = referencedKeys(root.resolve("src/main/java"));
-        referenced.stream().filter(k -> !defaults.containsKey(k))
+        referenced.stream().filter(k -> !k.endsWith(".")).filter(k -> !defaults.containsKey(k))
                 .forEach(k -> problems.add("source references unknown key " + k));
+        referenced.stream().filter(k -> k.endsWith("."))
+                .filter(prefix -> defaults.keySet().stream().noneMatch(k -> k.startsWith(prefix)))
+                .forEach(prefix -> problems.add("source references dynamic key prefix with no keys " + prefix));
         for (String key : new TreeSet<>(defaults.keySet())) {
             boolean dynamic = context.getOrDefault(key, "").contains("dynamic");
             if (!referenced.contains(key) && !dynamic && !isDynamicPrefix(key, referenced)) {
