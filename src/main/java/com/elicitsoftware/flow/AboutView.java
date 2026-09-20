@@ -52,6 +52,7 @@ public class AboutView extends VerticalLayout {
         for (Survey survey : surveys) {
             Div aboutSurvey = new Div();
             aboutSurvey.getElement().setProperty("innerHTML", ("<h4>" + survey.name + "</h4>" + survey.description));
+            aboutSurvey.getElement().setAttribute("data-i18n-content", ""); // authored survey text (UC-007 BR-005)
             add(aboutSurvey);
         }
         
@@ -77,13 +78,13 @@ public class AboutView extends VerticalLayout {
         
         StringBuilder buildText = new StringBuilder();
         if (applicationVersion.isPresent()) {
-            buildText.append("Version: ").append(applicationVersion.get());
+            buildText.append(getTranslation("aboutView.version", applicationVersion.get()));
         }
         if (buildTimestamp.isPresent()) {
             if (buildText.length() > 0) {
                 buildText.append(" | ");
             }
-            buildText.append("Built: ").append(buildTimestamp.get());
+            buildText.append(getTranslation("aboutView.built", buildTimestamp.get()));
         }
         
         if (buildText.length() > 0) {

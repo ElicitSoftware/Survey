@@ -30,6 +30,7 @@ public class ElicitHtml extends Div {
      */
     public ElicitHtml(Answer answer) {
         super();
+            getElement().setAttribute("data-i18n-content", "");
         this.setId(answer.getDisplayKey());
         getElement().setProperty("innerHTML", answer.displayText);
     }

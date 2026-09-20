@@ -11,6 +11,7 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.Translations;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
 import com.vaadin.flow.component.*;
@@ -82,6 +83,8 @@ public abstract class ElicitComponent<T extends Component> {
             this.component = component;
             this.component.setId(answer.getDisplayKey());
             this.component.setClassName("elicit-input-field");
+            // Labels, placeholders and options are authored survey content, not chrome (UC-007 BR-005)
+            this.component.getElement().setAttribute("data-i18n-content", "");
 
             setBindings(answer);
 
@@ -139,7 +142,7 @@ public abstract class ElicitComponent<T extends Component> {
          * @see #validationMessage(Answer, String)
          */
         static String requiredMessage(Answer answer) {
-            return validationMessage(answer, "This question requires an answer.");
+            return validationMessage(answer, Translations.get("validation.required"));
         }
 
         /**
@@ -150,8 +153,8 @@ public abstract class ElicitComponent<T extends Component> {
          * @see #validationMessage(Answer, String)
          */
         static String lengthMessage(Answer answer) {
-            return validationMessage(answer, "Enter between " + answer.question.minValue
-                    + " and " + answer.question.maxValue + " characters.");
+            return validationMessage(answer, Translations.get("validation.length",
+                    answer.question.minValue, answer.question.maxValue));
         }
 
         /**
@@ -162,8 +165,8 @@ public abstract class ElicitComponent<T extends Component> {
          * @see #validationMessage(Answer, String)
          */
         static String rangeMessage(Answer answer) {
-            return validationMessage(answer, "Enter a value between " + answer.question.minValue
-                    + " and " + answer.question.maxValue + ".");
+            return validationMessage(answer, Translations.get("validation.range",
+                    answer.question.minValue, answer.question.maxValue));
         }
 
         /**

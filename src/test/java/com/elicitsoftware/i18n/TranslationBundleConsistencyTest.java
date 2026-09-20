@@ -38,14 +38,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * from {@code getTranslation("...")} / {@code translate(..., "...")} exists; every default key is
  * referenced (unless flagged {@code dynamic} in the context sidecar); {@code {n}} placeholders
  * match across locales; parameterised values contain no lone apostrophe; non-English values differ
- * from English unless allow-listed; every key has a context entry for the translation handoff.
+ * from English unless allow-listed or flagged {@code identical} in the sidecar; every key has a
+ * context entry for the translation handoff.
  */
 class TranslationBundleConsistencyTest {
 
     static final Path BUNDLE_DIR = Path.of("src/main/resources/vaadin-i18n");
     static final List<String> LOCALES = List.of("es_419", "ar");
     private static final Pattern KEY_REF = Pattern.compile(
-            "(?:getTranslation|translate)\\s*\\((?:[^\"()]*,\\s*)?\"([A-Za-z0-9_.\\-]+)\"");
+            "(?:getTranslation|translate|Translations\\.get)\\s*\\((?:[^\"()]*,\\s*)?\"([A-Za-z0-9_.\\-]+)\"");
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{(\\d+)");
 
     @Test
@@ -108,7 +109,9 @@ class TranslationBundleConsistencyTest {
                 if (!expected.isEmpty() && hasLoneApostrophe(v)) {
                     problems.add(loc.getKey() + ": lone apostrophe in parameterised value " + e.getKey());
                 }
-                if (v.strip().equals(e.getValue().strip()) && !identicalAllowed.contains(v.strip())) {
+                boolean identicalOk = identicalAllowed.contains(v.strip())
+                        || context.getOrDefault(e.getKey(), "").contains("identical");
+                if (v.strip().equals(e.getValue().strip()) && !identicalOk) {
                     problems.add(loc.getKey() + ": untranslated (identical to English) " + e.getKey());
                 }
             }

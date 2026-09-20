@@ -12,6 +12,9 @@ package com.elicitsoftware.flow;
  */
 
 import com.elicitsoftware.UISessionDataService;
+import com.elicitsoftware.i18n.ElicitI18NProvider;
+import com.elicitsoftware.i18n.LanguageSwitcher;
+import com.elicitsoftware.i18n.LocaleSelection;
 import com.elicitsoftware.model.Respondent;
 import com.elicitsoftware.util.BrandUtil;
 import com.vaadin.flow.component.AttachEvent;
@@ -28,6 +31,7 @@ import com.vaadin.flow.router.AfterNavigationEvent;
 import com.vaadin.flow.router.AfterNavigationListener;
 import com.vaadin.flow.theme.lumo.LumoUtility;
 import com.vaadin.quarkus.annotation.NormalUIScoped;
+import com.vaadin.quarkus.annotation.VaadinServiceEnabled;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 
@@ -51,6 +55,15 @@ public class MainLayout extends AppLayout implements AfterNavigationListener {
     /** The brand utility service for managing brand configuration. */
     @Inject
     BrandUtil brandUtil;
+
+    /** Remembers the language the respondent picks (UC-007). */
+    @Inject
+    LocaleSelection localeSelection;
+
+    /** Supplies the languages offered by the switcher. */
+    @Inject
+    @VaadinServiceEnabled
+    ElicitI18NProvider i18nProvider;
     
     /** The current side navigation component displayed in the drawer. */
     private SideNav currentSideNav;
@@ -115,7 +128,7 @@ public class MainLayout extends AppLayout implements AfterNavigationListener {
             try {
                 Image logo = new Image();
                 logo.setSrc(brandUtil.getIconResourcePath(brandInfo));
-                logo.setAlt(brandInfo.getDisplayName() + " Logo");
+                logo.setAlt(getTranslation("common.logoAlt", brandInfo.getDisplayName(getLocale())));
                 logo.addClassName("logo");
                 
                 Div logoContainer = new Div(logo);
@@ -127,10 +140,16 @@ public class MainLayout extends AppLayout implements AfterNavigationListener {
         }
         
         // Create application title
-        String appTitle = brandInfo != null ? brandUtil.getApplicationTitle(brandInfo, "Survey") : "Elicit Survey";
+        String appType = getTranslation("common.appType.survey");
+        String appTitle = brandInfo == null || brandInfo.isDefaultBrand()
+                ? getTranslation("common.appTitle.default", appType)
+                : getTranslation("common.appTitle", brandInfo.getDisplayName(getLocale()), appType);
         Anchor title = new Anchor("/", appTitle);
         title.addClassName("brand-title");
         headerContainer.add(title);
+
+        // Language selector (UC-007): every page offers the shipped and mounted languages.
+        headerContainer.add(new LanguageSwitcher(localeSelection, i18nProvider));
         
         // Add header to navbar
         addToNavbar(headerContainer);
@@ -179,14 +198,14 @@ public class MainLayout extends AppLayout implements AfterNavigationListener {
         Respondent respondent = sessionDataService.getRespondent();
         
         // Always add About item
-        sideNav.addItem(new SideNavItem("About", "/about", VaadinIcon.INFO.create()));
+        sideNav.addItem(new SideNavItem(getTranslation("sideNav.about"), "/about", VaadinIcon.INFO.create()));
         
         if (respondent != null) {
             // User is logged in - show logout option
-            sideNav.addItem(new SideNavItem("Logout", "/logout", VaadinIcon.UNLINK.create()));
+            sideNav.addItem(new SideNavItem(getTranslation("sideNav.logout"), "/logout", VaadinIcon.UNLINK.create()));
         } else {
             // User is not logged in - show login option
-            sideNav.addItem(new SideNavItem("Login", "/", VaadinIcon.USER.create()));
+            sideNav.addItem(new SideNavItem(getTranslation("sideNav.login"), "/", VaadinIcon.USER.create()));
         }
         
         return sideNav;

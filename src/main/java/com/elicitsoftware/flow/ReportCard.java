@@ -50,7 +50,7 @@ public class ReportCard extends Div {
         super();
         this.setClassName("reviewCard");
         this.setWidth("60%");
-
+        getElement().setAttribute("data-i18n-content", ""); // report title and body come from the report service
 
         VerticalLayout layout = new VerticalLayout();
         HorizontalLayout header = new HorizontalLayout();

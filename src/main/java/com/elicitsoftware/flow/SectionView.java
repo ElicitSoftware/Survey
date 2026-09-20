@@ -124,7 +124,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
 
         // Add null checks and handle missing data gracefully
         if (respondent == null) {
-            Notification.show("Session expired. Please login again.", 3000, Notification.Position.MIDDLE);
+            Notification.show(getTranslation("common.error.sessionExpired"), 3000, Notification.Position.MIDDLE);
             UI.getCurrent().navigate("");
             return;
         }
@@ -135,7 +135,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                 navResponse = service.init(respondent.id, respondent.survey.initialDisplayKey);
                 sessionDataService.setNavResponse(navResponse);
             } catch (Exception e) {
-                Notification.show("Error loading survey. Please try again.", 3000, Notification.Position.MIDDLE);
+                Notification.show(getTranslation("sectionView.error.loadSurvey"), 3000, Notification.Position.MIDDLE);
                 UI.getCurrent().navigate("");
                 return;
             }
@@ -425,7 +425,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
             return;
         }
 
-        Button btnNewPrevious = new Button("Previous");
+        Button btnNewPrevious = new Button(getTranslation("sectionView.btnPrevious"));
         btnNewPrevious.setId("section-previous-button");
         btnNewPrevious.setDisableOnClick(true);
         btnNewPrevious.setEnabled(navResponse.getCurrentNavItem() != null && navResponse.getCurrentNavItem().getPrevious() != null);
@@ -445,7 +445,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         Button btnNewNext = new Button();
         btnNewNext.setId("section-next-button");
         if (navResponse.getCurrentNavItem() != null && navResponse.getCurrentNavItem().getNext() != null) {
-            btnNewNext.setText("Next");
+            btnNewNext.setText(getTranslation("sectionView.btnNext"));
             btnNewNext.setDisableOnClick(true);
             btnNewNext.setEnabled(navResponse.getCurrentNavItem().getNext() != null);
             btnNewNext.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
@@ -462,7 +462,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                     }
             );
         } else if (navResponse.getCurrentNavItem() != null && navResponse.getCurrentNavItem().getNext() == null) {
-            btnNewNext.setText("Review");
+            btnNewNext.setText(getTranslation("sectionView.btnReview"));
             btnNewNext.setDisableOnClick(true);
             btnNewNext.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
             btnNewNext.addClickListener(e -> {
@@ -534,7 +534,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                     componentToScrollTo.getId().orElse("unknown")
                 );
             }
-            Notification.show("Please fix validation errors", 3000, Notification.Position.MIDDLE);
+            Notification.show(getTranslation("sectionView.error.fixValidation"), 3000, Notification.Position.MIDDLE);
         }
         return valid;
     }
@@ -568,7 +568,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                     buildQuestions();
                 }
             } catch (Exception e) {
-                Notification.show("Error saving answer. Please try again.", 3000, Notification.Position.MIDDLE);
+                Notification.show(getTranslation("sectionView.error.saveAnswer"), 3000, Notification.Position.MIDDLE);
             } finally {
                 // Decrement pending operations counter
                 pendingSaveOperations--;
@@ -582,7 +582,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
      */
     private void waitForPendingSaveOperations() {
         if (pendingSaveOperations > 0) {
-            Notification.show("Saving changes...", 1000, Notification.Position.MIDDLE);
+            Notification.show(getTranslation("sectionView.savingChanges"), 1000, Notification.Position.MIDDLE);
             
             // Simple polling approach - wait for saves to complete
             int maxWaitTime = 5000; // Maximum 5 seconds wait
@@ -618,19 +618,19 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         
         // Add null checks before accessing navigation data
         if (navResponse == null || navResponse.getCurrentNavItem() == null) {
-            Notification.show("Navigation data not available. Please refresh the page.", 3000, Notification.Position.MIDDLE);
+            Notification.show(getTranslation("common.error.navigationUnavailable"), 3000, Notification.Position.MIDDLE);
             return;
         }
 
         if (respondent == null) {
-            Notification.show("Session expired. Please login again.", 3000, Notification.Position.MIDDLE);
+            Notification.show(getTranslation("common.error.sessionExpired"), 3000, Notification.Position.MIDDLE);
             UI.getCurrent().navigate("");
             return;
         }
 
         String nextKey = navResponse.getCurrentNavItem().getNext();
         if (nextKey == null) {
-            Notification.show("No next section available.", 3000, Notification.Position.MIDDLE);
+            Notification.show(getTranslation("sectionView.error.noNext"), 3000, Notification.Position.MIDDLE);
             return;
         }
 
@@ -645,14 +645,14 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                 buildQuestions();
             } else {
                 Log.warn("Navigation service returned null response for key: " + nextKey);
-                Notification.show("Error loading next section data.", 3000, Notification.Position.MIDDLE);
+                Notification.show(getTranslation("sectionView.error.loadNext"), 3000, Notification.Position.MIDDLE);
                 if (btnNext != null) {
                     btnNext.setEnabled(true);
                 }
             }
         } catch (Exception e) {
             Log.error("Exception during navigation to next section: " + e.getMessage(), e);
-            Notification.show("Error navigating to next section. Please try again.", 3000, Notification.Position.MIDDLE);
+            Notification.show(getTranslation("sectionView.error.navigateNext"), 3000, Notification.Position.MIDDLE);
             // Re-enable the button if navigation fails
             if (btnNext != null) {
                 btnNext.setEnabled(true);
@@ -673,19 +673,19 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         
         // Add null checks before accessing navigation data
         if (navResponse == null || navResponse.getCurrentNavItem() == null) {
-            Notification.show("Navigation data not available. Please refresh the page.", 3000, Notification.Position.MIDDLE);
+            Notification.show(getTranslation("common.error.navigationUnavailable"), 3000, Notification.Position.MIDDLE);
             return;
         }
 
         if (respondent == null) {
-            Notification.show("Session expired. Please login again.", 3000, Notification.Position.MIDDLE);
+            Notification.show(getTranslation("common.error.sessionExpired"), 3000, Notification.Position.MIDDLE);
             UI.getCurrent().navigate("");
             return;
         }
 
         String previousKey = navResponse.getCurrentNavItem().getPrevious();
         if (previousKey == null) {
-            Notification.show("No previous section available.", 3000, Notification.Position.MIDDLE);
+            Notification.show(getTranslation("sectionView.error.noPrevious"), 3000, Notification.Position.MIDDLE);
             return;
         }
 
@@ -700,14 +700,14 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                 buildQuestions();
             } else {
                 Log.warn("Navigation service returned null response for key: " + previousKey);
-                Notification.show("Error loading previous section data.", 3000, Notification.Position.MIDDLE);
+                Notification.show(getTranslation("sectionView.error.loadPrevious"), 3000, Notification.Position.MIDDLE);
                 if (btnPrevious != null) {
                     btnPrevious.setEnabled(true);
                 }
             }
         } catch (Exception e) {
             Log.error("Exception during navigation to previous section: " + e.getMessage(), e);
-            Notification.show("Error navigating to previous section. Please try again.", 3000, Notification.Position.MIDDLE);
+            Notification.show(getTranslation("sectionView.error.navigatePrevious"), 3000, Notification.Position.MIDDLE);
             // Re-enable the button if navigation fails
             if (btnPrevious != null) {
                 btnPrevious.setEnabled(true);

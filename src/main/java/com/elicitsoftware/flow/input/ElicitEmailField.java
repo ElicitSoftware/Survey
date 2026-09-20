@@ -11,6 +11,7 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.Translations;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
 import com.vaadin.flow.component.textfield.EmailField;
@@ -72,7 +73,7 @@ public class ElicitEmailField extends ElicitComponent<EmailField> {
         if (answer.question.minValue != null && answer.question.maxValue != null) {
             this.binder.forField(component)
                     .withValidator(email -> email != null && emailPattern.matcher(email).matches(),
-                            validationMessage(answer, "Enter a valid email address."))
+                            validationMessage(answer, Translations.get("validation.email")))
                     .bind(Answer::getTextValue, Answer::setTextValue);
         }
     }

@@ -161,7 +161,8 @@ public class AppConfig implements AppShellConfigurator {
      * @param settings The AppShellSettings to add the brand info to
      */
     private void addBrandInfoComment(AppShellSettings settings) {
-        String brandInfo = detectBrandInfo();
+        java.util.Locale requestLocale = settings.getRequest() != null ? settings.getRequest().getLocale() : java.util.Locale.ENGLISH;
+        String brandInfo = detectBrandInfo(requestLocale);
         if (brandInfo != null && !brandInfo.isEmpty()) {
             // Add brand info as a meta tag for easy identification in page source
             settings.addMetaTag("brand-info", brandInfo);
@@ -176,7 +177,59 @@ public class AppConfig implements AppShellConfigurator {
      * @return A formatted string containing brand information, or a fallback message if no brand is detected.
      *         Format: "{External|Default} Brand: {name} (v{version}) - {organization} [from {filename}]"
      */
-    private String detectBrandInfo() {
+    /**
+     * Reads the {@code localized} block of a brand JSON file (top level or under {@code brand})
+     * for the given locale: exact tag first, then language only. Returns an empty map when the
+     * brand has no variants or the JSON cannot be parsed.
+     */
+    static java.util.Map<String, String> localizedBrandText(String json, java.util.Locale locale) {
+        java.util.Map<String, String> result = new java.util.HashMap<>();
+        if (json == null || locale == null) {
+            return result;
+        }
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper()
+                    .enable(com.fasterxml.jackson.core.JsonParser.Feature.ALLOW_COMMENTS);
+            com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(json);
+            com.fasterxml.jackson.databind.JsonNode brand = root.has("brand") ? root.get("brand") : root;
+            com.fasterxml.jackson.databind.JsonNode localized = brand.get("localized");
+            if (localized == null && root.has("localized")) {
+                localized = root.get("localized");
+            }
+            if (localized == null || !localized.isObject()) {
+                return result;
+            }
+            com.fasterxml.jackson.databind.JsonNode entry = null;
+            java.util.Iterator<java.util.Map.Entry<String, com.fasterxml.jackson.databind.JsonNode>> it = localized.fields();
+            String tag = locale.toLanguageTag().toLowerCase(java.util.Locale.ROOT);
+            String language = locale.getLanguage().toLowerCase(java.util.Locale.ROOT);
+            com.fasterxml.jackson.databind.JsonNode byLanguage = null;
+            while (it.hasNext()) {
+                var e = it.next();
+                String key = e.getKey().toLowerCase(java.util.Locale.ROOT);
+                if (key.equals(tag)) {
+                    entry = e.getValue();
+                } else if (key.equals(language)) {
+                    byLanguage = e.getValue();
+                }
+            }
+            if (entry == null) {
+                entry = byLanguage;
+            }
+            if (entry != null) {
+                for (String field : new String[] {"name", "organization", "description"}) {
+                    if (entry.hasNonNull(field)) {
+                        result.put(field, entry.get(field).asText());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.debug("No localized brand text available", e);
+        }
+        return result;
+    }
+
+    private String detectBrandInfo(java.util.Locale locale) {
         // Check for external brand directory first, then local brand
         String brandPath = null;
         String brandSource = null;
@@ -208,14 +261,21 @@ public class AppConfig implements AppShellConfigurator {
                     String brandName = extractJsonValue(content, "name");
                     String version = extractJsonValue(content, "version");
                     String organization = extractJsonValue(content, "organization");
+                    String description = null;
+                    // Per-language variants from the brand's "localized" block (UC-007 BR-006)
+                    java.util.Map<String, String> localized = localizedBrandText(content, locale);
+                    brandName = localized.getOrDefault("name", brandName);
+                    organization = localized.getOrDefault("organization", organization);
+                    description = localized.getOrDefault("description", extractJsonValue(content, "description"));
 
                     if (brandName != null) {
                         String brandType = "external mount".equals(brandSource) ? "External" : "Default";
-                        return String.format("%s Brand: %s (v%s) - %s [from %s]",
+                        return String.format("%s Brand: %s (v%s) - %s%s [from %s]",
                             brandType,
                             brandName,
                             version != null ? version : "unknown",
                             organization != null ? organization : "",
+                            description != null && !description.isBlank() ? " - " + description : "",
                             metadataFile.getFileName());
                     }
                 }

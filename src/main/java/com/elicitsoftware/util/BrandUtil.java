@@ -17,6 +17,10 @@ import java.nio.file.Paths;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.enterprise.context.ApplicationScoped;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 /**
@@ -39,22 +43,58 @@ public class BrandUtil {
      * Data class representing brand information.
      */
     public static class BrandInfo {
+        public static final String DEFAULT_BRAND_KEY = "default-brand";
+
         private final String brandKey;
         private final String displayName;
         private final String logoPath;
         private final String cssClass;
+        /** Display name per language tag (lower-case), from the brand's {@code localized} block. */
+        private final Map<String, String> localizedNames;
         
         public BrandInfo(String brandKey, String displayName, String logoPath, String cssClass) {
+            this(brandKey, displayName, logoPath, cssClass, Collections.emptyMap());
+        }
+
+        public BrandInfo(String brandKey, String displayName, String logoPath, String cssClass,
+                         Map<String, String> localizedNames) {
             this.brandKey = brandKey;
             this.displayName = displayName;
             this.logoPath = logoPath;
             this.cssClass = cssClass;
+            this.localizedNames = localizedNames == null ? Collections.emptyMap() : Map.copyOf(localizedNames);
         }
         
         public String getBrandKey() { return brandKey; }
         public String getDisplayName() { return displayName; }
         public String getLogoPath() { return logoPath; }
         public String getCssClass() { return cssClass; }
+        public boolean isDefaultBrand() { return DEFAULT_BRAND_KEY.equals(brandKey); }
+
+        /**
+         * The display name for a locale (UC-007 BR-006): the brand's variant for the exact
+         * language tag, then for the language alone, then the base name.
+         */
+        public String getDisplayName(Locale locale) {
+            if (locale == null || localizedNames.isEmpty()) {
+                return displayName;
+            }
+            String byTag = localizedNames.get(locale.toLanguageTag().toLowerCase(Locale.ROOT));
+            if (byTag != null) {
+                return byTag;
+            }
+            String language = locale.getLanguage().toLowerCase(Locale.ROOT);
+            String byLanguage = localizedNames.get(language);
+            if (byLanguage != null) {
+                return byLanguage;
+            }
+            // Any variant of the same language (es-GT -> es-419) before the base name
+            return localizedNames.entrySet().stream()
+                    .filter(e -> e.getKey().startsWith(language + "-"))
+                    .map(Map.Entry::getValue)
+                    .findFirst()
+                    .orElse(displayName);
+        }
     }
     
     /**
@@ -117,7 +157,8 @@ public class BrandUtil {
             brandKey,
             organization != null ? organization : brandName,
             logoPath,
-            brandKey
+            brandKey,
+            extractLocalizedNames(config)
         );
     }
 
@@ -145,6 +186,28 @@ public class BrandUtil {
         return null;
     }
     
+    /**
+     * Reads the optional {@code localized} block: {@code {"localized": {"es-419": {"name": ..,
+     * "organization": ..}, "ar": {..}}}}. The organization wins over the name, mirroring the
+     * base display name.
+     */
+    static Map<String, String> extractLocalizedNames(JsonNode config) {
+        Map<String, String> names = new HashMap<>();
+        JsonNode localized = config.get("localized");
+        if (localized == null || !localized.isObject()) {
+            return names;
+        }
+        localized.fields().forEachRemaining(entry -> {
+            JsonNode value = entry.getValue();
+            String name = value.hasNonNull("organization") ? value.get("organization").asText()
+                    : value.hasNonNull("name") ? value.get("name").asText() : null;
+            if (name != null && !name.isBlank()) {
+                names.put(entry.getKey().toLowerCase(Locale.ROOT), name);
+            }
+        });
+        return names;
+    }
+
     /**
      * Extracts the logo path from the configuration.
      */

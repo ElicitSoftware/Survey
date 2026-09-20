@@ -18,7 +18,11 @@ import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Response;
+import com.elicitsoftware.i18n.Translations;
+import java.util.Locale;
 
 /**
  * REST resource for handling PDF downloads.
@@ -58,12 +62,19 @@ public class PDFDownloadResource {
         return key;
     }
 
+    /** Downloads with English error texts; kept for callers that have no request headers. */
+    public Response downloadPDF(String key) {
+        return downloadPDF(key, null);
+    }
+
     @GET
     @Produces("application/pdf")
-    public Response downloadPDF(@QueryParam("key") String key) {
+    public Response downloadPDF(@QueryParam("key") String key, @Context HttpHeaders headers) {
+        Locale locale = headers == null || headers.getAcceptableLanguages().isEmpty()
+                ? Locale.ENGLISH : headers.getAcceptableLanguages().get(0);
         if (key == null || key.isEmpty()) {
             return Response.status(Response.Status.BAD_REQUEST)
-                    .entity("Missing key parameter")
+                    .entity(Translations.get(locale, "pdf.download.missingKey"))
                     .build();
         }
 
@@ -72,7 +83,7 @@ public class PDFDownloadResource {
             // Clean up expired entry
             PDF_CACHE.remove(key);
             return Response.status(Response.Status.NOT_FOUND)
-                    .entity("PDF not found or expired")
+                    .entity(Translations.get(locale, "pdf.download.expired"))
                     .build();
         }
 

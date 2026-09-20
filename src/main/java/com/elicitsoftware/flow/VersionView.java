@@ -45,7 +45,7 @@ public class VersionView extends VerticalLayout {
         setPadding(true);
         
         // Add title
-        H2 title = new H2("Version Information");
+        H2 title = new H2(getTranslation("versionView.title"));
         add(title);
         
         // Add Docker container ID section
@@ -61,16 +61,17 @@ public class VersionView extends VerticalLayout {
     private Div createContainerIdSection() {
         Div section = new Div();
         
-        H2 sectionTitle = new H2("Container Information");
+        H2 sectionTitle = new H2(getTranslation("versionView.container"));
         section.add(sectionTitle);
         
         // Get and display container time
         String containerTime = getContainerTime();
         if (containerTime != null && !containerTime.isEmpty()) {
-            Paragraph containerTimeLabel = new Paragraph("Container Current Time:");
+            Paragraph containerTimeLabel = new Paragraph(getTranslation("versionView.containerTime"));
             containerTimeLabel.getStyle().set("font-weight", "bold");
             
             Paragraph containerTimeValue = new Paragraph(containerTime);
+            containerTimeValue.getElement().setAttribute("data-i18n-content", "");
             containerTimeValue.getStyle().set("font-family", "monospace");
             containerTimeValue.getStyle().set("background-color", "var(--lumo-primary-color-10pct)");
             containerTimeValue.getStyle().set("padding", "var(--lumo-space-s)");
@@ -86,10 +87,11 @@ public class VersionView extends VerticalLayout {
         
         // Display image creation date if available
         if (creationDate != null && !creationDate.isEmpty()) {
-            Paragraph creationDateLabel = new Paragraph("Image Creation Date:");
+            Paragraph creationDateLabel = new Paragraph(getTranslation("versionView.imageCreated"));
             creationDateLabel.getStyle().set("font-weight", "bold");
             
             Paragraph creationDateValue = new Paragraph(creationDate);
+            creationDateValue.getElement().setAttribute("data-i18n-content", "");
             creationDateValue.getStyle().set("font-family", "monospace");
             creationDateValue.getStyle().set("background-color", "var(--lumo-success-color-10pct)");
             creationDateValue.getStyle().set("padding", "var(--lumo-space-s)");
@@ -98,7 +100,7 @@ public class VersionView extends VerticalLayout {
             
             section.add(creationDateLabel, creationDateValue);
         } else {
-            Paragraph noImageInfo = new Paragraph("Image creation date not available.");
+            Paragraph noImageInfo = new Paragraph(getTranslation("versionView.imageCreatedUnavailable"));
             noImageInfo.getStyle().set("font-style", "italic");
             noImageInfo.getStyle().set("color", "var(--lumo-secondary-text-color)");
             section.add(noImageInfo);

@@ -11,6 +11,9 @@ package com.elicitsoftware.report;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.Translations;
+import java.time.format.FormatStyle;
+import java.util.Locale;
 import com.elicitsoftware.report.pdf.Content;
 import com.elicitsoftware.report.pdfbox.Column;
 import com.elicitsoftware.report.pdfbox.Table;
@@ -89,6 +92,9 @@ public class PDFService {
 
     @Inject
     HttpServletRequest request;
+
+    private String surveyTitle;
+    private Locale locale = Locale.ENGLISH;
 
     private static Table createContent(Content content) {
 
@@ -205,7 +211,21 @@ public class PDFService {
         return lines;
     }
 
+    /** Renders the report in English with no survey title in the page header. */
     public byte[] generatePDF(ArrayList<ReportResponse> reportResponses) {
+        return generatePDF(reportResponses, null, Locale.ENGLISH);
+    }
+
+    /**
+     * Renders the report with page headers, footers and error blocks in the given locale.
+     *
+     * @param reportResponses the report sections to render
+     * @param surveyTitle     the survey title shown in the page header, or null for none
+     * @param locale          the respondent's locale for texts and the footer date
+     */
+    public byte[] generatePDF(ArrayList<ReportResponse> reportResponses, String surveyTitle, Locale locale) {
+        this.surveyTitle = surveyTitle;
+        this.locale = locale == null ? Locale.ENGLISH : locale;
         try {
             // Create a new document
             document = new PDDocument();
@@ -229,10 +249,10 @@ public class PDFService {
                 // If the PDF payload is missing, render a safe error block instead of crashing
                 if (response.pdf == null) {
                     Log.info("PDFService.generatePDF - PDF is null, rendering error block for: " + response.title);
-                    String title = (response.title != null && !response.title.isEmpty()) ? response.title : "Report Generation Error";
+                    String title = (response.title != null && !response.title.isEmpty()) ? response.title : Translations.get(locale, "pdf.error.title");
                     String errorText = (response.innerHTML != null && !response.innerHTML.isEmpty())
                             ? response.innerHTML.replaceAll("[\\r\\n\\t]", " ").replaceAll("<[^>]+>", " ").replaceAll("&nbsp;", " ").trim()
-                            : "Failed to generate report content.";
+                            : Translations.get(locale, "pdf.error.content");
                     Log.info("PDFService.generatePDF - Error text: " + errorText);
                     // Close the current content stream if a new page is needed
                     contentStream.close();
@@ -447,7 +467,9 @@ public class PDFService {
                 boolean isLandscape = mediaBox.getWidth() > mediaBox.getHeight();
 
                 // Header text - adjust positioning based on orientation
-                String headerText = "Family Health History Survey - Page " + (i + 1) + " of " + totalPages;
+                String headerText = surveyTitle == null || surveyTitle.isBlank()
+                        ? Translations.get(locale, "pdf.page", i + 1, totalPages)
+                        : Translations.get(locale, "pdf.header", surveyTitle, i + 1, totalPages);
                 float headerTextWidth = TEXT_FONT.getStringWidth(headerText) / 1000 * 10;
                 float headerTextX;
 
@@ -467,7 +489,7 @@ public class PDFService {
 
                 // Footer
                 // Date in the form of MM/DD/YYYY (far left)
-                String currentDate = LocalDate.now().format(DateTimeFormatter.ofPattern("MM/dd/yyyy"));
+                String currentDate = LocalDate.now().format(DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT).withLocale(locale));
                 contentStream.beginText();
                 contentStream.setFont(TEXT_FONT, 10);
                 contentStream.newLineAtOffset(PADDING, yBottom - 10);
@@ -487,7 +509,7 @@ public class PDFService {
                 contentStream.endText();
 
                 // Page numbers (far right)
-                String pageText = "Page " + (i + 1) + " of " + totalPages;
+                String pageText = Translations.get(locale, "pdf.page", i + 1, totalPages);
                 float pageTextWidth = TEXT_FONT.getStringWidth(pageText) / 1000 * 10;
                 contentStream.beginText();
                 contentStream.setFont(TEXT_FONT, 10);

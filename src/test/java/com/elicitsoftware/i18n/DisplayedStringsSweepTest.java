@@ -90,7 +90,7 @@ class DisplayedStringsSweepTest extends QuarkusBrowserlessTest {
             sessionDataService.setNavResponse(
                     questionService.init(active.id.intValue(), active.survey.initialDisplayKey));
             navigate(SectionView.class);
-            sweep("section", problems);
+            sweep("section", problems, false); // page title is the authored section title
             navigate(ReviewView.class);
             sweep("review", problems);
 
@@ -105,9 +105,14 @@ class DisplayedStringsSweepTest extends QuarkusBrowserlessTest {
     }
 
     private void sweep(String route, List<String> problems) {
+        sweep(route, problems, true);
+    }
+
+    private void sweep(String route, List<String> problems, boolean checkTitle) {
         UI ui = UI.getCurrent();
-        String title = ui.getInternals().getTitle();
-        check(route, "<page title>", title, problems);
+        if (checkTitle) {
+            check(route, "<page title>", ui.getInternals().getTitle(), problems);
+        }
         walk(route, ui.getElement(), problems);
         for (Grid<?> grid : find(Grid.class).all().stream().map(g -> (Grid<?>) g).toList()) {
             grid.getColumns().forEach(c -> check(route, "grid header", c.getHeaderText(), problems));

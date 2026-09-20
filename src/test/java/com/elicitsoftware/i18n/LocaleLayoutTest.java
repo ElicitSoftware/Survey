@@ -15,6 +15,7 @@ import com.elicitsoftware.PostgresTestResource;
 import com.elicitsoftware.flow.MainView;
 import com.vaadin.browserless.quarkus.QuarkusBrowserlessTest;
 import com.vaadin.flow.component.UI;
+import com.vaadin.flow.router.QueryParameters;
 import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
@@ -59,7 +60,8 @@ class LocaleLayoutTest extends QuarkusBrowserlessTest {
 
     @Test
     void langQueryParameter_selectsLanguageAndRemembersIt() {
-        navigate("login?lang=ar", MainView.class);
+        UI.getCurrent().navigate("login", QueryParameters.of("lang", "ar"));
+        assertInstanceOf(MainView.class, getCurrentView());
 
         UI ui = UI.getCurrent();
         assertEquals("ar", ui.getLocale().toLanguageTag());
@@ -70,7 +72,8 @@ class LocaleLayoutTest extends QuarkusBrowserlessTest {
     @Test
     void unsupportedLangQueryParameter_isIgnored() {
         Locale before = UI.getCurrent().getLocale();
-        navigate("login?lang=xx-YY", MainView.class);
+        UI.getCurrent().navigate("login", QueryParameters.of("lang", "xx-YY"));
+        assertInstanceOf(MainView.class, getCurrentView());
 
         assertEquals(before, UI.getCurrent().getLocale());
         assertNull(UI.getCurrent().getSession().getAttribute(LocaleSelection.SESSION_ATTRIBUTE));

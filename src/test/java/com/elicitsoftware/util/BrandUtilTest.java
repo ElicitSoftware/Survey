@@ -17,6 +17,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -185,5 +186,32 @@ class BrandUtilTest {
     void getApplicationTitle_externalBrand_usesDisplayName(@TempDir Path brandDir) {
         BrandUtil.BrandInfo external = new BrandUtil.BrandInfo("acme", "Acme Corp", "logo.png", "acme");
         assertEquals("Acme Corp Survey", util(brandDir).getApplicationTitle(external, "Survey"));
+    }
+
+    // UC-007 BR-006: the brand's "localized" block supplies per-language display names.
+    @Test
+    void detectCurrentBrand_localizedBlock_resolvesTagThenLanguageThenBase(@TempDir Path brandDir) throws IOException {
+        writeConfig(brandDir, "{\"name\": \"Health Test\", \"organization\": \"Health Test Organization\", "
+                + "\"localized\": {\"es-419\": {\"organization\": \"Organizaci\u00f3n de prueba\"}, "
+                + "\"ar\": {\"name\": \"\u0645\u0646\u0638\u0645\u0629\"}}}");
+
+        BrandUtil.BrandInfo info = util(brandDir).detectCurrentBrand();
+
+        assertEquals("Health Test Organization", info.getDisplayName());
+        assertEquals("Organizaci\u00f3n de prueba", info.getDisplayName(Locale.forLanguageTag("es-419")));
+        assertEquals("Organizaci\u00f3n de prueba", info.getDisplayName(Locale.forLanguageTag("es-GT")), "language-only fallback");
+        assertEquals("\u0645\u0646\u0638\u0645\u0629", info.getDisplayName(Locale.forLanguageTag("ar")), "name is used when no organization variant");
+        assertEquals("Health Test Organization", info.getDisplayName(Locale.FRENCH), "base name when the language has no variant");
+        assertEquals("health-test", info.getBrandKey(), "the technical key always derives from the base name");
+    }
+
+    @Test
+    void detectCurrentBrand_withoutLocalizedBlock_localeLookupReturnsBase(@TempDir Path brandDir) throws IOException {
+        writeConfig(brandDir, "{\"name\": \"Plain Brand\"}");
+
+        BrandUtil.BrandInfo info = util(brandDir).detectCurrentBrand();
+
+        assertEquals("Plain Brand", info.getDisplayName(Locale.forLanguageTag("ar")));
+        assertEquals("Plain Brand", info.getDisplayName(null));
     }
 }
