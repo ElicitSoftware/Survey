@@ -349,6 +349,7 @@ public class VersionView extends VerticalLayout {
             String imageTags = getDockerImageTags();
             
             // Try multiple approaches to get image creation date
+            // i18n:ignore-start (shell diagnostics, never shown to the respondent)
             String[] commands = {
                 // Try docker inspect to get image creation date
                 containerId != null ? "docker inspect " + containerId + " --format '{{.Created}}' 2>/dev/null" : null,
@@ -374,6 +375,7 @@ public class VersionView extends VerticalLayout {
                 // Check for any date-related labels
                 containerId != null ? "docker inspect " + containerId + " --format '{{range $key, $value := .Config.Labels}}{{$key}}={{$value}}{{\"\\n\"}}{{end}}' 2>/dev/null | grep -i -E '(date|created|build)'" : null
             };
+            // i18n:ignore-end
             
             for (String command : commands) {
                 if (command == null) continue;

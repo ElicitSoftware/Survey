@@ -1,0 +1,8 @@
+# Literals the displayed-string coverage scan may ignore: technical constants that are never
+# read as prose by a user. One literal per line, exact match. Keep this list short — prefer
+# routing a string through getTranslation over listing it here.
+UTF-8
+PDF
+CSV
+JSON
+Elicit
