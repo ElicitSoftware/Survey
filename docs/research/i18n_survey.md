@@ -11,7 +11,8 @@ the two Flyway tracks; Author's `docs/requirements.md` (C-015, C-017, C-019, C-0
 NFR-011, FR-036), UC-034, `author/definition/ElicitFormat.java`,
 `SurveyDefinitionExporter.java`, `SurveyDefinitionImporter.java`; Admin's
 `SurveyDefinitionImportService.java`, `SurveyDefinitionUpdateService.java`,
-`SurveyDefinitionExportService.java`.
+`SurveyDefinitionExportService.java`, `RespondentExportService.java`,
+`RespondentImportService.java`, UC-011 and UC-012.
 
 Three facts fix the frame. Nothing on the V3 track has shipped: not the Survey V3
 schema, not Author, not Admin V3, not the `ELICIT_SURVEY_EXPORT_V1` file. The file
@@ -86,6 +87,14 @@ The recommendation is:
 - **A hand-off file per survey and language**, JSON with the instructions, glossary,
   context and tokens of every string, that a translator or an AI agent fills in and
   Author imports back with per-item validation of tokens, length and HTML.
+- **One file for every site, and a site rule.** Author is the only writer and every
+  site applies the same file, so a language one site requested and verified reaches
+  every site. A site offers a content language only when its chrome mount also carries
+  that language, so a site that has not adopted the language holds inert rows. The
+  respondent file stays language-neutral because `display_text` keeps the base
+  language, so answers from any site import into a central instance for review; its
+  identity columns must be redefined for that to work across databases, a defect that
+  predates this design (section 11).
 
 The rest of this document justifies each of those and lists what changes where.
 
@@ -604,10 +613,12 @@ A new `@ApplicationScoped` bean in `com.elicitsoftware.i18n`, injected into
 `QuestionManager`, `QuestionService`, the views and the `flow/input` widgets.
 
 - `String language(Survey survey)`: resolves `Translations.currentLocale()` against
-  `survey.contentLanguages` with the same exact-then-language chain as
-  `LocaleSelection.resolve`; returns `null` when the effective language is the survey's
-  `baseLanguage` or is not one of its content languages. This is the only place the
-  locale is consulted for content.
+  the intersection of `survey.contentLanguages` and the chrome languages mounted at
+  this site (`ElicitI18NProvider.getProvidedLocales()`), with the same
+  exact-then-language chain as `LocaleSelection.resolve`; returns `null` when the
+  effective language is the survey's `baseLanguage`, is not one of its content
+  languages, or is not mounted for the chrome here (section 11.2). This is the only
+  place the locale is consulted for content.
 - A per-survey cache holding every version of every language of that survey
   (`SELECT element_key, field, language, value, source_hash, effective_from,
   effective_to FROM survey.translations WHERE survey_id = ?`), loaded on first use and
@@ -741,7 +752,8 @@ Nothing on `select_groups` (author-facing only), `post_survey_actions`, `ontolog
 `surveys.base_language` (default `en`, edited in `SurveyMetadataDialog` next to the
 existing `name`/`title`/`description` bindings at `SurveyMetadataDialog.java:65-70`) and
 `surveys.content_languages`, the comma-separated set the author has marked publishable.
-The runtime offers content only in those. Deriving the set from rows present was
+The runtime offers content only in those that are also mounted for the chrome at the
+site (section 11.2). Deriving the set from rows present was
 rejected because a half-translated language must be holdable back; a normalized
 `survey_languages` table was rejected as another record type and Admin case for a short
 list of tags.
@@ -924,7 +936,10 @@ The header stays `# ELICIT_SURVEY_EXPORT_V1`; no file with that header exists ou
 this repository, so there is nothing to distinguish from. Two records change:
 
 - `surveys` gains two trailing fields, required, arity 12:
-  `source_id|survey_key|name|display_order|title|description|initial_display_key|post_survey_url|published_by|published_comment|base_language|content_languages`
+  `source_id|survey_key|name|display_order|title|description|initial_display_key|post_survey_url|published_by|published_comment|base_language|content_languages`.
+  `content_languages` is Author's publishable set, not a site's offered set; Admin's
+  `applySurveyAttributes` updates it in place as it does `title`, and a site never edits
+  it (section 11.2).
 - A new record type, last in `TABLES` because it references every other table's keys,
   laid out like the other versioned records (durable id, key, content, then the Type 2
   tail `version|effective_from|effective_to|published_by|published_comment`):
@@ -1007,7 +1022,10 @@ nav and review tests bound to `:language`; a `relocalize` test; Author
 `ElementServiceTest` cases that retiring a question, section, step or select item closes
 its translations at the same instant and restore reopens them; an Admin update test
 that a retired structural row closes its translations even when the file omits them,
-and that a versioned question leaves its translations untouched; the validation
+and that a versioned question leaves its translations untouched; a respondent
+export/import round trip (`RespondentExportService`, `RespondentImportService`)
+asserting that `display_text_local` and `display_language` travel and that answers
+resolve to the destination's question rows by key (section 11.4); the validation
 warnings; the shared hash test vector across the three modules; `DisplayedStringsSweepTest`
 and the bundle tests must pass over `TranslationsView` and any new chrome strings.
 
@@ -1040,7 +1058,9 @@ the versions). The
 (`base language`, `content language`, `stale`) so the hand-off package explains the new
 chrome strings.
 
-Admin: UC-014 and UC-017 note the new record type and the upsert semantics.
+Admin: UC-014 and UC-017 note the new record type and the upsert semantics. UC-011
+and UC-012 gain the `display_text_local` and `display_language` fields and the key
+columns of section 11.4, at which point BR-058 and BR-059 describe what the code does.
 
 ## 10. Phased delivery and risks
 
@@ -1068,15 +1088,150 @@ applied to non-English templates, which is a known wart to document rather than 
 here; and the whitelist drifting across three modules (one canonical constant and a
 comparison test).
 
-## 11. Open questions
+## 11. Multi-site operation
+
+Elicit runs the same survey at several sites, and translation raises three questions
+about that: does the `.elicit` file still move cleanly when sites hold different
+language sets, do a respondent's answers still import into a central instance for
+review, and how does an update reach every site. The design already works this way,
+provided one rule is added to the runtime (11.2) and one existing defect in the
+respondent file is fixed (11.4).
+
+### 11.1 One writer, many appliers
+
+The definition pipeline is already a master and its replicas. Author holds one working
+copy per `survey_key` and refuses a second (`SurveyDefinitionImporter.java:182`, UC-005
+BR-002); Admin has no definition-editing surface, only export, import, update and apply
+(UC-013, UC-014, UC-017, UC-018); a site can change nothing about a survey except by
+applying a file, and the only attribute the update service treats as site-owned is
+`display_order` (`SurveyDefinitionUpdateService.java:512-517`). Translations inherit
+that: the instance that runs Author is the only place a translation is written, and
+every other site receives it.
+
+A site that wants its language therefore requests it rather than making it, and the
+section 5.5 hand-off file is the vehicle. The master exports
+`<survey>_ja.translation.json` from the Translations view and sends it; the requesting
+site's native speakers fill in `translation`, with no Elicit software involved; the
+file comes back; the master imports it with the per-item validation and exports the
+survey. The requesting site's chrome, its buttons and labels, is a separate request:
+the existing `TRANSLATION_REQUEST.md` package returns a `.properties` file that is
+mounted at that site under `elicit-i18n/<app>/` and never travels through Author. One
+request from a site thus produces two deliverables for two different places, content
+into Author and chrome onto that site's mount, and 11.2 is what ties them together.
+
+### 11.2 Keeping a language away from a site that has not adopted it
+
+Suppose Japan has requested and verified `ja` and Mexico has not. Two designs were
+weighed.
+
+Per-site files: Author exports one file for Japan with the `ja` rows and one for
+Mexico without them. Author's exporter dumps every row of the survey today
+(`SurveyDefinitionExporter.java:58-83`), so this needs a language filter on export, and
+it weakens two things the format relies on. Every export mints a fresh
+`survey_revision` (`:99`) and the format's contract is that one revision is one file
+distributed to every site (`SurveyDefinitionExportService.java:72-87`, Author UC-008
+BR-001); per-site exports make the revision meaningless across sites, and Author
+records nothing about which file went where, since only each site's `survey.survey_log`
+knows what it applied. And the update service leaves rows a file does not mention alone
+(UC-017 BR-068) but overwrites survey attributes in place
+(`SurveyDefinitionUpdateService.java:518-551`), so the Mexico file applied at Japan by
+mistake would keep Japan's `ja` rows and silently drop `ja` from `content_languages`,
+turning Japanese off until the right file is re-applied.
+
+One file and a site rule, which is adopted: every site receives the same file with
+every language in it, and the runtime offers a content language only when it is both
+in the survey's `content_languages` and mounted for the chrome at that site.
+`ContentTranslator.language()` (section 4.1) intersects `survey.contentLanguages` with
+`ElicitI18NProvider.getProvidedLocales()` (`ElicitI18NProvider.java:97`, the list the
+`LanguageSwitcher` already builds from at `LanguageSwitcher.java:37`). Mexico holds the
+`ja` rows and never serves them, because nothing on its mount is Japanese; Japan serves
+them because its mount is. This is exactly "a site's users get what is on that site's
+mount", with no export filter and no file fork, and it settles the earlier question of
+whether the switcher should show the union or the intersection of the two language
+sets: the intersection, so a content language without its chrome is never offered and
+no respondent sees Japanese questions between English buttons. `content_languages` in
+the file is Author's publishable set; the offered set is a deployment concern like
+`display_order`, decided by what is mounted.
+
+Nothing here needs a compatibility layer. Author and the V3 branches are unreleased and
+no definition or respondent file exists in the field (the respondent exporter shipped
+in Admin 2.x but was never used), so both formats are redefined in place under their
+existing headers (section 6 and 11.4) and every site runs the same Admin build.
+
+### 11.3 Wording changes across sites
+
+Type 2 `version` numbers are per site: a site that joins late installs the same content
+at version 0, as the export javadoc says (`SurveyDefinitionExportService.java:72-87`).
+`source_hash` travels verbatim and every site's structural rows come from the same
+file, so a translation that is stale at the master is stale at every site and none of
+them serves it. Respondents already in progress at each site keep the version effective
+at their first access under that site's own `effective_from`, so a Japanese respondent
+who started before a rewrite keeps seeing the old question and its old translation.
+
+The cost of the model is latency after a wording change. When the master rewrites a
+question, its Japanese translation goes stale everywhere, and new Japanese respondents
+at Japan see the base text for that question until the loop in 11.1 runs again: the
+master exports the stale-only hand-off file, Japan fills it in, the master imports it
+and exports the survey, Japan applies it. Two round trips per change, owned by the
+master; the notification at edit time and the export warnings in section 5.4 are what
+make it visible. A site cannot shorten the loop by fixing a translation locally, because
+Admin cannot edit, and a local row would never reach Author and would be orphaned by
+the next file. That restriction is deliberate and should stay.
+
+### 11.4 Respondent answers across sites
+
+Respondent data moves in a different file from the definition, `ELICIT_EXPORT_V1`, one
+respondent per file, written by `RespondentExportService` (`:106-214`) and read by
+`RespondentImportService` (`:300-354`; Admin UC-011 and UC-012). Its `answers:` record
+carries `display_text` and `text_value`. Under this design `display_text` keeps the
+base language (section 4.3) and `text_value` holds the untranslated `coded_value` for
+select questions, so a file from a Japanese respondent has the same shape as one from a
+US respondent, and a central instance reviewing it needs no `ja` rows at all: the review
+SQL binds the reviewer's own session language and falls back to the base text
+(section 4.3). Free-text answers are in whatever language the respondent typed; that is
+unavoidable and reviewers should expect it. So that a reviewer can also see what the
+respondent actually saw, the `answers:` record gains two required trailing fields,
+`display_text_local|display_language`, which the importer writes through; the file is
+redefined in place under its existing header.
+
+What does break cross-site import is older than this design and independent of it.
+UC-011 BR-058 and UC-012 BR-059 say the respondent file identifies the survey by its
+stable key and that a numeric identifier from the source database is never trusted. The
+code does the opposite: the header and every row carry the numeric `survey_id`
+(`RespondentExportService.java:108, 122, 134`), `question_id` and
+`section_question_id` are the source database's surrogate row ids (`:142-143`), and the
+importer binds all three verbatim with no lookup (`RespondentImportService.java:314,
+338-346`). `survey.answers` has no `question_key` column to carry
+(`V001__Create_Survey_Schema.sql:660-702`). At a destination database the insert either
+violates `answers_questions_fk` or attaches the answer to whichever question row
+happens to own that id; the leading survey-id component of `display_key` is not rebased,
+although the definition importer rebases it (`SurveyDefinitionImportService.java:523,
+739`); and the ETL never runs for an imported respondent and hard-codes `survey_id = 1`
+(`etl/Sql.java:277, 314`), so reports on it come back empty.
+
+The fix is a redefinition, since no file exists in the field: the respondent file
+carries `survey_key`, `question_key`, `sections_question_key` and `question_version` in
+place of the numeric ids, the importer resolves the survey by `survey_key` (as BR-059
+says) and each answer to the destination's question row by key, and `display_key` is
+rebased as the definition importer does. Which question row that is, when the Type 2
+version pin does not transfer between sites (11.3), is an open question in section 12.
+The item is separate from i18n and should be scheduled on its own; the translation
+design neither depends on it nor makes it worse.
+
+## 12. Open questions
 
 - Should `serve-stale-translations` default to false as proposed, or should a
   deployment see the stale translation with no visible marker? The proposal favours
   correctness over continuity.
-- Should the chrome `LanguageSwitcher` show a language that is a content language of
-  the current survey but not a mounted chrome language, or the reverse? The two sets
-  are independent today; the simplest rule is to show the union while a respondent is
-  inside a survey and the mounted set elsewhere.
+- When a respondent file from one site is imported at another, which question row does
+  an answer attach to, given that Type 2 version numbers are local to each site
+  (section 11.4)? The candidate rule is: the row with the file's `question_version`
+  where the histories agree, otherwise the row effective at the source
+  `first_access_dt`, otherwise the current row.
+- Should a free-text answer record the language it was typed in, so a central reviewer
+  can tell Japanese free text from English without reading it? `display_language` on
+  the answer row already says which language the question was shown in and is a
+  reasonable proxy.
 - What does the external report service need to localize its body, beyond a language
   tag on the request?
 - `AboutView` shows `survey.name` where `title` is meant; fix in passing.
