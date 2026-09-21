@@ -136,7 +136,7 @@
     }
 }
 
-/* Language switcher (UC-007). A Select in the header would otherwise keep Lumo's
+/* Language switcher (UC-008). A Select in the header would otherwise keep Lumo's
    page-level tokens (dark body text on a translucent dark tint), so scope the
    tokens it reads to the brand's header text colour. The overlay renders outside
    the header and keeps the normal page styling. */

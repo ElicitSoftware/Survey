@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Builds {@code i18n/TRANSLATION_REQUEST.md} (UC-007 / FR-020): the document handed to a
+ * Builds {@code i18n/TRANSLATION_REQUEST.md} (UC-008 / FR-021): the document handed to a
  * translator or an AI agent. It is assembled from a hand-written header
  * ({@code src/test/resources/i18n/translation-request-header.md}: purpose, audience, glossary,
  * rules), the default bundle in file order, and the context sidecar, so the handoff can never

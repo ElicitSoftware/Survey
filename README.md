@@ -77,6 +77,10 @@ For local development, run the shared `../docker-compose.yml` stack (database, a
 ## Usage
 To use the Elicit System, download the Authoring tool (work in progress), create a new survey, and publish it to the database. The Admin application is used to register subjects and generate unique access codes that are sent in an invitation email. Subjects will follow the link in the email and enter their access codes in the Elicit Survey to complete the questionnaire.
 
+### Startup Diagnostics
+
+Survey has no administrator login, so about ten seconds after it starts it writes a diagnostics report to its log: the running version, both database connections and the latest migration, the brand that resolved, whether every configured report service and post-survey action is reachable from the container, and the settings that need attention (for example `accessCode.autoRegister` left on). Lines that need action are logged at `WARN`, the rest at `INFO` under the `com.elicitsoftware.diagnostics` category, which is pinned to `INFO` so the report appears at the default `LOG_LEVEL=WARN`. Look for lines starting with `Survey diagnostics:`; the last one counts the warnings. Set `elicit.diagnostics.startup.enabled=false` to turn it off or `elicit.diagnostics.startup.delay` to change the delay. See `docs/use_cases/UC-007-log-startup-diagnostics.md`.
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 

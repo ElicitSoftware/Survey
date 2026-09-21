@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Language selector shown on every page (UC-007 step 4). Lists the provided locales (shipped plus
+ * Language selector shown on every page (UC-008 step 4). Lists the provided locales (shipped plus
  * mounted), labelled in their own language; choosing one remembers it for the session and reloads
  * the page (dropping any {@code ?lang=} link parameter) so every view is rebuilt in the new language.
  */

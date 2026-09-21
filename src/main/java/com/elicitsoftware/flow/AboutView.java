@@ -52,7 +52,7 @@ public class AboutView extends VerticalLayout {
         for (Survey survey : surveys) {
             Div aboutSurvey = new Div();
             aboutSurvey.getElement().setProperty("innerHTML", ("<h4>" + survey.name + "</h4>" + survey.description));
-            aboutSurvey.getElement().setAttribute("data-i18n-content", ""); // authored survey text (UC-007 BR-005)
+            aboutSurvey.getElement().setAttribute("data-i18n-content", ""); // authored survey text (UC-008 BR-005)
             add(aboutSurvey);
         }
         

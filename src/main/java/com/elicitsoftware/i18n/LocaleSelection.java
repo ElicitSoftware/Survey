@@ -21,7 +21,7 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * The language a respondent has chosen for this browser session (UC-007 BR-003, BR-007).
+ * The language a respondent has chosen for this browser session (UC-008 BR-003, BR-007).
  * The choice lives only in the Vaadin session; nothing about it is stored with the respondent.
  */
 @ApplicationScoped

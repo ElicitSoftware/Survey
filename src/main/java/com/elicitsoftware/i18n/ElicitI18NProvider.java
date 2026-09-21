@@ -43,7 +43,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
- * Translation provider for the application chrome (UC-007).
+ * Translation provider for the application chrome (UC-008).
  * <p>
  * Translations live in Vaadin's standard layout — {@code vaadin-i18n/translations[_tag].properties}
  * on the classpath — so the Copilot internationalization tooling keeps working, and are overlaid

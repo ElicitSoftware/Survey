@@ -25,12 +25,13 @@
 | FR-013 | Download PDF Summary             | As a respondent, I want to download a PDF of my submitted answers so that I have a personal record of what I reported.                           | UC-005   | High     | Implemented |
 | FR-014 | Post-Survey Redirect             | As a respondent, I want to be sent to a configured external URL after viewing my reports (when one is configured) so that I can continue to any follow-up destination. | UC-005   | Low      | Implemented |
 | FR-015 | Log Out                          | As a respondent, I want to log out and clear my session so that my survey data isn't accessible to the next person using this device.            | UC-006   | Medium   | Implemented |
-| FR-016 | Localized UI Chrome              | As a respondent, I want every label, button, message and page title the application itself displays (including brand-supplied names) to appear in my language so that I can complete the survey without reading English. | UC-007   | High     | Implemented |
-| FR-017 | Language Selection               | As a respondent, I want the application to open in my browser's language, honor a language carried in my invitation link, and let me switch languages on the page so that I am never stuck in a language I do not read. | UC-007   | High     | Implemented |
-| FR-018 | Externally Mounted Translations  | As a deployment operator, I want to mount translation files for additional languages, or override individual texts, without rebuilding the application so that each site can serve the languages its respondents need. | UC-007   | High     | Implemented |
-| FR-019 | Right-to-Left Layout             | As a respondent whose language is written right-to-left, I want the whole page laid out right-to-left when that language is selected so that the survey reads naturally. | UC-007   | High     | Implemented |
-| FR-020 | Translation Handoff Package      | As a deployment operator, I want one generated document containing every translatable text with its context and translation rules so that I can hand it to a translator or an AI agent and receive a complete language file back. | UC-007   | Medium   | Implemented |
-| FR-021 | Localized Service Messages       | As a respondent, I want error messages produced by background services to appear in my language so that failures are understandable. | UC-007   | Low      | Planned     |
+| FR-016 | Startup Diagnostics Report       | As a system operator, I want Survey to write a diagnostics report to its log shortly after it starts (what is running, both database connections and the latest migration, the resolved brand, whether every report service and post-survey action is reachable, and the settings that need attention) so that I can confirm a deployment is wired correctly without an administrator login. | UC-007   | Medium   | Implemented |
+| FR-017 | Localized UI Chrome              | As a respondent, I want every label, button, message and page title the application itself displays (including brand-supplied names) to appear in my language so that I can complete the survey without reading English. | UC-008   | High     | Implemented |
+| FR-018 | Language Selection               | As a respondent, I want the application to open in my browser's language, honor a language carried in my invitation link, and let me switch languages on the page so that I am never stuck in a language I do not read. | UC-008   | High     | Implemented |
+| FR-019 | Externally Mounted Translations  | As a deployment operator, I want to mount translation files for additional languages, or override individual texts, without rebuilding the application so that each site can serve the languages its respondents need. | UC-008   | High     | Implemented |
+| FR-020 | Right-to-Left Layout             | As a respondent whose language is written right-to-left, I want the whole page laid out right-to-left when that language is selected so that the survey reads naturally. | UC-008   | High     | Implemented |
+| FR-021 | Translation Handoff Package      | As a deployment operator, I want one generated document containing every translatable text with its context and translation rules so that I can hand it to a translator or an AI agent and receive a complete language file back. | UC-008   | Medium   | Implemented |
+| FR-022 | Localized Service Messages       | As a respondent, I want error messages produced by background services to appear in my language so that failures are understandable. | UC-008   | Low      | Planned     |
 
 ## Non-Functional Requirements
 
@@ -43,8 +44,10 @@
 | NFR-005 | Container Portability               | The system must build and run as a single, self-contained Docker image deployable without host-specific dependencies.             | Portability      | High     | Implemented |
 | NFR-006 | Session Resilience                  | On a transient browser disconnect/reconnect, the system must restore the respondent's in-progress session state without requiring re-authentication, for the life of the underlying HTTP session. | Availability     | Medium   | Implemented |
 | NFR-007 | Unguessable Report Artifact Keys    | Any publicly reachable, unauthenticated download link (e.g., the PDF cache key) must use a cryptographically random identifier, not one derived from predictable inputs such as timestamps. | Security         | High     | In Progress |
-| NFR-008 | Displayed-String Coverage           | 100% of user-visible text set by application code must be resolved through the translation mechanism; an automated test that scans the UI source fails on any remaining hard-coded literal. | Maintainability  | High     | Implemented |
-| NFR-009 | Missing-Translation Policy          | A text missing from a language file must fall back to the English text; a text missing from every language file must render as a visible `!key!` marker, never blank; a bundle-consistency test must fail when the language files disagree on keys or placeholders. | Usability        | High     | Implemented |
+| NFR-008 | Diagnostics Never Leak Secrets      | The startup diagnostics report must never contain a password, client secret or token value; a secret is reported only as present or absent, and a password embedded in a JDBC URL is masked. | Security         | High     | Implemented |
+| NFR-009 | Bounded, Harmless Diagnostic Probes | Every diagnostic probe of an external target must give up within 5 seconds, must be a GET or a TCP connect that never carries respondent data, and must never delay or fail application startup. | Maintainability  | Medium   | Implemented |
+| NFR-010 | Displayed-String Coverage           | 100% of user-visible text set by application code must be resolved through the translation mechanism; an automated test that scans the UI source fails on any remaining hard-coded literal. | Maintainability  | High     | Implemented |
+| NFR-011 | Missing-Translation Policy          | A text missing from a language file must fall back to the English text; a text missing from every language file must render as a visible `!key!` marker, never blank; a bundle-consistency test must fail when the language files disagree on keys or placeholders. | Usability        | High     | Implemented |
 
 ## Constraints
 
@@ -85,6 +88,6 @@ They're tracked in `docs/plans/fix-review-findings.md` and are called out here s
   deployed (reverse proxy/ingress termination, hosting environment) and cannot be verified from
   the application codebase alone — marked "Open" pending confirmation against the actual
   deployment configuration.
-- **FR-021:** Service-layer error messages (PDF generation, report services) are still produced in
+- **FR-022:** Service-layer error messages (PDF generation, report services) are still produced in
   English and shown verbatim; localizing them needs a message-key carrier on the exceptions and is
-  planned as a follow-up to the UI chrome localization (UC-007).
+  planned as a follow-up to the UI chrome localization (UC-008).

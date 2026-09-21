@@ -83,7 +83,7 @@ public abstract class ElicitComponent<T extends Component> {
             this.component = component;
             this.component.setId(answer.getDisplayKey());
             this.component.setClassName("elicit-input-field");
-            // Labels, placeholders and options are authored survey content, not chrome (UC-007 BR-005)
+            // Labels, placeholders and options are authored survey content, not chrome (UC-008 BR-005)
             this.component.getElement().setAttribute("data-i18n-content", "");
 
             setBindings(answer);

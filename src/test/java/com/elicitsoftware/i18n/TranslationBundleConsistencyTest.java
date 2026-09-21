@@ -33,7 +33,7 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * UC-007 / NFR-009: the English bundle and the deployment's translation files must agree with each other and with the
+ * UC-008 / NFR-011: the English bundle and the deployment's translation files must agree with each other and with the
  * source code. Checks: every locale file carries exactly the default keys; every key referenced
  * from {@code getTranslation("...")} / {@code translate(..., "...")} exists; every default key is
  * referenced (unless flagged {@code dynamic} in the context sidecar); {@code {n}} placeholders
