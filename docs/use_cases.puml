@@ -5,6 +5,7 @@ skinparam packageStyle rectangle
 actor "Respondent" as Respondent
 actor "External Report Service" as ReportSvc
 actor "External Post-Survey-Action Service" as PsaSvc
+actor "System Operator" as Operator
 
 rectangle "Elicit Survey" {
   usecase "UC-001\nEnter Survey via Access Code" as UC001
@@ -13,6 +14,7 @@ rectangle "Elicit Survey" {
   usecase "UC-004\nFinalize Survey" as UC004
   usecase "UC-005\nView Reports & Download PDF" as UC005
   usecase "UC-006\nLog Out" as UC006
+  usecase "UC-007\nLog Startup Diagnostics" as UC007
 }
 
 Respondent --> UC001
@@ -21,11 +23,14 @@ Respondent --> UC003
 Respondent --> UC004
 Respondent --> UC005
 Respondent --> UC006
+Operator --> UC007 : reads the log
 
 UC004 ..> UC005 : <<include>>\n(navigates to report view)
 UC002 ..> UC002 : <<extend>>\n(branching shows/hides/repeats\ndownstream questions)
 
 UC004 --> PsaSvc : notifies (webhook POST)
 UC005 --> ReportSvc : requests report data
+UC007 --> ReportSvc : probes reachability (GET)
+UC007 --> PsaSvc : probes reachability (GET)
 
 @enduml
