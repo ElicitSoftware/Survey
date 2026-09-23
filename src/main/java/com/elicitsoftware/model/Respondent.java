@@ -66,6 +66,22 @@ public class Respondent extends PanacheEntityBase {
     @Column(name = "first_access_dt")
     public OffsetDateTime firstAccessDt;
 
+    /**
+     * The snapshot anchor (research/Kimball_type_2.md, "Snapshot Anchor") every structural
+     * lookup for a respondent is resolved as of: their {@link #firstAccessDt} once set, or
+     * NOW() for a brand-new respondent who has not been anchored yet (and for an unknown id).
+     * Every version-aware finder ({@code Step.findAsOf}, {@code Question.findAsOf}, ...) is
+     * bound to this instant so a respondent stays pinned to the survey definition as it
+     * existed when they first accessed it.
+     *
+     * @param respondentId the respondent whose anchor is being resolved
+     * @return the instant to bind against every {@code effective_from}/{@code effective_to} guard
+     */
+    public static OffsetDateTime snapshotAnchor(int respondentId) {
+        Respondent respondent = findById(respondentId);
+        return (respondent != null && respondent.firstAccessDt != null) ? respondent.firstAccessDt : OffsetDateTime.now();
+    }
+
     @Column(name = "finalized_dt")
     public OffsetDateTime finalizedDt;
 

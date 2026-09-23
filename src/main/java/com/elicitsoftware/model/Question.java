@@ -40,7 +40,8 @@ import java.time.OffsetDateTime;
  * - validationText: An optional message shown to the user if their input fails validation.
  * - defaultValue: An optional default value for the question's response.
  * - questionType: A mandatory association to define the type of question.
- * - selectGroup: An optional association to define a selectable group of items for the question.
+ * - selectGroupId: The durable id of the optional select group whose items the question offers,
+ *   resolved as of the respondent's snapshot anchor (never a JPA association).
  * - variant: An optional variant of the question for customization purposes.
  */
 @Entity
@@ -91,13 +92,14 @@ public class Question extends PanacheEntityBase {
     @JoinColumn(name = "type_id", nullable = false)
     public QuestionType questionType;
 
-    // uni-directional many-to-one association to SelectGroup.
-    // questions.select_group_id now holds the durable select_groups.select_group_id
-    // (Kimball Type 2 SCD retarget), not select_groups.id — referencedColumnName must
-    // point at that durable column or this association silently matches nothing.
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "select_group_id", referencedColumnName = "select_group_id")
-    public SelectGroup selectGroup;
+    // questions.select_group_id holds the durable select_groups.select_group_id (Kimball Type 2
+    // SCD retarget), not select_groups.id. It is a plain column, never a @ManyToOne: a durable
+    // id has one row per version, so a JPA association on it fails with "More than one row
+    // with the given identifier" as soon as a revision exists. Resolve the group's items with
+    // SelectItem.findByGroupAsOf (or the group with SelectGroup.findAsOf) at the respondent's
+    // snapshot anchor -- Answer.getSelectItems() does exactly that for the UI.
+    @Column(name = "select_group_id")
+    public Integer selectGroupId;
 
     @Column(name = "variant", length = 255)
     public String variant;
@@ -127,4 +129,24 @@ public class Question extends PanacheEntityBase {
     // check (always 0 — see research/Kimball_type_2.md's "Resolving the FK Cascade Problem").
     @Column(name = "select_group_version", nullable = false)
     public Integer selectGroupVersion = 0;
+
+    /**
+     * The version of the durable {@code question_id} in effect at {@code asOf} (research/
+     * Kimball_type_2.md, "Snapshot Anchor"). See {@link Step#findAsOf} for why durable keys
+     * are resolved through a finder rather than mapped as JPA associations. Note that an
+     * {@link Answer} pins the surrogate {@code questions.id} it was created against, so
+     * {@code Answer.question} stays a plain JPA association; this finder is for reaching a
+     * question from a {@link SectionsQuestion#questionId} before any answer exists.
+     *
+     * @param questionId the durable {@code questions.question_id}; {@code null} yields {@code null}
+     * @param asOf       the respondent's snapshot anchor
+     * @return the question in effect at {@code asOf}, or {@code null} if none covers it
+     */
+    public static Question findAsOf(Integer questionId, OffsetDateTime asOf) {
+        if (questionId == null) {
+            return null;
+        }
+        return Question.<Question>find("questionId = ?1 and effectiveFrom <= ?2 and effectiveTo > ?2", questionId, asOf)
+                .singleResultOptional().orElse(null);
+    }
 }

@@ -67,7 +67,7 @@ public class ElicitRadioButtonGroup extends ElicitComponent<RadioButtonGroup<Sel
      */
     public ElicitRadioButtonGroup(Answer answer) {
         super(new RadioButtonGroup<SelectItem>(answer.displayText), answer);
-        this.component.setItems(answer.question.selectGroup.selectItems);
+        this.component.setItems(answer.getSelectItems());
         this.component.setItemLabelGenerator(item -> item.displayText);
         if (answer.getTextValue() != null && !answer.getTextValue().isEmpty()) {
             setValue(answer);
@@ -108,7 +108,7 @@ public class ElicitRadioButtonGroup extends ElicitComponent<RadioButtonGroup<Sel
     @Override
     void setValue(Answer answer) {
         if (answer.getTextValue() != null) {
-            for (SelectItem item : answer.question.selectGroup.selectItems) {
+            for (SelectItem item : answer.getSelectItems()) {
                 if (answer.getTextValue().equalsIgnoreCase(item.codedValue)) {
                     this.component.setValue(item);
                     break;

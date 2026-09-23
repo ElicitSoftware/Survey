@@ -36,8 +36,9 @@ import java.util.List;
  * 3. StepsSections.findBySurveyId - Finds all entries by the survey ID.
  * <p>
  * Relationships:
- * - Many-to-one relationship with the `Step` entity.
- * - Many-to-one relationship with the `Section` entity.
+ * - `stepId` and `sectionId` are the durable ids of the placed step and section; they are
+ * resolved with `Step.findAsOf` / `Section.findAsOf` at the respondent's snapshot anchor,
+ * never mapped as JPA associations (a durable id has one row per version).
  * <p>
  * Key Fields:
  * - `displaykey`: Represents the display key used to uniquely identify the record
@@ -68,23 +69,23 @@ public class StepsSections extends PanacheEntityBase {
     @Column(name = "survey_id", nullable = false, precision = 20)
     public Integer surveyId;
 
-    // steps_sections.step_id now holds the durable steps.step_id (Kimball Type 2 SCD
-    // retarget), not steps.id — referencedColumnName must point at that durable column
-    // or this association silently matches nothing.
-    @ManyToOne
-    @JoinColumn(name = "step_id", referencedColumnName = "step_id", nullable = false)
-    public Step step;
+    // steps_sections.step_id holds the durable steps.step_id (Kimball Type 2 SCD retarget),
+    // not steps.id. A plain column, never a @ManyToOne: a durable id has one row per version,
+    // so a JPA association on it fails with "More than one row with the given identifier" as
+    // soon as a revision exists. Resolve it with Step.findAsOf at the respondent's anchor.
+    @Column(name = "step_id", nullable = false)
+    public Integer stepId;
 
     // NUMERIC, not INTEGER (Kimball Type 2 SCD, research/Kimball_type_2.md's "Adding a new
     // question" section) -- supports decimal-midpoint insertion between existing positions.
     @Column(name = "step_display_order", nullable = false, precision = 4)
     public BigDecimal stepDisplayOrder;
 
-    // steps_sections.section_id now holds the durable sections.section_id (Kimball Type 2
-    // SCD retarget), not sections.id — same referencedColumnName requirement as step above.
-    @ManyToOne
-    @JoinColumn(name = "section_id", referencedColumnName = "section_id", nullable = false)
-    public Section section;
+    // steps_sections.section_id holds the durable sections.section_id (Kimball Type 2 SCD
+    // retarget), not sections.id — same plain-column rule as stepId above; resolve it with
+    // Section.findAsOf at the respondent's anchor.
+    @Column(name = "section_id", nullable = false)
+    public Integer sectionId;
 
     // NUMERIC, not INTEGER -- same reasoning as stepDisplayOrder above.
     @Column(name = "section_display_order", nullable = false, precision = 4)
@@ -148,42 +149,51 @@ public class StepsSections extends PanacheEntityBase {
     }
 
     /**
-     * Snapshot-anchored (research/Kimball_type_2.md) variant of findBySurveyIdWithJoins:
-     * resolves only steps_sections rows whose effective window covers {@code asOf}
-     * (the respondent's firstAccessDt, or NOW() for a brand-new respondent). Also fetches
-     * Step and Section relationships in a single query to avoid N+1 problems.
+     * Snapshot-anchored (research/Kimball_type_2.md) listing of a survey's step/section
+     * placements: only the rows whose effective window covers {@code asOf} (the respondent's
+     * firstAccessDt, or NOW() for a brand-new respondent). This used to fetch-join the step
+     * and section, but with the as-of guard on steps_sections alone, so once a step or
+     * section had a second version the join duplicated rows; the step and section are now
+     * resolved by {@link Step#findAsOf} / {@link Section#findAsOf} at the same instant.
      *
      * @param surveyId the ID of the survey
      * @param asOf     the snapshot instant to resolve structural rows as of
-     * @return list of StepsSections with eager-loaded step and section relationships
+     * @return the placements in effect at {@code asOf}, in display-key order
      */
-    public static List<StepsSections> findBySurveyIdWithJoinsAsOf(int surveyId, OffsetDateTime asOf) {
-        return find("SELECT DISTINCT ss FROM StepsSections ss " +
-                    "LEFT JOIN FETCH ss.step " +
-                    "LEFT JOIN FETCH ss.section " +
-                    "WHERE ss.surveyId = ?1 AND ss.effectiveFrom <= ?2 AND ss.effectiveTo > ?2 " +
-                    "ORDER BY ss.displaykey",
-                    surveyId, asOf)
-                .list();
+    public static List<StepsSections> findBySurveyIdAsOf(int surveyId, OffsetDateTime asOf) {
+        return find("surveyId = ?1 and effectiveFrom <= ?2 and effectiveTo > ?2 order by displaykey",
+                surveyId, asOf).list();
     }
 
     /**
-     * Snapshot-anchored (research/Kimball_type_2.md) variant of findByDisplayKeyWithJoins:
-     * resolves only the steps_sections row whose effective window covers {@code asOf}
-     * (the respondent's firstAccessDt, or NOW() for a brand-new respondent). Also fetches
-     * Step and Section relationships in a single query to avoid N+1 problems.
+     * Snapshot-anchored (research/Kimball_type_2.md) lookup of the placement addressed by an
+     * exact display key: the row whose effective window covers {@code asOf}. See
+     * {@link #findBySurveyIdAsOf} for why the step and section are no longer fetch-joined.
      *
      * @param key  the DisplayKey to search for
      * @param asOf the snapshot instant to resolve structural rows as of
-     * @return StepsSections with eager-loaded step and section relationships
+     * @return the placement in effect at {@code asOf}, or {@code null} if none covers it
      */
-    public static StepsSections findByDisplayKeyWithJoinsAsOf(DisplayKey key, OffsetDateTime asOf) {
-        return find("SELECT ss FROM StepsSections ss " +
-                    "LEFT JOIN FETCH ss.step " +
-                    "LEFT JOIN FETCH ss.section " +
-                    "WHERE ss.displaykey = ?1 AND ss.effectiveFrom <= ?2 AND ss.effectiveTo > ?2",
-                    key.getValue(), asOf)
+    public static StepsSections findByDisplayKeyAsOf(DisplayKey key, OffsetDateTime asOf) {
+        return find("displaykey = ?1 and effectiveFrom <= ?2 and effectiveTo > ?2", key.getValue(), asOf)
                 .firstResult();
+    }
+
+    /**
+     * The version of the durable {@code steps_sections_id} in effect at {@code asOf}
+     * (research/Kimball_type_2.md, "Snapshot Anchor"). See {@link Step#findAsOf} for why
+     * durable keys are resolved through a finder rather than mapped as JPA associations.
+     *
+     * @param stepsSectionsId the durable {@code steps_sections.steps_sections_id}; {@code null} yields {@code null}
+     * @param asOf            the respondent's snapshot anchor
+     * @return the placement in effect at {@code asOf}, or {@code null} if none covers it
+     */
+    public static StepsSections findAsOf(Integer stepsSectionsId, OffsetDateTime asOf) {
+        if (stepsSectionsId == null) {
+            return null;
+        }
+        return StepsSections.<StepsSections>find("stepsSectionsId = ?1 and effectiveFrom <= ?2 and effectiveTo > ?2", stepsSectionsId, asOf)
+                .singleResultOptional().orElse(null);
     }
 
     public String getDisplaykey() {
