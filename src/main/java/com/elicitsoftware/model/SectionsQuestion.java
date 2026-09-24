@@ -25,7 +25,8 @@ import java.time.OffsetDateTime;
  * Attributes:
  * - id: The unique identifier for the section-question mapping.
  * - displayOrder: The order in which the question is displayed within the section.
- * - question: A reference to the associated Question entity.
+ * - questionId: The durable id of the placed question, resolved as of the respondent's
+ *   snapshot anchor (never a JPA association).
  * - sectionId: The unique identifier for the associated section.
  * - surveyId: The unique identifier for the associated survey.
  * <p>
@@ -49,12 +50,13 @@ public class SectionsQuestion extends PanacheEntityBase {
     @Column(name = "display_order", nullable = false, precision = 3)
     public BigDecimal displayOrder;
 
-    // sections_questions.question_id now holds the durable questions.question_id
-    // (Kimball Type 2 SCD retarget), not questions.id — referencedColumnName must
-    // point at that durable column or this association silently matches nothing.
-    @ManyToOne
-    @JoinColumn(name = "question_id", referencedColumnName = "question_id", nullable = false)
-    public Question question;
+    // sections_questions.question_id holds the durable questions.question_id (Kimball Type 2
+    // SCD retarget), not questions.id. A plain column, never a @ManyToOne: a durable id has
+    // one row per version, so a JPA association on it fails with "More than one row with the
+    // given identifier" as soon as a revision exists. Resolve it with Question.findAsOf at
+    // the respondent's snapshot anchor.
+    @Column(name = "question_id", nullable = false)
+    public Integer questionId;
 
     // section_id is now the durable sections.section_id (Kimball Type 2 SCD retarget);
     // kept as a plain column (not an association) since callers only ever use it as an
@@ -94,4 +96,20 @@ public class SectionsQuestion extends PanacheEntityBase {
     @Column(name = "section_version", nullable = false)
     public Integer sectionVersion = 0;
 
+    /**
+     * The version of the durable {@code sections_question_id} in effect at {@code asOf}
+     * (research/Kimball_type_2.md, "Snapshot Anchor"). See {@link Step#findAsOf} for why
+     * durable keys are resolved through a finder rather than mapped as JPA associations.
+     *
+     * @param sectionsQuestionId the durable {@code sections_questions.sections_question_id}; {@code null} yields {@code null}
+     * @param asOf               the respondent's snapshot anchor
+     * @return the placement in effect at {@code asOf}, or {@code null} if none covers it
+     */
+    public static SectionsQuestion findAsOf(Integer sectionsQuestionId, OffsetDateTime asOf) {
+        if (sectionsQuestionId == null) {
+            return null;
+        }
+        return SectionsQuestion.<SectionsQuestion>find("sectionsQuestionId = ?1 and effectiveFrom <= ?2 and effectiveTo > ?2", sectionsQuestionId, asOf)
+                .singleResultOptional().orElse(null);
+    }
 }

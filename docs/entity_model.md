@@ -131,9 +131,9 @@ The junction between a step and a section, capturing the ordering of each within
 |---|---|---|---|---|
 | id | Primary key. | Long | — | Primary Key, Sequence |
 | surveyId | The survey this mapping belongs to. | Long | — | Not Null |
-| stepId | The step in this mapping. | Long | — | Not Null, Foreign Key (STEP.id) |
+| stepId | The durable id of the step in this mapping; resolved to the version in effect at the respondent's snapshot anchor (`Step.findAsOf`), never mapped as a JPA association. | Long | — | Not Null, Foreign Key (STEP.step_id) |
 | stepDisplayOrder | The step's display order at the time of mapping. | Integer | — | Optional |
-| sectionId | The section in this mapping. | Long | — | Not Null, Foreign Key (SECTION.id) |
+| sectionId | The durable id of the section in this mapping; resolved as of the respondent's anchor (`Section.findAsOf`). | Long | — | Not Null, Foreign Key (SECTION.section_id) |
 | sectionDisplayOrder | The section's display order within the step. | Integer | — | Optional |
 | displaykey | The step/section-level display key prefix (`survey-step-stepInstance-section-...`). | String | 34 | Not Null |
 
@@ -156,7 +156,7 @@ A single question definition — its prompt text, input type, and validation con
 | validationText | Message shown when validation fails. | String | 255 | Optional |
 | defaultValue | Value pre-filled when the question is first shown. | String | 255 | Optional |
 | questionTypeId | The input type this question renders as. | Long | — | Not Null, Foreign Key (QUESTION_TYPE.id) |
-| selectGroupId | The set of selectable options, for select-style question types. | Long | — | Optional, Foreign Key (SELECT_GROUP.id) |
+| selectGroupId | The durable id of the set of selectable options, for select-style question types; the items are resolved as of the respondent's anchor (`SelectItem.findByGroupAsOf`, surfaced as `Answer.getSelectItems()`), never through a JPA association. | Long | — | Optional, Foreign Key (SELECT_GROUP.select_group_id) |
 | variant | Optional rendering variant hint. | String | 255 | Optional |
 
 ### QUESTION_TYPE
@@ -178,8 +178,8 @@ Places a specific question into a specific section (within a survey) at a given 
 |---|---|---|---|---|
 | id | Primary key. | Long | — | Primary Key, Sequence |
 | displayOrder | Order this question appears within its section. | Integer | 3 | Not Null |
-| questionId | The question being placed. | Long | — | Not Null, Foreign Key (QUESTION.id) |
-| sectionId | The section the question is placed into. | Long | — | Not Null, Foreign Key (SECTION.id) |
+| questionId | The durable id of the question being placed; resolved to the version in effect at the respondent's anchor (`Question.findAsOf`), never mapped as a JPA association. | Long | — | Not Null, Foreign Key (QUESTION.question_id) |
+| sectionId | The durable id of the section the question is placed into. | Long | — | Not Null, Foreign Key (SECTION.section_id) |
 | surveyId | The survey this placement belongs to. | Long | — | Not Null, Foreign Key (SURVEY.id) |
 
 ### SELECT_GROUP
@@ -201,7 +201,7 @@ One selectable option within a SELECT_GROUP, with the coded (stored) value and i
 |---|---|---|---|---|
 | id | Primary key. | Long | — | Primary Key, Sequence |
 | surveyId | The survey this item belongs to. | Long | — | Not Null, Foreign Key (SURVEY.id) |
-| selectGroupId | The group this item belongs to (mapped via `group_id`). | Long | — | Not Null, Foreign Key (SELECT_GROUP.id) |
+| selectGroupId | The durable id of the group this item belongs to. | Long | — | Not Null, Foreign Key (SELECT_GROUP.select_group_id) |
 | codedValue | The value stored on the answer when this item is selected. | String | 255 | Optional |
 | displayText | The label shown to the respondent. | String | 255 | Optional |
 | displayOrder | Order this item appears within its group. | Integer | 20 | Not Null |
@@ -258,11 +258,13 @@ A single configured branching rule: "when the upstream question's answer satisfi
 | token | The placeholder token (used in `{token|default}` text substitution) this rule's upstream value can be inserted as. | String | 10 | Optional |
 | actionTypeId | The action to take when the rule is satisfied (SHOW / REPEAT / TEXT). | Long | — | Not Null, Foreign Key (ACTION_TYPE.id) |
 | operatorTypeId | The comparison operator used to evaluate the upstream answer. | Long | — | Not Null, Foreign Key (OPERATOR_TYPE.id) |
-| upstreamStepId | The step the upstream question must be within, if constrained. | Long | — | Optional, Foreign Key (STEP.id) |
-| upstreamQuestionId | The question whose answer is evaluated. | Long | — | Not Null, Foreign Key (SECTIONS_QUESTION.id) |
-| downstreamStepId | The step affected by this rule, if the action targets a step. | Long | — | Optional, Foreign Key (STEP.id) |
-| downstreamSectionId | The step/section mapping affected by this rule, if the action targets a section (despite the name, this references STEPS_SECTIONS, not SECTION directly). | Long | — | Optional, Foreign Key (STEPS_SECTIONS.id) |
-| downstreamQuestionId | The question affected by this rule, if the action targets a question. | Long | — | Optional, Foreign Key (SECTIONS_QUESTION.id) |
+| upstreamStepId | The durable id of the step the upstream question must be within, if constrained. | Long | — | Optional, Foreign Key (STEP.step_id) |
+| upstreamSqId | The durable id of the question placement whose answer is evaluated. | Long | — | Not Null, Foreign Key (SECTIONS_QUESTION.sections_question_id) |
+| downstreamStepId | The durable id of the step affected by this rule, if the action targets a step. | Long | — | Optional, Foreign Key (STEP.step_id) |
+| downstreamSsId | The durable id of the step/section mapping affected by this rule, if the action targets a section (this references STEPS_SECTIONS, not SECTION directly). | Long | — | Optional, Foreign Key (STEPS_SECTIONS.steps_sections_id) |
+| downstreamSqId | The durable id of the question placement affected by this rule, if the action targets a question. | Long | — | Optional, Foreign Key (SECTIONS_QUESTION.sections_question_id) |
+
+*Versioning note: the five endpoint columns hold durable ids and are plain columns on the Java entity, not JPA associations -- a durable id has one row per published version, so the row a rule points at is resolved with `Step.findAsOf` / `StepsSections.findAsOf` / `SectionsQuestion.findAsOf` at the respondent's snapshot anchor (UC-002 BR-009).*
 
 ### OPERATOR_TYPE
 

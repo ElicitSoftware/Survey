@@ -26,6 +26,7 @@
 | FR-014 | Post-Survey Redirect             | As a respondent, I want to be sent to a configured external URL after viewing my reports (when one is configured) so that I can continue to any follow-up destination. | UC-005   | Low      | Implemented |
 | FR-015 | Log Out                          | As a respondent, I want to log out and clear my session so that my survey data isn't accessible to the next person using this device.            | UC-006   | Medium   | Implemented |
 | FR-016 | Startup Diagnostics Report       | As a system operator, I want Survey to write a diagnostics report to its log shortly after it starts (what is running, both database connections and the latest migration, the resolved brand, whether every report service and post-survey action is reachable, and the settings that need attention) so that I can confirm a deployment is wired correctly without an administrator login. | UC-007   | Medium   | Implemented |
+| FR-017 | Rebuild Reporting Schema on Demand | As the Admin module, I want to ask Survey to rebuild the reporting star schema over HTTP right after I install or update a survey definition so that the new survey's dimensions, fact columns and views exist without anyone restarting Survey. | UC-008   | High     | Implemented |
 
 ## Non-Functional Requirements
 
@@ -40,6 +41,7 @@
 | NFR-007 | Unguessable Report Artifact Keys    | Any publicly reachable, unauthenticated download link (e.g., the PDF cache key) must use a cryptographically random identifier, not one derived from predictable inputs such as timestamps. | Security         | High     | In Progress |
 | NFR-008 | Diagnostics Never Leak Secrets      | The startup diagnostics report must never contain a password, client secret or token value; a secret is reported only as present or absent, and a password embedded in a JDBC URL is masked. | Security         | High     | Implemented |
 | NFR-009 | Bounded, Harmless Diagnostic Probes | Every diagnostic probe of an external target must give up within 5 seconds, must be a GET or a TCP connect that never carries respondent data, and must never delay or fail application startup. | Maintainability  | Medium   | Implemented |
+| NFR-010 | Idempotent, Non-Fatal Reporting Rebuild | The on-demand reporting rebuild must be safe to repeat (every step creates only what is missing or upserts by durable key), must serialise concurrent requests, and must report any failure as a status and message rather than letting it out of the request or affecting the running application. | Maintainability  | Medium   | Implemented |
 
 ## Constraints
 

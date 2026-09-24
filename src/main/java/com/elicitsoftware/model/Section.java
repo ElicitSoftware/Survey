@@ -78,4 +78,21 @@ public class Section extends PanacheEntityBase {
 
     @Column(name = "published_comment")
     public String publishedComment;
+
+    /**
+     * The version of the durable {@code section_id} in effect at {@code asOf} (research/
+     * Kimball_type_2.md, "Snapshot Anchor"). See {@link Step#findAsOf} for why durable keys
+     * are resolved through a finder rather than mapped as JPA associations.
+     *
+     * @param sectionId the durable {@code sections.section_id}; {@code null} yields {@code null}
+     * @param asOf      the respondent's snapshot anchor
+     * @return the section in effect at {@code asOf}, or {@code null} if none covers it
+     */
+    public static Section findAsOf(Integer sectionId, OffsetDateTime asOf) {
+        if (sectionId == null) {
+            return null;
+        }
+        return Section.<Section>find("sectionId = ?1 and effectiveFrom <= ?2 and effectiveTo > ?2", sectionId, asOf)
+                .singleResultOptional().orElse(null);
+    }
 }

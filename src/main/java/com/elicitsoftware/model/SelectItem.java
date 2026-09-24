@@ -15,6 +15,7 @@ import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 
 /**
  * The SelectItem class represents a selectable item within a survey and
@@ -83,4 +84,21 @@ public class SelectItem extends PanacheEntityBase {
     @Column(name = "select_group_version", nullable = false)
     public Integer selectGroupVersion = 0;
 
+    /**
+     * The item versions of a durable {@code select_group_id} in effect at {@code asOf}, in
+     * display order (research/Kimball_type_2.md, "Snapshot Anchor"). Replaces the former
+     * {@code SelectGroup.selectItems} collection mapping, which joined on the durable column
+     * and returned every version of every item once a revision existed.
+     *
+     * @param selectGroupId the durable {@code select_groups.select_group_id}
+     * @param asOf          the respondent's snapshot anchor
+     * @return the items in effect at {@code asOf}; empty when the id is {@code null} or has none
+     */
+    public static List<SelectItem> findByGroupAsOf(Integer selectGroupId, OffsetDateTime asOf) {
+        if (selectGroupId == null) {
+            return List.of();
+        }
+        return find("selectGroupId = ?1 and effectiveFrom <= ?2 and effectiveTo > ?2 order by displayOrder asc",
+                selectGroupId, asOf).list();
+    }
 }

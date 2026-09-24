@@ -65,7 +65,7 @@ public class ElicitCheckboxGroup extends ElicitComponent<CheckboxGroup<SelectIte
      */
     public ElicitCheckboxGroup(Answer answer) {
         super(new CheckboxGroup<SelectItem>(answer.displayText), answer);
-        component.setItems(answer.question.selectGroup.selectItems);
+        component.setItems(answer.getSelectItems());
         component.setItemLabelGenerator(item -> item.displayText);
         if (answer.getTextValue() != null && !answer.getTextValue().isEmpty()) {
             setValue(answer);
@@ -108,7 +108,7 @@ public class ElicitCheckboxGroup extends ElicitComponent<CheckboxGroup<SelectIte
         HashSet<SelectItem> selected = new HashSet<SelectItem>();
 
         if (answer.getTextValue() != null) {
-            for (SelectItem item : answer.question.selectGroup.selectItems) {
+            for (SelectItem item : answer.getSelectItems()) {
                 if (answer.getTextValue().contains(item.codedValue)) {
                     selected.add(item);
                 }

@@ -60,7 +60,7 @@ public class ElicitComboBox extends ElicitComponent<ComboBox<SelectItem>> {
      */
     public ElicitComboBox(Answer answer) {
         super(new ComboBox<SelectItem>(answer.displayText), answer);
-        component.setItems(answer.question.selectGroup.selectItems);
+        component.setItems(answer.getSelectItems());
         component.setItemLabelGenerator(item -> item.displayText);
     }
 
@@ -103,7 +103,7 @@ public class ElicitComboBox extends ElicitComponent<ComboBox<SelectItem>> {
     @Override
     void setValue(Answer answer) {
         if (answer.getTextValue() != null) {
-            for (SelectItem item : answer.question.selectGroup.selectItems) {
+            for (SelectItem item : answer.getSelectItems()) {
                 if (item.codedValue.equals(answer.getTextValue())) {
                     component.setValue(item);
                     break;

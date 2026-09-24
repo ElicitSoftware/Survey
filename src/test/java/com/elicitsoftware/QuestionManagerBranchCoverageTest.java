@@ -26,6 +26,7 @@ import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -217,6 +218,95 @@ class QuestionManagerBranchCoverageTest {
                 "buildRepeatedStep is currently an unimplemented stub — no StepThree answers must be created");
     }
 
+    // ── REPEAT, question-only rule (downstream_step_id and downstream_ss_id both NULL) ──
+
+    private long insertQuestion(Integer surveyId, int typeId, String text, String shortText) {
+        return ((Number) em.createNativeQuery(
+                "INSERT INTO survey.questions(id, survey_id, type_id, text, short_text, tool_tip, required, "
+                        + "min_value, max_value, validation_text, select_group_id, mask, placeholder, default_value, question_key) "
+                        + "VALUES (NEXTVAL('survey.questions_seq'), ?1, ?2, ?3, ?4, '', false, "
+                        + "NULL, NULL, NULL, NULL, NULL, NULL, NULL, gen_random_uuid()) RETURNING id")
+                .setParameter(1, surveyId).setParameter(2, typeId).setParameter(3, text).setParameter(4, shortText)
+                .getSingleResult()).longValue();
+    }
+
+    /** Inserts a sections_questions row and returns its durable {@code sections_question_id}. */
+    private long insertSectionsQuestion(Integer surveyId, long questionId, Integer sectionId, int displayOrder) {
+        return ((Number) em.createNativeQuery(
+                "INSERT INTO survey.sections_questions(id, survey_id, question_id, section_id, display_order, sections_question_key) "
+                        + "VALUES (NEXTVAL('survey.sections_questions_seq'), ?1, ?2, ?3, ?4, gen_random_uuid()) "
+                        + "RETURNING sections_question_id")
+                .setParameter(1, surveyId).setParameter(2, questionId).setParameter(3, sectionId).setParameter(4, displayOrder)
+                .getSingleResult()).longValue();
+    }
+
+    /**
+     * UC-002 A3 (a question repeats based on a numeric answer): a REPEAT rule may name only its
+     * target question -- {@code downstream_step_id} and {@code downstream_ss_id} both NULL -- when
+     * that question sits in the upstream question's own section. That is the shape Author stores
+     * for a same-section repeat, and the only shape that can work inside the survey's first step:
+     * {@code getInitialStepSectionsQuestion} hides every question of any section or step a rule
+     * names as its downstream, so a first-step REPEAT that named its section would hide the
+     * section it lives in.
+     * <p>
+     * {@code buildRepeatedAnswers} used to dereference {@code relationship.downstreamStep.id} and
+     * {@code relationship.downstreamSection.id} unconditionally while computing the key it looks
+     * existing instances up by, so this shape threw a NullPointerException out of
+     * {@code QuestionService.saveAnswer}, rolled the count answer back with it, and surfaced only
+     * as SectionView's "Error saving answer" notification. The instances' own key a few lines
+     * below already fell back to the upstream answer's step and section; the lookup key now does
+     * the same.
+     */
+    @Test
+    @TestTransaction
+    void repeatQuestionOnlyRule_repeatsTargetInsideUpstreamsOwnSection() {
+        Integer surveyId = surveyId();
+        Integer stepOne = stepOneId(surveyId);
+        Integer sectionOne = sectionOneId(surveyId);
+
+        // Q_D (INTEGER, display_order 3) counts; Q_E (TEXT, display_order 4) is repeated that many
+        // times. Both live in BranchSectionOne, alongside the fixture's Q_A and Q_B.
+        long qD = insertQuestion(surveyId, 5, "How many names will you give?", "Q_D");
+        long qE = insertQuestion(surveyId, 8, "A name", "Q_E");
+        long sqD = insertSectionsQuestion(surveyId, qD, sectionOne, 3);
+        long sqE = insertSectionsQuestion(surveyId, qE, sectionOne, 4);
+        Number stepOneDurable = (Number) em.createNativeQuery("SELECT step_id FROM survey.steps WHERE id = ?1")
+                .setParameter(1, stepOne).getSingleResult();
+
+        // GREATER_THAN '0' (operator 2) REPEAT (action 2) -> Q_E only: no step, no section.
+        em.createNativeQuery("INSERT INTO survey.relationships(id, survey_id, upstream_step_id, upstream_sq_id, "
+                        + "downstream_step_id, downstream_ss_id, downstream_sq_id, "
+                        + "operator_id, action_id, description, token, reference_value, default_upstream_value, relationship_key) "
+                        + "VALUES (NEXTVAL('survey.relationships_seq'), ?1, ?2, ?3, NULL, NULL, ?4, "
+                        + "2, 2, 'Repeat Q_E (question-only REPEAT) Q_D times', NULL, '0', '', gen_random_uuid())")
+                .setParameter(1, surveyId).setParameter(2, stepOneDurable.longValue())
+                .setParameter(3, sqD).setParameter(4, sqE)
+                .executeUpdate();
+
+        Respondent r = createFreshRespondent(surveyId);
+        questionManager.init(r.id.intValue(), initialDisplayKey(surveyId));
+
+        String sectionPrefix = String.format("%04d-%04d-0000-%04d-0000", surveyId, stepOne, sectionOne);
+        Answer countAnswer = Answer.findByDisplayKeyActive(r.id.intValue(), sectionPrefix + "-0003-0000");
+        assertNotNull(countAnswer, "Q_D is not any rule's downstream, so init() must seed it");
+        assertEquals(0, Answer.count("respondentId = ?1 and displayKey like ?2 and deleted = false",
+                        r.id, sectionPrefix + "-0004-%"),
+                "Q_E is a rule's downstream question, so init() must not seed it");
+
+        assertDoesNotThrow(() -> saveAnswer(countAnswer, "2"),
+                "a question-only REPEAT rule must not throw on the count answer");
+
+        assertNotNull(Answer.findByDisplayKeyActive(r.id.intValue(), sectionPrefix + "-0004-0001"),
+                "instance 1 of Q_E must exist in the upstream question's own step and section");
+        assertNotNull(Answer.findByDisplayKeyActive(r.id.intValue(), sectionPrefix + "-0004-0002"),
+                "instance 2 of Q_E must exist in the upstream question's own step and section");
+        assertEquals(2, Answer.count("respondentId = ?1 and displayKey like ?2 and deleted = false",
+                        r.id, sectionPrefix + "-0004-%"),
+                "exactly the counted number of Q_E instances must exist");
+        assertEquals("2", Answer.findByDisplayKeyActive(r.id.intValue(), sectionPrefix + "-0003-0000").getTextValue(),
+                "the count answer itself must have been kept");
+    }
+
     // ── Entity field round-trips (fields research/Kimball_type_2.md renames/retypes) ──
 
     @Test
@@ -225,10 +315,14 @@ class QuestionManagerBranchCoverageTest {
         Relationship r = Relationship.find("description = ?1",
                 "Show StepTwo (step-only SHOW branch) when Q_A is checked").firstResult();
         assertNotNull(r, "R_show_step must exist in the fixture");
-        assertNull(r.downstreamSection,
+        assertNull(r.downstreamSsId,
                 "R_show_step deliberately leaves downstream_s_id NULL (step-only SHOW)");
-        assertNotNull(r.downstreamStep, "R_show_step.downstreamStep must be populated");
-        assertEquals(BigDecimal.valueOf(stepTwoId(surveyId)), r.downstreamStep.displayOrder,
+        assertNotNull(r.downstreamStepId, "R_show_step.downstreamStepId must be populated");
+        // The endpoint is a durable id, resolved as of an anchor (here: now, the fixture has one
+        // version) rather than through a JPA association.
+        Step downstreamStep = Step.findAsOf(r.downstreamStepId, OffsetDateTime.now());
+        assertNotNull(downstreamStep, "the durable downstream step id must resolve as of now");
+        assertEquals(BigDecimal.valueOf(stepTwoId(surveyId)), downstreamStep.displayOrder,
                 "downstreamStep must resolve to BranchStepTwo (display_order == its own id, by fixture construction)");
     }
 

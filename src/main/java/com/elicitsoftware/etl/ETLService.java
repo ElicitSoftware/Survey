@@ -22,6 +22,7 @@ import jakarta.transaction.Transactional;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.util.List;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * The ETLService class is responsible for performing Extract, Transform, and Load (ETL) operations
@@ -113,6 +114,98 @@ public class ETLService {
             Log.info("ETL Service Init found records in surveyreport.dim_section, No initialization needed.");
         }
         populateAllFactSectionsTable();
+    }
+
+    /** Outcome of {@link #rebuildReportingSchema()}. */
+    public enum RebuildStatus {
+        /** The build sequence ran to completion. */
+        OK,
+        /** {@code elicit.etl.enabled=false}: nothing was touched. */
+        DISABLED,
+        /** The build threw; the failing step was rolled back and the cause is in the message. */
+        FAILED
+    }
+
+    /**
+     * What {@link #rebuildReportingSchema()} did.
+     *
+     * @param status  whether the build ran, was disabled, or failed
+     * @param message a one-line summary, the disabled reason, or the failure's root cause
+     */
+    public record RebuildResult(RebuildStatus status, String message) {
+    }
+
+    /** Serialises concurrent rebuild requests; the DDL steps are not safe to interleave. */
+    private final ReentrantLock rebuildLock = new ReentrantLock();
+
+    /**
+     * Runs the startup build sequence again for the whole site, on request (UC-008).
+     * <p>
+     * {@link #init()} only builds when {@code surveyreport.dim_section} is still empty, so a
+     * survey definition the Admin module installs or updates after startup gets no dimension
+     * tables, no fact_sections columns and no view columns until this application restarts.
+     * This method is what Admin calls instead. Every step is idempotent -- the dimension
+     * upserts are keyed on the durable step/section ids, the table and column builders only
+     * create what does not exist yet, and the views are dropped and recreated -- so it can be
+     * called as often as needed and runs the same code the startup build does.
+     * <p>
+     * Known limitation, surfaced rather than fixed: {@code surveyreport.dim_step.value} and
+     * {@code dim_section.value} are unique per site ({@code dim_step_un}, {@code dim_section_un}).
+     * Two surveys that share a step or section dimension name make the upsert throw a
+     * duplicate-key error, which comes back here as {@link RebuildStatus#FAILED} with that
+     * message. Revisions of one survey are fine: the upsert is {@code ON CONFLICT (step_id)}.
+     * <p>
+     * Never throws: a failure is logged at ERROR and returned, so the caller can report it
+     * without the request blowing up.
+     *
+     * @return what happened, with a message fit for an operator
+     */
+    public RebuildResult rebuildReportingSchema() {
+        if (!etlEnabled) {
+            return new RebuildResult(RebuildStatus.DISABLED,
+                    "Reporting ETL is disabled (elicit.etl.enabled=false)");
+        }
+        rebuildLock.lock();
+        try {
+            long surveys = countSurveys();
+            if (surveys == 0) {
+                return new RebuildResult(RebuildStatus.OK,
+                        "No survey is installed (survey.surveys is empty); nothing to build.");
+            }
+            Log.info("Rebuilding the reporting schema on request.");
+            StringBuilder summary = new StringBuilder();
+            summary.append("Step dimensions upserted: ").append(updateStepDimensionTable());
+            summary.append("; section dimensions upserted: ").append(updateSectionDimensionTable());
+            summary.append("; ").append(buildDimensionTables());
+            summary.append("; fact_respondents_view: ").append(buildFactRespondentsView());
+            summary.append("; fact_sections columns: ").append(buildFactSectionTable().replace('\n', ' ').trim());
+            String view = buildFactSectionView();
+            summary.append("; fact_sections_view: ")
+                    .append(view.startsWith("CREATE") ? "recreated" : view);
+            summary.append("; respondents back-filled into fact_sections: ").append(populateAllFactSectionsTable());
+            String message = summary.toString();
+            Log.info("Reporting schema rebuilt: " + message);
+            return new RebuildResult(RebuildStatus.OK, message);
+        } catch (Exception e) {
+            Log.error("Reporting schema rebuild failed", e);
+            return new RebuildResult(RebuildStatus.FAILED, rootMessage(e));
+        } finally {
+            rebuildLock.unlock();
+        }
+    }
+
+    /**
+     * The innermost cause's message: a duplicate-key failure arrives wrapped in
+     * {@link DatabaseRetryUtil}'s RuntimeException and Hibernate's PersistenceException, and
+     * the driver's own text is the one that names the constraint.
+     */
+    static String rootMessage(Throwable e) {
+        Throwable root = e;
+        while (root.getCause() != null && root.getCause() != root) {
+            root = root.getCause();
+        }
+        String message = root.getMessage();
+        return message == null || message.isBlank() ? root.getClass().getName() : message.trim();
     }
 
     /**
@@ -225,8 +318,10 @@ public class ETLService {
      * 1. Logs the progress of the operation, indicating the current step and total respondents to process.
      * 2. Invokes the populateFactSectionTable method to populate the fact section data for the given respondent ID.
      * 3. Logs the result of the population operation for each respondent.
+     *
+     * @return the number of respondents processed
      */
-    private void populateAllFactSectionsTable() {
+    private int populateAllFactSectionsTable() {
 
         Query respondentsQuery = entityManager.createNativeQuery(Sql.FIND_MISSING_FACT_SECTION_RESPONDENTS);
         @SuppressWarnings("unchecked")
@@ -239,6 +334,7 @@ public class ETLService {
             Log.info(populateFactSectionTable(id));
             r++;
         }
+        return respondents.size();
     }
 
     /**

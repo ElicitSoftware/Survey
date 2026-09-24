@@ -71,7 +71,11 @@ import java.util.*;
         @NamedQuery(name = "Answer.findByAnswerQueryString", query = "SELECT a FROM Answer a WHERE a.deleted = false and a.displayKey Like :answerQuery and a.respondentId = :respondentId order by a.displayKey"),
         @NamedQuery(name = "Answer.findBySectionInstancesQueryString", query = "SELECT a FROM Answer a WHERE a.deleted = false and a.question is null and a.displayKey Like :sectionQuery and a.respondentId = :respondentId order by a.displayKey"),
         @NamedQuery(name = "Answer.findBySectionDisplaykey", query = "SELECT DISTINCT a FROM Answer a WHERE a.deleted = false and a.respondentId = :respondentId AND a.surveyId = :surveyId and a.stepId = :stepId and a.stepInstance = :stepInstance and a.sectionId = :sectionId and a.sectionInstance = :sectionInstance order by a.displayKey"),
-        @NamedQuery(name = "Answer.findUpstreamAnswerByRelationshipId", query = "SELECT a FROM Answer a inner JOIN Relationship r ON a.stepId = r.upstreamStep.id AND a.section_question_id = r.upstreamQuestion.id WHERE a.respondentId = :respondentId and r.id = :relationshipID order by a.displayKey")})
+        // r.upstreamSqId is the durable sections_question_id while a.section_question_id pins a
+        // surrogate row, so the two are bridged through SectionsQuestion. (QuestionManager uses
+        // its own native lookup that also resolves the upstream step; this query is kept for
+        // the static finder below.)
+        @NamedQuery(name = "Answer.findUpstreamAnswerByRelationshipId", query = "SELECT a FROM Answer a, Relationship r, SectionsQuestion sq WHERE r.id = :relationshipID and sq.sectionsQuestionId = r.upstreamSqId and a.section_question_id = sq.id and a.respondentId = :respondentId order by a.displayKey")})
 public class Answer extends PanacheEntityBase {
 
     /**
@@ -278,6 +282,15 @@ public class Answer extends PanacheEntityBase {
     public Integer questionVersion = 0;
 
     /**
+     * The select items this answer's question offers, as of the respondent's snapshot anchor
+     * (research/Kimball_type_2.md). {@code questions.select_group_id} is a durable id and every
+     * item has one row per version, so the items are not reachable through a JPA association;
+     * {@link #getSelectItems()} resolves them once and caches them here for the UI wrappers.
+     */
+    @Transient
+    private List<SelectItem> selectItems;
+
+    /**
      * Indicates whether the answer has been marked as deleted.
      * The default value is `false`, meaning the answer is not deleted.
      * This field is used for soft deletion, allowing the answer to be marked
@@ -348,16 +361,21 @@ public class Answer extends PanacheEntityBase {
      *
      * @param key              the DisplayKey associated with this Answer
      * @param sectionsQuestion the SectionsQuestion object containing question details
+     * @param question         the version of the placed question in effect at the respondent's
+     *                         snapshot anchor; ignored when {@code sectionsQuestion} is null
      * @param displayText      the text to be displayed for this Answer
      * @param respondentId     the identifier of the respondent associated with this Answer
      */
-    public Answer(DisplayKey key, SectionsQuestion sectionsQuestion, String displayText, int respondentId) {
+    public Answer(DisplayKey key, SectionsQuestion sectionsQuestion, Question question, String displayText, int respondentId) {
         super();
         setDisplayKeyValues(key);
         this.displayText = displayText;
         this.respondentId = respondentId;
         if (sectionsQuestion != null) {
-            this.question = sectionsQuestion.question;
+            // The question is passed in rather than read off the placement: sections_questions
+            // .question_id is a durable id, and the caller resolved the version in effect at
+            // the respondent's snapshot anchor (Question.findAsOf).
+            this.question = question;
             this.section_question_id = sectionsQuestion.id;
             // Pin the version of the question actually shown, per research/Kimball_type_2.md
             // Gap ETL-2 — question.id already pins the exact surrogate row, so this is safe
@@ -371,18 +389,21 @@ public class Answer extends PanacheEntityBase {
      *
      * @param key              the display key associated with the answer
      * @param sectionsQuestion the sections question object that contains the question and section question ID
+     * @param question         the version of the placed question in effect at the respondent's
+     *                         snapshot anchor; ignored when {@code sectionsQuestion} is null
      * @param displayText      the text to be displayed for this answer
      * @param respondentId     the identifier of the respondent who provided this answer
      * @param textValue        the textual value of the answer, may also represent a comma-separated list
      */
-    public Answer(DisplayKey key, SectionsQuestion sectionsQuestion, String displayText,
+    public Answer(DisplayKey key, SectionsQuestion sectionsQuestion, Question question, String displayText,
                   int respondentId, String textValue) {
         super();
         setDisplayKeyValues(key);
         this.displayText = displayText;
         this.respondentId = respondentId;
         if (sectionsQuestion != null) {
-            this.question = sectionsQuestion.question;
+            // See the constructor above for why the question is resolved by the caller.
+            this.question = question;
             this.section_question_id = sectionsQuestion.id;
             // Pin the version of the question actually shown, per research/Kimball_type_2.md
             // Gap ETL-2 — question.id already pins the exact surrogate row, so this is safe
@@ -613,6 +634,33 @@ public class Answer extends PanacheEntityBase {
     }
 
     /**
+     * The select items this answer's question offers, as of the respondent's snapshot anchor
+     * (research/Kimball_type_2.md, "Snapshot Anchor"). Resolved on first use through
+     * {@link SelectItem#findByGroupAsOf} and cached; {@link #setSelectItems} lets a caller
+     * that already holds the list (or a unit test with no database) supply it instead.
+     *
+     * @return the items in display order; empty when the question has no select group
+     */
+    @Transient
+    public List<SelectItem> getSelectItems() {
+        if (selectItems == null) {
+            selectItems = (question == null || question.selectGroupId == null)
+                    ? List.of()
+                    : SelectItem.findByGroupAsOf(question.selectGroupId, Respondent.snapshotAnchor(respondentId));
+        }
+        return selectItems;
+    }
+
+    /**
+     * Supplies the select items to offer, bypassing the lookup in {@link #getSelectItems()}.
+     *
+     * @param selectItems the items in display order
+     */
+    public void setSelectItems(List<SelectItem> selectItems) {
+        this.selectItems = selectItems;
+    }
+
+    /**
      * Retrieves the selected item from the associated question's select group
      * based on the current text value of this answer.
      *
@@ -624,7 +672,7 @@ public class Answer extends PanacheEntityBase {
     public SelectItem getSelectedItem() {
         if (this.textValue != null && (question.questionType.name.equals(GlobalStrings.QUESTION_TYPE_RADIO)
                 || question.questionType.name.equals(GlobalStrings.QUESTION_TYPE_CHECKBOX))) {
-            for (SelectItem item : question.selectGroup.selectItems) {
+            for (SelectItem item : getSelectItems()) {
                 if (item.codedValue.equals(this.textValue)) {
                     return item;
                 }
@@ -662,7 +710,7 @@ public class Answer extends PanacheEntityBase {
         HashSet<SelectItem> selectedItems = new HashSet<>();
         if (this.textValue != null && (question.questionType.name.equals(GlobalStrings.QUESTIION_TYPE_CHECKBOX_GROUP)
                 || question.questionType.name.equals(GlobalStrings.QUESTIION_TYPE_MULTI_SELECT_COMBOBOX))) {
-            for (SelectItem item : question.selectGroup.selectItems) {
+            for (SelectItem item : getSelectItems()) {
                 String[] values = this.textValue.split(",");
                 for (String value : values) {
                     if (item.codedValue.equals(value)) {

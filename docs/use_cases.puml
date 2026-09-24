@@ -6,6 +6,7 @@ actor "Respondent" as Respondent
 actor "External Report Service" as ReportSvc
 actor "External Post-Survey-Action Service" as PsaSvc
 actor "System Operator" as Operator
+actor "Admin Module" as AdminApp
 
 rectangle "Elicit Survey" {
   usecase "UC-001\nEnter Survey via Access Code" as UC001
@@ -15,6 +16,7 @@ rectangle "Elicit Survey" {
   usecase "UC-005\nView Reports & Download PDF" as UC005
   usecase "UC-006\nLog Out" as UC006
   usecase "UC-007\nLog Startup Diagnostics" as UC007
+  usecase "UC-008\nRebuild Reporting Schema" as UC008
 }
 
 Respondent --> UC001
@@ -24,6 +26,7 @@ Respondent --> UC004
 Respondent --> UC005
 Respondent --> UC006
 Operator --> UC007 : reads the log
+AdminApp --> UC008 : POST /api/etl/build\nafter applying a survey definition
 
 UC004 ..> UC005 : <<include>>\n(navigates to report view)
 UC002 ..> UC002 : <<extend>>\n(branching shows/hides/repeats\ndownstream questions)
