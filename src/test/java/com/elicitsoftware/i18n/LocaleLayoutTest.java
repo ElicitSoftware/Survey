@@ -28,7 +28,7 @@ import java.util.Locale;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * UC-008 BR-003/BR-004: direction and language attributes follow the locale, the invitation
+ * UC-009 BR-003/BR-004: direction and language attributes follow the locale, the invitation
  * link's {@code ?lang=} selects a language before the view is built, and the language switcher
  * offers the shipped locales.
  */

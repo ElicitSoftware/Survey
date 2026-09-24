@@ -29,7 +29,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Text direction per locale (UC-008 BR-004). Right-to-left is inferred from the language for the
+ * Text direction per locale (UC-009 BR-004). Right-to-left is inferred from the language for the
  * well-known RTL scripts; a deployment can override or extend that for a mounted locale through an
  * optional {@code i18n-config.json} at the translations mount root (falling back to the local
  * directory and then to {@code META-INF/i18n/i18n-config.json} on the classpath):

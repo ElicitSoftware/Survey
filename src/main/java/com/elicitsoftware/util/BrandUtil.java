@@ -72,7 +72,7 @@ public class BrandUtil {
         public boolean isDefaultBrand() { return DEFAULT_BRAND_KEY.equals(brandKey); }
 
         /**
-         * The display name for a locale (UC-008 BR-006): the brand's variant for the exact
+         * The display name for a locale (UC-009 BR-006): the brand's variant for the exact
          * language tag, then for the language alone, then the base name.
          */
         public String getDisplayName(Locale locale) {

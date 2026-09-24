@@ -21,7 +21,7 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * UC-008 / FR-021: the committed translation handoff document must match what the generator
+ * UC-009 / FR-022: the committed translation handoff document must match what the generator
  * produces from the English bundle; so must the copy in the deployment translations directory. The freshly generated copy is always written to
  * {@code target/i18n/TRANSLATION_REQUEST.md}; on drift, copy it over the committed file.
  */

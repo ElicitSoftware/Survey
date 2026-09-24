@@ -173,6 +173,18 @@ public Integer questionId;
 The `version` column has no generator — it is computed from the previous row's version
 at write time and supplied explicitly in the INSERT statement.
 
+**A durable-key reference is never a JPA association.** A column that holds another
+table's durable id (`steps_sections.step_id`, `sections_questions.question_id`,
+`questions.select_group_id`, the five endpoint columns of `relationships`, ...) is mapped
+as a plain `Integer` column, and the referenced row is resolved with an explicit as-of
+finder (`Step.findAsOf(stepId, asOf)`, `Question.findAsOf`, `SelectItem.findByGroupAsOf`,
+...) bound to the respondent's snapshot anchor. A `@ManyToOne(referencedColumnName =
+"<durable>")` looks right while every durable id still has a single row, but the moment a
+revision is published Hibernate finds two rows for the identifier and throws
+`More than one row with the given identifier was found`, which marks the transaction
+rollback-only. See "Runtime resolution of durable keys" under Open Questions below for
+the defect this caused and how it was found.
+
 ### Resolving the FK Cascade Problem via Durable Keys
 
 Join tables (`sections_questions`, `steps_sections`, `relationships`) reference **durable
@@ -1392,6 +1404,27 @@ versions, and the ontology assignment travels with it.
    all rows updated in a single publish transaction — whether the change is a content
    edit or a display reorder. Draft rows and pre-migration rows carry NULL in both
    columns. **Resolved.**
+
+8. **Runtime resolution of durable keys**: The first cut of the Survey runtime kept the
+   ten durable-key references (`StepsSections.step`/`.section`, `SectionsQuestion.question`,
+   `Question.selectGroup`, `SelectGroup.selectItems` and the five `Relationship` endpoints)
+   as JPA associations retargeted with `referencedColumnName` to the durable column. That
+   works only while every durable id has exactly one row. After Admin applied the first
+   revision, loading any of them (`StepsSections.section` → `select ... from sections where
+   section_id = $1`, verified with PostgreSQL statement logging) threw `More than one row
+   with the given identifier was found`; `QuestionManager` swallowed it in a silent
+   `catch (Exception e)`, the request completed normally and the commit became a silent
+   `ROLLBACK`, so a respondent whose first access came after the revision could not save
+   an answer. The fetch-joined `StepsSections` queries also applied the as-of window to
+   `steps_sections` only, duplicating rows once a step or section was versioned. Fixed by
+   mapping every durable-key reference as a plain column with an explicit as-of finder
+   anchored to the respondent (`Step.findAsOf`, `Section.findAsOf`, `StepsSections.findAsOf`,
+   `SectionsQuestion.findAsOf`, `Question.findAsOf`, `SelectGroup.findAsOf`,
+   `SelectItem.findByGroupAsOf`; `Respondent.snapshotAnchor` supplies the instant), by
+   dropping the fetch joins, and by replacing the silent catches so a failed structural
+   lookup propagates. Covered by `QuestionManagerVersionedStructureTest` (UC-002 BR-009),
+   which versions every structure table and drives one respondent anchored before the
+   revision and one after it through the household survey. **Resolved.**
 
 ---
 

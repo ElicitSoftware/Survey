@@ -21,9 +21,9 @@
 
 | Step | Name                      | Description                                                                                                   | Test Data        | Use Case                                                          |
 |------|---------------------------|---------------------------------------------------------------------------------------------------------------|------------------|-------------------------------------------------------------------|
-| 1    | Open Spanish link         | The respondent opens the login page from a link that carries the Spanish language                             | es-419           | [UC-008](../use_cases/UC-008-complete-the-survey-in-my-language.md) |
+| 1    | Open Spanish link         | The respondent opens the login page from a link that carries the Spanish language                             | es-419           | [UC-009](../use_cases/UC-009-complete-the-survey-in-my-language.md) |
 | 2    | Verify Spanish login page | The access code label, login button and page title are shown in Spanish and the page is laid out left-to-right | -                | -                                                                 |
-| 3    | Switch to Arabic          | The respondent chooses Arabic in the language selector                                                        | ar               | [UC-008](../use_cases/UC-008-complete-the-survey-in-my-language.md) |
+| 3    | Switch to Arabic          | The respondent chooses Arabic in the language selector                                                        | ar               | [UC-009](../use_cases/UC-009-complete-the-survey-in-my-language.md) |
 | 4    | Verify Arabic login page  | The same texts are shown in Arabic, the page direction is right-to-left and the document language is Arabic   | -                | -                                                                 |
 | 5    | Log in                    | The respondent enters an access code and logs in                                                              | TESTCODE1        | [UC-001](../use_cases/UC-001-enter-survey-via-access-code.md)     |
 | 6    | Verify Arabic section     | The first section shows its navigation buttons in Arabic while the question text appears as authored          | -                | -                                                                 |

@@ -41,7 +41,7 @@ import java.util.regex.Pattern;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * UC-008 / NFR-010 backstop: with the pseudo-locale every translated text renders as
+ * UC-009 / NFR-011 backstop: with the pseudo-locale every translated text renders as
  * {@code ⟦key⟧}, so any prose-like text on a rendered route that lacks the marker bypassed the
  * provider. Subtrees flagged {@code data-i18n-content} carry survey content and are skipped.
  */
@@ -155,7 +155,7 @@ class DisplayedStringsSweepTest extends QuarkusBrowserlessTest {
     }
 
     private static String report(List<String> problems) {
-        return problems.size() + " untranslated text(s) rendered (UC-008 / NFR-010):\n  " + String.join("\n  ", problems);
+        return problems.size() + " untranslated text(s) rendered (UC-009 / NFR-011):\n  " + String.join("\n  ", problems);
     }
 
     private Respondent createRespondent(boolean active) {

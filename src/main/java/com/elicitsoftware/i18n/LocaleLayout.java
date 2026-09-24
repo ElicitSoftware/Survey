@@ -19,7 +19,7 @@ import jakarta.inject.Inject;
 import java.util.Locale;
 
 /**
- * Applies the layout consequences of a locale to a UI (UC-008 BR-004): the Vaadin text direction,
+ * Applies the layout consequences of a locale to a UI (UC-009 BR-004): the Vaadin text direction,
  * the {@code dir} and {@code lang} attributes on the UI element (which browserless tests can
  * assert on) and the same attributes on the document element for the browser.
  */

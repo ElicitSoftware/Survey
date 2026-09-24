@@ -13,10 +13,11 @@ package com.elicitsoftware.flow.input;
 
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
-import com.elicitsoftware.model.SelectGroup;
 import com.elicitsoftware.model.SelectItem;
 
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * In-memory Question/Answer graphs for exercising the Elicit* input field wrappers
@@ -30,11 +31,18 @@ final class ElicitAnswerFixtures {
     private ElicitAnswerFixtures() {
     }
 
+    // Select items are resolved per respondent as of their snapshot anchor (UC-002), so at
+    // runtime they hang off the Answer (Answer.getSelectItems()), not the Question. The
+    // fixtures keep the "question carries its options" shape the tests are written in by
+    // remembering the items handed to selectQuestion() and attaching them to the answer here.
+    private static final Map<Question, List<SelectItem>> ITEMS = new IdentityHashMap<>();
+
     static Answer answer(String displayKey, String displayText, Question question, String textValue) {
         Answer answer = new Answer();
         answer.displayKey = displayKey;
         answer.displayText = displayText;
         answer.question = question;
+        answer.setSelectItems(ITEMS.getOrDefault(question, List.of()));
         answer.setTextValue(textValue);
         return answer;
     }
@@ -59,9 +67,7 @@ final class ElicitAnswerFixtures {
 
     static Question selectQuestion(boolean required, String validationText, List<SelectItem> items) {
         Question question = question(required, null, null, null, validationText);
-        SelectGroup group = new SelectGroup();
-        group.selectItems = items;
-        question.selectGroup = group;
+        ITEMS.put(question, items);
         return question;
     }
 

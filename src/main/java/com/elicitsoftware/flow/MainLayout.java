@@ -56,7 +56,7 @@ public class MainLayout extends AppLayout implements AfterNavigationListener {
     @Inject
     BrandUtil brandUtil;
 
-    /** Remembers the language the respondent picks (UC-008). */
+    /** Remembers the language the respondent picks (UC-009). */
     @Inject
     LocaleSelection localeSelection;
 
@@ -148,7 +148,7 @@ public class MainLayout extends AppLayout implements AfterNavigationListener {
         title.addClassName("brand-title");
         headerContainer.add(title);
 
-        // Language selector (UC-008): every page offers the shipped and mounted languages.
+        // Language selector (UC-009): every page offers the shipped and mounted languages.
         headerContainer.add(new LanguageSwitcher(localeSelection, i18nProvider));
         
         // Add header to navbar

@@ -568,6 +568,11 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                     buildQuestions();
                 }
             } catch (Exception e) {
+                // The notification is all the respondent sees; without this line the failure
+                // (a NullPointerException from a mis-shaped branching rule, say) left no trace
+                // anywhere an operator could find it.
+                Log.error("Saving answer " + answer.getDisplayKey() + " for respondent "
+                        + answer.respondentId + " failed", e);
                 Notification.show(getTranslation("sectionView.error.saveAnswer"), 3000, Notification.Position.MIDDLE);
             } finally {
                 // Decrement pending operations counter

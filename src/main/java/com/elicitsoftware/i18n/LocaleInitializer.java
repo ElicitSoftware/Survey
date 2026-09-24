@@ -19,7 +19,7 @@ import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 
 /**
- * Establishes the locale of every new UI (UC-008 BR-003): a locale remembered in the session wins,
+ * Establishes the locale of every new UI (UC-009 BR-003): a locale remembered in the session wins,
  * otherwise Vaadin's Accept-Language negotiation stands; either way the layout direction is applied.
  * A {@code ?lang=} query parameter on any route (the invitation link carries one) selects and
  * remembers that language before the view is built.

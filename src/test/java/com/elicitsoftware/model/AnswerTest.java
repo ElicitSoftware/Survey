@@ -42,10 +42,10 @@ class AnswerTest {
         Answer answer = new Answer();
         Question question = new Question();
         question.questionType = type;
-        SelectGroup group = new SelectGroup();
-        group.selectItems = items;
-        question.selectGroup = group;
         answer.question = question;
+        // Select items are resolved per respondent as of their snapshot anchor (UC-002), so
+        // they hang off the answer, not the question; supply them directly here.
+        answer.setSelectItems(items);
         return answer;
     }
 
@@ -63,9 +63,8 @@ class AnswerTest {
         SectionsQuestion sq = new SectionsQuestion();
         sq.id = 99;
         Question question = new Question();
-        sq.question = question;
 
-        Answer answer = new Answer(key, sq, "Display text", 7);
+        Answer answer = new Answer(key, sq, question, "Display text", 7);
 
         assertEquals("Display text", answer.displayText);
         assertEquals(7, answer.respondentId);
@@ -78,7 +77,7 @@ class AnswerTest {
     @Test
     void constructor_withNullSectionsQuestion_leavesQuestionAndSectionQuestionIdNull() {
         DisplayKey key = new DisplayKey("1-2-0-0-0-0-0");
-        Answer answer = new Answer(key, null, "text", 7);
+        Answer answer = new Answer(key, null, null, "text", 7);
 
         assertNull(answer.question);
         assertNull(answer.section_question_id);
@@ -93,7 +92,7 @@ class AnswerTest {
         // behavior rather than the comment's broader claim.
         DisplayKey key = new DisplayKey("1-2-0-3-0-0-0");
 
-        Answer answer = new Answer(key, null, "text", 7);
+        Answer answer = new Answer(key, null, null, "text", 7);
 
         assertNull(answer.section_question_id);
         assertEquals(0, answer.sectionInstance);
@@ -103,7 +102,7 @@ class AnswerTest {
     @Test
     void constructor_withTextValue_splitsIntoTextArrayAndStampsSavedDt() {
         DisplayKey key = new DisplayKey("1-1-0-1-0-1-0");
-        Answer answer = new Answer(key, null, "text", 7, "a,b,c");
+        Answer answer = new Answer(key, null, null, "text", 7, "a,b,c");
 
         assertEquals("a,b,c", answer.getTextValue());
         assertEquals(List.of("a", "b", "c"), answer.textArray);
@@ -113,7 +112,7 @@ class AnswerTest {
     @Test
     void constructor_withNullTextValue_leavesTextArrayAndSavedDtUntouched() {
         DisplayKey key = new DisplayKey("1-1-0-1-0-1-0");
-        Answer answer = new Answer(key, null, "text", 7, null);
+        Answer answer = new Answer(key, null, null, "text", 7, null);
 
         assertNull(answer.getTextValue());
         assertNull(answer.savedDt);

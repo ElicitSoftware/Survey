@@ -5,7 +5,7 @@
 Source: the 2020 design in `../Survey_i18n/survey_ms_question` (its `I18nEntity.java`,
 `Question.java` with `@PostLoad internationalize()`, and the Flyway scripts under
 `src/main/resources/db/migration`); this module's `docs/requirements.md` (C-014,
-FR-017 to FR-022), UC-008, `docs/entity_model.md`, `research/Kimball_type_2.md`,
+FR-018 to FR-023), UC-009, `docs/entity_model.md`, `research/Kimball_type_2.md`,
 `QuestionManager.java`, `QuestionService.java`, `etl/Sql.java`, the `i18n` package and
 the two Flyway tracks; Author's `docs/requirements.md` (C-015, C-017, C-019, C-021,
 NFR-011, FR-036), UC-034, `author/definition/ElicitFormat.java`,
@@ -239,8 +239,8 @@ never read by the question service.
 | `@PostLoad` projecting `languages.get(lang)` into fields | Idea survives, mechanics do not | It overwrote mapped fields on managed entities (a dirty write of Spanish into `questions.text` at flush); it is one lazy select per entity; it bakes the load-time language into detached entities; it lives in classes the ETL and Author share. |
 | English fallback | Survives as "fall back to the base row" | The base language becomes a survey attribute; the fallback is the row itself and cannot NPE. |
 | `display_text` plus `display_text_en` on answers | Survives, inverted | Keep `display_text` as the base text so nothing downstream moves; add a localized copy beside it. |
-| `respondents.lang` | Dropped | Nothing needs it, and UC-008 BR-007 says the language choice is session-only. |
-| Review as a view with `_en/_es/_ar` columns | Cannot be ported | Languages are open-ended (mounted overlays, FR-019). The review SQL takes `:language` and joins the translations table. |
+| `respondents.lang` | Dropped | Nothing needs it, and UC-009 BR-007 says the language choice is session-only. |
+| Review as a view with `_en/_es/_ar` columns | Cannot be ported | Languages are open-ended (mounted overlays, FR-020). The review SQL takes `:language` and joins the translations table. |
 | Spanish seeded by migration on literal ids | Cannot be ported | Content is authored in Author and travels in the `.elicit` file. |
 
 ## 2. What today's codebase imposes
@@ -392,7 +392,7 @@ the released V2 migrations and must not change. The latest version is V016 in bo
 
 Survey `docs/requirements.md` C-014: "Only application chrome is localized. Survey
 content stored in the database ... is presented in the language it was authored in;
-content translation is tracked on a separate branch." UC-008 BR-005 says content keeps
+content translation is tracked on a separate branch." UC-009 BR-005 says content keeps
 its authored language; BR-007 says the language choice never crosses sessions and
 nothing about it is stored with the respondent. Author `docs/requirements.md` C-021 and
 UC-034 BR-005 say the same for authored content and the exported file. This design
@@ -656,7 +656,7 @@ survey.
 The session locale drives content exactly as it drives chrome. No `respondents.language`
 column: nothing needs it (the nav and review SQL take `:language` from the session, and
 each answer records the language it was rendered in), and pre-selecting a language on
-the next visit is what UC-008 BR-007 forbids. BR-007 should be amended to say the choice
+the next visit is what UC-009 BR-007 forbids. BR-007 should be amended to say the choice
 is held for the browser session and never used to pre-select a language later, while the
 rendering language of each answer label is recorded with the answer for fidelity, not
 preference.
@@ -1035,8 +1035,8 @@ Survey: `docs/requirements.md` C-014 rewritten ("Survey content is stored in the
 survey's base language; other languages come from `survey.translations`, authored in
 Author, delivered in the definition file, and shown when the respondent's language is
 one of the survey's content languages; a stale translation falls back to the base
-language"), a new FR for localized survey content under UC-008, and an NFR on fallback.
-UC-008: BR-005 becomes "content appears in the respondent's language when a current
+language"), a new FR for localized survey content under UC-009, and an NFR on fallback.
+UC-009: BR-005 becomes "content appears in the respondent's language when a current
 translation exists, otherwise in the base language"; BR-007 as in section 4.2; a new
 rule that stale translations are not shown. `docs/entity_model.md`: a TRANSLATION entity,
 `SURVEY.baseLanguage`/`contentLanguages`, `ANSWER.displayTextLocal`/`displayLanguage`,

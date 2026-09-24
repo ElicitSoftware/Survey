@@ -81,6 +81,10 @@ To use the Elicit System, download the Authoring tool (work in progress), create
 
 Survey has no administrator login, so about ten seconds after it starts it writes a diagnostics report to its log: the running version, both database connections and the latest migration, the brand that resolved, whether every configured report service and post-survey action is reachable from the container, and the settings that need attention (for example `accessCode.autoRegister` left on). Lines that need action are logged at `WARN`, the rest at `INFO` under the `com.elicitsoftware.diagnostics` category, which is pinned to `INFO` so the report appears at the default `LOG_LEVEL=WARN`. Look for lines starting with `Survey diagnostics:`; the last one counts the warnings. Set `elicit.diagnostics.startup.enabled=false` to turn it off or `elicit.diagnostics.startup.delay` to change the delay. See `docs/use_cases/UC-007-log-startup-diagnostics.md`.
 
+### Reporting Schema Rebuild
+
+The reporting star schema (`surveyreport`) is built at startup from the survey definitions installed at that moment. When the Admin application installs or updates a survey definition afterwards, it calls `POST /api/etl/build` on Survey, which runs the same build again for the whole site and answers `200 {"status":"ok"}`, `409 {"status":"disabled"}` when `elicit.etl.enabled=false`, or `500 {"status":"failed","message":...}` when a step fails (the known case is two surveys sharing a step or section dimension name). The call is idempotent, synchronous and unauthenticated like Survey's other REST paths; it is meant for the Admin application on the internal network. See `docs/use_cases/UC-008-rebuild-reporting-schema.md`.
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 

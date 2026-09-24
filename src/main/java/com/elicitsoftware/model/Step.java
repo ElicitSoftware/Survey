@@ -75,4 +75,25 @@ public class Step extends PanacheEntityBase {
 
     @Column(name = "published_comment")
     public String publishedComment;
+
+    /**
+     * The version of the durable {@code step_id} in effect at {@code asOf} (research/
+     * Kimball_type_2.md, "Snapshot Anchor"): the one row whose effective window covers the
+     * instant. Durable keys are never mapped as JPA associations -- once a revision exists a
+     * durable id has a row per version and Hibernate refuses to pick one ("More than one row
+     * with the given identifier was found"), which marked the whole transaction rollback-only.
+     * Every caller that holds a durable step id resolves it here with the respondent's anchor.
+     *
+     * @param stepId the durable {@code steps.step_id}; {@code null} yields {@code null}
+     * @param asOf   the respondent's snapshot anchor ({@code respondents.first_access_dt}, or now)
+     * @return the step in effect at {@code asOf}, or {@code null} if none covers it
+     * @throws jakarta.persistence.NonUniqueResultException if two versions overlap the instant
+     */
+    public static Step findAsOf(Integer stepId, OffsetDateTime asOf) {
+        if (stepId == null) {
+            return null;
+        }
+        return Step.<Step>find("stepId = ?1 and effectiveFrom <= ?2 and effectiveTo > ?2", stepId, asOf)
+                .singleResultOptional().orElse(null);
+    }
 }

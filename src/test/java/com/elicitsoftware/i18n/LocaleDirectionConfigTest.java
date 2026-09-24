@@ -22,7 +22,7 @@ import java.util.Locale;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** UC-008 BR-004: built-in right-to-left languages and the optional per-deployment override. */
+/** UC-009 BR-004: built-in right-to-left languages and the optional per-deployment override. */
 class LocaleDirectionConfigTest {
 
     private static LocaleDirectionConfig config(Path mount) {
