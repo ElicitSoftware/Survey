@@ -1,0 +1,63 @@
+# Runs the regression suite (unit + booted @QuarkusTest, JaCoCo coverage gate) on every
+# pull request and every push to main. This is the gate that actually enforces tests pass
+# before code merges — the release workflow (maven.yml) builds with -Dmaven.test.skip=true
+# and only runs at tag-push time, so without this workflow nothing ever ran the suite in CI.
+#
+# `verify`, not `package`: the jacoco-check gate in pom.xml (BUNDLE LINE >= 0.70) binds to
+# the verify phase, so a `package` build — which is what buildDockerImage.sh runs locally —
+# never reaches it.
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Build and Test with Maven
+    runs-on: ubuntu-latest
+    # The suite boots Quarkus many times over a container database. A hung run would
+    # otherwise hold a runner for the default six hours.
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v7
+
+      - name: Setup Java 25
+        uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          architecture: x64
+          cache: 'maven'
+
+      - name: Fetch the deployment translations from the umbrella repository
+        # The language tests read ../elicit-i18n, exactly as the dev and test profiles do in a
+        # local umbrella checkout (the application itself ships English only). Prefer the umbrella
+        # branch with the same name as this one, so a cross-repo change can be tested before merge.
+        run: |
+          UMBRELLA=https://github.com/ElicitSoftware/Elicit.git
+          BRANCH="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
+          REF=()
+          if git ls-remote --exit-code --heads "$UMBRELLA" "$BRANCH" >/dev/null 2>&1; then
+            REF=(--branch "$BRANCH")
+          fi
+          git clone --depth 1 --filter=blob:none --sparse "${REF[@]}" "$UMBRELLA" "$RUNNER_TEMP/elicit"
+          git -C "$RUNNER_TEMP/elicit" sparse-checkout set elicit-i18n
+          ln -s "$RUNNER_TEMP/elicit/elicit-i18n" ../elicit-i18n
+          ls ../elicit-i18n/
+
+      # No external database is provisioned here on purpose: PostgresTestResource
+      # (src/test/java/com/elicitsoftware/PostgresTestResource.java) starts its own
+      # throwaway Postgres via Testcontainers, migrated with db/migration + db/test into
+      # the survey_test schema. Docker-in-Docker is already available on GitHub-hosted
+      # runners. quarkus.container-image.build is on in application.properties for the
+      # local image build; CI only needs the tests, so turn it off here.
+      - name: Build and run tests (incl. JaCoCo coverage gate)
+        run: mvn -B clean verify -Dquarkus.container-image.build=false
