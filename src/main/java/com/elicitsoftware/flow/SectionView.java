@@ -22,7 +22,6 @@ import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
-import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.data.binder.Binder;
@@ -224,8 +223,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTION_TYPE_MODAL:
-                            //TODO
-                            displayMap.put(answer.getDisplayKey(), new Paragraph(GlobalStrings.QUESTION_TYPE_MODAL));
+                            displayMap.put(answer.getDisplayKey(), new ElicitModal(answer));
                             break;
                         case GlobalStrings.QUESTION_TYPE_DOUBLE:
                             ElicitDoubleField numberField = new ElicitDoubleField(answer);
