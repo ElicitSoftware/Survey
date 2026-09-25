@@ -1011,6 +1011,41 @@ not exported.
 parameterised cases; and a `DisplayedStringsSweepTest` pass over the upload dialog and
 result dialog.
 
+### 5.6 What phase 4 built, and what it did not
+
+Implemented as described: `TranslationService` (rows, counts, upsert, remove, the retire/restore
+cascade), `TranslationsView` at `survey/:surveyId/translations`, language management in
+`SurveyMetadataDialog`, the JSON hand-off in `TranslationHandoff` with the rejection table, and
+the export warnings in `ExportValidation`.
+
+Four deliberate gaps, each with a reason:
+
+- **Reports are not translatable from Author.** They are in the whitelist and travel in the file,
+  and the Survey runtime translates a report's name, but Author has no report entity to read a
+  base text from (`docs/entity_model.md`, "Excluded from This Model"). It follows report
+  modelling, whenever that lands.
+- **The per-survey glossary is not stored.** The hand-off preamble carries the platform terms;
+  the author-maintained list this section describes would need a column of its own, and the file
+  is useful without it.
+- **The edit-time notification covers the designer's save paths only** -- question text, short
+  text, tooltip, placeholder, validation message, and step and section names, all of which go
+  through `DesignerService`. An option label or a rule's default upstream value edited in
+  `SelectGroupDialog` or `RelationshipDialog` goes stale without the immediate warning; the
+  Translations page's status and the export warnings still catch it. A ledger entry from those two
+  dialogs is the completion.
+- **The dialog hints** ("Translations: es-419 done, ar stale") are not built; section 5.3 already
+  called them a later addition.
+
+Two corrections the implementation forced. A translation is created through `ElementService.create`
+rather than persisted directly, so it gets its durable id, its minted key and the version-0
+lifecycle from the same place as every other element -- writing it by hand violated the table's
+NOT NULL columns twice before the test caught it. And the token check in the import cannot rest on
+`Tokens.names` alone, as section 5.5 assumed: that sees only bare-word placeholders such as
+`{NAME|friend}`, while the common form is a phrase carrying the token, `{S1's mother|your mother}`,
+which `names` returns nothing for. The import therefore compares the *placeholder count* as well,
+which needs no rule list and catches the case that matters -- a translation that dropped the
+substitution entirely.
+
 ## 6. The `.elicit` file, redefined in place
 
 The header stays `# ELICIT_SURVEY_EXPORT_V1`; no file with that header exists outside
