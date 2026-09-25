@@ -63,7 +63,7 @@ public class ElicitModal extends Dialog {
         content.getElement().setProperty("innerHTML", answer.displayText);
         add(content);
 
-        Button close = new Button("Close");
+        Button close = new Button(getTranslation("common.close"));
         close.setId(displayKey + CLOSE_BUTTON_ID_SUFFIX);
         close.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         close.addClickListener(e -> close());

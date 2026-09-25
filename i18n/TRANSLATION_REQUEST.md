@@ -82,6 +82,7 @@ Every row is one key in `translations.properties`. Return a file `translations_<
 | `common.appTitle` | {0} {1} | Header · application title | 40 | params: {0} = organization name, {1} = application type; identical in most languages (reorder only) |
 | `common.appTitle.default` | Elicit {0} | Header · application title when no brand is mounted | 40 | params: {0} = application type; identical in most languages, Elicit stays |
 | `common.appType.survey` | Survey | Header · the word appended to the organization name | 20 |  |
+| `common.close` | Close | Modal question · button that dismisses the dialog | 15 |  |
 | `common.error.sessionExpired` | Session expired. Please log in again. | Any page · notification | 80 |  |
 | `common.error.navigationUnavailable` | Navigation data not available. Please refresh the page. | Any page · notification | 80 |  |
 | `mainView.pageTitle` | Login | Login page · browser tab title | 30 |  |
@@ -155,6 +156,7 @@ common.logoAlt={0} logo
 common.appTitle={0} {1}
 common.appTitle.default=Elicit {0}
 common.appType.survey=Survey
+common.close=Close
 common.error.sessionExpired=Session expired. Please log in again.
 common.error.navigationUnavailable=Navigation data not available. Please refresh the page.
 mainView.pageTitle=Login
