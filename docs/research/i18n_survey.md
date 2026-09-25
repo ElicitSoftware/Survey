@@ -1035,16 +1035,28 @@ this repository, so there is nothing to distinguish from. Two records change:
 Changes by module, made as one change set and gated by the round-trip test and Admin's
 service tests:
 
-**Author.** `ElicitFormat`: `TABLES`, `REQUIRED_FIELDS` (`surveys` 12, `translations`
-6), javadoc. `SurveyDefinitionExporter`: the survey query at `:58-59` adds the two
+**Author.** `ElicitFormat`: `TABLES`, `REQUIRED_FIELDS` (`translations` 13, the record's
+arity; `surveys` stays 10) and `VERSIONED_TABLES`, javadoc. Two corrections made while
+implementing this. `REQUIRED_FIELDS` is the *minimum a reader requires*, and holding
+`surveys` to 12 would reject every file that predates the two fields, including the
+hand-written fixtures and the `ELICIT_SURVEY_DRAFT_V1` files an agent writes from
+`docs/ai/AUTHORING_FOR_AI.md`; readers take `base_language` and `content_languages` when
+present and default to `en` and nothing-published when absent, while every writer emits
+all 12. And `translations` is 13, not 6: six is the count of its content fields, not of
+the record, which also carries the durable id, the key and the five-field Type 2 tail. `SurveyDefinitionExporter`: the survey query at `:58-59` adds the two
 columns; a new `tables.put("translations", ...)` selecting the six fields ordered by
 element type, key, field, language. `SurveyDefinitionImporter`: `insertSurvey` writes
 the two columns; `case "translations" -> insertTranslation(fields, surveyId)` with a
 strict key parse (a translation without a key is malformed; do not mint), `element_type`
 and `field` validated against the whitelist, `source_hash` stored verbatim, and, since
 translations follow every structural record, an optional check that the key was seen.
-`SurveyDefinitionExporterTest.normalised` (`:52-90`): key `translations` rows by
-`fields[1] + "|" + fields[2] + "|" + fields[3]` and strip no Type 2 tail from them.
+`SurveyDefinitionExporterTest.normalised` (`:52-90`): no change needed, as it turned out.
+Its generic path already keys a row by `table + ":" + fields[1]`, which for a translation
+is the `translation_key` and is unique per target and language, and its Type 2 tail strip
+(`REQUIRED_FIELDS - 5`) leaves exactly the eight content fields. `AuthoringForAiDocTest`
+does need the new record: it holds `docs/ai/AUTHORING_FOR_AI.md`'s layout table and record
+order to `ElicitFormat`, so the document gains a `translations` row (arity 13) and the
+record-order line gains it last.
 `Author/samples/generate_elicit_designer.py` and `generate_fhhs_base.py`: the two
 `surveys` fields and a handful of `translations` rows in `es-419`, so the round trip
 exercises the record type; regenerate both `.elicit` samples.
@@ -1092,7 +1104,12 @@ Will fail until updated: `ManualSchemaMigratorUpgradeTest` (V019 in both tracks)
 (arity, counts, normaliser, regenerated samples), Admin's four definition-service tests
 and the resource tests (bootstrap SQL, fixtures).
 
-To add: `ContentTranslatorTest` (fallback to base, stale not served, tag resolution
+To add: an Admin test of the translations upsert (created, unchanged, versioned on a
+corrected value, versioned on a changed hash alone, retired by the file, retired with the
+structural element even when the file omits it, the published language set updated in
+place, a non-whitelisted field rejected); a parity test holding Author's
+`TranslatableFields` to Admin's canonical whitelist, since nothing links them at runtime;
+`ContentTranslatorTest` (fallback to base, stale not served, tag resolution
 against `content_languages`, as-of picks the version effective at first access,
 off-thread returns base); an SCD spec test for `translations` in the style of
 `scd/DimStepSectionRekeySpecTest` (one current row per target, trigger closes the
