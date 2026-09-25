@@ -23,6 +23,7 @@ erDiagram
     SURVEY ||--o{ POST_SURVEY_ACTION : "has"
     SURVEY ||--o{ ONTOLOGY : "has"
     SURVEY ||--o{ METADATA : "has"
+    SURVEY ||--o{ TRANSLATION : "has"
 
     STEP ||--o{ STEPS_SECTIONS : "maps to"
     SECTION ||--o{ STEPS_SECTIONS : "maps to"
@@ -81,6 +82,8 @@ A single configured questionnaire definition — the root of a decision-tree sur
 | description | Longer descriptive text. | String | 2000 | Optional |
 | initialDisplayKey | The display key of the first step/section shown to a new respondent. | String | 255 | Optional |
 | postSurveyURL | URL the respondent is redirected to after viewing reports, if configured. | String | 255 | Optional |
+| baseLanguage | BCP-47 tag of the language this survey's content was authored in; the language every string falls back to. | String | 35 | Not Null, Default: "en" |
+| contentLanguages | Comma-separated BCP-47 tags the author has published content translations for. A site serves one of them only when it is also mounted for the application's own texts there (UC-009 BR-009). | String | 255 | Optional |
 
 ### RESPONDENT
 
@@ -223,7 +226,9 @@ The respondent's recorded response to a single question instance — or, when it
 | sectionQuestionId | The specific question placement this answer responds to; null for step/section marker answers. | Long | 20 | Optional, Foreign Key (SECTIONS_QUESTION.id) |
 | questionId | The question this answer responds to; null for step/section marker answers. | Long | — | Optional, Foreign Key (QUESTION.id) |
 | displayKey | The full 7-segment hierarchical address of this answer (`survey-step-stepInstance-section-sectionInstance-question-questionInstance`). | String | 34 | Not Null, Default: "0.0.0.0.0.0.0" |
-| displayText | The rendered label/prompt shown for this answer (question text, or section/step name for marker answers). | String | 8000 | Not Null |
+| displayText | The rendered label/prompt shown for this answer (question text, or section/step name for marker answers), always in the survey's base language. Every reader that is not respondent-facing — the ETL, Admin, the respondent export — reads this column. | String | 8000 | Not Null |
+| displayTextLocal | The same label rendered in the language the respondent was reading, when that is not the base language; null otherwise. Unbounded, because a translation may be longer than the base sentence. | String | — | Optional |
+| displayLanguage | BCP-47 tag of the language `displayTextLocal` is written in; null when the label was shown in the base language. | String | 35 | Optional |
 | textValue | The raw stored answer value (interpreted per question type — e.g., parsed as a date, number, or comma-joined list of selections). | String | 255 | Optional |
 | deleted | Soft-delete flag; true when a branching change has removed this answer from the respondent's current path. | Boolean | — | Not Null, Default: false |
 | createdDt | When the answer row was first created. | DateTime | — | Not Null |
@@ -389,6 +394,33 @@ Tracks external subject identifiers ("xid") excluded from a given department/stu
 | createdBy | Optional identifier of who added the exclusion. | String | 100 | Optional |
 
 *Uniqueness note (from SQL): `(xid, department)` is unique.*
+
+### TRANSLATION
+
+One piece of survey content in one language: the translated value of one field of one element, attached to that element by its UUID element key rather than by a surrogate or durable id, so it survives both versioning and import into another instance. Kimball Type 2 in the same shape as the eight structural tables — a correction is a new version, a removal is a closed `effectiveTo`, and a respondent resolves the row effective at their first access (UC-009 BR-010). Written in Author, delivered inside the survey definition file, and read at runtime by `ContentTranslator`; never written by Survey.
+
+| Attribute | Description | Data Type | Length/Precision | Validation Rules |
+|---|---|---|---|---|
+| id | Primary key. | Long | — | Primary Key, Sequence |
+| surveyId | The survey this translation belongs to. | Long | — | Not Null, Foreign Key (SURVEY.id) |
+| elementType | Which table the translated element lives in: `surveys`, `steps`, `sections`, `questions`, `select_items`, `relationships` or `reports`. | String | 32 | Not Null, Check constraint |
+| elementKey | The `*_key` UUID of the translated element. Never a surrogate id and never a durable id, both of which are per instance. | UUID | — | Not Null |
+| field | The column name of the base text this row translates (`text`, `short_text`, `tool_tip`, `placeholder`, `validation_text`, `name`, `description`, `display_text`, `default_upstream_value`), constrained by the translatable-field whitelist. | String | 32 | Not Null |
+| language | BCP-47 tag, written as the mounted chrome bundles write it (`es-419`, `ar`). | String | 35 | Not Null |
+| value | The translated text. A removal is a closed `effectiveTo`, never an empty value. | String | — | Not Null |
+| sourceHash | Lower-case hex SHA-256 of the UTF-8 bytes of the base text this was translated from. A row whose hash no longer matches the current base text is stale and is not served (UC-009 BR-008). | String | 64 | Not Null |
+| sourceText | Authoring-only snapshot of that base text, for the stale diff in Author. Not exported, on the same footing as `QUESTION.sample`. | String | — | Optional |
+| translationId | Durable id linking every version of this translation within one instance. | Long | — | Not Null, Sequence |
+| translationKey | Cross-instance identity, minted once in Author and preserved verbatim by export, import and update. | UUID | — | Not Null |
+| version | Version number within the durable id; 0 in Author, incremented by Admin at publish. | Integer | — | Not Null, Default: 0 |
+| effectiveFrom | When this version became current. | DateTime | — | Not Null, Default: 1970-01-01T00:00:00Z |
+| effectiveTo | When this version stopped being current; the sentinel 9999-12-31T23:59:59Z while current. | DateTime | — | Not Null, Default: sentinel |
+| publishedBy | Who published this version. | String | — | Optional |
+| publishedComment | Why this version was published. | String | — | Optional |
+
+*Uniqueness notes (from SQL): `(translation_id, version)` and `(translation_key, version)` are unique; one current row per `translation_id`, and one current row per `(survey_id, language, element_key, field)`, both as partial unique indexes over `effective_to = sentinel`.*
+
+*Retirement note: retiring a step, section, question, select item, relationship or report closes every current translation of it at the same instant, so a translation is never current while its element is retired; restoring the element reopens them.*
 
 ---
 

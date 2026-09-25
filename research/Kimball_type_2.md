@@ -13,6 +13,20 @@
 > the `scd_close_predecessor` trigger) remain authoritative.
 
 
+> **Addendum (2026-09-25, Survey V019).** `survey.translations` is the ninth Type 2 table
+> and the first that is not structural. It carries the same contract as the eight below —
+> durable `translation_id`, `translation_key` UUID, `version`, `effective_from`,
+> `effective_to` and the `scd_close_predecessor` trigger — for the same reason: a
+> respondent who started under one wording must keep seeing it, and a corrected
+> translation must not rewrite what earlier respondents read. It differs in how it
+> attaches to the rest of the schema. The eight reference their neighbours by a durable id
+> in a companion column; a translation references the element it translates by that
+> element's `*_key` UUID alone, in a generic `(element_type, element_key, field, language)`
+> target. The FK cascade problem below therefore does not arise for it: versioning a
+> question mints a new surrogate `id` and a new `version` under the same `question_key`, and
+> the translation, which never held either id, still attaches. See
+> `docs/research/i18n_survey.md` sections 3.2 and 3.3.
+
 ## Motivation
 
 Researchers need to iterate on survey instruments over time — rephrasing questions for clarity,
