@@ -11,6 +11,7 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
 import com.vaadin.flow.component.datetimepicker.DateTimePicker;
@@ -36,8 +37,8 @@ public class ElicitDateTimePicker extends ElicitComponent<DateTimePicker> {
      *
      * @param answer the answer object to bind to this date-time picker
      */
-    public ElicitDateTimePicker(Answer answer) {
-        super(new DateTimePicker(answer.displayText), answer);
+    public ElicitDateTimePicker(Answer answer, ContentTexts texts) {
+        super(new DateTimePicker(answer.label()), answer, texts);
         if (answer.getTextValue() != null && !answer.getTextValue().isEmpty()) {
             setValue(answer);
         }

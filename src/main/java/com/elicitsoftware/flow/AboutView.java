@@ -11,6 +11,11 @@ package com.elicitsoftware.flow;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTranslator;
+import java.time.OffsetDateTime;
+import jakarta.inject.Inject;
+import jakarta.annotation.PostConstruct;
+import com.elicitsoftware.i18n.ContentTranslator;
 import com.elicitsoftware.model.Survey;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
@@ -43,7 +48,16 @@ public class AboutView extends VerticalLayout {
      * and fetches the corresponding survey from the database using the {@link Survey#findById(Object)} method.
      * If a survey is found, its description is displayed as a paragraph within this view.
      */
-    public AboutView() {
+    @Inject
+    ContentTranslator translator;
+
+    /**
+     * Builds the view once CDI has injected its dependencies. The body was in the constructor
+     * until content translation needed the injected {@link ContentTranslator}, which is not set
+     * until after construction.
+     */
+    @PostConstruct
+    void build() {
         setSizeFull();
         setFlexGrow(1);
         
@@ -51,7 +65,14 @@ public class AboutView extends VerticalLayout {
         List<Survey> surveys = Survey.findAll().list();
         for (Survey survey : surveys) {
             Div aboutSurvey = new Div();
-            aboutSurvey.getElement().setProperty("innerHTML", ("<h4>" + survey.name + "</h4>" + survey.description));
+            // title, not name: name is the internal identifier used in file names and lists, and
+            // the respondent-facing heading has always been meant to be the title.
+            // No respondent is pinned here -- this page is reachable before login -- so content
+            // resolves as of now.
+            OffsetDateTime asOf = OffsetDateTime.now();
+            String heading = translator.title(survey, asOf);
+            String body = translator.description(survey, asOf);
+            aboutSurvey.getElement().setProperty("innerHTML", ("<h4>" + heading + "</h4>" + body));
             aboutSurvey.getElement().setAttribute("data-i18n-content", ""); // authored survey text (UC-009 BR-005)
             add(aboutSurvey);
         }

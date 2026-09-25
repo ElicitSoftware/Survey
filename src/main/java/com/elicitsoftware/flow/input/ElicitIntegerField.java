@@ -11,6 +11,7 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
 import com.vaadin.flow.component.textfield.IntegerField;
@@ -36,8 +37,8 @@ public class ElicitIntegerField extends ElicitComponent<IntegerField> {
      * @param answer The Answer object containing the display text and value for the integer field.
      *               If the text value of the answer is not null or empty, it initializes the field with that value.
      */
-    public ElicitIntegerField(Answer answer) {
-        super(new IntegerField(answer.displayText), answer);
+    public ElicitIntegerField(Answer answer, ContentTexts texts) {
+        super(new IntegerField(answer.label()), answer, texts);
         component.setStepButtonsVisible(true);
         if (answer.getTextValue() != null && !answer.getTextValue().isEmpty()) {
             setValue(answer);

@@ -25,9 +25,34 @@ package com.elicitsoftware.report;
 public class ReportRequest {
     private int id;
 
+    /**
+     * BCP-47 tag of the language the respondent was reading, or {@code null} when that was the
+     * survey's base language (Survey V019).
+     * <p>
+     * A report body is produced by an external service from the respondent's answers, so Elicit
+     * cannot translate it; what it can do is say which language was asked for and let a service
+     * that has translations of its own use it. A service that ignores the field behaves exactly as
+     * it does today.
+     */
+    private String language;
+
     public ReportRequest(int id) {
         super();
         this.id = id;
+    }
+
+    public ReportRequest(int id, String language) {
+        super();
+        this.id = id;
+        this.language = language;
+    }
+
+    public String getLanguage() {
+        return language;
+    }
+
+    public void setLanguage(String language) {
+        this.language = language;
     }
 
     public int getId() {

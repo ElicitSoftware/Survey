@@ -11,6 +11,7 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.vaadin.flow.component.html.Div;
 
@@ -28,10 +29,10 @@ public class ElicitHtml extends Div {
      *
      * @param answer the answer object containing the HTML content to display
      */
-    public ElicitHtml(Answer answer) {
+    public ElicitHtml(Answer answer, ContentTexts texts) {
         super();
             getElement().setAttribute("data-i18n-content", "");
         this.setId(answer.getDisplayKey());
-        getElement().setProperty("innerHTML", answer.displayText);
+        getElement().setProperty("innerHTML", answer.label());
     }
 }

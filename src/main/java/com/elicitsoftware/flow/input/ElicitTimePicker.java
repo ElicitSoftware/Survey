@@ -11,6 +11,7 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
 import com.vaadin.flow.component.timepicker.TimePicker;
@@ -47,8 +48,8 @@ public class ElicitTimePicker extends ElicitComponent<TimePicker> {
      * @param answer The {@link Answer} object containing the display text
      *               and initial value for the time picker.
      */
-    public ElicitTimePicker(Answer answer) {
-        super(new TimePicker(answer.displayText), answer);
+    public ElicitTimePicker(Answer answer, ContentTexts texts) {
+        super(new TimePicker(answer.label()), answer, texts);
         if (answer.getTextValue() != null && !answer.getTextValue().isEmpty()) {
             setValue(answer);
         }

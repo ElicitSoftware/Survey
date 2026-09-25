@@ -11,6 +11,7 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
 import com.vaadin.flow.component.HasValidation;
@@ -49,7 +50,7 @@ class ElicitTextInputFieldsTest {
                 "e.g. Ada Lovelace", "Invalid name");
         Answer answer = answer("1.1.1.1.1.1.1", "Full Name", question, "Ada Lovelace");
 
-        TextField field = new ElicitTextField(answer).component;
+        TextField field = new ElicitTextField(answer, ContentTexts.base()).component;
 
         assertEquals("1.1.1.1.1.1.1", field.getId().orElse(null));
         assertTrue(field.hasClassName("elicit-input-field"));
@@ -65,7 +66,7 @@ class ElicitTextInputFieldsTest {
         Question question = question(true, null, null, null, "Name is required");
         Answer answer = answer("1.1.1.1.1.1.2", "Full Name", question, null);
 
-        ElicitTextField wrapper = new ElicitTextField(answer);
+        ElicitTextField wrapper = new ElicitTextField(answer, ContentTexts.base());
         TextField field = wrapper.component;
 
         assertTrue(field.isRequiredIndicatorVisible());
@@ -80,7 +81,7 @@ class ElicitTextInputFieldsTest {
         Question question = question(false, 3, 5, null, "Must be 3-5 characters");
         Answer answer = answer("1.1.1.1.1.1.3", "Code", question, null);
 
-        ElicitTextField wrapper = new ElicitTextField(answer);
+        ElicitTextField wrapper = new ElicitTextField(answer, ContentTexts.base());
         TextField field = wrapper.component;
 
         field.setValue("ab");
@@ -101,7 +102,7 @@ class ElicitTextInputFieldsTest {
         Question question = question(false, null, null, variants, null);
         Answer answer = answer("1.1.1.1.1.1.4", "Field", question, null);
 
-        TextField field = new ElicitTextField(answer).component;
+        TextField field = new ElicitTextField(answer, ContentTexts.base()).component;
 
         assertTrue(field.getThemeNames().contains(TextFieldVariant.LUMO_ALIGN_CENTER.getVariantName()));
         assertTrue(field.getThemeNames().contains(TextFieldVariant.LUMO_SMALL.getVariantName()));
@@ -113,7 +114,7 @@ class ElicitTextInputFieldsTest {
         Question question = question(false, 2, 4, null, "Must be 2-4 characters");
         Answer answer = answer("1.1.1.1.1.2.1", "Notes", question, null);
 
-        ElicitTextArea wrapper = new ElicitTextArea(answer);
+        ElicitTextArea wrapper = new ElicitTextArea(answer, ContentTexts.base());
         TextArea area = wrapper.component;
 
         assertEquals(2, area.getMinLength());
@@ -132,7 +133,7 @@ class ElicitTextInputFieldsTest {
         Question question = question(false, null, null, variants, null);
         Answer answer = answer("1.1.1.1.1.2.2", "Notes", question, null);
 
-        TextArea area = new ElicitTextArea(answer).component;
+        TextArea area = new ElicitTextArea(answer, ContentTexts.base()).component;
 
         assertTrue(area.getThemeNames().contains(TextAreaVariant.LUMO_SMALL.getVariantName()));
     }
@@ -142,7 +143,7 @@ class ElicitTextInputFieldsTest {
         Question question = question(true, null, null, null, "Email is required");
         Answer answer = answer("1.1.1.1.1.3.1", "Email", question, null);
 
-        ElicitEmailField wrapper = new ElicitEmailField(answer);
+        ElicitEmailField wrapper = new ElicitEmailField(answer, ContentTexts.base());
         EmailField field = wrapper.component;
 
         assertFalse(wrapper.getBinder().validate().isOk());
@@ -158,7 +159,7 @@ class ElicitTextInputFieldsTest {
         Question question = question(false, 0, 255, null, "Not a valid email address");
         Answer answer = answer("1.1.1.1.1.3.2", "Email", question, null);
 
-        ElicitEmailField wrapper = new ElicitEmailField(answer);
+        ElicitEmailField wrapper = new ElicitEmailField(answer, ContentTexts.base());
         EmailField field = wrapper.component;
 
         field.setValue("not-an-email");
@@ -174,7 +175,7 @@ class ElicitTextInputFieldsTest {
         Question question = question(false, null, null, variants, null);
         Answer answer = answer("1.1.1.1.1.3.3", "Email", question, null);
 
-        EmailField field = new ElicitEmailField(answer).component;
+        EmailField field = new ElicitEmailField(answer, ContentTexts.base()).component;
 
         assertTrue(field.getThemeNames().contains(TextFieldVariant.LUMO_ALIGN_CENTER.getVariantName()));
     }
@@ -187,7 +188,7 @@ class ElicitTextInputFieldsTest {
         Question question = question(false, null, null, null, null);
         Answer answer = answer("1.1.1.1.1.4.1", "Password", question, "super-secret");
 
-        PasswordField field = new ElicitPasswordField(answer).component;
+        PasswordField field = new ElicitPasswordField(answer, ContentTexts.base()).component;
 
         assertEquals("", field.getValue(), "the saved password must not be pre-filled into the field");
     }
@@ -197,7 +198,7 @@ class ElicitTextInputFieldsTest {
         Question question = question(false, 6, 10, null, "Must be 6-10 characters");
         Answer answer = answer("1.1.1.1.1.4.2", "Password", question, null);
 
-        ElicitPasswordField wrapper = new ElicitPasswordField(answer);
+        ElicitPasswordField wrapper = new ElicitPasswordField(answer, ContentTexts.base());
         PasswordField field = wrapper.component;
 
         assertEquals(6, field.getMinLength());
@@ -216,7 +217,7 @@ class ElicitTextInputFieldsTest {
         Question question = question(false, null, null, variants, null);
         Answer answer = answer("1.1.1.1.1.4.3", "Password", question, null);
 
-        PasswordField field = new ElicitPasswordField(answer).component;
+        PasswordField field = new ElicitPasswordField(answer, ContentTexts.base()).component;
 
         assertTrue(field.getThemeNames().contains(TextFieldVariant.LUMO_SMALL.getVariantName()));
     }

@@ -17,6 +17,8 @@ import com.elicitsoftware.flow.input.*;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Respondent;
 import com.elicitsoftware.model.SelectItem;
+import com.elicitsoftware.i18n.ContentTexts;
+import com.elicitsoftware.i18n.ContentTranslator;
 import com.elicitsoftware.response.NavResponse;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.UI;
@@ -66,6 +68,9 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
 
     @Inject
     UISessionDataService sessionDataService;
+
+    @Inject
+    ContentTranslator translator;
 
     // TODO make a HasMap that holds the ElicitComponents and HTML
     // Then you can replace some of these and only generate new components.
@@ -161,6 +166,12 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
     private void buildQuestions() {
         Log.debug("Starting buildQuestions() method");
 
+        // Resolved once per draw and handed to every widget: the strings they read off the live
+        // Question and SelectItem (tooltip, validation message, placeholder, option labels) are
+        // not part of the answer's stored label, so they are translated here.
+        ContentTexts texts = respondent == null ? ContentTexts.base()
+                : new ContentTexts(translator, respondent.survey, Respondent.snapshotAnchor(respondent.id.intValue()));
+
         //Save a copy of the display map
         oldDisplayMap = getDisplayComponents();
 
@@ -172,11 +183,11 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
             for (Answer answer : navResponse.getAnswers()) {
                 if (answer.question == null && answer.sectionInstance == 0) {
                     // this is a section title.
-                    pageTitle = answer.displayText;
+                    pageTitle = answer.label();
                 } else {
                     switch (answer.question.questionType.name) {
                         case GlobalStrings.QUESTION_TYPE_CHECKBOX:
-                            ElicitCheckbox checkbox = new ElicitCheckbox(answer);
+                            ElicitCheckbox checkbox = new ElicitCheckbox(answer, texts);
                             checkbox.component.addValueChangeListener(e -> {
                                 saveAnswer(answer, e.getValue().toString());
                             });
@@ -187,7 +198,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
 
                             break;
                         case GlobalStrings.QUESTION_TYPE_DATE_PICKER:
-                            ElcitDatePicker datePicker = new ElcitDatePicker(answer);
+                            ElcitDatePicker datePicker = new ElcitDatePicker(answer, texts);
                             datePicker.component.addValueChangeListener(e -> {
                                 saveAnswer(answer, e.getValue().toString());
                             });
@@ -197,7 +208,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTION_TYPE_COMBOBOX:
-                            ElicitComboBox comboBox = new ElicitComboBox(answer);
+                            ElicitComboBox comboBox = new ElicitComboBox(answer, texts);
                             comboBox.component.addValueChangeListener(e -> {
                                 saveAnswer(answer, e.getValue().toString());
                             });
@@ -207,10 +218,10 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTION_TYPE_HTML:
-                            displayMap.put(answer.getDisplayKey(), new ElicitHtml(answer));
+                            displayMap.put(answer.getDisplayKey(), new ElicitHtml(answer, texts));
                             break;
                         case GlobalStrings.QUESTION_TYPE_INTEGER:
-                            ElicitIntegerField integerField = new ElicitIntegerField(answer);
+                            ElicitIntegerField integerField = new ElicitIntegerField(answer, texts);
                             integerField.component.setValueChangeMode(ValueChangeMode.LAZY);
                             integerField.component.setValueChangeTimeout(300);
                             integerField.component.addValueChangeListener(e -> {
@@ -223,10 +234,10 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTION_TYPE_MODAL:
-                            displayMap.put(answer.getDisplayKey(), new ElicitModal(answer));
+                            displayMap.put(answer.getDisplayKey(), new ElicitModal(answer, texts));
                             break;
                         case GlobalStrings.QUESTION_TYPE_DOUBLE:
-                            ElicitDoubleField numberField = new ElicitDoubleField(answer);
+                            ElicitDoubleField numberField = new ElicitDoubleField(answer, texts);
                             numberField.component.setValueChangeMode(ValueChangeMode.LAZY);
                             numberField.component.setValueChangeTimeout(300);
                             numberField.component.addValueChangeListener(e -> {
@@ -238,7 +249,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTION_TYPE_RADIO:
-                            ElicitRadioButtonGroup radio = new ElicitRadioButtonGroup(answer);
+                            ElicitRadioButtonGroup radio = new ElicitRadioButtonGroup(answer, texts);
                             radio.component.addValueChangeListener(e -> {
                                 saveAnswer(answer, e.getValue().codedValue);
                             });
@@ -248,7 +259,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTION_TYPE_TEXT:
-                            ElicitTextField text = new ElicitTextField(answer);
+                            ElicitTextField text = new ElicitTextField(answer, texts);
                             text.component.setValueChangeMode(ValueChangeMode.LAZY);
                             text.component.setValueChangeTimeout(valueChangeTimeout);
                             text.component.addValueChangeListener(e -> {
@@ -261,7 +272,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTION_TYPE_TEXTAREA:
-                            ElicitTextArea textArea = new ElicitTextArea(answer);
+                            ElicitTextArea textArea = new ElicitTextArea(answer, texts);
                             textArea.component.setValueChangeMode(ValueChangeMode.LAZY);
                             textArea.component.setValueChangeTimeout(valueChangeTimeout);
                             textArea.component.addValueChangeListener(e -> {
@@ -273,7 +284,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTION_TYPE_MULTI_SELECT:
-                            ElicitMultiSelectComboBox multiSelect = new ElicitMultiSelectComboBox(answer);
+                            ElicitMultiSelectComboBox multiSelect = new ElicitMultiSelectComboBox(answer, texts);
                             multiSelect.component.addValueChangeListener(e -> {
                                 StringBuilder val = new StringBuilder();
                                 for (SelectItem item : e.getValue()) {
@@ -290,7 +301,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTIION_TYPE_CHECKBOX_GROUP:
-                            ElicitCheckboxGroup checkboxGroup = new ElicitCheckboxGroup(answer);
+                            ElicitCheckboxGroup checkboxGroup = new ElicitCheckboxGroup(answer, texts);
                             checkboxGroup.component.addValueChangeListener(e -> {
                                 StringBuilder val = new StringBuilder();
                                 for (SelectItem item : e.getValue()) {
@@ -307,7 +318,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTIION_TYPE_DATE_TIME_PICKER:
-                            ElicitDateTimePicker dateTimePicker = new ElicitDateTimePicker(answer);
+                            ElicitDateTimePicker dateTimePicker = new ElicitDateTimePicker(answer, texts);
                             dateTimePicker.component.addValueChangeListener(e -> {
                                 saveAnswer(answer, e.getValue().toString());
                             });
@@ -317,7 +328,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTIION_TYPE_EMAIL:
-                            ElicitEmailField email = new ElicitEmailField(answer);
+                            ElicitEmailField email = new ElicitEmailField(answer, texts);
                             email.component.setValueChangeMode(ValueChangeMode.LAZY);
                             email.component.setValueChangeTimeout(valueChangeTimeout);
                             email.component.addValueChangeListener(e -> {
@@ -329,7 +340,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTIION_TYPE_MULTI_SELECT_COMBOBOX:
-                            ElicitMultiSelectComboBox multiSelectComboBox = new ElicitMultiSelectComboBox(answer);
+                            ElicitMultiSelectComboBox multiSelectComboBox = new ElicitMultiSelectComboBox(answer, texts);
                             multiSelectComboBox.component.addValueChangeListener(e -> {
                                 saveAnswer(answer, e.getValue().toString());
                             });
@@ -339,7 +350,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTIION_TYPE_PASSWORD:
-                            ElicitPasswordField password = new ElicitPasswordField(answer);
+                            ElicitPasswordField password = new ElicitPasswordField(answer, texts);
                             password.component.addValueChangeListener(e -> {
                                 saveAnswer(answer, e.getValue());
                             });
@@ -349,7 +360,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTIION_TYPE_TIME_PICKER:
-                            ElicitTimePicker timePicker = new ElicitTimePicker(answer);
+                            ElicitTimePicker timePicker = new ElicitTimePicker(answer, texts);
                             timePicker.component.addValueChangeListener(e -> {
                                 saveAnswer(answer, e.getValue().toString());
                             });

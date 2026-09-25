@@ -11,6 +11,7 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
 import com.vaadin.flow.component.textfield.TextArea;
@@ -50,7 +51,7 @@ class ElicitNullValidationTextTest {
         Question question = question(true, null, null, null, null);
         Answer answer = answer("1.1.1.1.1.1.1", "Title respondents will see", question, null);
 
-        ElicitTextField wrapper = new ElicitTextField(answer);
+        ElicitTextField wrapper = new ElicitTextField(answer, ContentTexts.base());
         TextField field = wrapper.component;
 
         assertTrue(field.isRequiredIndicatorVisible());
@@ -69,9 +70,9 @@ class ElicitNullValidationTextTest {
         Question question = question(true, null, null, null, null);
         Answer answer = answer("1.1.1.1.1.1.1", "Title", question, null);
 
-        ElicitTextField wrapper = new ElicitTextField(answer);
+        ElicitTextField wrapper = new ElicitTextField(answer, ContentTexts.base());
         assertEquals("This question requires an answer.",
-                ElicitComponent.requiredMessage(answer),
+                wrapper.requiredMessage(answer),
                 "a null message is what Vaadin rejects; the fallback must be non-null");
         assertFalse(wrapper.getBinder().validate().isOk());
     }
@@ -82,7 +83,8 @@ class ElicitNullValidationTextTest {
         Question question = question(true, null, null, null, "   ");
         Answer answer = answer("1.1.1.1.1.1.1", "Title", question, null);
 
-        assertEquals("This question requires an answer.", ElicitComponent.requiredMessage(answer));
+        assertEquals("This question requires an answer.",
+                new ElicitTextField(answer, ContentTexts.base()).requiredMessage(answer));
     }
 
     @Test
@@ -91,7 +93,8 @@ class ElicitNullValidationTextTest {
         Question question = question(true, null, null, null, "Name is required");
         Answer answer = answer("1.1.1.1.1.1.1", "Name", question, null);
 
-        assertEquals("Name is required", ElicitComponent.requiredMessage(answer));
+        assertEquals("Name is required",
+                new ElicitTextField(answer, ContentTexts.base()).requiredMessage(answer));
     }
 
     @Test
@@ -100,10 +103,10 @@ class ElicitNullValidationTextTest {
         Question question = question(true, 2, 10, null, null);
         Answer answer = answer("1.1.1.1.1.1.2", "Short name", question, null);
 
-        ElicitTextArea wrapper = new ElicitTextArea(answer);
+        ElicitTextArea wrapper = new ElicitTextArea(answer, ContentTexts.base());
         TextArea field = wrapper.component;
 
-        assertEquals("Enter between 2 and 10 characters.", ElicitComponent.lengthMessage(answer));
+        assertEquals("Enter between 2 and 10 characters.", wrapper.lengthMessage(answer));
 
         field.setValue("x");
         assertFalse(wrapper.getBinder().validate().isOk(), "too-short value must fail, not throw");
