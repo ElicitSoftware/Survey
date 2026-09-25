@@ -15,6 +15,7 @@ import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Represents a survey entity in the system. Each survey contains metadata such as name, title,
@@ -33,6 +34,14 @@ public class Survey extends PanacheEntityBase {
     @SequenceGenerator(name = "SURVEY_ID_GENERATOR", schema = "survey", sequenceName = "surveys_seq", allocationSize = 1)
     @Column(name = "id", unique = true, nullable = false)
     public Integer id;
+
+    /**
+     * Element key (Survey V015): the identity that survives versioning and import, and what a
+     * {@link Translation} names this element by. Read-only here -- it is minted in Author and
+     * carried verbatim by Admin's import and update; Survey never writes it.
+     */
+    @Column(name = "survey_key", insertable = false, updatable = false)
+    public UUID surveyKey;
 
     @Column(name = "display_order", nullable = false, precision = 3)
     public Integer displayOrder;

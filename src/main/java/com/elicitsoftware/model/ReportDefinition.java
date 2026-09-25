@@ -14,6 +14,7 @@ package com.elicitsoftware.model;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.json.bind.annotation.JsonbTransient;
 import jakarta.persistence.*;
+import java.util.UUID;
 
 /**
  * Represents a report definition in the system. Each report is associated with a survey
@@ -44,6 +45,14 @@ public class ReportDefinition extends PanacheEntityBase {
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "REPORT_ID_GENERATOR")
     @Column(name = "id", unique = true, nullable = false)
     public Integer id;
+
+    /**
+     * Element key (Survey V015): the identity that survives versioning and import, and what a
+     * {@link Translation} names this element by. Read-only here -- it is minted in Author and
+     * carried verbatim by Admin's import and update; Survey never writes it.
+     */
+    @Column(name = "report_key", insertable = false, updatable = false)
+    public UUID reportKey;
 
     @JsonbTransient
     @ManyToOne()

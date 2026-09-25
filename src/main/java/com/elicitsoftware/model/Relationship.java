@@ -20,6 +20,7 @@ import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * The Relationship class represents the relationship between different components
@@ -92,6 +93,14 @@ public class Relationship extends PanacheEntityBase {
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "RELATIONSHIPS_ID_GENERATOR")
     @Column(name = "ID", unique = true, nullable = false, precision = 20)
     public Integer id;
+
+    /**
+     * Element key (Survey V015): the identity that survives versioning and import, and what a
+     * {@link Translation} names this element by. Read-only here -- it is minted in Author and
+     * carried verbatim by Admin's import and update; Survey never writes it.
+     */
+    @Column(name = "relationship_key", insertable = false, updatable = false)
+    public UUID relationshipKey;
 
     @Column(name = "DEFAULT_UPSTREAM_VALUE", length = 255)
     public String defaultUpstreamValue;
