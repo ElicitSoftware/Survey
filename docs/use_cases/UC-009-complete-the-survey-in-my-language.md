@@ -6,7 +6,7 @@
 **Use Case Name:** Complete the Survey in My Language  
 **Primary Actor:** Respondent  
 **Goal:** The respondent sees every page of the application — labels, buttons, messages, page titles and the brand name — in a language they read, and the survey's own questions and answer options in that language wherever the survey publishes a translation of them, laid out right-to-left when that language requires it, so that they can complete the survey without understanding English.  
-**Status:** Implemented for the application's own texts; survey content (BR-005, BR-008, BR-009, BR-010) is Planned
+**Status:** Implemented
 
 ## Preconditions
 

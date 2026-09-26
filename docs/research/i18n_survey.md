@@ -1,8 +1,15 @@
 # Translating Survey Content in the Database
 
-**Status:** research / proposal, 2026-09-20; revised 2026-09-25 (the second reader of
-`validation_text`, the translation length budget, migration numbering). Nothing here is
-implemented.
+**Status:** implemented, 2026-09-25, on `feature/content-translation` in Survey, Admin, Author
+and the umbrella. Written as research / proposal on 2026-09-20 and revised on 2026-09-25 (the
+second reader of `validation_text`, the translation length budget, migration numbering); it is
+kept in the proposal's voice, with each phase's corrections recorded where they belong -- the
+DDL and grants in section 3.2, the file's arities in section 6, Author's gaps in section 5.6 --
+so that the reasoning stays readable beside what was built.
+
+Sections 1 to 10 are built. **Section 11.4 is not**: the respondent file still carries numeric
+ids rather than element keys, and still omits `display_text_local` and `display_language`. That
+defect predates this design, does not block it, and is scheduled on its own.
 
 Source: the 2020 design in `../Survey_i18n/survey_ms_question` (its `I18nEntity.java`,
 `Question.java` with `@PostLoad internationalize()`, and the Flyway scripts under

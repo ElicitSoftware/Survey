@@ -29,6 +29,8 @@ register where the language distinguishes one (for example *usted* in Spanish).
 | survey | The questionnaire the respondent completes | Translate consistently |
 | section | One page of questions | Translate consistently |
 | review | The page where answers are checked before submitting | The button label and the page must use the same word |
+| content language | A language the survey's own questions and options are published in, as opposed to the language of the application itself | Translate consistently; keep it distinct from the application's language |
+| base language | The language the survey's content is written in, and the one every untranslated string falls back to | Translate consistently |
 | PDF, HTTP, PREMM5 | Technical names | Keep as written |
 
 ## Rules for the translation
