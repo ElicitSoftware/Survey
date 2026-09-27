@@ -2045,41 +2045,33 @@ public class QuestionManager {
         TokenValues values = new TokenValues();
         try {
             List<Dependent> dependents = Dependent.findByDownstream(respondentId, downstreamId);
-            String key;
-            String value;
-            // TODO GET THE DEFAULT VALUES
+            String language = currentContentLanguage(respondentId);
             for (Dependent dependent : dependents) {
-                value = null;
-                if (dependent.relationship.token != null
-                        && !dependent.relationship.token.isEmpty()) {
-                    key = dependent.relationship.token;
-                    switch (dependent.upstream.question.questionType.name) {
-                        case "CHECKBOX":
-                        case "DROPDOWN":
-                        case "HTML":
-                        case "NUMBER":
-                        case "RADIO":
-                            if (dependent.relationship.defaultUpstreamValue != null) {
-                                value = dependent.relationship.defaultUpstreamValue;
-                                // Authored prose the respondent reads, so it is translatable;
-                                // the respondent's own text below is not.
-                                values.sources().put(key, dependent.relationship);
-                            } else if (dependent.upstream.getTextValue() != null) {
-                                value = dependent.upstream.getTextValue();
-                            }
-                            break;
-                        case "TEXT":
-                        case "DATE":
-                            if (dependent.upstream.getTextValue() != null) {
-                                value = dependent.upstream.getTextValue();
-                            }
-                            break;
-                    }
-                    if (value != null) {
-                        values.base().put(key, value);
-                    } else {
-                        values.sources().remove(key);
-                    }
+                String key = dependent.relationship.token;
+                if (key == null || key.isEmpty()) {
+                    continue;
+                }
+                // What can go in the slot, and whether it is the rule's authored prose or the
+                // respondent's own answer, is decided from the question the rule reads (see
+                // TokenSource).
+                TokenSource.Fill fill = dependent.upstream == null
+                        ? TokenSource.fill(dependent.relationship, null, null, language)
+                        : TokenSource.fill(dependent.relationship, dependent.upstream.question,
+                                dependent.upstream.getTextValue(), language);
+                if (fill == null) {
+                    // This rule has nothing to put in the slot -- but several rules may fill one
+                    // token (the Family History Survey fills {S1} from fifteen places), so leave
+                    // what another one supplied. Only when no rule fills it does replaceTokens fall
+                    // back to the placeholder's default.
+                    continue;
+                }
+                values.base().put(key, fill.value());
+                if (fill.fromRule()) {
+                    // Authored prose the respondent reads, so it is translatable; the respondent's
+                    // own text is not, and must not keep an earlier rule's translation.
+                    values.sources().put(key, dependent.relationship);
+                } else {
+                    values.sources().remove(key);
                 }
             }
         } catch (RuntimeException e) {

@@ -37,11 +37,15 @@ class RelationshipTest {
     // reads the question type from the answer rather than resolving the rule's durable
     // upstream id again (the rule's endpoints are plain durable-id columns).
     private static Answer answerWithText(String text) {
-        return answerOfType("NUMBER", text);
+        // Any type that is not DATE_PICKER takes the numeric branch; INTEGER is a seeded one.
+        return answerOfType("INTEGER", text);
     }
 
+    // DATE_PICKER, not "DATE": the latter is a question_types.data_type value and the name of no
+    // seeded type, so while isDateQuestion compared against it no comparison ever read two dates
+    // (ElicitSoftware/Author#10).
     private static Answer dateAnswerWithText(String text) {
-        return answerOfType("DATE", text);
+        return answerOfType("DATE_PICKER", text);
     }
 
     private static Answer answerOfType(String typeName, String text) {
@@ -66,7 +70,7 @@ class RelationshipTest {
         assertFalse(relationship("BOOLEAN", null).evaluateOperator(answerWithText("nope")));
     }
 
-    // UC-002: LESS THAN on a DATE question compares dates with strict less-than
+    // UC-002: LESS THAN on a DATE_PICKER question compares dates with strict less-than
     @Test
     void evaluateOperator_lessThanDate_answerBeforeReference_returnsTrue() {
         Relationship r = relationship("LESS THAN", "2020-06-15");
@@ -87,7 +91,7 @@ class RelationshipTest {
         assertTrue(r.evaluateOperator(dateAnswerWithText("2000-01-01")));
     }
 
-    // UC-002: LESS THAN on a non-date question is strict, matching the DATE branch above.
+    // UC-002: LESS THAN on a non-date question is strict, matching the date branch above.
     @Test
     void evaluateOperator_lessThanNumeric_valueBelowReference_returnsTrue() {
         Relationship r = relationship("LESS THAN", "10");
@@ -112,7 +116,7 @@ class RelationshipTest {
         assertFalse(r.evaluateOperator(answerWithText("5")));
     }
 
-    // UC-002: GREATER THAN on a DATE question uses >= (compareTo > -1), not strict >
+    // UC-002: GREATER THAN on a DATE_PICKER question uses >= (compareTo > -1), not strict >
     @Test
     void evaluateOperator_greaterThanDate_answerEqualsReference_returnsTrue() {
         Relationship r = relationship("GREATER THAN", "2020-06-15");
@@ -125,7 +129,7 @@ class RelationshipTest {
         assertFalse(r.evaluateOperator(dateAnswerWithText("2020-01-01")));
     }
 
-    // UC-002: GREATER THAN on a non-date question is strict, unlike the DATE branch above
+    // UC-002: GREATER THAN on a non-date question is strict, unlike the date branch above
     // (which deliberately stays inclusive) -- the two are intentionally asymmetric.
     @Test
     void evaluateOperator_greaterThanNumeric_valueAboveReference_returnsTrue() {

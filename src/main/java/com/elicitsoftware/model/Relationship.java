@@ -353,8 +353,19 @@ public class Relationship extends PanacheEntityBase {
         return returnValue;
     }
 
+    /**
+     * Whether a LESS THAN / GREATER THAN comparison should read both sides as dates rather than as
+     * numbers. The type is matched by name because {@code data_type} does not separate the three
+     * date and time types from plain text ({@code DATE_TIME_PICKER} and {@code TIME_PICKER} are both
+     * {@code Text}). It used to compare against {@code "DATE"}, which is a {@code data_type} value
+     * and not the name of any question type, so no comparison ever took the date path
+     * (ElicitSoftware/Author#10).
+     * <p>
+     * Only {@code DATE_PICKER} qualifies: {@code sdf} is {@code yyyy-MM-dd}, which is the form
+     * {@code LocalDate.toString()} stores, while a datetime or a time stores a value it cannot parse.
+     */
     private static boolean isDateQuestion(Answer answer) {
         return answer.question != null && answer.question.questionType != null
-                && "DATE".equals(answer.question.questionType.name);
+                && "DATE_PICKER".equals(answer.question.questionType.name);
     }
 }
