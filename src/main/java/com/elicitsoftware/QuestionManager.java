@@ -323,8 +323,13 @@ public class QuestionManager {
 
         DisplayKey dkey = new DisplayKey(key);
 
+        // The instance-bearing form: navigation items are built from the respondent's own section
+        // answer rows, and a REPEATed section has one per instance. Matching on getSectionString(),
+        // which zeroes the instance, found no item for the second and later instances of a repeated
+        // section, so the view got a null current item -- no Previous/Next buttons and no section
+        // title, which is what samples/FINDINGS.md 5 saw as "navigation stalls after a REPEAT".
         for (NavigationItem navigationItem : navItems) {
-            if (navigationItem.getPath().equals(dkey.getSectionString())) {
+            if (navigationItem.getPath().equals(dkey.getSectionInstanceString())) {
                 return navigationItem;
             }
         }
@@ -395,7 +400,14 @@ public class QuestionManager {
                 + "AND SS.EFFECTIVE_FROM <= :asOf AND SS.EFFECTIVE_TO > :asOf "
                 + "AND SQ.EFFECTIVE_FROM <= :asOf AND SQ.EFFECTIVE_TO > :asOf "
                 + "AND SS.STEPS_SECTIONS_ID NOT IN (SELECT R.DOWNSTREAM_SS_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.DOWNSTREAM_STEP_ID = SS.STEP_ID AND R.DOWNSTREAM_SQ_ID IS NULL AND R.DOWNSTREAM_SS_ID IS NOT NULL AND R.ACTION_ID != 3 AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf) "
-                + "AND Sq.SECTIONS_QUESTION_ID NOT IN (SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.UPSTREAM_STEP_ID = SS.STEP_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_SS_ID IS NOT NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf) "
+                + "AND Sq.SECTIONS_QUESTION_ID NOT IN ( "
+                + "SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.UPSTREAM_STEP_ID = SS.STEP_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_SS_ID IS NOT NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf "
+                // The same question-only branch sqlSection carries: a rule whose target sits in
+                // the upstream question's own section is stored with DOWNSTREAM_SS_ID null (Author
+                // RulePath.complete), and without this branch the step-level build renders that
+                // target immediately instead of leaving it to the rule.
+                + "UNION "
+                + "SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_SS_ID IS NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf) "
                 + "order by SQ.DISPLAY_ORDER";
 
         String sqlSection = "SELECT SQ.ID, SQ.DISPLAY_ORDER FROM SURVEY.SECTIONS_QUESTIONS SQ "

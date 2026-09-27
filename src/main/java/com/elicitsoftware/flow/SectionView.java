@@ -181,8 +181,13 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         if (navResponse != null) {
             Log.debug("Processing " + navResponse.getAnswers().size() + " answers in navResponse");
             for (Answer answer : navResponse.getAnswers()) {
-                if (answer.question == null && answer.sectionInstance == 0) {
-                    // this is a section title.
+                if (answer.question == null) {
+                    // A section title: the one row of a section that carries no question. The
+                    // instance number is not part of that test -- a REPEATed section's instances
+                    // have sectionInstance 1, 2, ... and a title row each, and testing for 0 as
+                    // well sent them down the question branch to dereference a null question
+                    // (samples/FINDINGS.md 5: "navigation stalls after a section REPEAT" was this
+                    // NPE, caught by nextSection() and shown as a navigation error).
                     pageTitle = answer.label();
                 } else {
                     switch (answer.question.questionType.name) {
@@ -210,7 +215,11 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                         case GlobalStrings.QUESTION_TYPE_COMBOBOX:
                             ElicitComboBox comboBox = new ElicitComboBox(answer, texts);
                             comboBox.component.addValueChangeListener(e -> {
-                                saveAnswer(answer, e.getValue().toString());
+                                // codedValue, as RADIO does: SelectItem declares no toString(), so
+                                // the value itself would persist an identity hash that no rule can
+                                // match, no report can read and ElicitComboBox.setValue cannot find
+                                // again on the next visit.
+                                saveAnswer(answer, e.getValue() == null ? null : e.getValue().codedValue);
                             });
                             displayMap.put(answer.getDisplayKey(), comboBox.component);
                             if (!binders.containsKey(answer.getDisplayKey())) {
