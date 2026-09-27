@@ -1047,11 +1047,13 @@ Two corrections the implementation forced. A translation is created through `Ele
 rather than persisted directly, so it gets its durable id, its minted key and the version-0
 lifecycle from the same place as every other element -- writing it by hand violated the table's
 NOT NULL columns twice before the test caught it. And the token check in the import cannot rest on
-`Tokens.names` alone, as section 5.5 assumed: that sees only bare-word placeholders such as
-`{NAME|friend}`, while the common form is a phrase carrying the token, `{S1's mother|your mother}`,
-which `names` returns nothing for. The import therefore compares the *placeholder count* as well,
+`Tokens.names` alone, as section 5.5 assumed: that saw only bare-word placeholders such as
+`{NAME|friend}`, while the common form is a phrase carrying the token, `{<S1>'s mother|your mother}`,
+which `names` returned nothing for. The import therefore compares the *placeholder count* as well,
 which needs no rule list and catches the case that matters -- a translation that dropped the
-substitution entirely.
+substitution entirely. (Since V020 a token is written `<NAME>` wherever it is used, so `names` does
+see every use; the placeholder count is kept because it catches the dropped-substitution case
+without consulting the rules.)
 
 ## 6. The `.elicit` file, redefined in place
 

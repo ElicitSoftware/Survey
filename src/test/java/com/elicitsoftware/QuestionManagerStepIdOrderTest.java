@@ -39,8 +39,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * The fixture is built inside the test transaction with surrogate ids 91xx, durable ids 81xx
  * and display orders 1/2, so all three spaces differ and any comparison across them fails
  * loudly. Steps: "First step" (a count question, the name question it repeats, and a household
- * name) and "Household member of {HOUSE|the household}" holding the section
- * "About {NAME|this person}". Rules: a question-only REPEAT of the name question, a SHOW from
+ * name) and "Household member of {<HOUSE>|the household}" holding the section
+ * "About {<NAME>|this person}". Rules: a question-only REPEAT of the name question, a SHOW from
  * the name question (upstream step named) to the second step carrying token NAME, and a TEXT
  * rule from the household name (upstream step named) to the second step carrying token HOUSE.
  */
@@ -98,12 +98,12 @@ class QuestionManagerStepIdOrderTest {
         String steps = "INSERT INTO survey.steps(id, step_id, survey_id, display_order, name, dimension_name, description, step_key) "
                 + "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, gen_random_uuid())";
         exec(steps, STEP_ONE, STEP_ONE_DURABLE, surveyId, 1, "First step", "IdOrderFirst", "Holds the count, the names and the household name");
-        exec(steps, STEP_TWO, STEP_TWO_DURABLE, surveyId, 2, "Household member of {HOUSE|the household}", "IdOrderMember", "Shown once per name");
+        exec(steps, STEP_TWO, STEP_TWO_DURABLE, surveyId, 2, "Household member of {<HOUSE>|the household}", "IdOrderMember", "Shown once per name");
 
         String sections = "INSERT INTO survey.sections(id, section_id, survey_id, display_order, name, dimension_name, description, section_key) "
                 + "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, gen_random_uuid())";
         exec(sections, SECTION_NAMES, SECTION_NAMES_DURABLE, surveyId, 1, "Names", "IdOrderNames", "First step's section");
-        exec(sections, SECTION_ABOUT, SECTION_ABOUT_DURABLE, surveyId, 2, "About {NAME|this person}", "IdOrderAbout", "Second step's section");
+        exec(sections, SECTION_ABOUT, SECTION_ABOUT_DURABLE, surveyId, 2, "About {<NAME>|this person}", "IdOrderAbout", "Second step's section");
 
         String ss = "INSERT INTO survey.steps_sections(id, steps_sections_id, survey_id, step_id, step_display_order, section_id, section_display_order, display_key, steps_sections_key) "
                 + "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, gen_random_uuid())";

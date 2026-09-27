@@ -31,6 +31,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.TreeMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * The {@code QuestionManager} class is responsible for managing the lifecycle of survey questions,
@@ -61,47 +63,77 @@ public class QuestionManager {
      *               and values are the replacements for those tokens
      * @return the resulting string after replacing all specified tokens and applying formatting adjustments
      */
-    static String replaceTokens(String text, TreeMap<String, String> values) {
+    /** Group 1 is the phrase, group 2 the default text (null when the placeholder has none). */
+    private static final Pattern PLACEHOLDER = Pattern.compile("\\{([^{}|]+)(?:\\|([^{}]*))?}");
 
-        // Split the string into parts
-        String[] displayText = text.split("}");
+    /** A token where it is used, inside a phrase: {@code <NAME>}. Mirrors Author's Tokens. */
+    private static final Pattern TOKEN_REF = Pattern.compile("<([A-Za-z0-9_]+)>");
 
-        if (!values.isEmpty()) {
-            // Replace all the Token values
-            for (String key : values.keySet()) {
-                for (int i = 0; i < displayText.length; i++) {
-                    String string = displayText[i];
-                    if (string.contains(key)) {
-                        string = string.replaceFirst("\\{", "");
-                        string = string.replaceFirst("\\|.*", "");
-                        string = string.replaceFirst(key,
-                                java.util.regex.Matcher.quoteReplacement(escapeHtml(values.get(key))));
-                    }
-                    if (string.contains("}")) {
-                        string = replaceTokens(string, values);
-                    }
-                    displayText[i] = string;
-                }
+    /** Counters this class fills itself, from the answer's key, not from a rule. */
+    private static final java.util.Set<String> BUILT_IN_PLACEHOLDERS = java.util.Set.of("Q#", "S#");
+
+    /**
+     * A phrase with every {@code <TOKEN>} in it replaced, or null when a value is missing.
+     *
+     * <p>Null rather than a partly-filled phrase on purpose: a placeholder is all-or-nothing, so a
+     * phrase whose token has no value falls back to the default the author wrote instead of
+     * showing half a sentence.</p>
+     *
+     * <p>The substitution is anchored on the brackets. It used to be {@code string.contains(key)}
+     * over a whole segment of the text, which could not tell the token {@code NAME} from the word
+     * "name" in ordinary prose and would rewrite the prose instead of the placeholder.</p>
+     */
+    private static String fillPhrase(String phrase, TreeMap<String, String> values) {
+        Matcher ref = TOKEN_REF.matcher(phrase);
+        StringBuilder filled = new StringBuilder();
+        boolean any = false;
+        while (ref.find()) {
+            any = true;
+            String value = valueOf(ref.group(1), values);
+            if (value == null) {
+                return null;
+            }
+            ref.appendReplacement(filled, Matcher.quoteReplacement(escapeHtml(value)));
+        }
+        ref.appendTail(filled);
+        return any ? filled.toString() : null;
+    }
+
+    /** A token's value, matched by name without regard to case. */
+    private static String valueOf(String token, TreeMap<String, String> values) {
+        String exact = values.get(token);
+        if (exact != null) {
+            return exact;
+        }
+        for (java.util.Map.Entry<String, String> e : values.entrySet()) {
+            if (e.getKey() != null && e.getKey().equalsIgnoreCase(token)) {
+                return e.getValue();
             }
         }
+        return null;
+    }
 
-        for (int i = 0; i < displayText.length; i++) {
-            String string = displayText[i];
-
-            // Remove any tokens values that were not passed, leaving the
-            // default
-            // part
-            // of the text
-            string = string.replaceAll("\\{.*\\|", "");
-            displayText[i] = string;
+    static String replaceTokens(String text, TreeMap<String, String> values) {
+        if (text == null) {
+            return null;
         }
-
-        // Rebuild the sting from its parts
-        StringBuilder textBuilder = new StringBuilder();
-        for (String s : displayText) {
-            textBuilder.append(s);
+        Matcher placeholder = PLACEHOLDER.matcher(text);
+        StringBuilder out = new StringBuilder();
+        while (placeholder.find()) {
+            String phrase = placeholder.group(1);
+            String defaultText = placeholder.group(2);
+            String replacement;
+            if (BUILT_IN_PLACEHOLDERS.contains(phrase.trim())) {
+                // {Q#} and {S#} are runtime counters, filled later against the answer's own key.
+                replacement = placeholder.group();
+            } else {
+                String filled = fillPhrase(phrase, values);
+                replacement = filled != null ? filled : (defaultText == null ? phrase : defaultText);
+            }
+            placeholder.appendReplacement(out, Matcher.quoteReplacement(replacement));
         }
-        text = textBuilder.toString();
+        placeholder.appendTail(out);
+        text = out.toString();
 
         // Until I can come up with a better solution to this problem I'll
         // force it here. I know this is a hack.
