@@ -11,6 +11,7 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
 import com.vaadin.flow.component.textfield.TextArea;
@@ -42,8 +43,8 @@ public class ElicitTextArea extends ElicitComponent<TextArea> {
      * @param answer The Answer object containing the display text to be shown in the text area.
      *               This is used to initialize the TextArea component with the provided display text.
      */
-    public ElicitTextArea(Answer answer) {
-        super(new TextArea(answer.displayText), answer);
+    public ElicitTextArea(Answer answer, ContentTexts texts) {
+        super(new TextArea(answer.label()), answer, texts);
     }
 
     /**

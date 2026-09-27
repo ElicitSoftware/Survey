@@ -16,6 +16,7 @@ import jakarta.persistence.*;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 /**
  * The Section class represents an entity in the "sections" table within the "survey" schema.
@@ -46,6 +47,14 @@ public class Section extends PanacheEntityBase {
 
     @Column(name = "survey_id", nullable = false, precision = 20)
     public Integer surveyId;
+
+    /**
+     * Element key (Survey V015): the identity that survives versioning and import, and what a
+     * {@link Translation} names this element by. Read-only here -- it is minted in Author and
+     * carried verbatim by Admin's import and update; Survey never writes it.
+     */
+    @Column(name = "section_key", insertable = false, updatable = false)
+    public UUID sectionKey;
 
     // NUMERIC, not INTEGER (Kimball Type 2 SCD, research/Kimball_type_2.md's "Adding a new
     // question" section) -- supports decimal-midpoint insertion between existing positions

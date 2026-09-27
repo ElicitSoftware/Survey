@@ -5,7 +5,7 @@
 **Use Case ID:** UC-009  
 **Use Case Name:** Complete the Survey in My Language  
 **Primary Actor:** Respondent  
-**Goal:** The respondent sees every page of the application — labels, buttons, messages, page titles and the brand name — in a language they read, laid out right-to-left when that language requires it, so that they can complete the survey without understanding English.  
+**Goal:** The respondent sees every page of the application — labels, buttons, messages, page titles and the brand name — in a language they read, and the survey's own questions and answer options in that language wherever the survey publishes a translation of them, laid out right-to-left when that language requires it, so that they can complete the survey without understanding English.  
 **Status:** Implemented
 
 ## Preconditions
@@ -13,6 +13,7 @@
 - The application ships English texts only; the deployment's translations directory supplies every other language (Latin American Spanish and Arabic in the reference deployment).
 - The deployment may have mounted further language files or text overrides; if so, those languages are also available.
 - The respondent has an invitation link, which may carry a language, or navigates to the login page directly.
+- The survey declares the language its content was authored in and the set of languages its content has been published in; either set may be empty of anything but the base language.
 
 ## Main Success Scenario
 
@@ -22,7 +23,7 @@
 4. Respondent chooses a different language from the language selector shown on every page.
 5. System redisplays the current page in the chosen language, applies the matching layout direction, and remembers the choice for the rest of the browser session.
 6. Respondent logs in, answers the survey, reviews and finalizes it, and views the reports.
-7. System presents every application page of that journey in the chosen language while survey content (questions, answer options, section names) appears in the language it was authored in, and the respondent completes the survey in their language.
+7. System presents every application page of that journey in the chosen language, and presents each piece of survey content (question text, answer options, step and section names, tooltips, validation messages, report titles) in that language where the survey publishes a current translation of it and in the survey's base language where it does not, and the respondent completes the survey in their language.
 
 ## Alternative Flows
 
@@ -59,12 +60,29 @@
 1. System shows the mounted text for the overridden items and the shipped text for all others.
 2. Use case continues at step 4.
 
+### A5: A piece of survey content is untranslated or out of date
+
+**Trigger:** The respondent's language is one of the survey's content languages, but a question, option or name has no translation in it, or its translation was made from base text that has since been edited (step 7)  
+**Flow:**
+
+1. System shows that one string in the survey's base language and every other string in the respondent's language.
+2. Use case continues at step 7.
+
+### A6: The survey publishes nothing in the respondent's language
+
+**Trigger:** The chosen language is not one of the survey's content languages, or is not mounted for the application's own texts at this site (step 7)  
+**Flow:**
+
+1. System shows the application's own texts in the chosen language and all survey content in the survey's base language.
+2. Use case continues at step 7.
+
 ## Postconditions
 
 ### Success Postconditions
 
 - The chosen language is remembered for the browser session and applied to every page the respondent visits until they log out or close the browser.
-- Survey answers and reports are unaffected by the language choice; only the application's own texts and layout direction differ.
+- Survey answers and reports are unaffected by the language choice; what differs is the application's own texts, the layout direction, and which language each piece of survey content is shown in.
+- Each answer records the language its label was rendered in, so what the respondent was shown can be reconstructed later.
 
 ### Failure Postconditions
 
@@ -88,9 +106,9 @@ Link language, then session choice, then browser preference, then English. A lan
 
 Languages written right-to-left (Arabic, Hebrew, Persian, Urdu and similar) mirror the whole page layout; all other languages are laid out left-to-right. A deployment may declare the direction of a mounted language explicitly.
 
-### BR-005: Survey content keeps its authored language
+### BR-005: Survey content follows the respondent's language where it is published
 
-Question text, answer options, section and step names, report content and message templates are stored with the survey and appear as authored, whatever language the application chrome uses.
+Question text, answer options, step and section names, tooltips, validation messages and report titles appear in the respondent's language when the survey publishes a current translation of them, and in the survey's base language when it does not. The fallback is per string, not per page: one untranslated question sits among translated ones rather than returning the whole survey to the base language. Message templates and the body of an external report service are outside this mechanism and keep the language they were authored in.
 
 ### BR-006: Brand names are localized by the brand
 
@@ -98,4 +116,16 @@ The organization name and description supplied by the mounted brand may carry pe
 
 ### BR-007: The language choice never crosses sessions
 
-The choice is held for the browser session only; nothing about the respondent's language is stored with their survey record.
+The choice is held for the browser session only and is never used to pre-select a language on a later visit; no language preference is stored against the respondent. The language each answer's label was rendered in is recorded with that answer, as a record of what the respondent saw rather than as a preference.
+
+### BR-008: An out-of-date translation is not shown
+
+A translation is made from one particular wording of the base text. When that wording is edited the translation is out of date, and the base text is shown in its place until the string is translated again, so that every language asks the same question. A deployment may choose to show out-of-date translations instead.
+
+### BR-009: A content language is offered only where its chrome is mounted
+
+Survey content reaches a respondent in a language only when that language is both published for the survey and mounted for the application's own texts at that site. A site that has not adopted a language therefore holds its translations without ever serving them, and no respondent sees translated questions between base-language buttons.
+
+### BR-010: A respondent in progress keeps the wording they started with
+
+Content translations are versioned like the survey's structure. A respondent sees the translation that was current when they first accessed the survey; a correction published later reaches only respondents who start after it.

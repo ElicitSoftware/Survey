@@ -55,7 +55,7 @@
 - **BR-002:** The rebuild is synchronous: the response is sent when the build is done, so the caller's success means the schema is ready. The caller bounds its wait (Admin uses 60 seconds); a build that outlives it still completes here.
 - **BR-003:** A failure is reported, not thrown. The response distinguishes "disabled by configuration" (409) from "the build broke" (500), and the 500 message is the innermost cause so an operator can act on it. The one known failure -- a dimension name shared by two surveys -- is a limitation of the site-wide `dim_step_un`/`dim_section_un` constraints, surfaced here and not worked around.
 - **BR-004:** The endpoint is unauthenticated, like every REST path Survey exposes, and is intended for the Admin module on the internal network. It reads no respondent data and can do nothing a restart of Survey would not; a deployment that exposes Survey's `/api` paths publicly must keep this one behind the same boundary as the report and post-survey-action services.
-- **BR-005:** Concurrent requests are serialised, never interleaved: the DDL steps assume they are the only writer of the reporting schema.
+- **BR-005:** Concurrent requests are serialized, never interleaved: the DDL steps assume they are the only writer of the reporting schema.
 
 ## Notes / Known Gaps
 

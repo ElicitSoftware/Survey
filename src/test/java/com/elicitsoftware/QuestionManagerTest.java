@@ -621,7 +621,7 @@ class QuestionManagerTest {
     @Test
     @TestTransaction
     void given_freshRespondent_when_answerInDisplayKeyOrder_then_matchesTessGoldenMaster() {
-        // Create fresh respondent and initialise
+        // Create fresh respondent and initialize
         Respondent r = createFreshRespondent();
         questionManager.init(r.id.intValue(), WELCOME_SECTION);
 

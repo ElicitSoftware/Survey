@@ -12,6 +12,7 @@ package com.elicitsoftware;
  */
 
 import com.elicitsoftware.etl.ETLRespondentService;
+import com.elicitsoftware.i18n.ContentTranslator;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.PostSurveyAction;
 import com.elicitsoftware.model.Respondent;
@@ -79,16 +80,23 @@ public class QuestionService {
              from (SELECT a.id,
              a.respondent_id,
                 a.display_key,
-                a.display_text,
-                q.short_text,
-                COALESCE(NULLIF(q.short_text::text, ''::text), a.display_text::text) AS short_display_text,
-                COALESCE(i.display_text, a.text_value) AS display_value,
+                CASE WHEN a.display_language = :language THEN a.display_text_local ELSE a.display_text END AS display_text,
+                COALESCE(ts.value, q.short_text) AS short_text,
+                COALESCE(NULLIF(COALESCE(ts.value, q.short_text)::text, ''::text),
+                         CASE WHEN a.display_language = :language THEN a.display_text_local ELSE a.display_text END::text) AS short_display_text,
+                COALESCE(ti.value, i.display_text, a.text_value) AS display_value,
                 t.name AS question_type
              FROM survey.answers a
              JOIN survey.questions q ON a.question_id = q.id
              LEFT JOIN survey.question_types t ON q.type_id = t.id
              LEFT JOIN survey.select_groups g ON q.select_group_id = g.select_group_id
              LEFT JOIN survey.select_items i ON g.select_group_id = i.select_group_id AND a.text_value::text = i.coded_value::text
+             LEFT JOIN survey.translations ts ON ts.element_key = q.question_key AND ts.field = 'short_text'
+                AND ts.language = :language AND ts.effective_from <= :asOf AND ts.effective_to > :asOf
+                AND ts.source_hash = encode(sha256(convert_to(q.short_text, 'UTF8')), 'hex')
+             LEFT JOIN survey.translations ti ON ti.element_key = i.select_item_key AND ti.field = 'display_text'
+                AND ti.language = :language AND ti.effective_from <= :asOf AND ti.effective_to > :asOf
+                AND ti.source_hash = encode(sha256(convert_to(i.display_text, 'UTF8')), 'hex')
              WHERE a.respondent_id = :respondentId
                 AND a.deleted = false
                 AND a.text_value IS NOT NULL
@@ -96,13 +104,17 @@ public class QuestionService {
              SELECT a1.id,
                 a1.respondent_id,
                 a1.display_key,
-                a1.display_text,
-                q1.short_text,
-                COALESCE(NULLIF(q1.short_text::text, ''::text), a1.display_text::text) AS short_display_text,
+                CASE WHEN a1.display_language = :language THEN a1.display_text_local ELSE a1.display_text END AS display_text,
+                COALESCE(ts1.value, q1.short_text) AS short_text,
+                COALESCE(NULLIF(COALESCE(ts1.value, q1.short_text)::text, ''::text),
+                         CASE WHEN a1.display_language = :language THEN a1.display_text_local ELSE a1.display_text END::text) AS short_display_text,
                 null AS display_value,
                 null AS question_type
              FROM survey.answers a1
              LEFT JOIN survey.questions q1 ON a1.question_id = q1.id
+             LEFT JOIN survey.translations ts1 ON ts1.element_key = q1.question_key AND ts1.field = 'short_text'
+                AND ts1.language = :language AND ts1.effective_from <= :asOf AND ts1.effective_to > :asOf
+                AND ts1.source_hash = encode(sha256(convert_to(q1.short_text, 'UTF8')), 'hex')
              WHERE a1.respondent_id = :respondentId
                 AND a1.deleted = false
                 AND a1.section_question_id IS NULL) c
@@ -123,6 +135,9 @@ public class QuestionService {
 
     @Inject
     QuestionService self;
+
+    @Inject
+    ContentTranslator translator;
 
     /**
      * Initializes the respondent's survey by generating initial answers for all sections
@@ -160,6 +175,18 @@ public class QuestionService {
      * @param respondent_id the unique identifier of the respondent for whom the review response is generated
      * @return an instance of {@code ReviewResponse} containing a list of sections with their associated items
      */
+    /**
+     * Re-renders a respondent's in-progress answer labels in the language now in force
+     * (UC-009 BR-005). Called from {@code LocaleSelection.apply} when a respondent switches
+     * language mid-survey.
+     *
+     * @param respondentId the respondent whose labels should be rebuilt
+     */
+    @Transactional(Transactional.TxType.REQUIRES_NEW)
+    public void relocalize(int respondentId) {
+        questionManager.relocalize(respondentId);
+    }
+
     @Timed(value = "survey.review", description = "Time to generate review response", histogram = true)
     @Transactional
     public ReviewResponse review(int respondent_id) {
@@ -167,8 +194,17 @@ public class QuestionService {
         List<ReviewItem> items = new ArrayList<>();
         List<ReviewSection> sections = new ArrayList<>();
 
+        Respondent respondent = Respondent.findById(respondent_id);
+        String language = respondent == null ? null : translator.language(respondent.survey);
+
         Query query = entityManager.createNativeQuery(reviewSQL);
         query.setParameter("respondentId", respondent_id);
+        // Empty rather than null: a null :language would make every comparison null, not false,
+        // and the CASE would fall through for a respondent who has no content language at all.
+        query.setParameter("language", language == null ? "" : language);
+        // The same instant the structural finders are pinned to, so the review page shows the
+        // wording the respondent answered under rather than the newest one (UC-009 BR-010).
+        query.setParameter("asOf", Respondent.snapshotAnchor(respondent_id));
         @SuppressWarnings("unchecked")
         List<Object[]> results = query.getResultList();
         String sectionTitle = "";

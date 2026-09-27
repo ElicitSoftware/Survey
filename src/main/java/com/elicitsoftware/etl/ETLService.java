@@ -135,7 +135,7 @@ public class ETLService {
     public record RebuildResult(RebuildStatus status, String message) {
     }
 
-    /** Serialises concurrent rebuild requests; the DDL steps are not safe to interleave. */
+    /** Serializes concurrent rebuild requests; the DDL steps are not safe to interleave. */
     private final ReentrantLock rebuildLock = new ReentrantLock();
 
     /**

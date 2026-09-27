@@ -127,7 +127,7 @@ class QuestionManagerVersionedStructureTest {
         String sections = "INSERT INTO survey.sections(id, section_id, survey_id, display_order, name, dimension_name, description, section_key) "
                 + "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, gen_random_uuid())";
         exec(sections, SECTION_NAMES, SECTION_NAMES_DURABLE, id, 1, "Names", "VersionedNames", "First step's section");
-        exec(sections, SECTION_ABOUT, SECTION_ABOUT_DURABLE, id, 2, "About {NAME|this person}", "VersionedAbout", "Second step's section");
+        exec(sections, SECTION_ABOUT, SECTION_ABOUT_DURABLE, id, 2, "About {<NAME>|this person}", "VersionedAbout", "Second step's section");
 
         String ss = "INSERT INTO survey.steps_sections(id, steps_sections_id, survey_id, step_id, step_display_order, section_id, section_display_order, display_key, steps_sections_key) "
                 + "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, gen_random_uuid())";

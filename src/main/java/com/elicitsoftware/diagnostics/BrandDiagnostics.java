@@ -95,7 +95,7 @@ public class BrandDiagnostics {
     }
 
     static final List<Expected> EXPECTED = List.of(
-            new Expected("colors/brand-colors.css", "colour stylesheet"),
+            new Expected("colors/brand-colors.css", "color stylesheet"),
             new Expected("typography/brand-typography.css", "typography stylesheet"),
             new Expected("theme.css", "theme stylesheet"),
             new Expected("images/HorizontalLogo.png", "horizontal logo"),

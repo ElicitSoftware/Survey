@@ -11,6 +11,7 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
 import com.elicitsoftware.model.SelectItem;
@@ -58,10 +59,10 @@ public class ElicitComboBox extends ElicitComponent<ComboBox<SelectItem>> {
      *               for the combo box. The selectable items are retrieved from the associated
      *               question's select group.
      */
-    public ElicitComboBox(Answer answer) {
-        super(new ComboBox<SelectItem>(answer.displayText), answer);
+    public ElicitComboBox(Answer answer, ContentTexts texts) {
+        super(new ComboBox<SelectItem>(answer.label()), answer, texts);
         component.setItems(answer.getSelectItems());
-        component.setItemLabelGenerator(item -> item.displayText);
+        component.setItemLabelGenerator(texts::option);
     }
 
     /**

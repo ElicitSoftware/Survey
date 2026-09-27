@@ -1,6 +1,15 @@
 # Translating Survey Content in the Database
 
-**Status:** research / proposal, 2026-09-20. Nothing here is implemented.
+**Status:** implemented, 2026-09-25, on `feature/content-translation` in Survey, Admin, Author
+and the umbrella. Written as research / proposal on 2026-09-20 and revised on 2026-09-25 (the
+second reader of `validation_text`, the translation length budget, migration numbering); it is
+kept in the proposal's voice, with each phase's corrections recorded where they belong -- the
+DDL and grants in section 3.2, the file's arities in section 6, Author's gaps in section 5.6 --
+so that the reasoning stays readable beside what was built.
+
+Sections 1 to 10 are built. **Section 11.4 is not**: the respondent file still carries numeric
+ids rather than element keys, and still omits `display_text_local` and `display_language`. That
+defect predates this design, does not block it, and is scheduled on its own.
 
 Source: the 2020 design in `../Survey_i18n/survey_ms_question` (its `I18nEntity.java`,
 `Question.java` with `@PostLoad internationalize()`, and the Flyway scripts under
@@ -310,9 +319,26 @@ Everything downstream reads the snapshot. Every `flow/input/Elicit*` widget pass
 `answer.displayText` (`SectionView.java:176`); the left navigation is native SQL over
 `answers.display_text` (`QuestionManager.java:1817`); the review page is native SQL over
 `a.display_text`, `q.short_text` and `i.display_text` (`QuestionService.java:77-110`).
-Only tooltip, validation message and placeholder read the live `Question`
-(`ElicitComponent.java:95-104`), and only option labels read the live `SelectItem`
-(`ElicitComboBox.java:64` and the radio, checkbox-group and multi-select twins).
+Only tooltip, validation message and placeholder read the live `Question`, and only
+option labels read the live `SelectItem` (`ElicitComboBox.java:64` and the radio,
+checkbox-group and multi-select twins). `validation_text` has two readers, not one. The
+constructor sets the component's error message from it (`ElicitComponent.java:99-101`),
+and the static `validationMessage(Answer, String)` (`:132-135`) resolves it for every
+binder message, falling back to a chrome string for the questions that leave the column
+unset:
+
+```java
+// ElicitComponent.java:132-135
+static String validationMessage(Answer answer, String fallback) {
+    String authored = answer.question.validationText;
+    return (authored == null || authored.isBlank()) ? fallback : authored;
+}
+```
+
+`requiredMessage`, `lengthMessage` and `rangeMessage` (`:144-169`) are its three
+wrappers and fourteen widgets call them, so a translation applied only at `:99-101`
+would leave every required, length and out-of-range message in the base language while
+the inline error message beside it was translated.
 
 ### 2.3 Where the locale already comes from
 
@@ -364,7 +390,7 @@ errors in all three readers (`SurveyDefinitionImporter.java:151`,
 `Admin/.../SurveyDefinitionImportService.java:415`,
 `SurveyDefinitionUpdateService.java:396`). Two Python generators under `Author/samples/`
 write the format independently, and `SurveyDefinitionExporterTest` proves a
-field-for-field round trip (NFR-011) with a normaliser that keys rows by
+field-for-field round trip (NFR-011) with a normalizer that keys rows by
 `table + ":" + fields[1]` (`:52-90`).
 
 Admin is the consumer at deployed sites. Its update service matches every file row to
@@ -386,7 +412,9 @@ migrations; it mirrors Survey's under `src/test/resources/db/schema-mirror/` and
 Survey has two Flyway tracks, `db/migration` and `db/migration-v3`, and every version
 must exist in both (`flyway/ManualSchemaMigrator.java:52-62`, enforced by
 `ManualSchemaMigratorUpgradeTest`). `db/migration-v3` V001 to V009 are frozen copies of
-the released V2 migrations and must not change. The latest version is V016 in both.
+the released V2 migrations and must not change. The latest version is V018 in both
+(V017 grants select on the Flyway history, V018 fixes the datetime question type), so
+this design's migration is V019.
 
 ### 2.7 What the requirements currently say
 
@@ -419,8 +447,8 @@ C conflicts with versioning and with the update service. B is recommended.
 
 ### 3.2 Recommended DDL
 
-A new `V017__Survey_Content_Translations.sql` in both `db/migration` and
-`db/migration-v3`, identical DDL, differing only in the header comment, exactly as V016.
+A new `V019__Survey_Content_Translations.sql` in both `db/migration` and
+`db/migration-v3`, identical DDL, differing only in the header comment, exactly as V018.
 
 ```sql
 CREATE SEQUENCE survey.translations_seq INCREMENT 1 START 1;
@@ -435,7 +463,7 @@ CREATE TABLE survey.translations (
     field             varchar(32)  NOT NULL,  -- column name of the base text: text, short_text, name, display_text, ...
     language          varchar(35)  NOT NULL,  -- BCP-47 tag as the chrome bundles use it: es-419, ar
     value             text         NOT NULL,  -- removal is a closed effective_to, never an empty value
-    source_hash       char(64)     NOT NULL,  -- sha256 of the base text this was translated from
+    source_hash       varchar(64)  NOT NULL,  -- sha256 of the base text this was translated from
     source_text       text,                   -- authoring-only snapshot for the stale diff; not exported
     translation_id    integer      NOT NULL DEFAULT nextval('survey.translations_durable_seq'),
     translation_key   uuid         NOT NULL,  -- cross-instance identity, minted once, preserved by import/export
@@ -485,7 +513,7 @@ ALTER TABLE survey.surveys
     ADD COLUMN content_languages varchar(255);
 
 ALTER TABLE survey.answers
-    ADD COLUMN display_text_local varchar(8000),
+    ADD COLUMN display_text_local text,       -- not varchar(8000); see Lengths below
     ADD COLUMN display_language   varchar(35);
 ```
 
@@ -550,16 +578,35 @@ Points of the design:
   exact stored base string, no trim. In PostgreSQL:
   `encode(sha256(convert_to(q.short_text, 'UTF8')), 'hex')`. In Java:
   `HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(s.getBytes(UTF_8)))`.
-  One `ContentHash` utility per module and one shared test vector.
-- **Grants.** `survey_user`: SELECT on the table; the new columns on `surveys` and
+  One `ContentHash` utility per module and one shared test vector. The column is `varchar(64)`,
+  not `char(64)`: `bpchar` compares with trailing-space semantics, and Hibernate maps a `String`
+  field to `varchar`, so `char(64)` fails schema validation in Author (found while implementing
+  V019).
+- **Lengths.** `translations.value` is `text`, and `display_text_local` is `text` rather
+  than the `varchar(8000)` of the `answers.display_text` column it mirrors. A translation
+  is not the length of its source: Spanish and French run 15 to 25 % longer than English
+  and short strings expand furthest, so a base sentence that fits its column does not
+  imply that its translation does. Nothing in the database may truncate a sentence a
+  respondent is reading, so neither column carries a width, and the budget is enforced
+  where it can be reported to a human instead: Author's hand-off export and import
+  (section 5.5). The base columns keep the widths they have (`questions.text` 8,000,
+  `short_text` 100, `tool_tip`, `validation_text`, `placeholder` and
+  `select_items.display_text` 255). Widening them is a separate decision about what an
+  author may type in the base language (section 12); it would not help a translation,
+  which never lands in a base column.
+- **Grants.** `survey_user`: the same `DELETE, UPDATE, INSERT, SELECT` every other definition
+  table grants it, not SELECT alone. The Survey runtime only reads translations, but `survey_user`
+  is also the user the **Author** tool connects as against its own database (`docker-compose.yml`,
+  the `author` service: "Author connects as survey_user (Survey's grants cover every definition
+  table)"), and Author is where translations are written. The new columns on `surveys` and
   `answers` are covered by the existing table grants. `surveyadmin_user`: an Admin
   migration `V0.0.19__Add_Translation_Grants.sql` with SELECT, INSERT, UPDATE on the
   table and usage on the sequence, in the pattern of V0.0.8 and V0.0.16.
   `surveyreport_user`: nothing; reporting stays base-language.
-- **Placement.** V017 in both tracks rather than folding into V001 and V010. V011 to
-  V016 are the team's own pre-release precedent for append-not-edit; editing V001 changes
+- **Placement.** V019 in both tracks rather than folding into V001 and V010. V011 to
+  V018 are the team's own pre-release precedent for append-not-edit; editing V001 changes
   its checksum on every developer and CI database; and the Author mirror and Admin
-  bootstrap change as one new file each. An optional pre-release squash of V010 to V017
+  bootstrap change as one new file each. An optional pre-release squash of V010 to V019
   can follow the feature if fewer files are wanted.
 - **Hibernate.** In Author, `model/Translation.java` extends `StructuralElement` like the
   other eight (`getDurableId` on `translation_id`, `getElementKey` on `translation_key`,
@@ -711,11 +758,21 @@ Concretely:
   else `displayText`, replaces `answer.displayText` at every label site (the sixteen
   `flow/input` classes, `ElicitHtml.java:35`, `SectionView.java:176`). Tooltip,
   validation message and placeholder (`ElicitComponent.java:95-104`) go through
-  `translator.toolTip(q)` and friends. Option labels (`ElicitComboBox.java:64`, `:106`,
-  and the radio, checkbox-group and multi-select twins) use
-  `translator.displayText(item)`. `AboutView.java:54` uses `translator.title(survey)` and
-  `translator.description(survey)` (and should show `title`, not `name`). `ReportView`
-  card titles use `translator.name(report)`.
+  `translator.toolTip(q)`, `translator.validationText(q)` and
+  `translator.placeholder(q)`. The binder messages resolve through the same
+  `validationText(q)`: `validationMessage(Answer, String)` (`:132-135`) and its wrappers
+  `requiredMessage`, `lengthMessage` and `rangeMessage` (`:144-169`) read the localized
+  text in place of `answer.question.validationText` and keep their chrome fallbacks
+  unchanged, so a required or out-of-range message is in the same language as the
+  question it is about (section 2.2). Those four are `static` today and become instance
+  methods, because the translator reaches a widget through its constructor: the widgets
+  are `new`-ed rather than injected (`SectionView.java:179-352` builds all sixteen), so
+  `ElicitComponent`'s constructor takes a `ContentTranslator` beside the `Answer` and
+  `SectionView` passes the one bean it injects. Option labels
+  (`ElicitComboBox.java:64`, `:106`, and the radio, checkbox-group and multi-select
+  twins) use `translator.displayText(item)`. `AboutView.java:54` uses
+  `translator.title(survey)` and `translator.description(survey)` (and should show
+  `title`, not `name`). `ReportView` card titles use `translator.name(report)`.
 - **Reporting.** `fact_sections.name` keeps reading `steps.name`; `dim_step` and
   `dim_section` keep reading `dimension_name`. Nothing in the ETL changes.
 - **PDF and reports.** The report body comes from an external service called with only
@@ -738,7 +795,7 @@ Survey, with a test that the three agree and that they match the CHECK constrain
 | `surveys` / `survey_key` | `title`, `description` | `name` is an identifier used in file names and Admin lists |
 | `steps` / `step_key` | `name`, `description` | `dimension_name` is the reporting dimension |
 | `sections` / `section_key` | `name`, `description` | `dimension_name` |
-| `questions` / `question_key` | `text`, `short_text`, `tool_tip`, `placeholder`, `validation_text` | `default_value` is written into `answers.text_value` (`QuestionManager.java:516`) and analysed, so translating it would fork stored data by language; `mask`, `variant`, `sample` |
+| `questions` / `question_key` | `text`, `short_text`, `tool_tip`, `placeholder`, `validation_text` | `default_value` is written into `answers.text_value` (`QuestionManager.java:516`) and analyzed, so translating it would fork stored data by language; `mask`, `variant`, `sample` |
 | `select_items` / `select_item_key` | `display_text` | `coded_value` |
 | `relationships` / `relationship_key` | `default_upstream_value` | `override_upstream_value` has no runtime reader; `token`, `reference_value`, `description` |
 | `reports` / `report_key` | `name`, `description` | `url` |
@@ -746,6 +803,11 @@ Survey, with a test that the three agree and that they match the CHECK constrain
 Nothing on `select_groups` (author-facing only), `post_survey_actions`, `ontology`,
 `dimensions` or `metadata`; tags and dimension names are SQL identifiers
 (`ReportingNames`).
+
+The fields differ sharply in width: 8,000 characters for `questions.text`, 255 for
+`tool_tip`, `validation_text`, `placeholder` and `select_items.display_text`, and 100
+for `short_text`. What a translator may return is not those widths but the budget of
+section 5.5, because the translation is stored in `translations.value`, which is `text`.
 
 ### 5.2 Survey-level languages
 
@@ -865,11 +927,35 @@ The exporter fills everything except `translation`. `context` is the breadcrumb 
 Translations view already computes plus what a translator needs to disambiguate: the
 question type, its options for a select question, the step and section names. `tokens`
 lists the token keys the string uses (`Tokens.names`), `flags` marks HTML fragments and
-token use, `max_length` is the base column's length, `status` is missing, stale or
-translated, and for a stale item `previous_source` and `current_translation` are the
-text the existing translation was made from and the translation itself, so the agent
-can carry over what is still right. `source_hash` travels so the import can tell whether
-the base text moved again while the file was out.
+token use, `max_length` is the budget below rather than the base column's width,
+`status` is missing, stale or translated, and for a stale item `previous_source` and
+`current_translation` are the text the existing translation was made from and the
+translation itself, so the agent can carry over what is still right. `source_hash`
+travels so the import can tell whether the base text moved again while the file was out.
+
+**The length budget.** Taking the base column's width as the limit would leave a
+translator almost no room on the four 255-character columns and none at all on
+`short_text`: a 250-character English tooltip needs about 300 in Spanish, and a
+95-character `short_text` cannot be said in 100. Nothing forces that limit, because the
+translation is stored in `translations.value`, which is `text` (section 3.2); the number
+protects the widget the string is drawn in, not the column it is stored in. So the
+budget is computed per item from the source string, with the expansion the localization
+industry assumes for a string of that length, and never falls below the base column's
+width:
+
+```
+max_length = max(base_column_width, ceil(len(source) * factor))
+factor     = 2.0 for len(source) <= 20, 1.6 for <= 50, 1.4 for <= 200, 1.3 above
+```
+
+A 90-character `short_text` is offered 126, a full tooltip 325, a short option label
+its column's 255, and any `questions.text` item the full 8,000. One
+`TranslationBudget.of(field, source)` computes it for the export, for the import check
+and for the inline `TextArea` in the Translations view, so a translator is never shown a
+limit the import will not accept; it sits beside the whitelist of section 5.1, which is
+where the base column widths belong. A translation over the budget is rejected by item
+rather than truncated, because truncating a question is worse than leaving it in the
+base language.
 
 **Instructions in the file**, mirroring the chrome package and adjusted for content:
 
@@ -881,7 +967,9 @@ the base text moved again while the file was out.
   bar, moving the key where the language needs it. Keep the braces and the bar; never
   add or drop one. A translation must use exactly the tokens the source uses.
 - Where `flags` contains `html`, keep the tags and translate only the text between them.
-- Respect `max_length`.
+- Respect `max_length`. It already allows for the target language running longer than
+  the source; it is a ceiling for the space the string is drawn in, not a length to
+  fill.
 - Option labels (`select_items` / `display_text`) must stay distinct from each other
   within the same question.
 - The glossary: `Elicit`, survey, step, section, question, access code (never a token),
@@ -904,7 +992,7 @@ the author confirms adding), then each item:
 | `source_hash` differs from the hash of the current base text | Imported, but reported as "base text changed since export"; the row is stale by hash and is not served until re-translated |
 | Token set of `translation` differs from the token set of the current base text | Rejected, reported with both sets |
 | Braces or bars unbalanced (`Tokens.PLACEHOLDER` fails to consume every `{`) | Rejected |
-| Length over `max_length` | Rejected |
+| Length over the item's `max_length` budget | Rejected |
 | HTML flag set and the tag multiset differs from the source's | Warned, imported |
 | Two option labels of one question translated to the same text | Rejected for both |
 | `translation` equals `current_translation` | Unchanged, counted |
@@ -930,6 +1018,43 @@ not exported.
 parameterised cases; and a `DisplayedStringsSweepTest` pass over the upload dialog and
 result dialog.
 
+### 5.6 What phase 4 built, and what it did not
+
+Implemented as described: `TranslationService` (rows, counts, upsert, remove, the retire/restore
+cascade), `TranslationsView` at `survey/:surveyId/translations`, language management in
+`SurveyMetadataDialog`, the JSON hand-off in `TranslationHandoff` with the rejection table, and
+the export warnings in `ExportValidation`.
+
+Four deliberate gaps, each with a reason:
+
+- **Reports are not translatable from Author.** They are in the whitelist and travel in the file,
+  and the Survey runtime translates a report's name, but Author has no report entity to read a
+  base text from (`docs/entity_model.md`, "Excluded from This Model"). It follows report
+  modeling, whenever that lands.
+- **The per-survey glossary is not stored.** The hand-off preamble carries the platform terms;
+  the author-maintained list this section describes would need a column of its own, and the file
+  is useful without it.
+- **The edit-time notification covers the designer's save paths only** -- question text, short
+  text, tooltip, placeholder, validation message, and step and section names, all of which go
+  through `DesignerService`. An option label or a rule's default upstream value edited in
+  `SelectGroupDialog` or `RelationshipDialog` goes stale without the immediate warning; the
+  Translations page's status and the export warnings still catch it. A ledger entry from those two
+  dialogs is the completion.
+- **The dialog hints** ("Translations: es-419 done, ar stale") are not built; section 5.3 already
+  called them a later addition.
+
+Two corrections the implementation forced. A translation is created through `ElementService.create`
+rather than persisted directly, so it gets its durable id, its minted key and the version-0
+lifecycle from the same place as every other element -- writing it by hand violated the table's
+NOT NULL columns twice before the test caught it. And the token check in the import cannot rest on
+`Tokens.names` alone, as section 5.5 assumed: that saw only bare-word placeholders such as
+`{NAME|friend}`, while the common form is a phrase carrying the token, `{<S1>'s mother|your mother}`,
+which `names` returned nothing for. The import therefore compares the *placeholder count* as well,
+which needs no rule list and catches the case that matters -- a translation that dropped the
+substitution entirely. (Since V020 a token is written `<NAME>` wherever it is used, so `names` does
+see every use; the placeholder count is kept because it catches the dropped-substitution case
+without consulting the rules.)
+
 ## 6. The `.elicit` file, redefined in place
 
 The header stays `# ELICIT_SURVEY_EXPORT_V1`; no file with that header exists outside
@@ -954,16 +1079,28 @@ this repository, so there is nothing to distinguish from. Two records change:
 Changes by module, made as one change set and gated by the round-trip test and Admin's
 service tests:
 
-**Author.** `ElicitFormat`: `TABLES`, `REQUIRED_FIELDS` (`surveys` 12, `translations`
-6), javadoc. `SurveyDefinitionExporter`: the survey query at `:58-59` adds the two
+**Author.** `ElicitFormat`: `TABLES`, `REQUIRED_FIELDS` (`translations` 13, the record's
+arity; `surveys` stays 10) and `VERSIONED_TABLES`, javadoc. Two corrections made while
+implementing this. `REQUIRED_FIELDS` is the *minimum a reader requires*, and holding
+`surveys` to 12 would reject every file that predates the two fields, including the
+hand-written fixtures and the `ELICIT_SURVEY_DRAFT_V1` files an agent writes from
+`docs/ai/AUTHORING_FOR_AI.md`; readers take `base_language` and `content_languages` when
+present and default to `en` and nothing-published when absent, while every writer emits
+all 12. And `translations` is 13, not 6: six is the count of its content fields, not of
+the record, which also carries the durable id, the key and the five-field Type 2 tail. `SurveyDefinitionExporter`: the survey query at `:58-59` adds the two
 columns; a new `tables.put("translations", ...)` selecting the six fields ordered by
 element type, key, field, language. `SurveyDefinitionImporter`: `insertSurvey` writes
 the two columns; `case "translations" -> insertTranslation(fields, surveyId)` with a
 strict key parse (a translation without a key is malformed; do not mint), `element_type`
 and `field` validated against the whitelist, `source_hash` stored verbatim, and, since
 translations follow every structural record, an optional check that the key was seen.
-`SurveyDefinitionExporterTest.normalised` (`:52-90`): key `translations` rows by
-`fields[1] + "|" + fields[2] + "|" + fields[3]` and strip no Type 2 tail from them.
+`SurveyDefinitionExporterTest.normalized` (`:52-90`): no change needed, as it turned out.
+Its generic path already keys a row by `table + ":" + fields[1]`, which for a translation
+is the `translation_key` and is unique per target and language, and its Type 2 tail strip
+(`REQUIRED_FIELDS - 5`) leaves exactly the eight content fields. `AuthoringForAiDocTest`
+does need the new record: it holds `docs/ai/AUTHORING_FOR_AI.md`'s layout table and record
+order to `ElicitFormat`, so the document gains a `translations` row (arity 13) and the
+record-order line gains it last.
 `Author/samples/generate_elicit_designer.py` and `generate_fhhs_base.py`: the two
 `surveys` fields and a handful of `translations` rows in `es-419`, so the round trip
 exercises the record type; regenerate both `.elicit` samples.
@@ -1005,19 +1142,29 @@ wording change never versions or closes its translations.
 
 ## 8. Tests
 
-Will fail until updated: `ManualSchemaMigratorUpgradeTest` (V017 in both tracks),
+Will fail until updated: `ManualSchemaMigratorUpgradeTest` (V019 in both tracks),
 `SchemaMirrorFreshnessTest` (sync the mirror), Author's `EntityMappingSmokeTest` (add
 `Translation`), `SurveyDefinitionExporterTest` and `SurveyDefinitionImporterTest`
-(arity, counts, normaliser, regenerated samples), Admin's four definition-service tests
+(arity, counts, normalizer, regenerated samples), Admin's four definition-service tests
 and the resource tests (bootstrap SQL, fixtures).
 
-To add: `ContentTranslatorTest` (fallback to base, stale not served, tag resolution
+To add: an Admin test of the translations upsert (created, unchanged, versioned on a
+corrected value, versioned on a changed hash alone, retired by the file, retired with the
+structural element even when the file omits it, the published language set updated in
+place, a non-whitelisted field rejected); a parity test holding Author's
+`TranslatableFields` to Admin's canonical whitelist, since nothing links them at runtime;
+`ContentTranslatorTest` (fallback to base, stale not served, tag resolution
 against `content_languages`, as-of picks the version effective at first access,
 off-thread returns base); an SCD spec test for `translations` in the style of
 `scd/DimStepSectionRekeySpecTest` (one current row per target, trigger closes the
 predecessor, `translation_id` stable across versions); `QuestionManager` tests for
 `display_text_local` and `display_language`, including a `defaultUpstreamValue` token;
-nav and review tests bound to `:language`; a `relocalize` test; Author
+nav and review tests bound to `:language`; a `relocalize` test; widget tests that a
+required, length and range message is the translated `validation_text` and that a
+question with the column unset still falls back to the chrome message
+(`ElicitComponent.validationMessage`, section 2.2); a `TranslationBudget` test of the
+expansion table, of the three call sites agreeing, and of an over-budget item rejected
+by item while the rest of the file imports; Author
 `TranslationServiceTest` (hash, stale, edit leaves translations current) and
 `ElementServiceTest` cases that retiring a question, section, step or select item closes
 its translations at the same instant and restore reopens them; an Admin update test
@@ -1046,9 +1193,11 @@ companion column. The umbrella `docs/I18N_IMPLEMENTATION_GUIDE.md` and
 `CLAUDE.md` sentence "Survey content in the database is not translated by this
 mechanism" once the feature lands.
 
-Author: C-021 rewritten; C-015 names the redefined record set; new FRs and use cases
+Author: C-024 rewritten (it is C-021 in the pre-i18n numbering this document was written
+against, and UC-040 BR-005 is the rule UC-034 BR-005 refers to below); C-015 names the redefined
+record set; new FRs and use cases
 "Translate survey content", "Manage content languages", "Request a content
-translation" (the hand-off file) and "Import content translations", modelled on FR-046
+translation" (the hand-off file) and "Import content translations", modeled on FR-046
 (plus `use_cases.puml`); NFR-011 mentions the `translations` record; FR-036 cited as the
 `source_text` precedent; UC-034 BR-005 rewritten; `docs/entity_model.md` and
 `docs/scd-contract.md` (translations are the ninth Type 2 table; Author holds one
@@ -1064,16 +1213,18 @@ columns of section 11.4, at which point BR-058 and BR-059 describe what the code
 
 ## 10. Phased delivery and risks
 
-1. **Schema.** V017 in both Survey tracks; sync the Author mirror; Admin `V0.0.19` and
+1. **Schema.** V019 in both Survey tracks; sync the Author mirror; Admin `V0.0.19` and
    its test bootstrap; `Translation` entity in Survey and Author; read-only element-key
-   mappings on Survey's entities; the two `Answer` fields. No behaviour change. Caught if
+   mappings on Survey's entities; the two `Answer` fields. No behavior change. Caught if
    half-done by `ManualSchemaMigratorUpgradeTest` and `SchemaMirrorFreshnessTest`.
 2. **File.** `ElicitFormat`, exporter, importer, Admin's three services and file
    fields, the Python generators, regenerated samples and fixtures, the round-trip
-   normaliser, all in one change set. Before the runtime, so translated test surveys can
+   normalizer, all in one change set. Before the runtime, so translated test surveys can
    be seeded through the real pipeline.
 3. **Survey runtime.** `ContentTranslator`, `buildDipslayText`, nav and review SQL, the
-   widgets, About and Report, `relocalize` on language switch, `ReportRequest.language`.
+   widgets (the constructor parameter through `ElicitComponent` and the sixteen call
+   sites in `SectionView`, and the four validation-message helpers with it), About and
+   Report, `relocalize` on language switch, `ReportRequest.language`.
 4. **Author editing.** `TranslationService`, `TranslationsView`, language management in
    `SurveyMetadataDialog`, validation warnings, dialog hints; CSV hand-off later.
 5. **Docs**, trailing each phase.
@@ -1221,7 +1372,7 @@ design neither depends on it nor makes it worse.
 ## 12. Open questions
 
 - Should `serve-stale-translations` default to false as proposed, or should a
-  deployment see the stale translation with no visible marker? The proposal favours
+  deployment see the stale translation with no visible marker? The proposal favors
   correctness over continuity.
 - When a respondent file from one site is imported at another, which question row does
   an answer attach to, given that Type 2 version numbers are local to each site
@@ -1235,4 +1386,8 @@ design neither depends on it nor makes it worse.
 - What does the external report service need to localize its body, beyond a language
   tag on the request?
 - `AboutView` shows `survey.name` where `title` is meant; fix in passing.
-- Whether to squash V010 to V017 into V001 and V010 before the first V3 release.
+- Should the base text columns be widened for the base language too? The budget in
+  section 5.5 settles what a translator may return, but an author still has 100
+  characters of `short_text` and 255 of `tool_tip` to say it in, and the schema is
+  unreleased, so V019 is the cheap moment to change that if anyone wants it.
+- Whether to squash V010 to V019 into V001 and V010 before the first V3 release.

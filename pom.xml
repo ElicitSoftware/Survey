@@ -408,7 +408,10 @@
                     <emptyLineAfterHeader>true</emptyLineAfterHeader>
                     <excludes>
                         <exclude>**/*.properties</exclude>
-                        <exclude>**/brand-config.json</exclude>
+                        <!-- JSON has no comment syntax: a header makes the file unparseable.
+                             This covers brand-config.json, brand-info.json, typography.json,
+                             i18n-config.json and anything added later. -->
+                        <exclude>**/*.json</exclude>
                     </excludes>
                     <licenseResolver>${project.baseUri}src/license</licenseResolver>
                     <processStartTag>***LICENSE_START***</processStartTag>

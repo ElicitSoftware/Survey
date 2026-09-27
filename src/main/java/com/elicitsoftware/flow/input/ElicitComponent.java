@@ -11,6 +11,7 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.i18n.Translations;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
@@ -48,6 +49,13 @@ public abstract class ElicitComponent<T extends Component> {
         public T component;
         Answer answer;
 
+        /**
+         * The content language of this page draw. Everything a widget reads from the live
+         * {@code Question} goes through it; the answer's own label is already stored per language
+         * ({@link Answer#label()}).
+         */
+        ContentTexts texts;
+
         Binder<Answer> binder = null;
 
 
@@ -77,6 +85,11 @@ public abstract class ElicitComponent<T extends Component> {
          * @see com.elicitsoftware.model.Question
          */
         public ElicitComponent(T component, Answer answer) {
+            this(component, answer, ContentTexts.base());
+        }
+
+        public ElicitComponent(T component, Answer answer, ContentTexts texts) {
+            this.texts = texts == null ? ContentTexts.base() : texts;
             super();
             this.answer = answer;
             this.binder = new Binder<Answer>();
@@ -92,16 +105,19 @@ public abstract class ElicitComponent<T extends Component> {
                 addVariants(answer.question);
             }
 
-            if (answer.question.toolTip != null && !answer.question.toolTip.isEmpty()) {
-                setToolTip(answer.question.toolTip);
+            String toolTip = this.texts.toolTip(answer.question);
+            if (toolTip != null && !toolTip.isEmpty()) {
+                setToolTip(toolTip);
             }
 
-            if (answer.question.validationText != null && !answer.question.validationText.isEmpty()) {
-                setValidationErrorMessage(answer.question.validationText);
+            String validationText = this.texts.validationText(answer.question);
+            if (validationText != null && !validationText.isEmpty()) {
+                setValidationErrorMessage(validationText);
             }
 
-            if (answer.question.placeholder != null && !answer.question.placeholder.isEmpty()) {
-                setPlaceholderText(answer.question.placeholder);
+            String placeholder = this.texts.placeholder(answer.question);
+            if (placeholder != null && !placeholder.isEmpty()) {
+                setPlaceholderText(placeholder);
             }
         }
 
@@ -129,8 +145,8 @@ public abstract class ElicitComponent<T extends Component> {
          * @param fallback the message to use when the question has no validation text
          * @return the authored validation text, or {@code fallback} when it is null or blank
          */
-        static String validationMessage(Answer answer, String fallback) {
-            String authored = answer.question.validationText;
+        String validationMessage(Answer answer, String fallback) {
+            String authored = texts.validationText(answer.question);
             return (authored == null || authored.isBlank()) ? fallback : authored;
         }
 
@@ -141,7 +157,7 @@ public abstract class ElicitComponent<T extends Component> {
          * @return the authored validation text, or a generic required-field message
          * @see #validationMessage(Answer, String)
          */
-        static String requiredMessage(Answer answer) {
+        String requiredMessage(Answer answer) {
             return validationMessage(answer, Translations.get("validation.required"));
         }
 
@@ -152,7 +168,7 @@ public abstract class ElicitComponent<T extends Component> {
          * @return the authored validation text, or a generic length message
          * @see #validationMessage(Answer, String)
          */
-        static String lengthMessage(Answer answer) {
+        String lengthMessage(Answer answer) {
             return validationMessage(answer, Translations.get("validation.length",
                     answer.question.minValue, answer.question.maxValue));
         }
@@ -164,7 +180,7 @@ public abstract class ElicitComponent<T extends Component> {
          * @return the authored validation text, or a generic range message
          * @see #validationMessage(Answer, String)
          */
-        static String rangeMessage(Answer answer) {
+        String rangeMessage(Answer answer) {
             return validationMessage(answer, Translations.get("validation.range",
                     answer.question.minValue, answer.question.maxValue));
         }

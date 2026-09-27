@@ -11,6 +11,7 @@ package com.elicitsoftware;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTranslator;
 import com.elicitsoftware.model.*;
 import com.elicitsoftware.response.NavResponse;
 import com.elicitsoftware.response.NavigationItem;
@@ -30,6 +31,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.TreeMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * The {@code QuestionManager} class is responsible for managing the lifecycle of survey questions,
@@ -46,6 +49,9 @@ public class QuestionManager {
     @Inject
     EntityManager entityManager;
 
+    @Inject
+    ContentTranslator translator;
+
     /**
      * Replaces tokens in the given text with corresponding values from the provided map.
      * The tokens are identified by keys enclosed in curly braces and replaced with their associated values.
@@ -57,47 +63,77 @@ public class QuestionManager {
      *               and values are the replacements for those tokens
      * @return the resulting string after replacing all specified tokens and applying formatting adjustments
      */
-    static String replaceTokens(String text, TreeMap<String, String> values) {
+    /** Group 1 is the phrase, group 2 the default text (null when the placeholder has none). */
+    private static final Pattern PLACEHOLDER = Pattern.compile("\\{([^{}|]+)(?:\\|([^{}]*))?}");
 
-        // Split the string into parts
-        String[] displayText = text.split("}");
+    /** A token where it is used, inside a phrase: {@code <NAME>}. Mirrors Author's Tokens. */
+    private static final Pattern TOKEN_REF = Pattern.compile("<([A-Za-z0-9_]+)>");
 
-        if (!values.isEmpty()) {
-            // Replace all the Token values
-            for (String key : values.keySet()) {
-                for (int i = 0; i < displayText.length; i++) {
-                    String string = displayText[i];
-                    if (string.contains(key)) {
-                        string = string.replaceFirst("\\{", "");
-                        string = string.replaceFirst("\\|.*", "");
-                        string = string.replaceFirst(key,
-                                java.util.regex.Matcher.quoteReplacement(escapeHtml(values.get(key))));
-                    }
-                    if (string.contains("}")) {
-                        string = replaceTokens(string, values);
-                    }
-                    displayText[i] = string;
-                }
+    /** Counters this class fills itself, from the answer's key, not from a rule. */
+    private static final java.util.Set<String> BUILT_IN_PLACEHOLDERS = java.util.Set.of("Q#", "S#");
+
+    /**
+     * A phrase with every {@code <TOKEN>} in it replaced, or null when a value is missing.
+     *
+     * <p>Null rather than a partly-filled phrase on purpose: a placeholder is all-or-nothing, so a
+     * phrase whose token has no value falls back to the default the author wrote instead of
+     * showing half a sentence.</p>
+     *
+     * <p>The substitution is anchored on the brackets. It used to be {@code string.contains(key)}
+     * over a whole segment of the text, which could not tell the token {@code NAME} from the word
+     * "name" in ordinary prose and would rewrite the prose instead of the placeholder.</p>
+     */
+    private static String fillPhrase(String phrase, TreeMap<String, String> values) {
+        Matcher ref = TOKEN_REF.matcher(phrase);
+        StringBuilder filled = new StringBuilder();
+        boolean any = false;
+        while (ref.find()) {
+            any = true;
+            String value = valueOf(ref.group(1), values);
+            if (value == null) {
+                return null;
+            }
+            ref.appendReplacement(filled, Matcher.quoteReplacement(escapeHtml(value)));
+        }
+        ref.appendTail(filled);
+        return any ? filled.toString() : null;
+    }
+
+    /** A token's value, matched by name without regard to case. */
+    private static String valueOf(String token, TreeMap<String, String> values) {
+        String exact = values.get(token);
+        if (exact != null) {
+            return exact;
+        }
+        for (java.util.Map.Entry<String, String> e : values.entrySet()) {
+            if (e.getKey() != null && e.getKey().equalsIgnoreCase(token)) {
+                return e.getValue();
             }
         }
+        return null;
+    }
 
-        for (int i = 0; i < displayText.length; i++) {
-            String string = displayText[i];
-
-            // Remove any tokens values that were not passed, leaving the
-            // default
-            // part
-            // of the text
-            string = string.replaceAll("\\{.*\\|", "");
-            displayText[i] = string;
+    static String replaceTokens(String text, TreeMap<String, String> values) {
+        if (text == null) {
+            return null;
         }
-
-        // Rebuild the sting from its parts
-        StringBuilder textBuilder = new StringBuilder();
-        for (String s : displayText) {
-            textBuilder.append(s);
+        Matcher placeholder = PLACEHOLDER.matcher(text);
+        StringBuilder out = new StringBuilder();
+        while (placeholder.find()) {
+            String phrase = placeholder.group(1);
+            String defaultText = placeholder.group(2);
+            String replacement;
+            if (BUILT_IN_PLACEHOLDERS.contains(phrase.trim())) {
+                // {Q#} and {S#} are runtime counters, filled later against the answer's own key.
+                replacement = placeholder.group();
+            } else {
+                String filled = fillPhrase(phrase, values);
+                replacement = filled != null ? filled : (defaultText == null ? phrase : defaultText);
+            }
+            placeholder.appendReplacement(out, Matcher.quoteReplacement(replacement));
         }
-        text = textBuilder.toString();
+        placeholder.appendTail(out);
+        text = out.toString();
 
         // Until I can come up with a better solution to this problem I'll
         // force it here. I know this is a hack.
@@ -319,8 +355,13 @@ public class QuestionManager {
 
         DisplayKey dkey = new DisplayKey(key);
 
+        // The instance-bearing form: navigation items are built from the respondent's own section
+        // answer rows, and a REPEATed section has one per instance. Matching on getSectionString(),
+        // which zeroes the instance, found no item for the second and later instances of a repeated
+        // section, so the view got a null current item -- no Previous/Next buttons and no section
+        // title, which is what samples/FINDINGS.md 5 saw as "navigation stalls after a REPEAT".
         for (NavigationItem navigationItem : navItems) {
-            if (navigationItem.getPath().equals(dkey.getSectionString())) {
+            if (navigationItem.getPath().equals(dkey.getSectionInstanceString())) {
                 return navigationItem;
             }
         }
@@ -391,7 +432,14 @@ public class QuestionManager {
                 + "AND SS.EFFECTIVE_FROM <= :asOf AND SS.EFFECTIVE_TO > :asOf "
                 + "AND SQ.EFFECTIVE_FROM <= :asOf AND SQ.EFFECTIVE_TO > :asOf "
                 + "AND SS.STEPS_SECTIONS_ID NOT IN (SELECT R.DOWNSTREAM_SS_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.DOWNSTREAM_STEP_ID = SS.STEP_ID AND R.DOWNSTREAM_SQ_ID IS NULL AND R.DOWNSTREAM_SS_ID IS NOT NULL AND R.ACTION_ID != 3 AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf) "
-                + "AND Sq.SECTIONS_QUESTION_ID NOT IN (SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.UPSTREAM_STEP_ID = SS.STEP_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_SS_ID IS NOT NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf) "
+                + "AND Sq.SECTIONS_QUESTION_ID NOT IN ( "
+                + "SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.UPSTREAM_STEP_ID = SS.STEP_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_SS_ID IS NOT NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf "
+                // The same question-only branch sqlSection carries: a rule whose target sits in
+                // the upstream question's own section is stored with DOWNSTREAM_SS_ID null (Author
+                // RulePath.complete), and without this branch the step-level build renders that
+                // target immediately instead of leaving it to the rule.
+                + "UNION "
+                + "SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_SS_ID IS NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf) "
                 + "order by SQ.DISPLAY_ORDER";
 
         String sqlSection = "SELECT SQ.ID, SQ.DISPLAY_ORDER FROM SURVEY.SECTIONS_QUESTIONS SQ "
@@ -1270,15 +1318,128 @@ public class QuestionManager {
             }
         }
 
+        // The same sentence in the respondent's language, when one applies. Resolved from the
+        // element the base template came from, so a question falls back per string rather than
+        // per page (UC-009 BR-005).
+        OffsetDateTime asOf = resolveAsOf(answer.respondentId);
+        Survey survey = Survey.findById(answer.surveyId);
+        String language = translator.language(survey);
+        String localTemplate = language == null ? null : localTemplate(answer, survey, asOf);
+
         // Substitute the Question instances and Section Instances.
         text = text.replaceAll("\\{Q#\\}", answer.getKey().getQuestionInstance() + "");
         text = text.replaceAll("\\{S#\\}", answer.getKey().getStepInstance() + "");
 
-        TreeMap<String, String> values;
+        TokenValues tokens = getValuesMap(answer);
+        answer.displayText = replaceTokens(text, tokens.base());
 
-        values = getValuesMap(answer);
+        if (localTemplate == null) {
+            answer.displayTextLocal = null;
+            answer.displayLanguage = null;
+        } else {
+            String local = localTemplate
+                    .replaceAll("\\{Q#\\}", answer.getKey().getQuestionInstance() + "")
+                    .replaceAll("\\{S#\\}", answer.getKey().getStepInstance() + "");
+            answer.displayTextLocal = replaceTokens(local, tokens.localized(survey, translator, asOf));
+            answer.displayLanguage = language;
+        }
+    }
 
-        answer.displayText = replaceTokens(text, values);
+    /**
+     * The base template of an answer's label in the respondent's language, or {@code null} when no
+     * translation applies to it. Mirrors the base-template choice above: a question's text, else
+     * the section's name, else the step's name.
+     *
+     * @param answer the answer whose label is being built
+     * @param survey the survey being answered
+     * @param asOf   the respondent's snapshot anchor
+     * @return the translated template, or {@code null} to leave the local columns empty
+     */
+    private String localTemplate(Answer answer, Survey survey, OffsetDateTime asOf) {
+        if (answer.question != null) {
+            return translator.get(survey, answer.question.questionKey, "text", answer.question.text, asOf)
+                    .orElse(null);
+        }
+        if (answer.sectionId != null) {
+            Section section = getSectionByDisplayKey(answer.respondentId, answer.getDisplayKey());
+            return section == null ? null
+                    : translator.get(survey, section.sectionKey, "name", section.name, asOf).orElse(null);
+        }
+        Step step = getStepByDisplayKey(answer.respondentId, answer.getKey());
+        return step == null ? null
+                : translator.get(survey, step.stepKey, "name", step.name, asOf).orElse(null);
+    }
+
+    /**
+     * The content language in force for a respondent's survey, or {@code ""} when content is shown
+     * in the base language. Bound into the navigation and review SQL, where a null would make
+     * every comparison null rather than false.
+     *
+     * @param respondentId the respondent being served
+     * @return the BCP-47 tag, or the empty string
+     */
+    String currentContentLanguage(int respondentId) {
+        Respondent respondent = Respondent.findById(respondentId);
+        if (respondent == null || respondent.survey == null) {
+            return "";
+        }
+        String language = translator.language(respondent.survey);
+        return language == null ? "" : language;
+    }
+
+    /**
+     * Re-renders a respondent's active answer labels after a language switch (UC-009 BR-005).
+     * <p>
+     * One UPDATE per active answer on a rare event, which is what buys a stored rendering: the
+     * alternative is re-deriving every label from its tokens on every page draw. Marker answers are
+     * included -- they are what the navigation shows.
+     *
+     * @param respondentId the respondent whose labels should be rebuilt
+     */
+    @Transactional
+    public void relocalize(int respondentId) {
+        List<Answer> answers = Answer.list("respondentId = ?1 and deleted = false", respondentId);
+        for (Answer answer : answers) {
+            buildDipslayText(answer);
+            answer.persist();
+        }
+    }
+
+    /**
+     * The token substitutions for one answer, with the rule each value came from.
+     * <p>
+     * A token's value is usually the upstream respondent's own words, which no one translates. But
+     * when a rule supplies {@code default_upstream_value} that value is authored prose the
+     * respondent reads ("your mother", "your brother"), so the local rendering has to substitute
+     * its translation and the base rendering the base text. Keeping the source rule beside each
+     * value is what lets one walk of the dependents serve both.
+     *
+     * @param base    token to the value the base-language sentence uses
+     * @param sources token to the rule that supplied it, for the tokens that came from a rule's
+     *                default upstream value; absent for a respondent's own text
+     */
+    private record TokenValues(TreeMap<String, String> base, TreeMap<String, Relationship> sources) {
+
+        TokenValues() {
+            this(new TreeMap<>(), new TreeMap<>());
+        }
+
+        void putAll(TokenValues other) {
+            base.putAll(other.base());
+            sources.putAll(other.sources());
+        }
+
+        /** The same tokens with every rule-supplied value replaced by its translation. */
+        TreeMap<String, String> localized(Survey survey, ContentTranslator translator, OffsetDateTime asOf) {
+            TreeMap<String, String> localized = new TreeMap<>(base);
+            sources.forEach((token, relationship) -> {
+                String translated = translator.defaultUpstreamValue(survey, relationship, asOf);
+                if (translated != null) {
+                    localized.put(token, translated);
+                }
+            });
+            return localized;
+        }
     }
 
 
@@ -1803,9 +1964,9 @@ public class QuestionManager {
      * @param answer the Answer object used to extract key-value pairs
      * @return a TreeMap containing the combined key-value pairs from step, section, and question
      */
-    private TreeMap<String, String> getValuesMap(Answer answer) {
+    private TokenValues getValuesMap(Answer answer) {
 
-        TreeMap<String, String> values = getStepKeyValues(answer);
+        TokenValues values = getStepKeyValues(answer);
         values.putAll(getSectionKeyValues(answer));
         values.putAll(getQuestionKeyValues(answer));
 
@@ -1818,7 +1979,7 @@ public class QuestionManager {
      * @param answer the answer object containing the key and respondent details to fetch the step key-value pairs
      * @return a TreeMap containing the key-value pairs for the specified step, sorted by keys
      */
-    private TreeMap<String, String> getStepKeyValues(Answer answer) {
+    private TokenValues getStepKeyValues(Answer answer) {
         DisplayKey key = new DisplayKey(answer.getKey().getStepString());
 
         int stepID = getAnswerIdByDisplayKey(answer.respondentId, key.getValue());
@@ -1832,7 +1993,7 @@ public class QuestionManager {
      * @param answer the Answer object containing the respondent information and display key
      * @return a TreeMap with keys and values representing the section data
      */
-    private TreeMap<String, String> getSectionKeyValues(Answer answer) {
+    private TokenValues getSectionKeyValues(Answer answer) {
         DisplayKey key = new DisplayKey(answer.getDisplayKey());
         key.setQuestionInstance(0);
         key.setQuestion(0);
@@ -1849,7 +2010,7 @@ public class QuestionManager {
      * @return A TreeMap where the keys and values correspond to data derived
      * from the provided Answer object.
      */
-    private TreeMap<String, String> getQuestionKeyValues(Answer answer) {
+    private TokenValues getQuestionKeyValues(Answer answer) {
         return getKeyValues(answer.respondentId, answer.id);
     }
 
@@ -1879,9 +2040,9 @@ public class QuestionManager {
      * @return A TreeMap containing key-value pairs where keys are relationship tokens and
      * values are derived based on dependent configurations and upstream data.
      */
-    private TreeMap<String, String> getKeyValues(int respondentId, int downstreamId) {
+    private TokenValues getKeyValues(int respondentId, int downstreamId) {
 
-        TreeMap<String, String> values = new TreeMap<>();
+        TokenValues values = new TokenValues();
         try {
             List<Dependent> dependents = Dependent.findByDownstream(respondentId, downstreamId);
             String key;
@@ -1900,6 +2061,9 @@ public class QuestionManager {
                         case "RADIO":
                             if (dependent.relationship.defaultUpstreamValue != null) {
                                 value = dependent.relationship.defaultUpstreamValue;
+                                // Authored prose the respondent reads, so it is translatable;
+                                // the respondent's own text below is not.
+                                values.sources().put(key, dependent.relationship);
                             } else if (dependent.upstream.getTextValue() != null) {
                                 value = dependent.upstream.getTextValue();
                             }
@@ -1912,7 +2076,9 @@ public class QuestionManager {
                             break;
                     }
                     if (value != null) {
-                        values.put(key, value);
+                        values.base().put(key, value);
+                    } else {
+                        values.sources().remove(key);
                     }
                 }
             }
@@ -1941,7 +2107,11 @@ public class QuestionManager {
      */
     private ArrayList<NavigationItem> buildNavItems(int respondentId) {
 
-        String pathSQL = "SELECT a.display_text, a.display_key" + " FROM survey.answers a" + " WHERE a.deleted = false"
+        // The local rendering when this answer was drawn in the language now in force, the base
+        // one otherwise. After relocalize the two always agree; the CASE is what keeps the
+        // navigation honest in between, and on a respondent whose answers predate a language.
+        String pathSQL = "SELECT CASE WHEN a.display_language = :language THEN a.display_text_local"
+                + " ELSE a.display_text END, a.display_key" + " FROM survey.answers a" + " WHERE a.deleted = false"
                 + " AND a.respondent_id = :respondentId" + " AND a.question_id is null" + " AND a.section != 0"
                 + " ORDER BY a.display_key";
 
@@ -1950,6 +2120,7 @@ public class QuestionManager {
         //entityManager.joinTransaction();
         Query q = entityManager.createNativeQuery(pathSQL);
         q.setParameter("respondentId", respondentId);
+        q.setParameter("language", currentContentLanguage(respondentId));
 
         @SuppressWarnings("unchecked")
         List<Object[]> rs = q.getResultList();

@@ -30,14 +30,14 @@ class QuestionManagerTokenTest {
     void given_matchedToken_when_replaceTokens_then_valueSubstituted() {
         TreeMap<String, String> values = new TreeMap<>();
         values.put("NAME", "Alice");
-        String result = QuestionManager.replaceTokens("Hello {NAME|friend}", values);
+        String result = QuestionManager.replaceTokens("Hello {<NAME>|friend}", values);
         assertEquals("Hello Alice", result);
     }
 
     @Test
     void given_unmatchedToken_when_replaceTokens_then_defaultKept() {
         TreeMap<String, String> values = new TreeMap<>();
-        String result = QuestionManager.replaceTokens("Hello {NAME|friend}", values);
+        String result = QuestionManager.replaceTokens("Hello {<NAME>|friend}", values);
         assertEquals("Hello friend", result);
     }
 
@@ -46,7 +46,7 @@ class QuestionManagerTokenTest {
         TreeMap<String, String> values = new TreeMap<>();
         values.put("EMAIL", "alice@example.com");
         values.put("PHONE", "555-1234");
-        String result = QuestionManager.replaceTokens("Email: {EMAIL|none} Phone: {PHONE|none}", values);
+        String result = QuestionManager.replaceTokens("Email: {<EMAIL>|none} Phone: {<PHONE>|none}", values);
         assertEquals("Email: alice@example.com Phone: 555-1234", result);
     }
 
@@ -85,7 +85,7 @@ class QuestionManagerTokenTest {
         // Exercises the branch where token key is in values map but not in text segment
         TreeMap<String, String> values = new TreeMap<>();
         values.put("EMAIL", "alice@example.com");
-        String result = QuestionManager.replaceTokens("Hello {NAME|friend}", values);
+        String result = QuestionManager.replaceTokens("Hello {<NAME>|friend}", values);
         assertEquals("Hello friend", result);
     }
 }

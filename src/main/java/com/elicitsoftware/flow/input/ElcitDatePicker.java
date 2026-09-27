@@ -11,6 +11,7 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
 import com.vaadin.flow.component.datepicker.DatePicker;
@@ -46,8 +47,8 @@ public class ElcitDatePicker extends ElicitComponent<DatePicker> {
      *
      * @param answer the answer object containing the data for this date picker
      */
-    public ElcitDatePicker(Answer answer) {
-        super(new DatePicker(answer.displayText), answer);
+    public ElcitDatePicker(Answer answer, ContentTexts texts) {
+        super(new DatePicker(answer.label()), answer, texts);
         if (answer.getTextValue() != null && !answer.getTextValue().isEmpty()) {
             setValue(answer);
         }

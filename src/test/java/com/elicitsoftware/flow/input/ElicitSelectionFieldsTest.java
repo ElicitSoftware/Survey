@@ -11,6 +11,7 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
 import com.elicitsoftware.model.SelectItem;
@@ -56,8 +57,8 @@ class ElicitSelectionFieldsTest {
         Answer checked = answer("1.1.1.1.3.1.1", "I agree to the terms", question, "true");
         Answer unchecked = answer("1.1.1.1.3.1.2", "I agree to the terms", question, "false");
 
-        Checkbox checkedBox = new ElicitCheckbox(checked).component;
-        Checkbox uncheckedBox = new ElicitCheckbox(unchecked).component;
+        Checkbox checkedBox = new ElicitCheckbox(checked, ContentTexts.base()).component;
+        Checkbox uncheckedBox = new ElicitCheckbox(unchecked, ContentTexts.base()).component;
 
         assertTrue(checkedBox.getValue());
         assertFalse(uncheckedBox.getValue());
@@ -71,7 +72,7 @@ class ElicitSelectionFieldsTest {
         Question question = selectQuestion(false, null, List.of(red, blue));
         Answer answer = answer("1.1.1.1.3.2.1", "Favorite colors", question, "R,B");
 
-        CheckboxGroup<SelectItem> group = new ElicitCheckboxGroup(answer).component;
+        CheckboxGroup<SelectItem> group = new ElicitCheckboxGroup(answer, ContentTexts.base()).component;
 
         assertEquals(Set.of(red, blue), group.getValue());
         assertEquals("Red", group.getItemLabelGenerator().apply(red));
@@ -83,7 +84,7 @@ class ElicitSelectionFieldsTest {
         Question question = selectQuestion(true, "Pick at least one color", List.of(red));
         Answer answer = answer("1.1.1.1.3.2.2", "Favorite colors", question, null);
 
-        ElicitCheckboxGroup wrapper = new ElicitCheckboxGroup(answer);
+        ElicitCheckboxGroup wrapper = new ElicitCheckboxGroup(answer, ContentTexts.base());
         CheckboxGroup<SelectItem> group = wrapper.component;
 
         assertTrue(group.isRequiredIndicatorVisible());
@@ -101,7 +102,7 @@ class ElicitSelectionFieldsTest {
                 CheckboxGroupVariant.LUMO_HELPER_ABOVE_FIELD.getVariantName());
         Answer answer = answer("1.1.1.1.3.2.3", "Favorite colors", question, null);
 
-        CheckboxGroup<SelectItem> group = new ElicitCheckboxGroup(answer).component;
+        CheckboxGroup<SelectItem> group = new ElicitCheckboxGroup(answer, ContentTexts.base()).component;
 
         assertTrue(group.getThemeNames().contains(CheckboxGroupVariant.LUMO_VERTICAL.getVariantName()));
         assertTrue(group.getThemeNames().contains(CheckboxGroupVariant.LUMO_HELPER_ABOVE_FIELD.getVariantName()));
@@ -114,7 +115,7 @@ class ElicitSelectionFieldsTest {
         Question question = selectQuestion(false, null, List.of(yes, no));
         Answer answer = answer("1.1.1.1.3.3.1", "Do you smoke?", question, "y");
 
-        RadioButtonGroup<SelectItem> group = new ElicitRadioButtonGroup(answer).component;
+        RadioButtonGroup<SelectItem> group = new ElicitRadioButtonGroup(answer, ContentTexts.base()).component;
 
         assertEquals(yes, group.getValue(), "matching must be case-insensitive on the coded value");
     }
@@ -125,7 +126,7 @@ class ElicitSelectionFieldsTest {
         Question question = selectQuestion(true, "An answer is required", List.of(yes));
         Answer answer = answer("1.1.1.1.3.3.2", "Do you smoke?", question, null);
 
-        ElicitRadioButtonGroup wrapper = new ElicitRadioButtonGroup(answer);
+        ElicitRadioButtonGroup wrapper = new ElicitRadioButtonGroup(answer, ContentTexts.base());
         RadioButtonGroup<SelectItem> group = wrapper.component;
 
         assertTrue(group.isRequiredIndicatorVisible());
@@ -142,7 +143,7 @@ class ElicitSelectionFieldsTest {
         question.variant = RadioGroupVariant.LUMO_VERTICAL.getVariantName();
         Answer answer = answer("1.1.1.1.3.3.3", "Do you smoke?", question, null);
 
-        RadioButtonGroup<SelectItem> group = new ElicitRadioButtonGroup(answer).component;
+        RadioButtonGroup<SelectItem> group = new ElicitRadioButtonGroup(answer, ContentTexts.base()).component;
 
         assertTrue(group.getThemeNames().contains(RadioGroupVariant.LUMO_VERTICAL.getVariantName()));
     }
@@ -153,7 +154,7 @@ class ElicitSelectionFieldsTest {
         Question question = selectQuestion(false, null, List.of(us));
         Answer answer = answer("1.1.1.1.3.4.1", "Country", question, null);
 
-        ComboBox<SelectItem> combo = new ElicitComboBox(answer).component;
+        ComboBox<SelectItem> combo = new ElicitComboBox(answer, ContentTexts.base()).component;
 
         assertEquals("United States", combo.getItemLabelGenerator().apply(us));
     }
@@ -170,7 +171,7 @@ class ElicitSelectionFieldsTest {
         Question question = selectQuestion(false, null, List.of(us));
         Answer answer = answer("1.1.1.1.3.4.2", "Country", question, "US");
 
-        ComboBox<SelectItem> combo = new ElicitComboBox(answer).component;
+        ComboBox<SelectItem> combo = new ElicitComboBox(answer, ContentTexts.base()).component;
 
         assertNull(combo.getValue(), "ElicitComboBox construction currently leaves a saved answer unselected");
     }
@@ -184,7 +185,7 @@ class ElicitSelectionFieldsTest {
 
         // Package-private setValue(Answer) itself does match by coded value correctly -
         // it's simply never invoked from the constructor (see the test above).
-        ElicitComboBox wrapper = new ElicitComboBox(answer);
+        ElicitComboBox wrapper = new ElicitComboBox(answer, ContentTexts.base());
         wrapper.setValue(answer);
 
         assertEquals(ca, wrapper.component.getValue());
@@ -196,7 +197,7 @@ class ElicitSelectionFieldsTest {
         Question question = selectQuestion(true, "A country is required", List.of(us));
         Answer answer = answer("1.1.1.1.3.4.3", "Country", question, null);
 
-        ElicitComboBox wrapper = new ElicitComboBox(answer);
+        ElicitComboBox wrapper = new ElicitComboBox(answer, ContentTexts.base());
         ComboBox<SelectItem> combo = wrapper.component;
 
         assertTrue(combo.isRequiredIndicatorVisible());
@@ -214,7 +215,7 @@ class ElicitSelectionFieldsTest {
                 ComboBoxVariant.LUMO_SMALL.getVariantName());
         Answer answer = answer("1.1.1.1.3.4.4", "Country", question, null);
 
-        ComboBox<SelectItem> combo = new ElicitComboBox(answer).component;
+        ComboBox<SelectItem> combo = new ElicitComboBox(answer, ContentTexts.base()).component;
 
         assertTrue(combo.getThemeNames().contains(ComboBoxVariant.LUMO_ALIGN_RIGHT.getVariantName()));
         assertTrue(combo.getThemeNames().contains(ComboBoxVariant.LUMO_SMALL.getVariantName()));
@@ -227,7 +228,7 @@ class ElicitSelectionFieldsTest {
         Question question = selectQuestion(false, null, List.of(red, blue));
         Answer answer = answer("1.1.1.1.3.5.1", "Favorite colors", question, "R,B");
 
-        MultiSelectComboBox<SelectItem> combo = new ElicitMultiSelectComboBox(answer).component;
+        MultiSelectComboBox<SelectItem> combo = new ElicitMultiSelectComboBox(answer, ContentTexts.base()).component;
 
         assertEquals(Set.of(red, blue), combo.getValue());
     }
@@ -238,7 +239,7 @@ class ElicitSelectionFieldsTest {
         Question question = selectQuestion(true, "Pick at least one color", List.of(red));
         Answer answer = answer("1.1.1.1.3.5.2", "Favorite colors", question, null);
 
-        ElicitMultiSelectComboBox wrapper = new ElicitMultiSelectComboBox(answer);
+        ElicitMultiSelectComboBox wrapper = new ElicitMultiSelectComboBox(answer, ContentTexts.base());
         MultiSelectComboBox<SelectItem> combo = wrapper.component;
 
         assertTrue(combo.isRequiredIndicatorVisible());
@@ -255,7 +256,7 @@ class ElicitSelectionFieldsTest {
         question.variant = MultiSelectComboBoxVariant.LUMO_SMALL.getVariantName();
         Answer answer = answer("1.1.1.1.3.5.3", "Favorite colors", question, null);
 
-        MultiSelectComboBox<SelectItem> combo = new ElicitMultiSelectComboBox(answer).component;
+        MultiSelectComboBox<SelectItem> combo = new ElicitMultiSelectComboBox(answer, ContentTexts.base()).component;
 
         assertTrue(combo.getThemeNames().contains(MultiSelectComboBoxVariant.LUMO_SMALL.getVariantName()));
     }

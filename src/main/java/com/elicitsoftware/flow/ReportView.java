@@ -16,6 +16,7 @@ import java.util.ArrayList;
 
 import org.eclipse.microprofile.rest.client.RestClientBuilder;
 
+import com.elicitsoftware.i18n.ContentTranslator;
 import com.elicitsoftware.UISessionDataService;
 import com.elicitsoftware.model.ReportDefinition;
 import com.elicitsoftware.model.Respondent;
@@ -63,6 +64,9 @@ public class ReportView extends VerticalLayout {
 
     @Inject
     UISessionDataService sessionDataService;
+
+    @Inject
+    ContentTranslator translator;
 
     ArrayList<ReportResponse> reportResponses = new ArrayList<>();
 
@@ -122,7 +126,9 @@ public class ReportView extends VerticalLayout {
         for (ReportDefinition rpt : this.respondent.survey.reports) {
             reportResponse = callReport(rpt);
             reportResponses.add(reportResponse);
-            ReportCard reportCard = new ReportCard(rpt.name, reportResponse);
+            ReportCard reportCard = new ReportCard(
+                    translator.name(respondent.survey, rpt, Respondent.snapshotAnchor(respondent.id.intValue())),
+                    reportResponse);
             this.add(reportCard);
         }
 
@@ -166,7 +172,8 @@ public class ReportView extends VerticalLayout {
      */
     private ReportResponse callReport(ReportDefinition rpt) {
         try {
-            ReportRequest request = new ReportRequest(respondent.id);
+            ReportRequest request = new ReportRequest(respondent.id,
+                    translator.language(respondent.survey));
             ReportService reportService = RestClientBuilder.newBuilder()
                     .baseUri(new URI(rpt.url))
                     .build(ReportService.class);

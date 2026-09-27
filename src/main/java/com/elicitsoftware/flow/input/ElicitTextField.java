@@ -11,6 +11,7 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
 import com.vaadin.flow.component.Unit;
@@ -33,10 +34,10 @@ public class ElicitTextField extends ElicitComponent<TextField> {
      *               The display text is used to set the width of the component, and if the
      *               text value is not null or empty, it initializes the field with the given value.
      */
-    public ElicitTextField(Answer answer) {
-        super(new TextField(answer.displayText), answer);
+    public ElicitTextField(Answer answer, ContentTexts texts) {
+        super(new TextField(answer.label()), answer, texts);
         //These are specific to TextFields
-        component.setWidth(answer.displayText.length(), Unit.CH);
+        component.setWidth(answer.label().length(), Unit.CH);
         if (answer.getTextValue() != null && !answer.getTextValue().isEmpty()) {
             setValue(answer);
         }

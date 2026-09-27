@@ -21,7 +21,7 @@ import java.util.Locale;
 
 /**
  * Language selector shown on every page (UC-009 step 4). Lists the provided locales (shipped plus
- * mounted), labelled in their own language; choosing one remembers it for the session and reloads
+ * mounted), labeled in their own language; choosing one remembers it for the session and reloads
  * the page (dropping any {@code ?lang=} link parameter) so every view is rebuilt in the new language.
  */
 public class LanguageSwitcher extends Select<Locale> implements LocaleChangeObserver {

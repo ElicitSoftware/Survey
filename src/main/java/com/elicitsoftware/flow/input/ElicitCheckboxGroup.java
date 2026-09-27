@@ -11,6 +11,7 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
 import com.elicitsoftware.model.SelectItem;
@@ -63,10 +64,10 @@ public class ElicitCheckboxGroup extends ElicitComponent<CheckboxGroup<SelectIte
      *
      * @param answer The {@link Answer} object containing the data to initialize the checkbox group.
      */
-    public ElicitCheckboxGroup(Answer answer) {
-        super(new CheckboxGroup<SelectItem>(answer.displayText), answer);
+    public ElicitCheckboxGroup(Answer answer, ContentTexts texts) {
+        super(new CheckboxGroup<SelectItem>(answer.label()), answer, texts);
         component.setItems(answer.getSelectItems());
-        component.setItemLabelGenerator(item -> item.displayText);
+        component.setItemLabelGenerator(texts::option);
         if (answer.getTextValue() != null && !answer.getTextValue().isEmpty()) {
             setValue(answer);
         }
