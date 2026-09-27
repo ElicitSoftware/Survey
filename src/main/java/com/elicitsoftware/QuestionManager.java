@@ -73,6 +73,18 @@ public class QuestionManager {
     private static final java.util.Set<String> BUILT_IN_PLACEHOLDERS = java.util.Set.of("Q#", "S#");
 
     /**
+     * How many times an authored value is re-read for placeholders of its own. A rule's value is
+     * often a placeholder ("{@code {<G1>'s|your} mother}"), and the token it carries may be filled by
+     * a value that is a placeholder in turn, so resolving stops at a fixed point or at this bound,
+     * whichever comes first. Matches Author's preview (PreviewFields.MAX_NESTING) so the designer and
+     * the runtime agree.
+     */
+    private static final int MAX_NESTING = 5;
+
+    /** One log line per distinct undelimited phrase, not one per page draw. */
+    private static final java.util.Set<String> WARNED_UNDELIMITED = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /**
      * A phrase with every {@code <TOKEN>} in it replaced, or null when a value is missing.
      *
      * <p>Null rather than a partly-filled phrase on purpose: a placeholder is all-or-nothing, so a
@@ -83,7 +95,7 @@ public class QuestionManager {
      * over a whole segment of the text, which could not tell the token {@code NAME} from the word
      * "name" in ordinary prose and would rewrite the prose instead of the placeholder.</p>
      */
-    private static String fillPhrase(String phrase, TreeMap<String, String> values) {
+    private static String fillPhrase(String phrase, TreeMap<String, String> values, java.util.Set<String> authored) {
         Matcher ref = TOKEN_REF.matcher(phrase);
         StringBuilder filled = new StringBuilder();
         boolean any = false;
@@ -93,7 +105,12 @@ public class QuestionManager {
             if (value == null) {
                 return null;
             }
-            ref.appendReplacement(filled, Matcher.quoteReplacement(escapeHtml(value)));
+            // The respondent's own words are attacker-controllable and are escaped. A value the
+            // author wrote is not: it has already had its own placeholders resolved, and escaping it
+            // here would double-escape the respondent text spliced into it -- and would destroy the
+            // <TOKEN> brackets it carries before they could be read at all.
+            boolean fromAuthor = authored.stream().anyMatch(t -> t.equalsIgnoreCase(ref.group(1)));
+            ref.appendReplacement(filled, Matcher.quoteReplacement(fromAuthor ? value : escapeHtml(value)));
         }
         ref.appendTail(filled);
         return any ? filled.toString() : null;
@@ -113,10 +130,44 @@ public class QuestionManager {
         return null;
     }
 
-    static String replaceTokens(String text, TreeMap<String, String> values) {
-        if (text == null) {
-            return null;
+    /**
+     * The values with every authored one's own placeholders resolved, so a rule's value reaches a
+     * sentence as prose and not as braces.
+     *
+     * <p>The Family History Survey fills {@code S1} with {@code {<G1>'s|your} mother} and {@code G1}
+     * with the patient's name, so the question "Please indicate if {@code {<S1>|you}} is still
+     * living" needs two rounds: one to put the mother phrase in the slot, one to put the name in
+     * <em>its</em> slot. Only authored values are re-read. A respondent's own answer is spliced in
+     * once and never rescanned, so free text that happens to contain braces is never taken for a
+     * placeholder.</p>
+     */
+    private static TreeMap<String, String> resolveAuthoredValues(TreeMap<String, String> values, java.util.Set<String> authored) {
+        if (authored.isEmpty()) {
+            return values;
         }
+        TreeMap<String, String> ready = new TreeMap<>(values);
+        for (int pass = 0; pass < MAX_NESTING; pass++) {
+            boolean changed = false;
+            for (String token : authored) {
+                String value = ready.get(token);
+                if (value == null || value.indexOf('{') < 0) {
+                    continue;
+                }
+                String next = substituteOnce(value, ready, authored);
+                if (!next.equals(value)) {
+                    ready.put(token, next);
+                    changed = true;
+                }
+            }
+            if (!changed) {
+                break;
+            }
+        }
+        return ready;
+    }
+
+    /** One pass over a template: every placeholder filled, or left as its default. */
+    private static String substituteOnce(String text, TreeMap<String, String> values, java.util.Set<String> authored) {
         Matcher placeholder = PLACEHOLDER.matcher(text);
         StringBuilder out = new StringBuilder();
         while (placeholder.find()) {
@@ -127,13 +178,62 @@ public class QuestionManager {
                 // {Q#} and {S#} are runtime counters, filled later against the answer's own key.
                 replacement = placeholder.group();
             } else {
-                String filled = fillPhrase(phrase, values);
+                if (!TOKEN_REF.matcher(phrase).find()) {
+                    warnUndelimited(phrase, values);
+                }
+                String filled = fillPhrase(phrase, values, authored);
                 replacement = filled != null ? filled : (defaultText == null ? phrase : defaultText);
             }
             placeholder.appendReplacement(out, Matcher.quoteReplacement(replacement));
         }
         placeholder.appendTail(out);
-        text = out.toString();
+        return out.toString();
+    }
+
+    /**
+     * A phrase that names a token as a bare word rather than as {@code <TOKEN>} fills nothing, and
+     * the respondent silently reads the default instead of a personalized sentence. Say so once, so a
+     * definition written before the brackets is visible in the log rather than only on the page.
+     */
+    private static void warnUndelimited(String phrase, TreeMap<String, String> values) {
+        for (String token : values.keySet()) {
+            if (token == null || token.isBlank()) {
+                continue;
+            }
+            Pattern bare = Pattern.compile("(?i)(?<![A-Za-z0-9_])" + Pattern.quote(token) + "(?![A-Za-z0-9_])");
+            if (!bare.matcher(phrase).find()) {
+                continue;
+            }
+            if (WARNED_UNDELIMITED.add(phrase)) {
+                Log.warn("Placeholder {" + phrase + "} names the token " + token + " without angle brackets,"
+                        + " so no rule fills it and respondents read its default instead. Write <" + token + ">.");
+            }
+            return;
+        }
+    }
+
+    static String replaceTokens(String text, TreeMap<String, String> values) {
+        return replaceTokens(text, values, java.util.Set.of());
+    }
+
+    /**
+     * A text with its placeholders filled.
+     *
+     * <p>A placeholder is {@code {phrase|default}}, and the phrase holds prose and {@code <TOKEN>}
+     * references. Everything but the references is the author's words, translated with the rest of
+     * the text; the references are slots, filled from the values here (UC-002 BR-010, BR-011).</p>
+     *
+     * @param text     the base or translated template
+     * @param values   token to the value that fills it
+     * @param authored the tokens whose value is prose the author wrote, rather than an answer the
+     *                 respondent gave: those values may be placeholders in their own right and are
+     *                 resolved first, and they are spliced in without HTML-escaping
+     */
+    static String replaceTokens(String text, TreeMap<String, String> values, java.util.Set<String> authored) {
+        if (text == null) {
+            return null;
+        }
+        text = substituteOnce(text, resolveAuthoredValues(values, authored), authored);
 
         // Until I can come up with a better solution to this problem I'll
         // force it here. I know this is a hack.
@@ -1331,7 +1431,10 @@ public class QuestionManager {
         text = text.replaceAll("\\{S#\\}", answer.getKey().getStepInstance() + "");
 
         TokenValues tokens = getValuesMap(answer);
-        answer.displayText = replaceTokens(text, tokens.base());
+        // sources() names the tokens whose value the author wrote on a rule, which are the ones that
+        // may be placeholders themselves and that must not be HTML-escaped (BR-011).
+        java.util.Set<String> authored = tokens.sources().keySet();
+        answer.displayText = replaceTokens(text, tokens.base(), authored);
 
         if (localTemplate == null) {
             answer.displayTextLocal = null;
@@ -1340,7 +1443,7 @@ public class QuestionManager {
             String local = localTemplate
                     .replaceAll("\\{Q#\\}", answer.getKey().getQuestionInstance() + "")
                     .replaceAll("\\{S#\\}", answer.getKey().getStepInstance() + "");
-            answer.displayTextLocal = replaceTokens(local, tokens.localized(survey, translator, asOf));
+            answer.displayTextLocal = replaceTokens(local, tokens.localized(survey, translator, asOf), authored);
             answer.displayLanguage = language;
         }
     }
@@ -2045,41 +2148,33 @@ public class QuestionManager {
         TokenValues values = new TokenValues();
         try {
             List<Dependent> dependents = Dependent.findByDownstream(respondentId, downstreamId);
-            String key;
-            String value;
-            // TODO GET THE DEFAULT VALUES
+            String language = currentContentLanguage(respondentId);
             for (Dependent dependent : dependents) {
-                value = null;
-                if (dependent.relationship.token != null
-                        && !dependent.relationship.token.isEmpty()) {
-                    key = dependent.relationship.token;
-                    switch (dependent.upstream.question.questionType.name) {
-                        case "CHECKBOX":
-                        case "DROPDOWN":
-                        case "HTML":
-                        case "NUMBER":
-                        case "RADIO":
-                            if (dependent.relationship.defaultUpstreamValue != null) {
-                                value = dependent.relationship.defaultUpstreamValue;
-                                // Authored prose the respondent reads, so it is translatable;
-                                // the respondent's own text below is not.
-                                values.sources().put(key, dependent.relationship);
-                            } else if (dependent.upstream.getTextValue() != null) {
-                                value = dependent.upstream.getTextValue();
-                            }
-                            break;
-                        case "TEXT":
-                        case "DATE":
-                            if (dependent.upstream.getTextValue() != null) {
-                                value = dependent.upstream.getTextValue();
-                            }
-                            break;
-                    }
-                    if (value != null) {
-                        values.base().put(key, value);
-                    } else {
-                        values.sources().remove(key);
-                    }
+                String key = dependent.relationship.token;
+                if (key == null || key.isEmpty()) {
+                    continue;
+                }
+                // What can go in the slot, and whether it is the rule's authored prose or the
+                // respondent's own answer, is decided from the question the rule reads (see
+                // TokenSource).
+                TokenSource.Fill fill = dependent.upstream == null
+                        ? TokenSource.fill(dependent.relationship, null, null, language)
+                        : TokenSource.fill(dependent.relationship, dependent.upstream.question,
+                                dependent.upstream.getTextValue(), language);
+                if (fill == null) {
+                    // This rule has nothing to put in the slot -- but several rules may fill one
+                    // token (the Family History Survey fills {S1} from fifteen places), so leave
+                    // what another one supplied. Only when no rule fills it does replaceTokens fall
+                    // back to the placeholder's default.
+                    continue;
+                }
+                values.base().put(key, fill.value());
+                if (fill.fromRule()) {
+                    // Authored prose the respondent reads, so it is translatable; the respondent's
+                    // own text is not, and must not keep an earlier rule's translation.
+                    values.sources().put(key, dependent.relationship);
+                } else {
+                    values.sources().remove(key);
                 }
             }
         } catch (RuntimeException e) {
