@@ -47,6 +47,11 @@ public record ContentTexts(ContentTranslator translator, Survey survey, OffsetDa
         return translator == null ? textOf(question) : translator.text(survey, question, asOf);
     }
 
+    public String shortText(Question question) {
+        return translator == null ? (question == null ? null : question.shortText)
+                : translator.shortText(survey, question, asOf);
+    }
+
     public String toolTip(Question question) {
         return translator == null ? (question == null ? null : question.toolTip)
                 : translator.toolTip(survey, question, asOf);

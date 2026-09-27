@@ -46,17 +46,24 @@ public class ElicitModal extends Dialog {
     /**
      * Constructs an ElicitModal for the given answer.
      * <p>
-     * The question's short text, when present, becomes the dialog header.
+     * The question's short text, when present, becomes the dialog header, in the respondent's
+     * content language.
      *
      * @param answer the answer whose display text is shown as HTML in the dialog
+     * @param texts  the content language of this page draw, for the header
      */
     public ElicitModal(Answer answer, ContentTexts texts) {
         super();
         String displayKey = answer.getDisplayKey();
         this.setId(displayKey);
 
-        if (answer.question.shortText != null && !answer.question.shortText.isEmpty()) {
-            setHeaderTitle(answer.question.shortText);
+        // Through texts, not off the entity: short_text is a translatable field (Author
+        // TranslatableFields), so a respondent reading the survey in their own language must get
+        // the header in it too. Reading answer.question.shortText here left every modal in a
+        // translated survey with an English title over a translated body.
+        String header = texts.shortText(answer.question);
+        if (header != null && !header.isEmpty()) {
+            setHeaderTitle(header);
         }
 
         Div content = new Div();
