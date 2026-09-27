@@ -390,7 +390,7 @@ errors in all three readers (`SurveyDefinitionImporter.java:151`,
 `Admin/.../SurveyDefinitionImportService.java:415`,
 `SurveyDefinitionUpdateService.java:396`). Two Python generators under `Author/samples/`
 write the format independently, and `SurveyDefinitionExporterTest` proves a
-field-for-field round trip (NFR-011) with a normaliser that keys rows by
+field-for-field round trip (NFR-011) with a normalizer that keys rows by
 `table + ":" + fields[1]` (`:52-90`).
 
 Admin is the consumer at deployed sites. Its update service matches every file row to
@@ -795,7 +795,7 @@ Survey, with a test that the three agree and that they match the CHECK constrain
 | `surveys` / `survey_key` | `title`, `description` | `name` is an identifier used in file names and Admin lists |
 | `steps` / `step_key` | `name`, `description` | `dimension_name` is the reporting dimension |
 | `sections` / `section_key` | `name`, `description` | `dimension_name` |
-| `questions` / `question_key` | `text`, `short_text`, `tool_tip`, `placeholder`, `validation_text` | `default_value` is written into `answers.text_value` (`QuestionManager.java:516`) and analysed, so translating it would fork stored data by language; `mask`, `variant`, `sample` |
+| `questions` / `question_key` | `text`, `short_text`, `tool_tip`, `placeholder`, `validation_text` | `default_value` is written into `answers.text_value` (`QuestionManager.java:516`) and analyzed, so translating it would fork stored data by language; `mask`, `variant`, `sample` |
 | `select_items` / `select_item_key` | `display_text` | `coded_value` |
 | `relationships` / `relationship_key` | `default_upstream_value` | `override_upstream_value` has no runtime reader; `token`, `reference_value`, `description` |
 | `reports` / `report_key` | `name`, `description` | `url` |
@@ -1030,7 +1030,7 @@ Four deliberate gaps, each with a reason:
 - **Reports are not translatable from Author.** They are in the whitelist and travel in the file,
   and the Survey runtime translates a report's name, but Author has no report entity to read a
   base text from (`docs/entity_model.md`, "Excluded from This Model"). It follows report
-  modelling, whenever that lands.
+  modeling, whenever that lands.
 - **The per-survey glossary is not stored.** The hand-off preamble carries the platform terms;
   the author-maintained list this section describes would need a column of its own, and the file
   is useful without it.
@@ -1092,7 +1092,7 @@ the two columns; `case "translations" -> insertTranslation(fields, surveyId)` wi
 strict key parse (a translation without a key is malformed; do not mint), `element_type`
 and `field` validated against the whitelist, `source_hash` stored verbatim, and, since
 translations follow every structural record, an optional check that the key was seen.
-`SurveyDefinitionExporterTest.normalised` (`:52-90`): no change needed, as it turned out.
+`SurveyDefinitionExporterTest.normalized` (`:52-90`): no change needed, as it turned out.
 Its generic path already keys a row by `table + ":" + fields[1]`, which for a translation
 is the `translation_key` and is unique per target and language, and its Type 2 tail strip
 (`REQUIRED_FIELDS - 5`) leaves exactly the eight content fields. `AuthoringForAiDocTest`
@@ -1143,7 +1143,7 @@ wording change never versions or closes its translations.
 Will fail until updated: `ManualSchemaMigratorUpgradeTest` (V019 in both tracks),
 `SchemaMirrorFreshnessTest` (sync the mirror), Author's `EntityMappingSmokeTest` (add
 `Translation`), `SurveyDefinitionExporterTest` and `SurveyDefinitionImporterTest`
-(arity, counts, normaliser, regenerated samples), Admin's four definition-service tests
+(arity, counts, normalizer, regenerated samples), Admin's four definition-service tests
 and the resource tests (bootstrap SQL, fixtures).
 
 To add: an Admin test of the translations upsert (created, unchanged, versioned on a
@@ -1195,7 +1195,7 @@ Author: C-024 rewritten (it is C-021 in the pre-i18n numbering this document was
 against, and UC-040 BR-005 is the rule UC-034 BR-005 refers to below); C-015 names the redefined
 record set; new FRs and use cases
 "Translate survey content", "Manage content languages", "Request a content
-translation" (the hand-off file) and "Import content translations", modelled on FR-046
+translation" (the hand-off file) and "Import content translations", modeled on FR-046
 (plus `use_cases.puml`); NFR-011 mentions the `translations` record; FR-036 cited as the
 `source_text` precedent; UC-034 BR-005 rewritten; `docs/entity_model.md` and
 `docs/scd-contract.md` (translations are the ninth Type 2 table; Author holds one
@@ -1213,11 +1213,11 @@ columns of section 11.4, at which point BR-058 and BR-059 describe what the code
 
 1. **Schema.** V019 in both Survey tracks; sync the Author mirror; Admin `V0.0.19` and
    its test bootstrap; `Translation` entity in Survey and Author; read-only element-key
-   mappings on Survey's entities; the two `Answer` fields. No behaviour change. Caught if
+   mappings on Survey's entities; the two `Answer` fields. No behavior change. Caught if
    half-done by `ManualSchemaMigratorUpgradeTest` and `SchemaMirrorFreshnessTest`.
 2. **File.** `ElicitFormat`, exporter, importer, Admin's three services and file
    fields, the Python generators, regenerated samples and fixtures, the round-trip
-   normaliser, all in one change set. Before the runtime, so translated test surveys can
+   normalizer, all in one change set. Before the runtime, so translated test surveys can
    be seeded through the real pipeline.
 3. **Survey runtime.** `ContentTranslator`, `buildDipslayText`, nav and review SQL, the
    widgets (the constructor parameter through `ElicitComponent` and the sixteen call
@@ -1370,7 +1370,7 @@ design neither depends on it nor makes it worse.
 ## 12. Open questions
 
 - Should `serve-stale-translations` default to false as proposed, or should a
-  deployment see the stale translation with no visible marker? The proposal favours
+  deployment see the stale translation with no visible marker? The proposal favors
   correctness over continuity.
 - When a respondent file from one site is imported at another, which question row does
   an answer attach to, given that Type 2 version numbers are local to each site

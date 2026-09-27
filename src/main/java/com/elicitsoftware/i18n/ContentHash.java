@@ -21,7 +21,7 @@ import java.util.HexFormat;
  * (docs/research/i18n_survey.md section 3.2).
  * <p>
  * Lower-case hex SHA-256 of the UTF-8 bytes of the exact stored string, with no trimming and no
- * normalisation. Three modules compute it -- Author when it writes a translation, Survey when it
+ * normalization. Three modules compute it -- Author when it writes a translation, Survey when it
  * decides whether to serve one, and PostgreSQL in any SQL that wants the same answer
  * ({@code encode(sha256(convert_to(q.short_text, 'UTF8')), 'hex')}) -- so the rule has to be
  * simple enough to state once and implement identically. A shared test vector holds them together;

@@ -67,7 +67,7 @@ class ContentHashTest {
 
     @Test
     void theHashIsOfTheExactStoredString() {
-        // No trimming and no normalisation: a base text that gained a trailing space is a different
+        // No trimming and no normalization: a base text that gained a trailing space is a different
         // base text, and its translation is stale until someone looks at it.
         assertFalse(ContentHash.of("Question?").equals(ContentHash.of("Question? ")));
         assertFalse(ContentHash.of("Question?").equals(ContentHash.of("question?")));

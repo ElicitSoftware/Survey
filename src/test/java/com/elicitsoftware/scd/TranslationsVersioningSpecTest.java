@@ -187,7 +187,7 @@ class TranslationsVersioningSpecTest {
         assertTrue(replacement > 0, "the partial unique index constrains current rows only");
     }
 
-    /** The driver may hand back either temporal type for a timestamptz; normalise as the sibling specs do. */
+    /** The driver may hand back either temporal type for a timestamptz; normalize as the sibling specs do. */
     private static OffsetDateTime toOffsetDateTime(Object value) {
         if (value instanceof OffsetDateTime odt) {
             return odt;
