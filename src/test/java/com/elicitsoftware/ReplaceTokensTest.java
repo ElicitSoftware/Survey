@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import java.util.TreeMap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Token substitution, now that a token is written {@code <NAME>} inside a placeholder's phrase.
@@ -90,4 +91,78 @@ class ReplaceTokensTest {
         assertEquals("Hello &lt;script&gt;",
                 QuestionManager.replaceTokens("Hello {<NAME>|friend}", values("NAME", "<script>")));
     }
+    // ---- UC-002 BR-011: an authored value may be a placeholder in its own right ---------------
+
+    private static java.util.Set<String> authored(String... tokens) {
+        return java.util.Set.of(tokens);
+    }
+
+    /**
+     * The Family History Survey's own shape: S1's value is the phrase "{@code {<G1>'s|your} mother}"
+     * and G1's value is the patient's name, so the sentence needs two rounds.
+     */
+    @Test
+    void anAuthoredValueThatIsItselfAPlaceholderIsResolved() {
+        assertEquals("Please indicate if Dennis' mother is still living.",
+                QuestionManager.replaceTokens("Please indicate if {<S1>|you} is still living.",
+                        values("S1", "{<G1>'s|your} mother", "G1", "Dennis"), authored("S1")));
+    }
+
+    @Test
+    void anAuthoredValuesOwnDefaultAppliesWhenItsTokenHasNoValue() {
+        assertEquals("Please indicate if your mother is still living.",
+                QuestionManager.replaceTokens("Please indicate if {<S1>|you} is still living.",
+                        values("S1", "{<G1>'s|your} mother"), authored("S1")));
+    }
+
+    @Test
+    void nestingIsBoundedRatherThanEndless() {
+        // A value that refers to itself must terminate, not hang the page draw.
+        String out = QuestionManager.replaceTokens("Ask {<A>|someone}.",
+                values("A", "{<A>'s|their} friend"), authored("A"));
+        assertTrue(out.startsWith("Ask ") && out.endsWith("."), out);
+    }
+
+    /**
+     * Respondent text is spliced in once and never re-read, so free text that happens to hold braces
+     * is shown as typed rather than treated as a placeholder.
+     */
+    @Test
+    void respondentTextIsNeverRescannedForPlaceholders() {
+        assertEquals("You said {foo|bar}.",
+                QuestionManager.replaceTokens("You said {<ANSWER>|nothing}.",
+                        values("ANSWER", "{foo|bar}"), authored()));
+    }
+
+    @Test
+    void respondentTextIsStillEscapedButAnAuthoredValueIsNot() {
+        assertEquals("Hello &lt;b&gt;Bob&lt;/b&gt;",
+                QuestionManager.replaceTokens("Hello {<NAME>|friend}", values("NAME", "<b>Bob</b>"), authored()));
+        // An authored value has already had its own substitutions escaped; escaping it again would
+        // double-escape them, and would destroy the <TOKEN> brackets before they could be read.
+        assertEquals("Hello <b>your mother</b>",
+                QuestionManager.replaceTokens("Hello {<S1>|friend}", values("S1", "<b>your mother</b>"), authored("S1")));
+    }
+
+    @Test
+    void respondentTextInsideAnAuthoredValueIsStillEscaped() {
+        // The escaping runs before the possessive tidy, so "s's" is not collapsed here: the character
+        // in front of the apostrophe is the ';' of an entity, not an 's'. Escaped either way, which is
+        // what this is checking.
+        assertEquals("Ask &lt;b&gt;Dennis&lt;/b&gt;'s mother.",
+                QuestionManager.replaceTokens("Ask {<S1>|them}.",
+                        values("S1", "{<G1>'s|your} mother", "G1", "<b>Dennis</b>"), authored("S1")));
+        assertEquals("Ask Dennis' mother.",
+                QuestionManager.replaceTokens("Ask {<S1>|them}.",
+                        values("S1", "{<G1>'s|your} mother", "G1", "Dennis"), authored("S1")));
+    }
+
+    /** An undelimited token names nothing the runtime can fill, so the default stands. */
+    @Test
+    void aBareTokenNameIsNotFilled() {
+        assertEquals("Do you currently have cancer?",
+                QuestionManager.replaceTokens("{Does S1|Do you} currently have cancer?",
+                        values("S1", "Dennis"), authored()));
+    }
+
 }
