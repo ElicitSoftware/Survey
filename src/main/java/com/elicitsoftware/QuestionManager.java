@@ -99,14 +99,28 @@ public class QuestionManager {
         }
         text = textBuilder.toString();
 
-        // Until I can come up with a better solution to this problem I'll
-        // force it here. I know this is a hack.
+        // English possessive tidying, applied unconditionally to every rendered text.
+        //
+        // A placeholder may put the possessive inside the phrase ({CS2's|Your} Cancers) or leave it
+        // in the prose outside ({S1}'s age at death), and a token's value may be a name, a noun
+        // phrase or a pronoun. The four replacements below patch the combinations that read wrong
+        // in English. They are not a general rule and there is no locale check.
+        //
+        // Two of them are load-bearing, not cosmetic. Any question that writes the possessive
+        // outside the placeholder -- "What was {S1}'s age at death?" -- and is fed by a rule whose
+        // value is a bare pronoun reads "What was her's age at death?" without the first two lines.
+        // The Family History Survey does exactly that on its four grandparent age-at-death
+        // questions, so deleting them means re-authoring the question and the rules; FHHS C-009
+        // records which ones and what the fix costs.
+        //
+        // " Your's " is dead: no rule in any current survey supplies "Your" as a value. The last
+        // line is a style choice only, "Dennis's" to "Dennis'"; both forms are correct English.
+        //
+        // A respondent's own words cannot reach these replacements with an apostrophe intact --
+        // the values spliced in above are HTML-escaped, turning ' into &#39; first.
         text = text.replace(" her's ", " her ");
         text = text.replace(" his's ", " his ");
         text = text.replace(" Your's ", " Your ");
-
-        // Lastly replace any s's with s' this if for names like Dennis as in
-        // what is Dennis'name
         text = text.replaceAll("s's", "s'");
 
         return text;
