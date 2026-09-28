@@ -1234,9 +1234,11 @@ Risks: someone assigning translated text to a mapped entity field (review rule: 
 lagging an Admin publish (the TTL); a lookup that forgets the as-of predicate and
 serves the current translation to a pinned respondent (the `ContentTranslator` API
 takes `asOf` as a required argument, not an optional one); the SQL and Java hashes drifting (the shared test
-vector); `replaceTokens`' English possessive handling (`QuestionManager.java:99-101`)
+vector); `replaceTokens`' English possessive handling (`QuestionManager.java:238-249`)
 applied to non-English templates, which is a known wart to document rather than fix
-here; and the whitelist drifting across three modules (one canonical constant and a
+here — it is inert in es-419 and ar only because neither writes a literal
+s-apostrophe-s, and two of its four replacements are load-bearing for the Family
+History Survey, so it cannot simply be deleted (FHHS C-009); and the whitelist drifting across three modules (one canonical constant and a
 comparison test).
 
 ## 11. Multi-site operation

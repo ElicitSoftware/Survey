@@ -235,14 +235,34 @@ public class QuestionManager {
         }
         text = substituteOnce(text, resolveAuthoredValues(values, authored), authored);
 
-        // Until I can come up with a better solution to this problem I'll
-        // force it here. I know this is a hack.
+        // English possessive tidying, applied unconditionally to every rendered text.
+        //
+        // A placeholder may put the possessive inside the phrase ({<CS2>'s|Your} Cancers) or leave
+        // it in the prose outside ({<S1>}'s age at death), and a token's value may be a name, a
+        // noun phrase or a pronoun. The four replacements below patch the combinations that read
+        // wrong in English. They are not a general rule and there is no locale check.
+        //
+        // Two of them are load-bearing, not cosmetic. The Family History Survey's question 40 is
+        // "What was {<S1>}'s age at death?" -- the 's sits outside the placeholder -- and the four
+        // grandparent rules (relationships 95, 99, 103 and 107) fill S1 with the bare pronoun "her"
+        // or "his". Without the first two lines those questions read "What was her's age at death?".
+        // Deleting them means re-authoring that question and those rules; see FHHS C-009.
+        //
+        // " Your's " is dead: no rule in any current survey supplies "Your" as a value. The last
+        // line is a style choice only, "Dennis's" to "Dennis'"; both forms are correct English.
+        //
+        // These run on Answer.displayTextLocal as well as displayText (see buildDipslayText), so
+        // they are applied to translated text too. That is harmless for the languages shipped today
+        // rather than by design: "her's"/"his's"/"Your's" are English word forms, and "s's" needs a
+        // literal ASCII s-apostrophe-s, which neither es-419 nor ar writes. A respondent's own words
+        // cannot smuggle one in either -- fillPhrase HTML-escapes them first, turning ' into &#39;.
+        // A target language that does write s-apostrophe-s would be corrupted here silently.
+        //
+        // Author's PreviewFields.substituteTokens holds an independent copy of these four
+        // replacements so the designer preview matches the runtime. Change one, change both.
         text = text.replace(" her's ", " her ");
         text = text.replace(" his's ", " his ");
         text = text.replace(" Your's ", " Your ");
-
-        // Lastly replace any s's with s' this if for names like Dennis as in
-        // what is Dennis'name
         text = text.replaceAll("s's", "s'");
 
         return text;
