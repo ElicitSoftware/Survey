@@ -115,7 +115,9 @@ CREATE OR REPLACE VIEW survey.translatable_source AS
     UNION ALL SELECT survey_id, step_key, 'steps', 'description', description FROM survey.steps
     UNION ALL SELECT survey_id, select_item_key, 'select_items', 'display_text', display_text FROM survey.select_items
     UNION ALL SELECT id, survey_key, 'surveys', 'title', title FROM survey.surveys
-    UNION ALL SELECT id, survey_key, 'surveys', 'description', description FROM survey.surveys;
+    UNION ALL SELECT id, survey_key, 'surveys', 'description', description FROM survey.surveys
+    UNION ALL SELECT survey_id, relationship_key, 'relationships', 'default_upstream_value',
+           default_upstream_value FROM survey.relationships;
 
 -- Rehash first, while the base text is still undelimited.
 --
@@ -161,6 +163,19 @@ UPDATE survey.select_items i
 UPDATE survey.surveys s
    SET title       = survey.delimit_tokens(s.title,       survey.tokens_of(s.id)),
        description = survey.delimit_tokens(s.description, survey.tokens_of(s.id));
+
+-- A rule's upstream value is authored prose, not an answer the respondent typed, and may hold
+-- placeholders of its own -- "{<G1>'s|your} mother" -- which the runtime resolves before it
+-- splices the value in. Undelimited, the phrase fills nothing and the respondent reads the
+-- default, so these two columns need the same rewrite the texts above get.
+-- default_upstream_value is translatable (Author TranslatableFields), which is why it joins
+-- translatable_source above and is rehashed with everything else; override_upstream_value is not
+-- translated but carries the same placeholders and is rewritten alongside it.
+UPDATE survey.relationships r
+   SET default_upstream_value  = survey.delimit_tokens(r.default_upstream_value,
+                                                       survey.tokens_of(r.survey_id)),
+       override_upstream_value = survey.delimit_tokens(r.override_upstream_value,
+                                                       survey.tokens_of(r.survey_id));
 
 -- And the translated strings, which carry the same placeholders in the target language. The
 -- default after the bar is the translator's prose and is left exactly as written.

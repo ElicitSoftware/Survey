@@ -38,7 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * <p>
  * {@code answers.display_text} stays in the base language because the ETL, the console and the
  * respondent export all read it; {@code display_text_local} carries what the respondent actually
- * saw. This drives the real pipeline -- {@code QuestionManager.buildDipslayText} through
+ * saw. This drives the real pipeline -- {@code QuestionManager.buildDisplayText} through
  * {@code relocalize} -- rather than asserting on the translator alone.
  */
 @QuarkusTest

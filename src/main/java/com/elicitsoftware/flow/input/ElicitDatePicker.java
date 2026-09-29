@@ -18,9 +18,10 @@ import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.datepicker.DatePickerVariant;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 
 /**
- * The ElcitDatePicker class is a custom implementation of the ElicitComponent class
+ * The ElicitDatePicker class is a custom implementation of the ElicitComponent class
  * that wraps a Vaadin DatePicker component. This class allows the DatePicker
  * component to be configured and customized based on data from Answer and Question objects.
  * <p>
@@ -38,16 +39,16 @@ import java.time.LocalDate;
  * - addVariants(Question question): Adds visual variants (like alignment, size, etc.) to the DatePicker component as specified.
  * - validate(): Placeholder method to allow for future validation logic.
  */
-public class ElcitDatePicker extends ElicitComponent<DatePicker> {
+public class ElicitDatePicker extends ElicitComponent<DatePicker> {
 
     /**
-     * Constructs an ElcitDatePicker component for the given answer.
+     * Constructs an ElicitDatePicker component for the given answer.
      * The date picker is initialized with the display text from the answer,
      * and if the answer has a text value, it's parsed and set as the initial value.
      *
      * @param answer the answer object containing the data for this date picker
      */
-    public ElcitDatePicker(Answer answer, ContentTexts texts) {
+    public ElicitDatePicker(Answer answer, ContentTexts texts) {
         super(new DatePicker(answer.label()), answer, texts);
         if (answer.getTextValue() != null && !answer.getTextValue().isEmpty()) {
             setValue(answer);
