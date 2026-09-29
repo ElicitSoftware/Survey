@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import java.time.ZoneOffset;
 import java.util.List;
 
@@ -130,7 +131,10 @@ class QuestionsVersioningSpecTest {
         Integer questionId = ScdFixtureIds.questionId(em);
         Integer durableId = durableIdOf(questionId);
         int currentVersion = versionOf(questionId);
-        OffsetDateTime publishInstant = OffsetDateTime.now();
+        // Truncated to what timestamptz keeps. The column holds microseconds and rounds to them,
+        // so a nanosecond instant does not come back as itself and the exact comparisons below
+        // would fail -- on Linux only, since a macOS JVM's clock is already microsecond.
+        OffsetDateTime publishInstant = OffsetDateTime.now().truncatedTo(ChronoUnit.MICROS);
 
         closeCurrentAndInsertNewVersion(durableId, currentVersion, publishInstant, "Reworded text");
 
@@ -143,6 +147,10 @@ class QuestionsVersioningSpecTest {
 
         assertEquals(publishInstant.toInstant(), toOffsetDateTime(oldEffectiveTo).toInstant(), "Old row's effective_to must be exactly the publish instant");
         assertEquals(publishInstant.toInstant(), toOffsetDateTime(newRow[0]).toInstant(), "New row's effective_from must be exactly the same publish instant (no gap/overlap)");
+        // The invariant itself, independent of what either side was compared against: the moment
+        // one version ends is the moment the next begins.
+        assertEquals(toOffsetDateTime(oldEffectiveTo).toInstant(), toOffsetDateTime(newRow[0]).toInstant(),
+                "the old row must close exactly where the new one opens");
         assertEquals(currentVersion + 1, ((Number) newRow[1]).intValue(), "version must increment by exactly 1");
         assertEquals("Reworded text", newRow[2]);
     }
