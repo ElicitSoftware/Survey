@@ -247,6 +247,27 @@
                     <exclude>application.properties</exclude>
                 </excludes>
             </resource>
+            <!--
+              The translated bundles (UC-009). They live in i18n/ beside the hand-off document that
+              produced them, because they are received from a translator rather than authored here,
+              and are packaged onto the classpath next to the English bundle so that a released
+              image carries the translation it was built and tested with.
+
+              filtering must stay false: a filtered copy is re-encoded, which corrupts the Arabic,
+              and a translated string is free to contain ${...}.
+
+              The include is translations_*.properties, not translations*.properties, so this can
+              never shadow src/main/resources/vaadin-i18n/translations.properties, the English
+              bundle Vaadin's Copilot tooling edits in place.
+            -->
+            <resource>
+                <directory>i18n</directory>
+                <targetPath>vaadin-i18n</targetPath>
+                <filtering>false</filtering>
+                <includes>
+                    <include>translations_*.properties</include>
+                </includes>
+            </resource>
         </resources>
         <plugins>
             <plugin>

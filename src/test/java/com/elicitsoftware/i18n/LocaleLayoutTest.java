@@ -21,7 +21,6 @@ import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
 
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
 
@@ -43,14 +42,15 @@ class LocaleLayoutTest extends QuarkusBrowserlessTest {
     LocaleSelection selection;
 
     @Test
-    void arabic_isRightToLeft_andCarriesTheMountsFontScale() {
+    void arabic_isRightToLeft_andCarriesTheShippedFontScale() {
         UI ui = UI.getCurrent();
         layout.apply(ui, Locale.forLanguageTag("ar"));
 
         assertEquals("rtl", ui.getElement().getAttribute("dir"));
         assertEquals("ar", ui.getElement().getAttribute("lang"));
         assertEquals("1.15", ui.getElement().getAttribute(LocaleLayout.FONT_SCALE_ATTRIBUTE),
-                "the shipped mount enlarges Arabic; see elicit-i18n/i18n-config.json");
+                "the classpath manifest enlarges Arabic; see src/main/resources/META-INF/i18n/i18n-config.json"
+                        + " -- nothing is mounted, so this is the image's own built-in scale");
     }
 
     @Test
@@ -61,7 +61,7 @@ class LocaleLayoutTest extends QuarkusBrowserlessTest {
         assertEquals("ltr", ui.getElement().getAttribute("dir"));
         assertEquals("es-419", ui.getElement().getAttribute("lang"));
         assertEquals("1", ui.getElement().getAttribute(LocaleLayout.FONT_SCALE_ATTRIBUTE),
-                "a locale the mount does not scale renders at the reader's own size");
+                "a locale the shipped manifest does not scale renders at the reader's own size");
     }
 
     @Test
@@ -120,9 +120,6 @@ class LocaleLayoutTest extends QuarkusBrowserlessTest {
     @Test
     void switcher_isHidden_whenOnlyEnglishIsAvailable() {
         ElicitI18NProvider englishOnly = new ElicitI18NProvider();
-        englishOnly.fileSystemPath = Path.of("target/no-such-i18n-mount").toString();
-        englishOnly.localPath = Path.of("target/no-such-i18n-local").toString();
-        englishOnly.appName = "survey";
         englishOnly.bundledLocales = "en";
         englishOnly.pseudoLocaleEnabled = false;
 

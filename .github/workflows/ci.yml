@@ -1,7 +1,12 @@
 # Runs the regression suite (unit + booted @QuarkusTest, JaCoCo coverage gate) on every
-# pull request and every push to main. This is the gate that actually enforces tests pass
-# before code merges — the release workflow (maven.yml) builds with -Dmaven.test.skip=true
-# and only runs at tag-push time, so without this workflow nothing ever ran the suite in CI.
+# pull request into a long-lived branch and every push to one. This is the gate that actually
+# enforces tests pass before code merges — the release workflow (maven.yml) builds with
+# -Dmaven.test.skip=true and only runs at tag-push time, so without this workflow nothing ever
+# ran the suite in CI.
+#
+# Both main and i18n are gated. i18n is a long-lived line many commits ahead of main, and it is
+# where the current work merges; while only main was gated, every pull request into i18n was
+# merged without being compiled, let alone tested.
 #
 # `verify`, not `package`: the jacoco-check gate in pom.xml (BUNDLE LINE >= 0.70) binds to
 # the verify phase, so a `package` build — which is what buildDockerImage.sh runs locally —
@@ -13,9 +18,11 @@ on:
   push:
     branches:
       - main
+      - i18n
   pull_request:
     branches:
       - main
+      - i18n
 
 jobs:
   test:
@@ -36,22 +43,6 @@ jobs:
           distribution: 'temurin'
           architecture: x64
           cache: 'maven'
-
-      - name: Fetch the deployment translations from the umbrella repository
-        # The language tests read ../elicit-i18n, exactly as the dev and test profiles do in a
-        # local umbrella checkout (the application itself ships English only). Prefer the umbrella
-        # branch with the same name as this one, so a cross-repo change can be tested before merge.
-        run: |
-          UMBRELLA=https://github.com/ElicitSoftware/Elicit.git
-          BRANCH="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
-          REF=()
-          if git ls-remote --exit-code --heads "$UMBRELLA" "$BRANCH" >/dev/null 2>&1; then
-            REF=(--branch "$BRANCH")
-          fi
-          git clone --depth 1 --filter=blob:none --sparse "${REF[@]}" "$UMBRELLA" "$RUNNER_TEMP/elicit"
-          git -C "$RUNNER_TEMP/elicit" sparse-checkout set elicit-i18n
-          ln -s "$RUNNER_TEMP/elicit/elicit-i18n" ../elicit-i18n
-          ls ../elicit-i18n/
 
       # No external database is provisioned here on purpose: PostgresTestResource
       # (src/test/java/com/elicitsoftware/PostgresTestResource.java) starts its own

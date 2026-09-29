@@ -12,139 +12,147 @@ package com.elicitsoftware.i18n;
  */
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * UC-009 BR-004 and BR-011: built-in right-to-left languages, the per-locale font scale, and the
- * optional per-deployment manifest that overrides either.
+ * UC-009 BR-004 and BR-011: built-in right-to-left languages, the per-locale font scale, the
+ * classpath manifest the image ships, and the per-deployment property that overrides either.
  */
 class LocaleConfigTest {
 
-    private static LocaleConfig config(Path mount) {
+    /** No overrides; only the shipped classpath {@code i18n-config.json} (declares only {@code ar}) applies. */
+    private static LocaleConfig config() {
+        return new LocaleConfig();
+    }
+
+    /** {@code overrides} stands in for a deployment's configuration; a key it does not list is absent. */
+    private static LocaleConfig config(Map<String, String> overrides) {
         LocaleConfig c = new LocaleConfig();
-        c.fileSystemPath = mount.toString();
-        c.localPath = mount.resolve("no-local").toString();
+        c.propertyLookup = key -> Optional.ofNullable(overrides.get(key));
         return c;
     }
 
-    private static LocaleConfig config(Path mount, String json) throws IOException {
-        Files.writeString(mount.resolve("i18n-config.json"), json);
-        return config(mount);
-    }
-
     @Test
-    void builtInDefaults(@TempDir Path mount) {
-        LocaleConfig c = config(mount);
-        assertTrue(c.isRightToLeft(Locale.forLanguageTag("ar")));
-        assertTrue(c.isRightToLeft(Locale.forLanguageTag("ar-EG")));
-        assertTrue(c.isRightToLeft(Locale.forLanguageTag("he")));
+    void builtInDefaults() {
+        LocaleConfig c = config();
+        assertTrue(c.isRightToLeft(Locale.forLanguageTag("he")), "inferred from RTL_LANGUAGES; not in the shipped file");
+        assertTrue(c.isRightToLeft(Locale.forLanguageTag("fa")));
         assertFalse(c.isRightToLeft(Locale.forLanguageTag("es-419")));
         assertFalse(c.isRightToLeft(Locale.ENGLISH));
         assertFalse(c.isRightToLeft(null));
     }
 
     @Test
-    void manifestOverridesDirection(@TempDir Path mount) throws IOException {
-        LocaleConfig c = config(mount,
-                "{\"locales\":[{\"tag\":\"fr\",\"direction\":\"rtl\"},{\"tag\":\"ar\",\"direction\":\"ltr\"}]}");
-
-        assertTrue(c.isRightToLeft(Locale.FRENCH), "manifest can declare a mounted locale rtl");
-        assertFalse(c.isRightToLeft(Locale.forLanguageTag("ar")), "manifest can override the built-in default");
-    }
-
-    @Test
-    void malformedManifest_keepsBuiltInDefaults(@TempDir Path mount) throws IOException {
-        LocaleConfig c = config(mount, "{not json");
-        assertTrue(c.isRightToLeft(Locale.forLanguageTag("ar")));
-        assertEquals(1.0, c.fontScale(Locale.forLanguageTag("ar")));
-    }
-
-    @Test
-    void fontScaleDefaultsToOne(@TempDir Path mount) {
-        LocaleConfig c = config(mount);
-        assertEquals(1.0, c.fontScale(Locale.forLanguageTag("ar")));
+    void fontScaleDefaultsToOne() {
+        LocaleConfig c = config();
         assertEquals(1.0, c.fontScale(Locale.ENGLISH));
+        assertEquals(1.0, c.fontScale(Locale.forLanguageTag("he")));
         assertEquals(1.0, c.fontScale(null));
     }
 
     @Test
-    void manifestDeclaresFontScale(@TempDir Path mount) throws IOException {
-        LocaleConfig c = config(mount,
-                "{\"locales\":[{\"tag\":\"ar\",\"direction\":\"rtl\",\"fontScale\":1.15}]}");
-
-        assertEquals(1.15, c.fontScale(Locale.forLanguageTag("ar")));
-        assertEquals(1.15, c.fontScale(Locale.forLanguageTag("ar-EG")), "a country variant inherits the language's scale");
-        assertTrue(c.isRightToLeft(Locale.forLanguageTag("ar")), "the entry still carries its direction");
-        assertEquals(1.0, c.fontScale(Locale.ENGLISH), "other languages are untouched");
-    }
-
-    @Test
-    void fontScaleWithoutDirection_leavesDirectionAtItsDefault(@TempDir Path mount) throws IOException {
-        LocaleConfig c = config(mount,
-                "{\"locales\":[{\"tag\":\"ar\",\"fontScale\":1.2},{\"tag\":\"es-419\",\"fontScale\":1.1}]}");
-
-        assertEquals(1.2, c.fontScale(Locale.forLanguageTag("ar")));
-        assertTrue(c.isRightToLeft(Locale.forLanguageTag("ar")), "the built-in rtl default still stands");
-        assertEquals(1.1, c.fontScale(Locale.forLanguageTag("es-419")));
-        assertFalse(c.isRightToLeft(Locale.forLanguageTag("es-419")));
-    }
-
-    @Test
-    void directionOnlyEntry_leavesFontScaleAtOne(@TempDir Path mount) throws IOException {
-        LocaleConfig c = config(mount, "{\"locales\":[{\"tag\":\"ar\",\"direction\":\"rtl\"}]}");
-
-        assertEquals(1.0, c.fontScale(Locale.forLanguageTag("ar")),
-                "a mount written before font scale existed renders exactly as it did");
+    void shippedFileDeclaresArabic() {
+        // META-INF/i18n/i18n-config.json on the classpath: {"tag":"ar","direction":"rtl","fontScale":1.15}
+        LocaleConfig c = config();
         assertTrue(c.isRightToLeft(Locale.forLanguageTag("ar")));
+        assertEquals(1.15, c.fontScale(Locale.forLanguageTag("ar")));
+        assertEquals(1.15, c.fontScale(Locale.forLanguageTag("ar-EG")), "a country variant inherits the language's entry");
+        assertEquals(1.0, c.fontScale(Locale.ENGLISH), "other languages are untouched by the shipped entry");
     }
 
     @Test
-    void exactTagWinsOverTheLanguage(@TempDir Path mount) throws IOException {
-        LocaleConfig c = config(mount,
-                "{\"locales\":[{\"tag\":\"ar\",\"fontScale\":1.1},{\"tag\":\"ar-EG\",\"fontScale\":1.3}]}");
+    void propertyOverridesDirection() {
+        LocaleConfig c = config(Map.of(
+                "i18n.direction.fr", "rtl",
+                "i18n.direction.ar", "ltr"));
+
+        assertTrue(c.isRightToLeft(Locale.FRENCH), "a property can declare rtl for a language nothing else does");
+        assertFalse(c.isRightToLeft(Locale.forLanguageTag("ar")), "a property wins over the shipped file's declaration");
+    }
+
+    @Test
+    void propertyOverridesFontScale() {
+        LocaleConfig c = config(Map.of("i18n.font-scale.ar", "1.4"));
+
+        assertEquals(1.4, c.fontScale(Locale.forLanguageTag("ar")), "a property wins over the shipped file's 1.15");
+        assertTrue(c.isRightToLeft(Locale.forLanguageTag("ar")), "overriding the scale alone leaves direction to the shipped file");
+    }
+
+    @Test
+    void languageOnlyPropertyAppliesToARegionalTag() {
+        LocaleConfig c = config(Map.of(
+                "i18n.direction.es", "rtl",
+                "i18n.font-scale.es", "1.2"));
+
+        assertTrue(c.isRightToLeft(Locale.forLanguageTag("es-419")), "no es-419 key; the language-only key applies");
+        assertEquals(1.2, c.fontScale(Locale.forLanguageTag("es-419")));
+    }
+
+    @Test
+    void exactTagPropertyWinsOverTheLanguageProperty() {
+        LocaleConfig c = config(Map.of(
+                "i18n.font-scale.ar", "1.1",
+                "i18n.font-scale.ar-EG", "1.3"));
 
         assertEquals(1.3, c.fontScale(Locale.forLanguageTag("ar-EG")));
-        assertEquals(1.1, c.fontScale(Locale.forLanguageTag("ar-SA")));
+        assertEquals(1.1, c.fontScale(Locale.forLanguageTag("ar-SA")), "no exact key for ar-SA; falls back to the language");
     }
 
     @Test
-    void outOfRangeOrMalformedFontScale_fallsBackToOne(@TempDir Path mount) throws IOException {
-        LocaleConfig c = config(mount, "{\"locales\":["
-                + "{\"tag\":\"ar\",\"direction\":\"rtl\",\"fontScale\":9},"
-                + "{\"tag\":\"he\",\"fontScale\":0.1},"
-                + "{\"tag\":\"fa\",\"fontScale\":\"huge\"},"
-                + "{\"tag\":\"ur\",\"fontScale\":0}]}");
+    void outOfRangeFontScaleProperty_isIgnored() {
+        LocaleConfig c = config(Map.of(
+                "i18n.font-scale.fr", "9",
+                "i18n.font-scale.ar", "0.1"));
 
-        assertEquals(1.0, c.fontScale(Locale.forLanguageTag("ar")), "above the maximum");
-        assertEquals(1.0, c.fontScale(Locale.forLanguageTag("he")), "below the minimum");
-        assertEquals(1.0, c.fontScale(Locale.forLanguageTag("fa")), "not a number");
-        assertEquals(1.0, c.fontScale(Locale.forLanguageTag("ur")), "zero would erase the page");
-        assertTrue(c.isRightToLeft(Locale.forLanguageTag("ar")),
-                "a refused scale does not cost the entry its direction");
+        assertEquals(1.0, c.fontScale(Locale.FRENCH), "above the maximum; the default stands");
+        assertEquals(1.15, c.fontScale(Locale.forLanguageTag("ar")), "below the minimum; the shipped file's value stands");
     }
 
     @Test
-    void fontScaleBoundariesAreAccepted(@TempDir Path mount) throws IOException {
-        LocaleConfig c = config(mount,
-                "{\"locales\":[{\"tag\":\"ar\",\"fontScale\":0.75},{\"tag\":\"he\",\"fontScale\":2.0}]}");
-
-        assertEquals(0.75, c.fontScale(Locale.forLanguageTag("ar")));
-        assertEquals(2.0, c.fontScale(Locale.forLanguageTag("he")));
+    void nonNumericFontScaleProperty_isIgnored() {
+        LocaleConfig c = config(Map.of("i18n.font-scale.ar", "huge"));
+        assertEquals(1.15, c.fontScale(Locale.forLanguageTag("ar")), "not a number; the shipped file's value stands");
     }
 
     @Test
-    void fontScaleAsAString_isAccepted(@TempDir Path mount) throws IOException {
-        LocaleConfig c = config(mount, "{\"locales\":[{\"tag\":\"ar\",\"fontScale\":\"1.15\"}]}");
+    void fontScaleBoundariesAreAccepted() {
+        LocaleConfig c = config(Map.of(
+                "i18n.font-scale.he", "0.75",
+                "i18n.font-scale.fa", "2.0"));
 
+        assertEquals(0.75, c.fontScale(Locale.forLanguageTag("he")));
+        assertEquals(2.0, c.fontScale(Locale.forLanguageTag("fa")));
+    }
+
+    @Test
+    void nonsenseDirectionProperty_isIgnored() {
+        LocaleConfig c = config(Map.of("i18n.direction.fr", "sideways"));
+        assertFalse(c.isRightToLeft(Locale.FRENCH), "neither \"rtl\" nor \"ltr\"; the built-in inference stands");
+    }
+
+    @Test
+    void blankPropertyValue_isTreatedAsAbsent() {
+        LocaleConfig c = config(Map.of("i18n.direction.ar", "   "));
+        assertTrue(c.isRightToLeft(Locale.forLanguageTag("ar")), "a blank value is absent, not a rejected malformed one");
+    }
+
+    @Test
+    void throwingLookup_isSurvivedAsAbsent() {
+        LocaleConfig c = new LocaleConfig();
+        c.propertyLookup = key -> {
+            throw new RuntimeException("boom");
+        };
+
+        // must never take the page down over a bad property; falls through to the shipped file
+        assertTrue(c.isRightToLeft(Locale.forLanguageTag("ar")));
         assertEquals(1.15, c.fontScale(Locale.forLanguageTag("ar")));
     }
 
@@ -154,5 +162,50 @@ class LocaleConfigTest {
         assertEquals("1.15", LocaleLayout.format(1.15));
         assertEquals("0.75", LocaleLayout.format(0.75));
         assertEquals("2", LocaleLayout.format(2.0));
+    }
+
+    // ---- the shipped manifest itself (UC-009 BR-004, BR-011) ----
+    // Through parse(), because the manifest is a fixed classpath resource: there is no longer a
+    // way to hand the running code a different one. It still runs at every startup, so a bad
+    // document must leave the built-in defaults standing rather than take the application down.
+
+    @Test
+    void parse_readsDirectionAndScale() {
+        Map<String, LocaleConfig.Entry> entries =
+                LocaleConfig.parse("{\"locales\":[{\"tag\":\"ar\",\"direction\":\"rtl\",\"fontScale\":1.15}]}");
+        assertEquals(1, entries.size());
+        assertEquals(Boolean.TRUE, entries.get("ar").rightToLeft());
+        assertEquals(1.15, entries.get("ar").fontScale());
+    }
+
+    @Test
+    void parse_keepsAnEntryThatDeclaresOnlyOneOfThem() {
+        assertNull(LocaleConfig.parse("{\"locales\":[{\"tag\":\"he\",\"direction\":\"rtl\"}]}")
+                .get("he").fontScale(), "a direction-only entry leaves the scale undeclared");
+        assertNull(LocaleConfig.parse("{\"locales\":[{\"tag\":\"ar\",\"fontScale\":1.2}]}")
+                .get("ar").rightToLeft(), "a scale-only entry leaves the direction undeclared");
+    }
+
+    @Test
+    void parse_dropsAnEntryThatDeclaresNeitherUsably() {
+        // Nothing to say is not the same as saying the default: an entry like this must not
+        // shadow the built-in inference for that language.
+        assertTrue(LocaleConfig.parse("{\"locales\":[{\"tag\":\"ar\"}]}").isEmpty());
+        assertTrue(LocaleConfig.parse("{\"locales\":[{\"tag\":\"ar\",\"direction\":\"sideways\"}]}").isEmpty());
+        assertTrue(LocaleConfig.parse("{\"locales\":[{\"direction\":\"rtl\"}]}").isEmpty(), "no tag names nothing");
+    }
+
+    @Test
+    void parse_survivesAMalformedManifest() {
+        assertTrue(LocaleConfig.parse("{ not json").isEmpty());
+        assertTrue(LocaleConfig.parse("").isEmpty());
+        assertTrue(LocaleConfig.parse(null).isEmpty());
+        assertTrue(LocaleConfig.parse("{}").isEmpty(), "no locales key at all");
+    }
+
+    @Test
+    void parse_refusesAScaleOutsideWhatALayoutAbsorbs() {
+        assertTrue(LocaleConfig.parse("{\"locales\":[{\"tag\":\"ar\",\"fontScale\":9}]}").isEmpty());
+        assertTrue(LocaleConfig.parse("{\"locales\":[{\"tag\":\"ar\",\"fontScale\":0.1}]}").isEmpty());
     }
 }
