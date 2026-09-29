@@ -129,3 +129,7 @@ Survey content reaches a respondent in a language only when that language is bot
 ### BR-010: A respondent in progress keeps the wording they started with
 
 Content translations are versioned like the survey's structure. A respondent sees the translation that was current when they first accessed the survey; a correction published later reaches only respondents who start after it.
+
+### BR-011: Text size may follow the language
+
+A script whose letters look smaller than Latin at the same size reads smaller, however faithful the translation — Arabic is the case this rule exists for. A deployment may therefore declare a font scale for a mounted language, and every page shown in that language is rendered at that multiple of the reader's own text size. A language with no declared scale is rendered exactly as it was before any scale existed, and a scale outside what a layout can absorb is refused rather than applied.
