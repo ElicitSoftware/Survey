@@ -37,22 +37,6 @@ jobs:
           architecture: x64
           cache: 'maven'
 
-      - name: Fetch the deployment translations from the umbrella repository
-        # The language tests read ../elicit-i18n, exactly as the dev and test profiles do in a
-        # local umbrella checkout (the application itself ships English only). Prefer the umbrella
-        # branch with the same name as this one, so a cross-repo change can be tested before merge.
-        run: |
-          UMBRELLA=https://github.com/ElicitSoftware/Elicit.git
-          BRANCH="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
-          REF=()
-          if git ls-remote --exit-code --heads "$UMBRELLA" "$BRANCH" >/dev/null 2>&1; then
-            REF=(--branch "$BRANCH")
-          fi
-          git clone --depth 1 --filter=blob:none --sparse "${REF[@]}" "$UMBRELLA" "$RUNNER_TEMP/elicit"
-          git -C "$RUNNER_TEMP/elicit" sparse-checkout set elicit-i18n
-          ln -s "$RUNNER_TEMP/elicit/elicit-i18n" ../elicit-i18n
-          ls ../elicit-i18n/
-
       # No external database is provisioned here on purpose: PostgresTestResource
       # (src/test/java/com/elicitsoftware/PostgresTestResource.java) starts its own
       # throwaway Postgres via Testcontainers, migrated with db/migration + db/test into
