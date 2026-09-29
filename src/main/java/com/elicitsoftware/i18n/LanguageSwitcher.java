@@ -20,8 +20,8 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Language selector shown on every page (UC-009 step 4). Lists the provided locales (shipped plus
- * mounted), labeled in their own language; choosing one remembers it for the session and reloads
+ * Language selector shown on every page (UC-009 step 4). Lists the locales this site offers,
+ * labeled in their own language; choosing one remembers it for the session and reloads
  * the page (dropping any {@code ?lang=} link parameter) so every view is rebuilt in the new language.
  */
 public class LanguageSwitcher extends Select<Locale> implements LocaleChangeObserver {
@@ -38,7 +38,7 @@ public class LanguageSwitcher extends Select<Locale> implements LocaleChangeObse
                 .filter(l -> !ElicitI18NProvider.PSEUDO_LOCALE.getLanguage().equals(l.getLanguage()))
                 .toList();
         setItems(locales);
-        // English-only deployments (nothing mounted) have no choice to offer, so the selector stays out of the header.
+        // A site offering English alone has no choice to offer, so the selector stays out of the header.
         setVisible(locales.size() > 1);
         setItemLabelGenerator(LanguageSwitcher::displayName);
         UI ui = UI.getCurrent();

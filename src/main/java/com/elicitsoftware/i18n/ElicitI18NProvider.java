@@ -151,7 +151,7 @@ public class ElicitI18NProvider implements I18NProvider {
         reportedMissing.clear();
     }
 
-    /** True when the locale (or its language) has a translation file on any tier. */
+    /** True when this site offers the locale, or its language. */
     public boolean isProvided(Locale locale) {
         return getProvidedLocales().contains(locale);
     }
@@ -185,7 +185,7 @@ public class ElicitI18NProvider implements I18NProvider {
         return bundles.computeIfAbsent(locale, this::loadBundle);
     }
 
-    /** Classpath, then local directory, then external mount — later tiers override per key. */
+    /** The classpath bundle for this locale, empty when the image carries no such file. */
     private Map<String, String> loadBundle(Locale locale) {
         String fileName = fileNameFor(locale);
         Map<String, String> merged = new LinkedHashMap<>();

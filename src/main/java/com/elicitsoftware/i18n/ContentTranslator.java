@@ -48,7 +48,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * it got. Three conditions must all hold before a translation is served:
  * <ol>
  *   <li>the language applies -- it is one of the survey's {@code content_languages} <em>and</em> is
- *       mounted for the chrome at this site, so no respondent reads translated questions between
+ *       offered by this site for the chrome, so no respondent reads translated questions between
  *       base-language buttons (BR-009);</li>
  *   <li>a row is effective at the respondent's as-of instant, the same half-open test the
  *       structural finders use, so a respondent keeps the wording they started under (BR-010);</li>
@@ -130,7 +130,7 @@ public class ContentTranslator {
      * must be shown in the survey's base language.
      * <p>
      * Resolves the session locale against the intersection of the survey's published set and the
-     * languages this site mounts for its own texts, exact tag first and then same-language, the
+     * languages this site offers for its own texts, exact tag first and then same-language, the
      * same chain {@code LocaleSelection.resolve} uses for the chrome.
      *
      * @param survey the survey being answered
@@ -153,7 +153,7 @@ public class ContentTranslator {
             }
             Locale candidate = Locale.forLanguageTag(tag);
             if (candidate.getLanguage().isEmpty() || !provider.isProvided(candidate)) {
-                // Published for the survey but not mounted for the chrome here: this site has not
+                // Published for the survey but not offered for the chrome here: this site has not
                 // adopted the language, so it holds the rows without ever serving them (BR-009).
                 continue;
             }
