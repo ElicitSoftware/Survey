@@ -44,8 +44,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class TranslationBundleConsistencyTest {
 
     static final Path BUNDLE_DIR = Path.of("src/main/resources/vaadin-i18n");
-    /** The deployment translations directory the test profile mounts ({@code %test.i18n.file.system.path}). */
-    static final Path MOUNT_DIR = Path.of("../elicit-i18n/survey");
+    /**
+     * Where the translated {@code translations_<tag>.properties} files live in this repo (Survey#123):
+     * packaged onto the classpath at {@code vaadin-i18n/} by the {@code <resource>} block in
+     * {@code pom.xml}, alongside the hand-off document that produced them.
+     */
+    static final Path TRANSLATIONS_DIR = Path.of("i18n");
     private static final Pattern LOCALE_FILE = Pattern.compile("translations_([A-Za-z0-9_]+)\\.properties");
     /** Keys passed straight to the translation API; these must exist. */
     private static final Pattern STRICT_REF = Pattern.compile(
@@ -64,19 +68,17 @@ class TranslationBundleConsistencyTest {
         Map<String, String> context = load(dir.resolve("translations.context.properties"), problems);
         Map<String, Map<String, String>> locales = new LinkedHashMap<>();
         collectLocales(dir, locales, problems);
-        Path mount = root.resolve(MOUNT_DIR).normalize();
-        if (!Files.isDirectory(mount)) {
-            problems.add("deployment translations not found at " + mount
-                    + " (the module tests run inside the Elicit umbrella checkout, which provides elicit-i18n)");
+        Path translationsDir = root.resolve(TRANSLATIONS_DIR).normalize();
+        if (!Files.isDirectory(translationsDir)) {
+            problems.add("translations directory not found at " + translationsDir
+                    + " (i18n/ is part of this repo now; its absence is a real failure, not a missing umbrella checkout)");
         } else {
-            Map<String, String> mountedDefaults = load(mount.resolve("translations.properties"), problems);
-            if (!mountedDefaults.equals(defaults)) {
-                problems.add("the mount's copy of translations.properties differs from the application's English file: "
-                        + mount.resolve("translations.properties"));
-            }
-            collectLocales(mount, locales, problems);
+            // i18n/ deliberately carries no translations.properties: the pom's resource include is
+            // translations_*.properties so a stray English copy here can never shadow the authored
+            // bundle above, so there is nothing to compare it against.
+            collectLocales(translationsDir, locales, problems);
             if (locales.isEmpty()) {
-                problems.add("no translations_<tag>.properties found in " + mount);
+                problems.add("no translations_<tag>.properties found in " + translationsDir);
             }
         }
         if (!problems.isEmpty()) {

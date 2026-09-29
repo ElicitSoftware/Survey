@@ -23,9 +23,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -38,22 +35,23 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 /**
  * Translation provider for the application chrome (UC-009).
  * <p>
  * Translations live in Vaadin's standard layout — {@code vaadin-i18n/translations[_tag].properties}
- * on the classpath — so the Copilot internationalization tooling keeps working, and are overlaid
- * per key by the same three-tier scheme the brand system uses: an externally mounted directory
- * ({@code i18n.file.system.path}, {@code /opt/i18n} in Docker) wins over a local development
- * directory ({@code i18n.local.path}), which wins over the classpath. Each application reads its
- * own sub-directory ({@code <mount>/<i18n.app.name>/}) so one host directory can serve every module.
+ * on the classpath — so the Copilot internationalization tooling keeps working. The English bundle
+ * is authored under {@code src/main/resources}; the translated ones are received from a translator,
+ * kept in the module's {@code i18n/} directory beside the hand-off document that produced them, and
+ * packaged to the same classpath location by the build.
+ * <p>
+ * The classpath is the only source. Languages are curated and arrive in a release, so a deployment
+ * can neither add one nor patch one, and a released image renders the translation it was built and
+ * tested with. What a site chooses is <em>which</em> of the shipped languages it offers, through
+ * {@code i18n.bundled.locales}; the rest stay in the image unreachable.
  * <p>
  * Lookup order for a key: exact locale, language-only locale, default (English) bundle, then the
- * visible marker {@code !key!}. A locale that exists only on the mount is offered as well. The
+ * visible marker {@code !key!}. The
  * pseudo-locale {@code zxx} (enabled in tests) renders every known key as {@code ⟦key⟧} so a
  * browserless sweep can spot text that bypasses the provider.
  */
@@ -72,17 +70,17 @@ public class ElicitI18NProvider implements I18NProvider {
     public static final String PSEUDO_OPEN = "⟦";
     public static final String PSEUDO_CLOSE = "⟧";
 
-    private static final Pattern LOCALE_FILE = Pattern.compile(BUNDLE_PREFIX + "_([A-Za-z0-9_]+)\\.properties");
 
-    @ConfigProperty(name = "i18n.file.system.path", defaultValue = "/i18n")
-    String fileSystemPath = "/i18n";
-
-    @ConfigProperty(name = "i18n.local.path", defaultValue = "i18n")
-    String localPath = "i18n";
-
-    @ConfigProperty(name = "i18n.app.name", defaultValue = "survey")
-    String appName = "survey";
-
+    /**
+     * The languages this image carries, and the ones this deployment offers.
+     * <p>
+     * Both, because classpath resources cannot be listed: nothing can discover which
+     * {@code translations_*.properties} the jar holds, so the set has to be declared. A site that
+     * wants fewer narrows this property, and a language left out of it is not offered even though
+     * its bundle is still in the image. {@code LocaleSelection.resolve} checks every requested tag
+     * against {@link #getProvidedLocales()}, so a narrowed site cannot be talked past it with
+     * {@code ?lang=}.
+     */
     @ConfigProperty(name = "i18n.bundled.locales", defaultValue = "en")
     String bundledLocales = "en";
 
@@ -199,17 +197,6 @@ public class ElicitI18NProvider implements I18NProvider {
         } catch (IOException e) {
             LOG.warnf(e, "Cannot read classpath bundle %s", fileName);
         }
-        for (Path dir : tierDirectories()) {
-            Path file = dir.resolve(fileName);
-            if (Files.isRegularFile(file)) {
-                try (Reader r = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
-                    merged.putAll(read(r));
-                    LOG.infof("Loaded %d translation(s) for '%s' from %s", merged.size(), locale.toLanguageTag(), file);
-                } catch (IOException e) {
-                    LOG.warnf(e, "Cannot read translation file %s", file);
-                }
-            }
-        }
         return Collections.unmodifiableMap(merged);
     }
 
@@ -228,22 +215,6 @@ public class ElicitI18NProvider implements I18NProvider {
         return BUNDLE_PREFIX + "_" + locale.toLanguageTag().replace('-', '_') + ".properties";
     }
 
-    /** Local directory first, external mount last, so the mount has the final word. */
-    private List<Path> tierDirectories() {
-        String app = appName == null ? "" : appName.trim();
-        if (app.isEmpty() || app.contains("..") || app.contains("/") || app.contains("\\")) {
-            throw new IllegalArgumentException("i18n.app.name must be a plain directory name, got '" + app + "'");
-        }
-        List<Path> dirs = new ArrayList<>(2);
-        if (localPath != null && !localPath.isBlank()) {
-            dirs.add(Paths.get(localPath, app));
-        }
-        if (fileSystemPath != null && !fileSystemPath.isBlank()) {
-            dirs.add(Paths.get(fileSystemPath, app));
-        }
-        return dirs;
-    }
-
     private List<Locale> discoverLocales() {
         Set<Locale> found = new LinkedHashSet<>();
         found.add(DEFAULT_LOCALE);
@@ -254,21 +225,6 @@ public class ElicitI18NProvider implements I18NProvider {
                     .map(Locale::forLanguageTag)
                     .filter(l -> !l.getLanguage().isEmpty())
                     .forEach(found::add);
-        }
-        for (Path dir : tierDirectories()) {
-            if (!Files.isDirectory(dir)) {
-                continue;
-            }
-            try (Stream<Path> files = Files.list(dir)) {
-                files.map(p -> p.getFileName().toString())
-                        .map(LOCALE_FILE::matcher)
-                        .filter(Matcher::matches)
-                        .map(m -> Locale.forLanguageTag(m.group(1).replace('_', '-')))
-                        .filter(l -> !l.getLanguage().isEmpty())
-                        .forEach(found::add);
-            } catch (IOException e) {
-                LOG.warnf(e, "Cannot list translation directory %s", dir);
-            }
         }
         if (pseudoLocaleEnabled) {
             found.add(PSEUDO_LOCALE);

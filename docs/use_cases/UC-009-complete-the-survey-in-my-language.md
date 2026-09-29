@@ -10,8 +10,8 @@
 
 ## Preconditions
 
-- The application ships English texts only; the deployment's translations directory supplies every other language (Latin American Spanish and Arabic in the reference deployment).
-- The deployment may have mounted further language files or text overrides; if so, those languages are also available.
+- The application ships its own texts in every language it supports (English, Latin American Spanish and Arabic), packaged inside the release.
+- The site may offer fewer than the application ships; the languages it offers are the ones in the selector.
 - The respondent has an invitation link, which may carry a language, or navigates to the login page directly.
 - The survey declares the language its content was authored in and the set of languages its content has been published in; either set may be empty of anything but the base language.
 
@@ -43,24 +43,7 @@
 1. System shows the English text for that item and the chosen language for everything else.
 2. Use case continues at step 4.
 
-### A3: Deployment mounted an additional language
-
-**Trigger:** The deployment operator has mounted a language file the application does not ship (step 4)  
-**Flow:**
-
-1. System lists the mounted language in the language selector alongside the shipped ones.
-2. Respondent chooses the mounted language.
-3. Use case continues at step 5.
-
-### A4: Deployment overrides individual texts
-
-**Trigger:** The deployment operator has mounted a language file containing only some texts for a shipped language (step 3)  
-**Flow:**
-
-1. System shows the mounted text for the overridden items and the shipped text for all others.
-2. Use case continues at step 4.
-
-### A5: A piece of survey content is untranslated or out of date
+### A3: A piece of survey content is untranslated or out of date
 
 **Trigger:** The respondent's language is one of the survey's content languages, but a question, option or name has no translation in it, or its translation was made from base text that has since been edited (step 7)  
 **Flow:**
@@ -68,9 +51,9 @@
 1. System shows that one string in the survey's base language and every other string in the respondent's language.
 2. Use case continues at step 7.
 
-### A6: The survey publishes nothing in the respondent's language
+### A4: The survey publishes nothing in the respondent's language
 
-**Trigger:** The chosen language is not one of the survey's content languages, or is not mounted for the application's own texts at this site (step 7)  
+**Trigger:** The chosen language is not one of the survey's content languages (step 7)  
 **Flow:**
 
 1. System shows the application's own texts in the chosen language and all survey content in the survey's base language.
@@ -94,9 +77,11 @@
 
 English is the default language and the fallback for any text missing from another language file. A text missing from every language file is shown as a visible marker (`!key!`) rather than blank, so the omission is noticed and fixed.
 
-### BR-002: Available languages are shipped plus mounted
+### BR-002: Available languages are the ones the release carries, less any the site withholds
 
-The languages offered are the union of the languages shipped with the application and the language files present in the deployment's mounted translations directory. A mounted file for a shipped language overrides only the texts it contains.
+Every language the application offers is packaged inside the release, so the wording a respondent reads is the wording that version was built and tested with. A site cannot add a language or change one; it can only offer fewer than the release carries, and a language it withholds is unreachable — absent from the selector, refused in a link, and not served for survey content either.
+
+Languages are curated and arrive in a release, which is what keeps a translation and the code that renders it at the same version.
 
 ### BR-003: Language precedence
 
@@ -104,7 +89,7 @@ Link language, then session choice, then browser preference, then English. A lan
 
 ### BR-004: Layout direction follows the language
 
-Languages written right-to-left (Arabic, Hebrew, Persian, Urdu and similar) mirror the whole page layout; all other languages are laid out left-to-right. A deployment may declare the direction of a mounted language explicitly.
+Languages written right-to-left (Arabic, Hebrew, Persian, Urdu and similar) mirror the whole page layout; all other languages are laid out left-to-right. The release declares the direction of any language whose script does not follow from its language alone, and a site may override that for one language by configuration.
 
 ### BR-005: Survey content follows the respondent's language where it is published
 
@@ -122,9 +107,9 @@ The choice is held for the browser session only and is never used to pre-select 
 
 A translation is made from one particular wording of the base text. When that wording is edited the translation is out of date, and the base text is shown in its place until the string is translated again, so that every language asks the same question. A deployment may choose to show out-of-date translations instead.
 
-### BR-009: A content language is offered only where its chrome is mounted
+### BR-009: A content language is served only where the site offers that language
 
-Survey content reaches a respondent in a language only when that language is both published for the survey and mounted for the application's own texts at that site. A site that has not adopted a language therefore holds its translations without ever serving them, and no respondent sees translated questions between base-language buttons.
+Survey content reaches a respondent in a language only when that language is both published for the survey and offered by the site for the application's own texts. A site that withholds a language therefore holds that survey's translations without ever serving them, and no respondent sees translated questions between base-language buttons.
 
 ### BR-010: A respondent in progress keeps the wording they started with
 
@@ -132,4 +117,4 @@ Content translations are versioned like the survey's structure. A respondent see
 
 ### BR-011: Text size may follow the language
 
-A script whose letters look smaller than Latin at the same size reads smaller, however faithful the translation — Arabic is the case this rule exists for. A deployment may therefore declare a font scale for a mounted language, and every page shown in that language is rendered at that multiple of the reader's own text size. A language with no declared scale is rendered exactly as it was before any scale existed, and a scale outside what a layout can absorb is refused rather than applied.
+A script whose letters look smaller than Latin at the same size reads smaller, however faithful the translation — Arabic is the case this rule exists for. The release may therefore declare a font scale for a language, and a site may override it by configuration; every page shown in that language is rendered at that multiple of the reader's own text size. A language with no declared scale is rendered exactly as it was before any scale existed, and a scale outside what a layout can absorb is refused rather than applied.
