@@ -203,7 +203,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
 
                             break;
                         case GlobalStrings.QUESTION_TYPE_DATE_PICKER:
-                            ElcitDatePicker datePicker = new ElcitDatePicker(answer, texts);
+                            ElicitDatePicker datePicker = new ElicitDatePicker(answer, texts);
                             datePicker.component.addValueChangeListener(e -> {
                                 saveAnswer(answer, e.getValue().toString());
                             });

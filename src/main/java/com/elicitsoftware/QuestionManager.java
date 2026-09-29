@@ -251,7 +251,7 @@ public class QuestionManager {
         // " Your's " is dead: no rule in any current survey supplies "Your" as a value. The last
         // line is a style choice only, "Dennis's" to "Dennis'"; both forms are correct English.
         //
-        // These run on Answer.displayTextLocal as well as displayText (see buildDipslayText), so
+        // These run on Answer.displayTextLocal as well as displayText (see buildDisplayText), so
         // they are applied to translated text too. That is harmless for the languages shipped today
         // rather than by design: "her's"/"his's"/"Your's" are English word forms, and "s's" needs a
         // literal ASCII s-apostrophe-s, which neither es-419 nor ar writes. A respondent's own words
@@ -727,7 +727,13 @@ public class QuestionManager {
         if (sectionAanswer == null) {
 
             Section section = getSectionByDisplayKey(respondentId, key);
-            assert section != null;
+            if (section == null) {
+                // No placement names this key as of the respondent's anchor, so there is no section
+                // to answer for. This was an assert, which the container never evaluates (-ea off).
+                Log.warn("No section for display key " + key + " (respondent " + respondentId
+                        + "); no section answer built.");
+                return;
+            }
             Answer answer = new Answer(new DisplayKey(key), null, null, section.name, respondentId);
             saveAnswer(answer, dependents);
         }
@@ -1008,9 +1014,11 @@ public class QuestionManager {
             } else {
 
                 Section section = getSectionByDisplayKey(answer.respondentId, answer.getDisplayKey());
-                answer.displayText = section.name;
+                if (section != null) {
+                    answer.displayText = section.name;
+                }
             }
-            buildDipslayText(answer);
+            buildDisplayText(answer);
             answer.persistAndFlush();
         }
     }
@@ -1246,7 +1254,8 @@ public class QuestionManager {
                     // The rule names the placement by durable id; both it and the section it
                     // names are resolved as of this respondent's anchor.
                     OffsetDateTime asOf = resolveAsOf(upstreamAnswer.respondentId);
-                    section = Section.findAsOf(StepsSections.findAsOf(r.downstreamSsId, asOf).sectionId, asOf);
+                    StepsSections placement = StepsSections.findAsOf(r.downstreamSsId, asOf);
+                    section = placement == null ? null : Section.findAsOf(placement.sectionId, asOf);
                 } else {
                     section = getSectionByDisplayKey(upstreamAnswer.respondentId, sectionKey.getValue());
                 }
@@ -1255,11 +1264,16 @@ public class QuestionManager {
             section = getSectionByDisplayKey(upstreamAnswer.respondentId, sectionKey.getSectionString());
         }
 
-        List<Answer> answers = new ArrayList<>();
-
         ArrayList<SectionsQuestion> initial = getInitialSectionSectionsQuestion(upstreamAnswer.respondentId,
                 sectionKey, loadStep);
         if (!initial.isEmpty()) {
+            if (section == null) {
+                // Every branch above can come back empty when no placement or section version is
+                // live at this respondent's anchor; without one there is no section answer to name.
+                Log.warn("No section for relationship " + r.id + " at display key " + sectionKey.getValue()
+                        + " (respondent " + upstreamAnswer.respondentId + "); no section answers built.");
+                return;
+            }
             saveAnswer(new Answer(sectionKey, null, null, section.name, upstreamAnswer.respondentId), dependents);
 
             Answer answer;
@@ -1273,7 +1287,6 @@ public class QuestionManager {
                 // build the downstream answers. they can be triggered by
                 // IF_EXISTS
                 buildDownstreamQuestions(answer);
-                answers.add(answer);
             }
         }
     }
@@ -1413,7 +1426,7 @@ public class QuestionManager {
      * @param answer The Answer object for which the display text
      *               is to be built and saved.
      */
-    private void buildDipslayText(Answer answer) {
+    private void buildDisplayText(Answer answer) {
 
         ArrayList<Dependent> dependents = findRelationshipsByDownstreamAnswer(answer);
         for (Dependent dep : dependents) {
@@ -1523,7 +1536,7 @@ public class QuestionManager {
     public void relocalize(int respondentId) {
         List<Answer> answers = Answer.list("respondentId = ?1 and deleted = false", respondentId);
         for (Answer answer : answers) {
-            buildDipslayText(answer);
+            buildDisplayText(answer);
             answer.persist();
         }
     }
@@ -1627,7 +1640,7 @@ public class QuestionManager {
         }
         // The dependents need to be saved before we build the display text
 
-        buildDipslayText(finalAnswer);
+        buildDisplayText(finalAnswer);
 
         // Save the answer again so we have the correct display text
         DatabaseRetryUtil.executeWithRetry(
@@ -1915,46 +1928,6 @@ public class QuestionManager {
         List<Answer> answers = Answer.findByAnswerQueryString(upstreamAnswer.respondentId, upstreamAnswer.getKey().getStepQueryString());
         for (Answer answer : answers) {
             deleteDownstreamAnswers(answer.respondentId, answer, rootAnswerId);
-        }
-    }
-
-    /**
-     * Deletes downstream answers based on provided parameters and conditions.
-     *
-     * @param respondentId  the ID of the respondent whose answers are to be processed
-     * @param instances     the number of instances used to determine which answers to delete
-     * @param downstreamKey the key representing the downstream answers to be deleted
-     * @param rootAnswerId  the ID of the root answer associated with the downstream answers
-     */
-    private void deleteSomeDownstreamAnswers(Integer respondentId, Integer instances,
-                                             String downstreamKey, int rootAnswerId) {
-        DisplayKey key = new DisplayKey(downstreamKey);
-        List<Answer> relationships = Answer.findByAnswerQueryString(respondentId, key.getAnswerQueryString());
-        for (Answer answer : relationships) {
-            if (answer.question_instance > instances - 1) {
-                deleteAnswers(answer, rootAnswerId);
-            }
-        }
-    }
-
-    /**
-     * Deletes all downstream answers associated with the provided upstream answer
-     * recursively by marking them and their dependents as deleted.
-     *
-     * @param respondentId the identifier of the respondent whose answers are to be processed
-     * @param upstream     the upstream answer from which to determine downstream dependents
-     */
-    private void deleteAllDownstreamAnswers(Integer respondentId, Answer upstream) {
-
-        // This function needs to loop through all downstream dependents.
-        List<Dependent> dependents = findDependentsByUpstreamAnswer(upstream);
-
-        Answer deletableAnswer;
-        // Now loop through the dependents and delete their dependents.
-        for (Dependent dependent : dependents) {
-            deletableAnswer = dependent.downstream;
-
-            markAnswerAndDependentsAsDeleted(deletableAnswer);
         }
     }
 

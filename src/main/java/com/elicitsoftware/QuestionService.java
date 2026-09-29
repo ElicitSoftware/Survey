@@ -65,10 +65,10 @@ public class QuestionService {
      * with the `survey.questions` table to enrich the results with question metadata.
      * It performs the following operations:
      * <ul>
-     *   - Retrieves answers linked to specific questions and sections, ensuring only non-deleted and valid entries are included.
-     *   - Handles missing `short_text` fields by falling back to `display_text`.
-     *   - Provides a default value of "not reported" for empty `text_value` fields.
-     *   - Merges results from different sections and unlinked entries using a union operation.
+     *   <li>Retrieves answers linked to specific questions and sections, ensuring only non-deleted and valid entries are included.</li>
+     *   <li>Handles missing {@code short_text} fields by falling back to {@code display_text}.</li>
+     *   <li>Provides a default value of "not reported" for empty {@code text_value} fields.</li>
+     *   <li>Merges results from different sections and unlinked entries using a union operation.</li>
      * </ul>
      * <p>
      * Results are ordered by `display_key` to ensure a predictable output sequence.

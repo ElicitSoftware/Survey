@@ -18,6 +18,7 @@ import com.vaadin.flow.component.datetimepicker.DateTimePicker;
 import com.vaadin.flow.component.datetimepicker.DateTimePickerVariant;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 
@@ -77,10 +78,8 @@ public class ElicitDateTimePicker extends ElicitComponent<DateTimePicker> {
             this.binder.forField(component)
                     .asRequired(requiredMessage(answer))
                     .bind(Answer::getLocalDateTime, Answer::setLocalDateTime);
-            //Need to add a validator.
-        } else {
-            //Need to add a validator.
         }
+        //TODO a validator is still needed, for the required and the optional case alike.
 
         //TODO Min and Max are integers.
         // we will assume these are 24 hour click in the form of hour minute.
@@ -165,7 +164,9 @@ public class ElicitDateTimePicker extends ElicitComponent<DateTimePicker> {
         int hours = hhmm / 100;
         int minutes = hhmm % 100;
 
-        if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+        // hhmm is 0..2359 by the check above, so hours is 0..23 and minutes is 0..99: the only
+        // value left to reject is a minute field past 59, e.g. 1170.
+        if (minutes > 59) {
             throw new IllegalArgumentException("Invalid time specified");
         }
 

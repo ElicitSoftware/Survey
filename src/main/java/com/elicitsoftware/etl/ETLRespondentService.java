@@ -103,7 +103,7 @@ public class ETLRespondentService {
      * showing the number of keys associated with the respondent
      */
     private String saveSectionFacts(Integer respondentId) {
-        return "Addeded respondent " + respondentId + " to fact_sections:" + System.lineSeparator() +
+        return "Added respondent " + respondentId + " to fact_sections:" + System.lineSeparator() +
                 respondentId + ": " + addOrUpdateRespondentFactSections(respondentId) + " keys";
     }
 
