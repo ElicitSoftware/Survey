@@ -38,6 +38,21 @@
 /* Import component styles */
 @import 'components/branded-header.css';
 
+/* Per-language font scale (UC-009 BR-011) */
+/* LocaleLayout writes --elicit-font-scale onto the document element from the mounted
+   i18n-config.json when a locale declares one; it is absent, and so 1, for every other
+   locale and for a mount that declares none. Scaling the ROOT font size is what makes one
+   property enough: Lumo's font sizes, spacing and control sizes, the brand typography
+   tokens and this application's own rules are all expressed in rem, so the whole page grows
+   in proportion and nothing clips. 100% is the reader's own browser default -- a scale
+   multiplies that rather than replacing it, so a respondent who has enlarged text keeps the
+   enlargement. Arabic is the case this exists for: its apparent x-height is smaller than
+   Latin's in the system font stack, so it reads small at a size that is comfortable in
+   English. */
+html {
+    font-size: calc(100% * var(--elicit-font-scale, 1));
+}
+
 /* Brand Integration Architecture */
 /* These CSS custom properties provide the contract between brands and the application.
    The mapping lives on :root — the same selector the brand color/typography files use —

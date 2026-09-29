@@ -28,9 +28,9 @@ import java.util.Locale;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * UC-009 BR-003/BR-004: direction and language attributes follow the locale, the invitation
- * link's {@code ?lang=} selects a language before the view is built, and the language switcher
- * offers the shipped locales.
+ * UC-009 BR-003/BR-004/BR-011: direction, language and font-scale attributes follow the locale,
+ * the invitation link's {@code ?lang=} selects a language before the view is built, and the
+ * language switcher offers the shipped locales.
  */
 @QuarkusTest
 @QuarkusTestResource(PostgresTestResource.class)
@@ -43,21 +43,36 @@ class LocaleLayoutTest extends QuarkusBrowserlessTest {
     LocaleSelection selection;
 
     @Test
-    void arabic_isRightToLeft() {
+    void arabic_isRightToLeft_andCarriesTheMountsFontScale() {
         UI ui = UI.getCurrent();
         layout.apply(ui, Locale.forLanguageTag("ar"));
 
         assertEquals("rtl", ui.getElement().getAttribute("dir"));
         assertEquals("ar", ui.getElement().getAttribute("lang"));
+        assertEquals("1.15", ui.getElement().getAttribute(LocaleLayout.FONT_SCALE_ATTRIBUTE),
+                "the shipped mount enlarges Arabic; see elicit-i18n/i18n-config.json");
     }
 
     @Test
-    void latinAmericanSpanish_isLeftToRight() {
+    void latinAmericanSpanish_isLeftToRight_andUnscaled() {
         UI ui = UI.getCurrent();
         layout.apply(ui, Locale.forLanguageTag("es-419"));
 
         assertEquals("ltr", ui.getElement().getAttribute("dir"));
         assertEquals("es-419", ui.getElement().getAttribute("lang"));
+        assertEquals("1", ui.getElement().getAttribute(LocaleLayout.FONT_SCALE_ATTRIBUTE),
+                "a locale the mount does not scale renders at the reader's own size");
+    }
+
+    @Test
+    void fontScaleSurvivesALanguageSwitch() {
+        UI ui = UI.getCurrent();
+        selection.apply(ui, Locale.forLanguageTag("ar"));
+        assertEquals("1.15", ui.getElement().getAttribute(LocaleLayout.FONT_SCALE_ATTRIBUTE));
+
+        selection.apply(ui, Locale.ENGLISH);
+        assertEquals("1", ui.getElement().getAttribute(LocaleLayout.FONT_SCALE_ATTRIBUTE),
+                "switching back must take the enlargement away again");
     }
 
     @Test
@@ -68,6 +83,7 @@ class LocaleLayoutTest extends QuarkusBrowserlessTest {
         UI ui = UI.getCurrent();
         assertEquals("ar", ui.getLocale().toLanguageTag());
         assertEquals("rtl", ui.getElement().getAttribute("dir"));
+        assertEquals("1.15", ui.getElement().getAttribute(LocaleLayout.FONT_SCALE_ATTRIBUTE));
         assertEquals(Locale.forLanguageTag("ar"), ui.getSession().getAttribute(LocaleSelection.SESSION_ATTRIBUTE));
     }
 
