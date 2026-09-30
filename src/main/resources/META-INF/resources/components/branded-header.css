@@ -146,6 +146,8 @@
    color — white on the overlay's white, which is invisible. The overlay must keep the
    page's own styling. */
 .branded-header .language-switcher {
+    --vaadin-field-default-width: auto;
+    min-width: 0;
     margin-inline-start: auto;
 }
 
@@ -158,4 +160,18 @@
 .branded-header .language-switcher vaadin-select-value-button,
 .branded-header .language-switcher vaadin-select-value-button > vaadin-select-item::part(content) {
     color: var(--brand-header-text);
+}
+
+/* The field's default width is 12em, which clips the longest locale name
+   ("Español (Latinoamérica)"). --vaadin-field-default-width: auto lets it size to the
+   selected label, and min-width: max-content on the value button is what carries the
+   label's width out to the field — the value button's own min-content is zero, because
+   its label part clips. min-width: 0 on the host keeps the field shrinkable when a narrow
+   header runs out of room, so it degrades to today's clipping rather than overflowing.
+
+   The trailing padding clears the value button's fade mask: Vaadin fades its last 20px
+   whether or not the text overflows, so without it the closing glyph is half transparent. */
+.branded-header .language-switcher vaadin-select-value-button {
+    min-width: max-content;
+    padding-inline-end: 20px;
 }
