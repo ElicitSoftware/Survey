@@ -137,13 +137,25 @@
 }
 
 /* Language switcher (UC-009). A Select in the header would otherwise keep Lumo's
-   page-level tokens (dark body text on a translucent dark tint), so scope the
-   tokens it reads to the brand's header text color. The overlay renders outside
-   the header and keeps the normal page styling. */
+   page-level tokens (dark body text on a translucent dark tint), so the field is
+   painted in the brand's header text color.
+
+   The parts are addressed one by one rather than by redefining --lumo-body-text-color
+   on the host: Vaadin 25 renders a Select's overlay inside the component, so a token
+   set here inherits into it and every option in the dropdown is drawn in the header's
+   color — white on the overlay's white, which is invisible. The overlay must keep the
+   page's own styling. */
 .branded-header .language-switcher {
-    --lumo-body-text-color: var(--brand-header-text);
-    --lumo-secondary-text-color: var(--brand-header-text);
-    --lumo-contrast-60pct: var(--brand-header-text);
-    --lumo-contrast-10pct: color-mix(in srgb, var(--brand-header-text) 15%, transparent);
     margin-inline-start: auto;
+}
+
+.branded-header .language-switcher::part(input-field) {
+    background: color-mix(in srgb, var(--brand-header-text) 15%, transparent);
+}
+
+.branded-header .language-switcher::part(label),
+.branded-header .language-switcher::part(toggle-button),
+.branded-header .language-switcher vaadin-select-value-button,
+.branded-header .language-switcher vaadin-select-value-button > vaadin-select-item::part(content) {
+    color: var(--brand-header-text);
 }
