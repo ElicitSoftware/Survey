@@ -30,7 +30,7 @@ There is no enforced code-coverage percentage gate in this repo's build — writ
 
 ### Backend
 - **Java**: 25 (see `.java-version`; `maven.compiler.release=25` in `pom.xml`)
-- **Framework**: Quarkus 3.39.x
+- **Framework**: Quarkus 3.40.x (LTS)
 - **ORM**: Hibernate ORM with Panache — **active record** style (`extends PanacheEntityBase`, public fields, no repository classes)
 - **Database**: PostgreSQL 17, two datasources (`default` for the app, `owner` for Flyway-owned DDL — see `application.properties`)
 - **Migrations**: Flyway, `src/main/resources/db/migration`
@@ -39,7 +39,7 @@ There is no enforced code-coverage percentage gate in this repo's build — writ
 - **Observability**: OpenTelemetry, Micrometer + Prometheus (see `guides/OPENTELEMETRY_SETUP.md`, `guides/METRICS_GUIDE.md`)
 
 ### Frontend
-- **Framework**: Vaadin 25.2.x **Flow** (server-side Java UI, integrated via `vaadin-quarkus-extension` — not Spring Boot)
+- **Framework**: Vaadin 25.3.x **Flow** (server-side Java UI, integrated via `vaadin-quarkus-extension` — not Spring Boot)
 - **Custom fields**: `flow/input/Elicit*` wrap Vaadin's input components with the project's `Answer`/`Question` binding conventions
 
 ### Testing
