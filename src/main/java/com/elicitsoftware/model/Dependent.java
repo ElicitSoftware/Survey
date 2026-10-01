@@ -12,10 +12,10 @@ package com.elicitsoftware.model;
  */
 
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
-import io.quarkus.panache.common.Parameters;
 import jakarta.persistence.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * The Dependent class represents an entity in the "dependents" database table within the "survey" schema.
@@ -98,8 +98,8 @@ public class Dependent extends PanacheEntityBase {
      * @return a list of Dependent entities that match the specified respondent ID and upstream ID
      */
     public static List<Dependent> findByUpstream(int respondentId, int upstreamId) {
-        return find("#Dependent.findByUpstream", Parameters.with("respondentId", respondentId)
-                .and("upstreamId", upstreamId)).list();
+        return find("#Dependent.findByUpstream", Map.of("respondentId", respondentId,
+                "upstreamId", upstreamId)).list();
     }
 
     /**
@@ -111,8 +111,8 @@ public class Dependent extends PanacheEntityBase {
      * @return a list of Dependent entities that match the specified respondent ID and downstream ID
      */
     public static List<Dependent> findByDownstream(int respondentId, int downstreamId) {
-        return find("#Dependent.findByDownstream", Parameters.with("downstreamId", downstreamId)
-                .and("respondentId", respondentId)).list();
+        return find("#Dependent.findByDownstream", Map.of("downstreamId", downstreamId,
+                "respondentId", respondentId)).list();
     }
 
     /**
@@ -126,10 +126,10 @@ public class Dependent extends PanacheEntityBase {
      * @return the unique Dependent entity that matches the specified identifiers, or null if no such entity exists
      */
     public static Dependent findUnique(int respondentId, int upstreamId, int downstreamId, int relationshipId) {
-        return find("#Dependent.findUnique", Parameters.with("respondentId", respondentId)
-                .and("upstreamId", upstreamId)
-                .and("downstreamId", downstreamId)
-                .and("relationshipId", relationshipId)).firstResult();
+        return find("#Dependent.findUnique", Map.of("respondentId", respondentId,
+                "upstreamId", upstreamId,
+                "downstreamId", downstreamId,
+                "relationshipId", relationshipId)).firstResult();
     }
 
     /**

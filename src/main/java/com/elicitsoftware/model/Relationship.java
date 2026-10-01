@@ -12,7 +12,6 @@ package com.elicitsoftware.model;
  */
 
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
-import io.quarkus.panache.common.Parameters;
 import jakarta.persistence.*;
 
 import java.text.SimpleDateFormat;
@@ -20,6 +19,7 @@ import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -197,8 +197,8 @@ public class Relationship extends PanacheEntityBase {
      * @return a list of {@link Relationship} entities that match the given survey ID and downstream step ID
      */
     public static List<Relationship> findRepeatByDownstreamStep(int surveyId, int downstreamStepId, OffsetDateTime asOf) {
-        return find("#Relationship.findRepeatByDownstreamStep", Parameters.with("surveyId", surveyId)
-                .and("downstreamStepId", downstreamStepId).and("asOf", asOf)).list();
+        return find("#Relationship.findRepeatByDownstreamStep", Map.of("surveyId", surveyId,
+                "downstreamStepId", downstreamStepId, "asOf", asOf)).list();
     }
 
     /**
@@ -212,8 +212,8 @@ public class Relationship extends PanacheEntityBase {
      * @return a list of {@link Relationship} entities that match the given survey ID and downstream question ID
      */
     public static List<Relationship> findByDownstream_SQ_ID(int surveyId, int downstream_sq_id, OffsetDateTime asOf) {
-        return find("#Relationship.findByDownstream_SQ_ID", Parameters.with("surveyId", surveyId)
-                .and("downstream_sq_id", downstream_sq_id).and("asOf", asOf)).list();
+        return find("#Relationship.findByDownstream_SQ_ID", Map.of("surveyId", surveyId,
+                "downstream_sq_id", downstream_sq_id, "asOf", asOf)).list();
     }
 
     /**
@@ -228,9 +228,9 @@ public class Relationship extends PanacheEntityBase {
      * @return a list of {@link Relationship} entities that match the given survey ID, downstream section ID, and step ID
      */
     public static List<Relationship> findByDownstream_SS_ID(int surveyId, int downstream_ss_id, int stepId, OffsetDateTime asOf) {
-        return find("#Relationship.findByDownstream_SS_ID", Parameters.with("surveyId", surveyId)
-                .and("downstream_ss_id", downstream_ss_id)
-                .and("stepId", stepId).and("asOf", asOf)).list();
+        return find("#Relationship.findByDownstream_SS_ID", Map.of("surveyId", surveyId,
+                "downstream_ss_id", downstream_ss_id,
+                "stepId", stepId, "asOf", asOf)).list();
     }
 
     /**
@@ -245,9 +245,9 @@ public class Relationship extends PanacheEntityBase {
      * @return a list of {@link Relationship} entities that match the given survey ID, downstream step ID, and step ID
      */
     public static List<Relationship> findByDownstream_Step_ID(int surveyId, int downstream_step_id, int stepId, OffsetDateTime asOf) {
-        return find("#Relationship.findByDownstream_Step_ID", Parameters.with("surveyId", surveyId)
-                .and("downstream_step_id", downstream_step_id)
-                .and("stepId", stepId).and("asOf", asOf)).list();
+        return find("#Relationship.findByDownstream_Step_ID", Map.of("surveyId", surveyId,
+                "downstream_step_id", downstream_step_id,
+                "stepId", stepId, "asOf", asOf)).list();
     }
 
     /**
