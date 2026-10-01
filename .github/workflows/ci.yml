@@ -4,9 +4,9 @@
 # -Dmaven.test.skip=true and only runs at tag-push time, so without this workflow nothing ever
 # ran the suite in CI.
 #
-# Both main and i18n are gated. i18n is a long-lived line many commits ahead of main, and it is
-# where the current work merges; while only main was gated, every pull request into i18n was
-# merged without being compiled, let alone tested.
+# Both main and V3 are gated. V3 is a long-lived line many commits ahead of main, and it is
+# where the current work merges; while only main was gated, every pull request into the line
+# ahead of it was merged without being compiled, let alone tested.
 #
 # `verify`, not `package`: the jacoco-check gate in pom.xml (BUNDLE LINE >= 0.70) binds to
 # the verify phase, so a `package` build — which is what buildDockerImage.sh runs locally —
@@ -18,11 +18,11 @@ on:
   push:
     branches:
       - main
-      - i18n
+      - V3
   pull_request:
     branches:
       - main
-      - i18n
+      - V3
 
 jobs:
   test:
