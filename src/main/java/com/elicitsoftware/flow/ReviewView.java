@@ -83,15 +83,15 @@ public class ReviewView extends VerticalLayout {
 
         // Add null checks
         if (respondent == null || survey == null) {
-            Notification.show("Session expired. Please login again.", 3000, Notification.Position.MIDDLE);
+            Notification.show(getTranslation("common.error.sessionExpired"), 3000, Notification.Position.MIDDLE);
             UI.getCurrent().navigate("");
             return;
         }
 
         Paragraph paragraph = new Paragraph();
-        paragraph.add(new H5("Survey: " + survey.name));
+        paragraph.add(new H5(getTranslation("reviewView.surveyLabel", survey.name)));
         add(paragraph);
-        Div thankYouDiv = getThankYouDiv();
+        Div thankYouDiv = createThankYouDiv();
         add(thankYouDiv);
 
         ReviewResponse response = service.review(respondent.id);
@@ -100,7 +100,7 @@ public class ReviewView extends VerticalLayout {
             for (ReviewSection section : response.getSections()) {
                 add(new ReviewCard(section, service, sessionDataService));
             }
-            Button btnPrevious = new Button("Previous");
+            Button btnPrevious = new Button(getTranslation("reviewView.btnPrevious"));
             btnPrevious.setId("review-previous-button");
             btnPrevious.setDisableOnClick(true);
             btnPrevious.setEnabled(navResponse.getCurrentNavItem().getPrevious() != null);
@@ -108,7 +108,7 @@ public class ReviewView extends VerticalLayout {
             btnPrevious.addClickListener(e -> previousSection());
             add(btnPrevious);
 
-            Button btnFinish = new Button("Finish");
+            Button btnFinish = new Button(getTranslation("reviewView.btnFinish"));
             btnFinish.setId("review-finish-button");
             btnFinish.setDisableOnClick(true);
             btnFinish.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
@@ -129,13 +129,13 @@ public class ReviewView extends VerticalLayout {
      *
      * @return a Div component with the thanked message, review instructions, and post-submission notice.
      */
-    private static Div getThankYouDiv() {
+    private Div createThankYouDiv() {
         Div thankYouDiv = new Div();
-        Paragraph thanks = new Paragraph("Thank you for taking this survey.");
+        Paragraph thanks = new Paragraph(getTranslation("reviewView.thanks"));
         thankYouDiv.add(thanks);
-        Paragraph review = new Paragraph("Please review your answers for each section below. If you need to change them press \"Edit\" to be taken to that section. When you're done editing you can press \"Review\" to return to this page.");
+        Paragraph review = new Paragraph(getTranslation("reviewView.instructions"));
         thankYouDiv.add(review);
-        Paragraph tip = new Paragraph("Note: After submission you will not be able edit your answers.");
+        Paragraph tip = new Paragraph(getTranslation("reviewView.note"));
         thankYouDiv.add(tip);
         return thankYouDiv;
     }
@@ -168,19 +168,19 @@ public class ReviewView extends VerticalLayout {
     private void previousSection() {
         // Add null checks before accessing navigation data
         if (navResponse == null || navResponse.getCurrentNavItem() == null) {
-            Notification.show("Navigation data not available. Please refresh the page.", 3000, Notification.Position.MIDDLE);
+            Notification.show(getTranslation("common.error.navigationUnavailable"), 3000, Notification.Position.MIDDLE);
             return;
         }
 
         if (respondent == null) {
-            Notification.show("Session expired. Please login again.", 3000, Notification.Position.MIDDLE);
+            Notification.show(getTranslation("common.error.sessionExpired"), 3000, Notification.Position.MIDDLE);
             UI.getCurrent().navigate("");
             return;
         }
 
         String previousKey = navResponse.getCurrentNavItem().getPrevious();
         if (previousKey == null) {
-            Notification.show("No previous section available.", 3000, Notification.Position.MIDDLE);
+            Notification.show(getTranslation("sectionView.error.noPrevious"), 3000, Notification.Position.MIDDLE);
             return;
         }
 
@@ -190,7 +190,7 @@ public class ReviewView extends VerticalLayout {
             // Use direct navigation instead of page reload
             UI.getCurrent().navigate("section");
         } catch (Exception e) {
-            Notification.show("Error navigating to previous section. Please try again.", 3000, Notification.Position.MIDDLE);
+            Notification.show(getTranslation("sectionView.error.navigatePrevious"), 3000, Notification.Position.MIDDLE);
         }
     }
 }

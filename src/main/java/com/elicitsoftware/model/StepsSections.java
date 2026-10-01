@@ -13,12 +13,12 @@ package com.elicitsoftware.model;
 
 import com.elicitsoftware.DisplayKey;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
-import io.quarkus.panache.common.Parameters;
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Represents the relationship between steps and sections in a survey.
@@ -126,11 +126,11 @@ public class StepsSections extends PanacheEntityBase {
     private DisplayKey key;
 
     public static StepsSections findByDisplayKey(DisplayKey key) {
-        return find("#StepsSections.findByDisplayKey", Parameters.with("displaykey", key.getValue())).firstResult();
+        return find("#StepsSections.findByDisplayKey", Map.of("displaykey", key.getValue())).firstResult();
     }
 
     public static List<StepsSections> findBySurveyId(int surveyId) {
-        return find("#StepsSections.findBySurveyId", Parameters.with("surveyId", surveyId)).list();
+        return find("#StepsSections.findBySurveyId", Map.of("surveyId", surveyId)).list();
     }
 
     /**

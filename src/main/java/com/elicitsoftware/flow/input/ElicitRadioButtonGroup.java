@@ -11,6 +11,7 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
 import com.elicitsoftware.model.SelectItem;
@@ -65,10 +66,10 @@ public class ElicitRadioButtonGroup extends ElicitComponent<RadioButtonGroup<Sel
      *                 <li>Pre-selects a value if the {@link Answer} already has a non-empty text value.</li>
      *               </ul>
      */
-    public ElicitRadioButtonGroup(Answer answer) {
-        super(new RadioButtonGroup<SelectItem>(answer.displayText), answer);
+    public ElicitRadioButtonGroup(Answer answer, ContentTexts texts) {
+        super(new RadioButtonGroup<SelectItem>(answer.label()), answer, texts);
         this.component.setItems(answer.getSelectItems());
-        this.component.setItemLabelGenerator(item -> item.displayText);
+        this.component.setItemLabelGenerator(texts::option);
         if (answer.getTextValue() != null && !answer.getTextValue().isEmpty()) {
             setValue(answer);
         }

@@ -47,6 +47,7 @@ public class ReviewCard extends Div {
 
         this.setClassName("reviewCard");
         this.setWidth("60%");
+        getElement().setAttribute("data-i18n-content", ""); // section titles and answers are authored content
 
         VerticalLayout layout = new VerticalLayout();
         HorizontalLayout header = new HorizontalLayout();

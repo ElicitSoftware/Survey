@@ -11,6 +11,7 @@ package com.elicitsoftware;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTranslator;
 import com.elicitsoftware.model.*;
 import com.elicitsoftware.response.NavResponse;
 import com.elicitsoftware.response.NavigationItem;
@@ -30,6 +31,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.TreeMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * The {@code QuestionManager} class is responsible for managing the lifecycle of survey questions,
@@ -46,6 +49,9 @@ public class QuestionManager {
     @Inject
     EntityManager entityManager;
 
+    @Inject
+    ContentTranslator translator;
+
     /**
      * Replaces tokens in the given text with corresponding values from the provided map.
      * The tokens are identified by keys enclosed in curly braces and replaced with their associated values.
@@ -57,67 +63,203 @@ public class QuestionManager {
      *               and values are the replacements for those tokens
      * @return the resulting string after replacing all specified tokens and applying formatting adjustments
      */
-    static String replaceTokens(String text, TreeMap<String, String> values) {
+    /** Group 1 is the phrase, group 2 the default text (null when the placeholder has none). */
+    private static final Pattern PLACEHOLDER = Pattern.compile("\\{([^{}|]+)(?:\\|([^{}]*))?}");
 
-        // Split the string into parts
-        String[] displayText = text.split("}");
+    /** A token where it is used, inside a phrase: {@code <NAME>}. Mirrors Author's Tokens. */
+    private static final Pattern TOKEN_REF = Pattern.compile("<([A-Za-z0-9_]+)>");
 
-        if (!values.isEmpty()) {
-            // Replace all the Token values
-            for (String key : values.keySet()) {
-                for (int i = 0; i < displayText.length; i++) {
-                    String string = displayText[i];
-                    if (string.contains(key)) {
-                        string = string.replaceFirst("\\{", "");
-                        string = string.replaceFirst("\\|.*", "");
-                        string = string.replaceFirst(key,
-                                java.util.regex.Matcher.quoteReplacement(escapeHtml(values.get(key))));
-                    }
-                    if (string.contains("}")) {
-                        string = replaceTokens(string, values);
-                    }
-                    displayText[i] = string;
-                }
+    /** Counters this class fills itself, from the answer's key, not from a rule. */
+    private static final java.util.Set<String> BUILT_IN_PLACEHOLDERS = java.util.Set.of("Q#", "S#");
+
+    /**
+     * How many times an authored value is re-read for placeholders of its own. A rule's value is
+     * often a placeholder ("{@code {<G1>'s|your} mother}"), and the token it carries may be filled by
+     * a value that is a placeholder in turn, so resolving stops at a fixed point or at this bound,
+     * whichever comes first. Matches Author's preview (PreviewFields.MAX_NESTING) so the designer and
+     * the runtime agree.
+     */
+    private static final int MAX_NESTING = 5;
+
+    /** One log line per distinct undelimited phrase, not one per page draw. */
+    private static final java.util.Set<String> WARNED_UNDELIMITED = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /**
+     * A phrase with every {@code <TOKEN>} in it replaced, or null when a value is missing.
+     *
+     * <p>Null rather than a partly-filled phrase on purpose: a placeholder is all-or-nothing, so a
+     * phrase whose token has no value falls back to the default the author wrote instead of
+     * showing half a sentence.</p>
+     *
+     * <p>The substitution is anchored on the brackets. It used to be {@code string.contains(key)}
+     * over a whole segment of the text, which could not tell the token {@code NAME} from the word
+     * "name" in ordinary prose and would rewrite the prose instead of the placeholder.</p>
+     */
+    private static String fillPhrase(String phrase, TreeMap<String, String> values, java.util.Set<String> authored) {
+        Matcher ref = TOKEN_REF.matcher(phrase);
+        StringBuilder filled = new StringBuilder();
+        boolean any = false;
+        while (ref.find()) {
+            any = true;
+            String value = valueOf(ref.group(1), values);
+            if (value == null) {
+                return null;
+            }
+            // The respondent's own words are attacker-controllable and are escaped. A value the
+            // author wrote is not: it has already had its own placeholders resolved, and escaping it
+            // here would double-escape the respondent text spliced into it -- and would destroy the
+            // <TOKEN> brackets it carries before they could be read at all.
+            boolean fromAuthor = authored.stream().anyMatch(t -> t.equalsIgnoreCase(ref.group(1)));
+            ref.appendReplacement(filled, Matcher.quoteReplacement(fromAuthor ? value : escapeHtml(value)));
+        }
+        ref.appendTail(filled);
+        return any ? filled.toString() : null;
+    }
+
+    /** A token's value, matched by name without regard to case. */
+    private static String valueOf(String token, TreeMap<String, String> values) {
+        String exact = values.get(token);
+        if (exact != null) {
+            return exact;
+        }
+        for (java.util.Map.Entry<String, String> e : values.entrySet()) {
+            if (e.getKey() != null && e.getKey().equalsIgnoreCase(token)) {
+                return e.getValue();
             }
         }
+        return null;
+    }
 
-        for (int i = 0; i < displayText.length; i++) {
-            String string = displayText[i];
-
-            // Remove any tokens values that were not passed, leaving the
-            // default
-            // part
-            // of the text
-            string = string.replaceAll("\\{.*\\|", "");
-            displayText[i] = string;
+    /**
+     * The values with every authored one's own placeholders resolved, so a rule's value reaches a
+     * sentence as prose and not as braces.
+     *
+     * <p>The Family History Survey fills {@code S1} with {@code {<G1>'s|your} mother} and {@code G1}
+     * with the patient's name, so the question "Please indicate if {@code {<S1>|you}} is still
+     * living" needs two rounds: one to put the mother phrase in the slot, one to put the name in
+     * <em>its</em> slot. Only authored values are re-read. A respondent's own answer is spliced in
+     * once and never rescanned, so free text that happens to contain braces is never taken for a
+     * placeholder.</p>
+     */
+    private static TreeMap<String, String> resolveAuthoredValues(TreeMap<String, String> values, java.util.Set<String> authored) {
+        if (authored.isEmpty()) {
+            return values;
         }
-
-        // Rebuild the sting from its parts
-        StringBuilder textBuilder = new StringBuilder();
-        for (String s : displayText) {
-            textBuilder.append(s);
+        TreeMap<String, String> ready = new TreeMap<>(values);
+        for (int pass = 0; pass < MAX_NESTING; pass++) {
+            boolean changed = false;
+            for (String token : authored) {
+                String value = ready.get(token);
+                if (value == null || value.indexOf('{') < 0) {
+                    continue;
+                }
+                String next = substituteOnce(value, ready, authored);
+                if (!next.equals(value)) {
+                    ready.put(token, next);
+                    changed = true;
+                }
+            }
+            if (!changed) {
+                break;
+            }
         }
-        text = textBuilder.toString();
+        return ready;
+    }
+
+    /** One pass over a template: every placeholder filled, or left as its default. */
+    private static String substituteOnce(String text, TreeMap<String, String> values, java.util.Set<String> authored) {
+        Matcher placeholder = PLACEHOLDER.matcher(text);
+        StringBuilder out = new StringBuilder();
+        while (placeholder.find()) {
+            String phrase = placeholder.group(1);
+            String defaultText = placeholder.group(2);
+            String replacement;
+            if (BUILT_IN_PLACEHOLDERS.contains(phrase.trim())) {
+                // {Q#} and {S#} are runtime counters, filled later against the answer's own key.
+                replacement = placeholder.group();
+            } else {
+                if (!TOKEN_REF.matcher(phrase).find()) {
+                    warnUndelimited(phrase, values);
+                }
+                String filled = fillPhrase(phrase, values, authored);
+                replacement = filled != null ? filled : (defaultText == null ? phrase : defaultText);
+            }
+            placeholder.appendReplacement(out, Matcher.quoteReplacement(replacement));
+        }
+        placeholder.appendTail(out);
+        return out.toString();
+    }
+
+    /**
+     * A phrase that names a token as a bare word rather than as {@code <TOKEN>} fills nothing, and
+     * the respondent silently reads the default instead of a personalized sentence. Say so once, so a
+     * definition written before the brackets is visible in the log rather than only on the page.
+     */
+    private static void warnUndelimited(String phrase, TreeMap<String, String> values) {
+        for (String token : values.keySet()) {
+            if (token == null || token.isBlank()) {
+                continue;
+            }
+            Pattern bare = Pattern.compile("(?i)(?<![A-Za-z0-9_])" + Pattern.quote(token) + "(?![A-Za-z0-9_])");
+            if (!bare.matcher(phrase).find()) {
+                continue;
+            }
+            if (WARNED_UNDELIMITED.add(phrase)) {
+                Log.warn("Placeholder {" + phrase + "} names the token " + token + " without angle brackets,"
+                        + " so no rule fills it and respondents read its default instead. Write <" + token + ">.");
+            }
+            return;
+        }
+    }
+
+    static String replaceTokens(String text, TreeMap<String, String> values) {
+        return replaceTokens(text, values, java.util.Set.of());
+    }
+
+    /**
+     * A text with its placeholders filled.
+     *
+     * <p>A placeholder is {@code {phrase|default}}, and the phrase holds prose and {@code <TOKEN>}
+     * references. Everything but the references is the author's words, translated with the rest of
+     * the text; the references are slots, filled from the values here (UC-002 BR-010, BR-011).</p>
+     *
+     * @param text     the base or translated template
+     * @param values   token to the value that fills it
+     * @param authored the tokens whose value is prose the author wrote, rather than an answer the
+     *                 respondent gave: those values may be placeholders in their own right and are
+     *                 resolved first, and they are spliced in without HTML-escaping
+     */
+    static String replaceTokens(String text, TreeMap<String, String> values, java.util.Set<String> authored) {
+        if (text == null) {
+            return null;
+        }
+        text = substituteOnce(text, resolveAuthoredValues(values, authored), authored);
 
         // English possessive tidying, applied unconditionally to every rendered text.
         //
-        // A placeholder may put the possessive inside the phrase ({CS2's|Your} Cancers) or leave it
-        // in the prose outside ({S1}'s age at death), and a token's value may be a name, a noun
-        // phrase or a pronoun. The four replacements below patch the combinations that read wrong
-        // in English. They are not a general rule and there is no locale check.
+        // A placeholder may put the possessive inside the phrase ({<CS2>'s|Your} Cancers) or leave
+        // it in the prose outside ({<S1>}'s age at death), and a token's value may be a name, a
+        // noun phrase or a pronoun. The four replacements below patch the combinations that read
+        // wrong in English. They are not a general rule and there is no locale check.
         //
-        // Two of them are load-bearing, not cosmetic. Any question that writes the possessive
-        // outside the placeholder -- "What was {S1}'s age at death?" -- and is fed by a rule whose
-        // value is a bare pronoun reads "What was her's age at death?" without the first two lines.
-        // The Family History Survey does exactly that on its four grandparent age-at-death
-        // questions, so deleting them means re-authoring the question and the rules; FHHS C-009
-        // records which ones and what the fix costs.
+        // Two of them are load-bearing, not cosmetic. The Family History Survey's question 40 is
+        // "What was {<S1>}'s age at death?" -- the 's sits outside the placeholder -- and the four
+        // grandparent rules (relationships 95, 99, 103 and 107) fill S1 with the bare pronoun "her"
+        // or "his". Without the first two lines those questions read "What was her's age at death?".
+        // Deleting them means re-authoring that question and those rules; see FHHS C-009.
         //
         // " Your's " is dead: no rule in any current survey supplies "Your" as a value. The last
         // line is a style choice only, "Dennis's" to "Dennis'"; both forms are correct English.
         //
-        // A respondent's own words cannot reach these replacements with an apostrophe intact --
-        // the values spliced in above are HTML-escaped, turning ' into &#39; first.
+        // These run on Answer.displayTextLocal as well as displayText (see buildDisplayText), so
+        // they are applied to translated text too. That is harmless for the languages shipped today
+        // rather than by design: "her's"/"his's"/"Your's" are English word forms, and "s's" needs a
+        // literal ASCII s-apostrophe-s, which neither es-419 nor ar writes. A respondent's own words
+        // cannot smuggle one in either -- fillPhrase HTML-escapes them first, turning ' into &#39;.
+        // A target language that does write s-apostrophe-s would be corrupted here silently.
+        //
+        // Author's PreviewFields.substituteTokens holds an independent copy of these four
+        // replacements so the designer preview matches the runtime. Change one, change both.
         text = text.replace(" her's ", " her ");
         text = text.replace(" his's ", " his ");
         text = text.replace(" Your's ", " Your ");
@@ -333,8 +475,13 @@ public class QuestionManager {
 
         DisplayKey dkey = new DisplayKey(key);
 
+        // The instance-bearing form: navigation items are built from the respondent's own section
+        // answer rows, and a REPEATed section has one per instance. Matching on getSectionString(),
+        // which zeroes the instance, found no item for the second and later instances of a repeated
+        // section, so the view got a null current item -- no Previous/Next buttons and no section
+        // title, which is what samples/FINDINGS.md 5 saw as "navigation stalls after a REPEAT".
         for (NavigationItem navigationItem : navItems) {
-            if (navigationItem.getPath().equals(dkey.getSectionString())) {
+            if (navigationItem.getPath().equals(dkey.getSectionInstanceString())) {
                 return navigationItem;
             }
         }
@@ -405,7 +552,14 @@ public class QuestionManager {
                 + "AND SS.EFFECTIVE_FROM <= :asOf AND SS.EFFECTIVE_TO > :asOf "
                 + "AND SQ.EFFECTIVE_FROM <= :asOf AND SQ.EFFECTIVE_TO > :asOf "
                 + "AND SS.STEPS_SECTIONS_ID NOT IN (SELECT R.DOWNSTREAM_SS_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.DOWNSTREAM_STEP_ID = SS.STEP_ID AND R.DOWNSTREAM_SQ_ID IS NULL AND R.DOWNSTREAM_SS_ID IS NOT NULL AND R.ACTION_ID != 3 AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf) "
-                + "AND Sq.SECTIONS_QUESTION_ID NOT IN (SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.UPSTREAM_STEP_ID = SS.STEP_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_SS_ID IS NOT NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf) "
+                + "AND Sq.SECTIONS_QUESTION_ID NOT IN ( "
+                + "SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.UPSTREAM_STEP_ID = SS.STEP_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_SS_ID IS NOT NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf "
+                // The same question-only branch sqlSection carries: a rule whose target sits in
+                // the upstream question's own section is stored with DOWNSTREAM_SS_ID null (Author
+                // RulePath.complete), and without this branch the step-level build renders that
+                // target immediately instead of leaving it to the rule.
+                + "UNION "
+                + "SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_SS_ID IS NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf) "
                 + "order by SQ.DISPLAY_ORDER";
 
         String sqlSection = "SELECT SQ.ID, SQ.DISPLAY_ORDER FROM SURVEY.SECTIONS_QUESTIONS SQ "
@@ -573,7 +727,13 @@ public class QuestionManager {
         if (sectionAanswer == null) {
 
             Section section = getSectionByDisplayKey(respondentId, key);
-            assert section != null;
+            if (section == null) {
+                // No placement names this key as of the respondent's anchor, so there is no section
+                // to answer for. This was an assert, which the container never evaluates (-ea off).
+                Log.warn("No section for display key " + key + " (respondent " + respondentId
+                        + "); no section answer built.");
+                return;
+            }
             Answer answer = new Answer(new DisplayKey(key), null, null, section.name, respondentId);
             saveAnswer(answer, dependents);
         }
@@ -854,9 +1014,11 @@ public class QuestionManager {
             } else {
 
                 Section section = getSectionByDisplayKey(answer.respondentId, answer.getDisplayKey());
-                answer.displayText = section.name;
+                if (section != null) {
+                    answer.displayText = section.name;
+                }
             }
-            buildDipslayText(answer);
+            buildDisplayText(answer);
             answer.persistAndFlush();
         }
     }
@@ -1092,7 +1254,8 @@ public class QuestionManager {
                     // The rule names the placement by durable id; both it and the section it
                     // names are resolved as of this respondent's anchor.
                     OffsetDateTime asOf = resolveAsOf(upstreamAnswer.respondentId);
-                    section = Section.findAsOf(StepsSections.findAsOf(r.downstreamSsId, asOf).sectionId, asOf);
+                    StepsSections placement = StepsSections.findAsOf(r.downstreamSsId, asOf);
+                    section = placement == null ? null : Section.findAsOf(placement.sectionId, asOf);
                 } else {
                     section = getSectionByDisplayKey(upstreamAnswer.respondentId, sectionKey.getValue());
                 }
@@ -1101,11 +1264,16 @@ public class QuestionManager {
             section = getSectionByDisplayKey(upstreamAnswer.respondentId, sectionKey.getSectionString());
         }
 
-        List<Answer> answers = new ArrayList<>();
-
         ArrayList<SectionsQuestion> initial = getInitialSectionSectionsQuestion(upstreamAnswer.respondentId,
                 sectionKey, loadStep);
         if (!initial.isEmpty()) {
+            if (section == null) {
+                // Every branch above can come back empty when no placement or section version is
+                // live at this respondent's anchor; without one there is no section answer to name.
+                Log.warn("No section for relationship " + r.id + " at display key " + sectionKey.getValue()
+                        + " (respondent " + upstreamAnswer.respondentId + "); no section answers built.");
+                return;
+            }
             saveAnswer(new Answer(sectionKey, null, null, section.name, upstreamAnswer.respondentId), dependents);
 
             Answer answer;
@@ -1119,7 +1287,6 @@ public class QuestionManager {
                 // build the downstream answers. they can be triggered by
                 // IF_EXISTS
                 buildDownstreamQuestions(answer);
-                answers.add(answer);
             }
         }
     }
@@ -1259,7 +1426,7 @@ public class QuestionManager {
      * @param answer The Answer object for which the display text
      *               is to be built and saved.
      */
-    private void buildDipslayText(Answer answer) {
+    private void buildDisplayText(Answer answer) {
 
         ArrayList<Dependent> dependents = findRelationshipsByDownstreamAnswer(answer);
         for (Dependent dep : dependents) {
@@ -1284,15 +1451,131 @@ public class QuestionManager {
             }
         }
 
+        // The same sentence in the respondent's language, when one applies. Resolved from the
+        // element the base template came from, so a question falls back per string rather than
+        // per page (UC-009 BR-005).
+        OffsetDateTime asOf = resolveAsOf(answer.respondentId);
+        Survey survey = Survey.findById(answer.surveyId);
+        String language = translator.language(survey);
+        String localTemplate = language == null ? null : localTemplate(answer, survey, asOf);
+
         // Substitute the Question instances and Section Instances.
         text = text.replaceAll("\\{Q#\\}", answer.getKey().getQuestionInstance() + "");
         text = text.replaceAll("\\{S#\\}", answer.getKey().getStepInstance() + "");
 
-        TreeMap<String, String> values;
+        TokenValues tokens = getValuesMap(answer);
+        // sources() names the tokens whose value the author wrote on a rule, which are the ones that
+        // may be placeholders themselves and that must not be HTML-escaped (BR-011).
+        java.util.Set<String> authored = tokens.sources().keySet();
+        answer.displayText = replaceTokens(text, tokens.base(), authored);
 
-        values = getValuesMap(answer);
+        if (localTemplate == null) {
+            answer.displayTextLocal = null;
+            answer.displayLanguage = null;
+        } else {
+            String local = localTemplate
+                    .replaceAll("\\{Q#\\}", answer.getKey().getQuestionInstance() + "")
+                    .replaceAll("\\{S#\\}", answer.getKey().getStepInstance() + "");
+            answer.displayTextLocal = replaceTokens(local, tokens.localized(survey, translator, asOf), authored);
+            answer.displayLanguage = language;
+        }
+    }
 
-        answer.displayText = replaceTokens(text, values);
+    /**
+     * The base template of an answer's label in the respondent's language, or {@code null} when no
+     * translation applies to it. Mirrors the base-template choice above: a question's text, else
+     * the section's name, else the step's name.
+     *
+     * @param answer the answer whose label is being built
+     * @param survey the survey being answered
+     * @param asOf   the respondent's snapshot anchor
+     * @return the translated template, or {@code null} to leave the local columns empty
+     */
+    private String localTemplate(Answer answer, Survey survey, OffsetDateTime asOf) {
+        if (answer.question != null) {
+            return translator.get(survey, answer.question.questionKey, "text", answer.question.text, asOf)
+                    .orElse(null);
+        }
+        if (answer.sectionId != null) {
+            Section section = getSectionByDisplayKey(answer.respondentId, answer.getDisplayKey());
+            return section == null ? null
+                    : translator.get(survey, section.sectionKey, "name", section.name, asOf).orElse(null);
+        }
+        Step step = getStepByDisplayKey(answer.respondentId, answer.getKey());
+        return step == null ? null
+                : translator.get(survey, step.stepKey, "name", step.name, asOf).orElse(null);
+    }
+
+    /**
+     * The content language in force for a respondent's survey, or {@code ""} when content is shown
+     * in the base language. Bound into the navigation and review SQL, where a null would make
+     * every comparison null rather than false.
+     *
+     * @param respondentId the respondent being served
+     * @return the BCP-47 tag, or the empty string
+     */
+    String currentContentLanguage(int respondentId) {
+        Respondent respondent = Respondent.findById(respondentId);
+        if (respondent == null || respondent.survey == null) {
+            return "";
+        }
+        String language = translator.language(respondent.survey);
+        return language == null ? "" : language;
+    }
+
+    /**
+     * Re-renders a respondent's active answer labels after a language switch (UC-009 BR-005).
+     * <p>
+     * One UPDATE per active answer on a rare event, which is what buys a stored rendering: the
+     * alternative is re-deriving every label from its tokens on every page draw. Marker answers are
+     * included -- they are what the navigation shows.
+     *
+     * @param respondentId the respondent whose labels should be rebuilt
+     */
+    @Transactional
+    public void relocalize(int respondentId) {
+        List<Answer> answers = Answer.list("respondentId = ?1 and deleted = false", respondentId);
+        for (Answer answer : answers) {
+            buildDisplayText(answer);
+            answer.persist();
+        }
+    }
+
+    /**
+     * The token substitutions for one answer, with the rule each value came from.
+     * <p>
+     * A token's value is usually the upstream respondent's own words, which no one translates. But
+     * when a rule supplies {@code default_upstream_value} that value is authored prose the
+     * respondent reads ("your mother", "your brother"), so the local rendering has to substitute
+     * its translation and the base rendering the base text. Keeping the source rule beside each
+     * value is what lets one walk of the dependents serve both.
+     *
+     * @param base    token to the value the base-language sentence uses
+     * @param sources token to the rule that supplied it, for the tokens that came from a rule's
+     *                default upstream value; absent for a respondent's own text
+     */
+    private record TokenValues(TreeMap<String, String> base, TreeMap<String, Relationship> sources) {
+
+        TokenValues() {
+            this(new TreeMap<>(), new TreeMap<>());
+        }
+
+        void putAll(TokenValues other) {
+            base.putAll(other.base());
+            sources.putAll(other.sources());
+        }
+
+        /** The same tokens with every rule-supplied value replaced by its translation. */
+        TreeMap<String, String> localized(Survey survey, ContentTranslator translator, OffsetDateTime asOf) {
+            TreeMap<String, String> localized = new TreeMap<>(base);
+            sources.forEach((token, relationship) -> {
+                String translated = translator.defaultUpstreamValue(survey, relationship, asOf);
+                if (translated != null) {
+                    localized.put(token, translated);
+                }
+            });
+            return localized;
+        }
     }
 
 
@@ -1357,7 +1640,7 @@ public class QuestionManager {
         }
         // The dependents need to be saved before we build the display text
 
-        buildDipslayText(finalAnswer);
+        buildDisplayText(finalAnswer);
 
         // Save the answer again so we have the correct display text
         DatabaseRetryUtil.executeWithRetry(
@@ -1649,46 +1932,6 @@ public class QuestionManager {
     }
 
     /**
-     * Deletes downstream answers based on provided parameters and conditions.
-     *
-     * @param respondentId  the ID of the respondent whose answers are to be processed
-     * @param instances     the number of instances used to determine which answers to delete
-     * @param downstreamKey the key representing the downstream answers to be deleted
-     * @param rootAnswerId  the ID of the root answer associated with the downstream answers
-     */
-    private void deleteSomeDownstreamAnswers(Integer respondentId, Integer instances,
-                                             String downstreamKey, int rootAnswerId) {
-        DisplayKey key = new DisplayKey(downstreamKey);
-        List<Answer> relationships = Answer.findByAnswerQueryString(respondentId, key.getAnswerQueryString());
-        for (Answer answer : relationships) {
-            if (answer.question_instance > instances - 1) {
-                deleteAnswers(answer, rootAnswerId);
-            }
-        }
-    }
-
-    /**
-     * Deletes all downstream answers associated with the provided upstream answer
-     * recursively by marking them and their dependents as deleted.
-     *
-     * @param respondentId the identifier of the respondent whose answers are to be processed
-     * @param upstream     the upstream answer from which to determine downstream dependents
-     */
-    private void deleteAllDownstreamAnswers(Integer respondentId, Answer upstream) {
-
-        // This function needs to loop through all downstream dependents.
-        List<Dependent> dependents = findDependentsByUpstreamAnswer(upstream);
-
-        Answer deletableAnswer;
-        // Now loop through the dependents and delete their dependents.
-        for (Dependent dependent : dependents) {
-            deletableAnswer = dependent.downstream;
-
-            markAnswerAndDependentsAsDeleted(deletableAnswer);
-        }
-    }
-
-    /**
      * Checks if all relationships associated with the given relationship object are satisfied
      * based on the provided answer and updates the dependents map with relevant dependency information.
      * <p>
@@ -1817,9 +2060,9 @@ public class QuestionManager {
      * @param answer the Answer object used to extract key-value pairs
      * @return a TreeMap containing the combined key-value pairs from step, section, and question
      */
-    private TreeMap<String, String> getValuesMap(Answer answer) {
+    private TokenValues getValuesMap(Answer answer) {
 
-        TreeMap<String, String> values = getStepKeyValues(answer);
+        TokenValues values = getStepKeyValues(answer);
         values.putAll(getSectionKeyValues(answer));
         values.putAll(getQuestionKeyValues(answer));
 
@@ -1832,7 +2075,7 @@ public class QuestionManager {
      * @param answer the answer object containing the key and respondent details to fetch the step key-value pairs
      * @return a TreeMap containing the key-value pairs for the specified step, sorted by keys
      */
-    private TreeMap<String, String> getStepKeyValues(Answer answer) {
+    private TokenValues getStepKeyValues(Answer answer) {
         DisplayKey key = new DisplayKey(answer.getKey().getStepString());
 
         int stepID = getAnswerIdByDisplayKey(answer.respondentId, key.getValue());
@@ -1846,7 +2089,7 @@ public class QuestionManager {
      * @param answer the Answer object containing the respondent information and display key
      * @return a TreeMap with keys and values representing the section data
      */
-    private TreeMap<String, String> getSectionKeyValues(Answer answer) {
+    private TokenValues getSectionKeyValues(Answer answer) {
         DisplayKey key = new DisplayKey(answer.getDisplayKey());
         key.setQuestionInstance(0);
         key.setQuestion(0);
@@ -1863,7 +2106,7 @@ public class QuestionManager {
      * @return A TreeMap where the keys and values correspond to data derived
      * from the provided Answer object.
      */
-    private TreeMap<String, String> getQuestionKeyValues(Answer answer) {
+    private TokenValues getQuestionKeyValues(Answer answer) {
         return getKeyValues(answer.respondentId, answer.id);
     }
 
@@ -1893,41 +2136,38 @@ public class QuestionManager {
      * @return A TreeMap containing key-value pairs where keys are relationship tokens and
      * values are derived based on dependent configurations and upstream data.
      */
-    private TreeMap<String, String> getKeyValues(int respondentId, int downstreamId) {
+    private TokenValues getKeyValues(int respondentId, int downstreamId) {
 
-        TreeMap<String, String> values = new TreeMap<>();
+        TokenValues values = new TokenValues();
         try {
             List<Dependent> dependents = Dependent.findByDownstream(respondentId, downstreamId);
-            String key;
-            String value;
-            // TODO GET THE DEFAULT VALUES
+            String language = currentContentLanguage(respondentId);
             for (Dependent dependent : dependents) {
-                value = null;
-                if (dependent.relationship.token != null
-                        && !dependent.relationship.token.isEmpty()) {
-                    key = dependent.relationship.token;
-                    switch (dependent.upstream.question.questionType.name) {
-                        case "CHECKBOX":
-                        case "DROPDOWN":
-                        case "HTML":
-                        case "NUMBER":
-                        case "RADIO":
-                            if (dependent.relationship.defaultUpstreamValue != null) {
-                                value = dependent.relationship.defaultUpstreamValue;
-                            } else if (dependent.upstream.getTextValue() != null) {
-                                value = dependent.upstream.getTextValue();
-                            }
-                            break;
-                        case "TEXT":
-                        case "DATE":
-                            if (dependent.upstream.getTextValue() != null) {
-                                value = dependent.upstream.getTextValue();
-                            }
-                            break;
-                    }
-                    if (value != null) {
-                        values.put(key, value);
-                    }
+                String key = dependent.relationship.token;
+                if (key == null || key.isEmpty()) {
+                    continue;
+                }
+                // What can go in the slot, and whether it is the rule's authored prose or the
+                // respondent's own answer, is decided from the question the rule reads (see
+                // TokenSource).
+                TokenSource.Fill fill = dependent.upstream == null
+                        ? TokenSource.fill(dependent.relationship, null, null, language)
+                        : TokenSource.fill(dependent.relationship, dependent.upstream.question,
+                                dependent.upstream.getTextValue(), language);
+                if (fill == null) {
+                    // This rule has nothing to put in the slot -- but several rules may fill one
+                    // token (the Family History Survey fills {S1} from fifteen places), so leave
+                    // what another one supplied. Only when no rule fills it does replaceTokens fall
+                    // back to the placeholder's default.
+                    continue;
+                }
+                values.base().put(key, fill.value());
+                if (fill.fromRule()) {
+                    // Authored prose the respondent reads, so it is translatable; the respondent's
+                    // own text is not, and must not keep an earlier rule's translation.
+                    values.sources().put(key, dependent.relationship);
+                } else {
+                    values.sources().remove(key);
                 }
             }
         } catch (RuntimeException e) {
@@ -1955,7 +2195,11 @@ public class QuestionManager {
      */
     private ArrayList<NavigationItem> buildNavItems(int respondentId) {
 
-        String pathSQL = "SELECT a.display_text, a.display_key" + " FROM survey.answers a" + " WHERE a.deleted = false"
+        // The local rendering when this answer was drawn in the language now in force, the base
+        // one otherwise. After relocalize the two always agree; the CASE is what keeps the
+        // navigation honest in between, and on a respondent whose answers predate a language.
+        String pathSQL = "SELECT CASE WHEN a.display_language = :language THEN a.display_text_local"
+                + " ELSE a.display_text END, a.display_key" + " FROM survey.answers a" + " WHERE a.deleted = false"
                 + " AND a.respondent_id = :respondentId" + " AND a.question_id is null" + " AND a.section != 0"
                 + " ORDER BY a.display_key";
 
@@ -1964,6 +2208,7 @@ public class QuestionManager {
         //entityManager.joinTransaction();
         Query q = entityManager.createNativeQuery(pathSQL);
         q.setParameter("respondentId", respondentId);
+        q.setParameter("language", currentContentLanguage(respondentId));
 
         @SuppressWarnings("unchecked")
         List<Object[]> rs = q.getResultList();

@@ -25,7 +25,7 @@ import jakarta.ws.rs.core.Response;
  * <p>
  * The endpoint takes no body and answers JSON, {@code {"status": ..., "message": ...}}:
  * <ul>
- * <li>{@code 200 ok} -- the build ran; the message summarises what it did.</li>
+ * <li>{@code 200 ok} -- the build ran; the message summarizes what it did.</li>
  * <li>{@code 409 disabled} -- {@code elicit.etl.enabled=false} on this instance.</li>
  * <li>{@code 500 failed} -- the build threw; the message is the root cause (for example the
  * {@code dim_step_un} duplicate-key error two surveys sharing a step dimension name produce).
@@ -34,7 +34,7 @@ import jakarta.ws.rs.core.Response;
  * The call is idempotent -- it runs the same build the application runs at startup, every
  * step of which only creates what is missing or upserts by durable key -- and synchronous:
  * the response comes back when the build is done, which for a site with many respondents
- * still missing fact rows can take a while. Concurrent calls are serialised.
+ * still missing fact rows can take a while. Concurrent calls are serialized.
  * <p>
  * Survey has no authentication on its REST endpoints (it authenticates respondents by access
  * code in the UI only). This endpoint is intended for the Admin application on the internal

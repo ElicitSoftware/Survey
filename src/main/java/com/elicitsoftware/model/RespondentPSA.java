@@ -12,7 +12,6 @@ package com.elicitsoftware.model;
  */
 
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
-import io.quarkus.panache.common.Parameters;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 

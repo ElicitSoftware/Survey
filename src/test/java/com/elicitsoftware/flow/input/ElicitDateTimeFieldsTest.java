@@ -11,6 +11,7 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
 import com.vaadin.flow.component.datepicker.DatePicker;
@@ -36,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * UC-002 (Answer Survey Questions), BR-004: coverage of the date/time Elicit* wrappers -
- * ElcitDatePicker, ElicitDateTimePicker, ElicitTimePicker. minValue/maxValue mean different
+ * ElicitDatePicker, ElicitDateTimePicker, ElicitTimePicker. minValue/maxValue mean different
  * things for each: epoch days for the date picker, HHMM-encoded time-of-day for the other
  * two (see each class's own setBindings javadoc).
  */
@@ -49,7 +50,7 @@ class ElicitDateTimeFieldsTest {
         Question question = question(false, null, null, null, null);
         Answer answer = answer("1.1.1.1.4.1.1", "Birth date", question, "2020-01-15");
 
-        DatePicker picker = new ElcitDatePicker(answer).component;
+        DatePicker picker = new ElicitDatePicker(answer, ContentTexts.base()).component;
 
         assertEquals(LocalDate.of(2020, 1, 15), picker.getValue());
     }
@@ -59,7 +60,7 @@ class ElicitDateTimeFieldsTest {
         Question question = question(true, null, null, null, "A date is required");
         Answer answer = answer("1.1.1.1.4.1.2", "Birth date", question, null);
 
-        ElcitDatePicker wrapper = new ElcitDatePicker(answer);
+        ElicitDatePicker wrapper = new ElicitDatePicker(answer, ContentTexts.base());
         DatePicker picker = wrapper.component;
 
         assertTrue(picker.isRequiredIndicatorVisible());
@@ -74,7 +75,7 @@ class ElicitDateTimeFieldsTest {
         Question question = question(false, 0, 100, null, null);
         Answer answer = answer("1.1.1.1.4.1.3", "Birth date", question, null);
 
-        DatePicker picker = new ElcitDatePicker(answer).component;
+        DatePicker picker = new ElicitDatePicker(answer, ContentTexts.base()).component;
 
         assertEquals(LocalDate.ofEpochDay(0), picker.getMin());
         assertEquals(LocalDate.ofEpochDay(100), picker.getMax());
@@ -87,7 +88,7 @@ class ElicitDateTimeFieldsTest {
         Question question = question(false, null, null, variants, null);
         Answer answer = answer("1.1.1.1.4.1.4", "Birth date", question, null);
 
-        DatePicker picker = new ElcitDatePicker(answer).component;
+        DatePicker picker = new ElicitDatePicker(answer, ContentTexts.base()).component;
 
         assertTrue(picker.getThemeNames().contains(DatePickerVariant.LUMO_ALIGN_RIGHT.getVariantName()));
         assertTrue(picker.getThemeNames().contains(DatePickerVariant.LUMO_SMALL.getVariantName()));
@@ -98,7 +99,7 @@ class ElicitDateTimeFieldsTest {
         Question question = question(false, null, null, null, null);
         Answer answer = answer("1.1.1.1.4.2.1", "Appointment", question, "2020-01-15T09:30");
 
-        DateTimePicker picker = new ElicitDateTimePicker(answer).component;
+        DateTimePicker picker = new ElicitDateTimePicker(answer, ContentTexts.base()).component;
 
         assertEquals(LocalDateTime.of(2020, 1, 15, 9, 30), picker.getValue());
     }
@@ -108,7 +109,7 @@ class ElicitDateTimeFieldsTest {
         Question question = question(true, null, null, null, "An appointment time is required");
         Answer answer = answer("1.1.1.1.4.2.2", "Appointment", question, null);
 
-        ElicitDateTimePicker wrapper = new ElicitDateTimePicker(answer);
+        ElicitDateTimePicker wrapper = new ElicitDateTimePicker(answer, ContentTexts.base());
         DateTimePicker picker = wrapper.component;
 
         assertTrue(picker.isRequiredIndicatorVisible());
@@ -125,7 +126,7 @@ class ElicitDateTimeFieldsTest {
         Question question = question(false, 830, 1730, null, null);
         Answer answer = answer("1.1.1.1.4.2.3", "Appointment", question, null);
 
-        DateTimePicker picker = new ElicitDateTimePicker(answer).component;
+        DateTimePicker picker = new ElicitDateTimePicker(answer, ContentTexts.base()).component;
 
         LocalDate today = LocalDate.now();
         assertEquals(LocalDateTime.of(today, LocalTime.of(8, 30)), picker.getMin());
@@ -138,7 +139,7 @@ class ElicitDateTimeFieldsTest {
         Question question = question(false, null, null, variants, null);
         Answer answer = answer("1.1.1.1.4.2.4", "Appointment", question, null);
 
-        DateTimePicker picker = new ElicitDateTimePicker(answer).component;
+        DateTimePicker picker = new ElicitDateTimePicker(answer, ContentTexts.base()).component;
 
         assertTrue(picker.getThemeNames().contains(DateTimePickerVariant.LUMO_SMALL.getVariantName()));
     }
@@ -147,11 +148,11 @@ class ElicitDateTimeFieldsTest {
     void timePicker_construction_appliesInitialValueFromAnswer() {
         // ElicitTimePicker.setValue(Answer) used to be a stubbed-out TODO that did nothing,
         // so a previously-saved answer never reached the component. Fixed to match the
-        // sibling ElcitDatePicker/ElicitDateTimePicker pattern.
+        // sibling ElicitDatePicker/ElicitDateTimePicker pattern.
         Question question = question(false, null, null, null, null);
         Answer answer = answer("1.1.1.1.4.3.0", "Preferred time", question, "09:00");
 
-        TimePicker picker = new ElicitTimePicker(answer).component;
+        TimePicker picker = new ElicitTimePicker(answer, ContentTexts.base()).component;
 
         assertEquals(LocalTime.of(9, 0), picker.getValue());
     }
@@ -161,7 +162,7 @@ class ElicitDateTimeFieldsTest {
         Question question = question(true, null, null, null, "A time is required");
         Answer answer = answer("1.1.1.1.4.3.1", "Preferred time", question, null);
 
-        ElicitTimePicker wrapper = new ElicitTimePicker(answer);
+        ElicitTimePicker wrapper = new ElicitTimePicker(answer, ContentTexts.base());
         TimePicker picker = wrapper.component;
 
         assertTrue(picker.isRequiredIndicatorVisible());
@@ -181,7 +182,7 @@ class ElicitDateTimeFieldsTest {
         Question question = question(false, 0, Integer.MAX_VALUE, null, null);
         Answer answer = answer("1.1.1.1.4.3.2", "Preferred time", question, null);
 
-        TimePicker picker = new ElicitTimePicker(answer).component;
+        TimePicker picker = new ElicitTimePicker(answer, ContentTexts.base()).component;
 
         assertEquals(LocalTime.ofNanoOfDay(0), picker.getMin());
         assertEquals(LocalTime.ofNanoOfDay(Integer.MAX_VALUE), picker.getMax());
@@ -193,7 +194,7 @@ class ElicitDateTimeFieldsTest {
         Question question = question(false, null, null, variants, null);
         Answer answer = answer("1.1.1.1.4.3.3", "Preferred time", question, null);
 
-        TimePicker picker = new ElicitTimePicker(answer).component;
+        TimePicker picker = new ElicitTimePicker(answer, ContentTexts.base()).component;
 
         assertTrue(picker.getThemeNames().contains(TimePickerVariant.LUMO_ALIGN_LEFT.getVariantName()));
     }

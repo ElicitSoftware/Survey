@@ -7,11 +7,25 @@
 > the `*_key` UUIDs). Consequently the `is_draft` column and the `*_one_draft_un` indexes
 > described below were **dropped in V015**, and every passage about "the Author Tool"
 > creating or publishing draft rows, owning migration scripts, or clearing caches is
-> historical design rationale, not current behaviour. Removal of an element is expressed
+> historical design rationale, not current behavior. Removal of an element is expressed
 > as a closed `effective_to` carried in the definition file. The schema mechanics
 > (durable keys, `effective_from`/`effective_to`, as-of resolution, FK companion columns,
 > the `scd_close_predecessor` trigger) remain authoritative.
 
+
+> **Addendum (2026-09-25, Survey V019).** `survey.translations` is the ninth Type 2 table
+> and the first that is not structural. It carries the same contract as the eight below —
+> durable `translation_id`, `translation_key` UUID, `version`, `effective_from`,
+> `effective_to` and the `scd_close_predecessor` trigger — for the same reason: a
+> respondent who started under one wording must keep seeing it, and a corrected
+> translation must not rewrite what earlier respondents read. It differs in how it
+> attaches to the rest of the schema. The eight reference their neighbors by a durable id
+> in a companion column; a translation references the element it translates by that
+> element's `*_key` UUID alone, in a generic `(element_type, element_key, field, language)`
+> target. The FK cascade problem below therefore does not arise for it: versioning a
+> question mints a new surrogate `id` and a new `version` under the same `question_key`, and
+> the translation, which never held either id, still attaches. See
+> `docs/research/i18n_survey.md` sections 3.2 and 3.3.
 
 ## Motivation
 
@@ -1340,7 +1354,7 @@ query path in the application layer.
 No structural changes required. These are stable vocabulary tables. The *association*
 between a structural element and an ontology tag is captured in `metadata`, which is now
 being migrated to durable keys. If a researcher changes which ontology tag is assigned to
-a question (rather than just rewording the question), that is modelled by updating (or
+a question (rather than just rewording the question), that is modeled by updating (or
 replacing) the `metadata` row — `metadata` itself does not need Type 2 versioning because
 the durable integer id on the structural element (`question_id`) persists across question
 versions, and the ontology assignment travels with it.

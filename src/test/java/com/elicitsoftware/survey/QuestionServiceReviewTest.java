@@ -54,21 +54,28 @@ public class QuestionServiceReviewTest {
     private static final String WELCOME_SECTION = "0001-0001-0000-0001-0000-0000-0000";
 
     // Mirrors QuestionService.reviewSQL — kept identical so this test tracks the real query.
-    private static final String REVIEW_SQL = """
+    private static final String REVIEW_SQL = """ 
             select c.*
              from (SELECT a.id,
              a.respondent_id,
                 a.display_key,
-                a.display_text,
-                q.short_text,
-                COALESCE(NULLIF(q.short_text::text, ''::text), a.display_text::text) AS short_display_text,
-                COALESCE(i.display_text, a.text_value) AS display_value,
+                CASE WHEN a.display_language = :language THEN a.display_text_local ELSE a.display_text END AS display_text,
+                COALESCE(ts.value, q.short_text) AS short_text,
+                COALESCE(NULLIF(COALESCE(ts.value, q.short_text)::text, ''::text),
+                         CASE WHEN a.display_language = :language THEN a.display_text_local ELSE a.display_text END::text) AS short_display_text,
+                COALESCE(ti.value, i.display_text, a.text_value) AS display_value,
                 t.name AS question_type
              FROM survey.answers a
              JOIN survey.questions q ON a.question_id = q.id
              LEFT JOIN survey.question_types t ON q.type_id = t.id
-             LEFT JOIN survey.select_groups g ON q.select_group_id = g.id
-             LEFT JOIN survey.select_items i ON g.id = i.select_group_id AND a.text_value::text = i.coded_value::text
+             LEFT JOIN survey.select_groups g ON q.select_group_id = g.select_group_id
+             LEFT JOIN survey.select_items i ON g.select_group_id = i.select_group_id AND a.text_value::text = i.coded_value::text
+             LEFT JOIN survey.translations ts ON ts.element_key = q.question_key AND ts.field = 'short_text'
+                AND ts.language = :language AND ts.effective_from <= :asOf AND ts.effective_to > :asOf
+                AND ts.source_hash = encode(sha256(convert_to(q.short_text, 'UTF8')), 'hex')
+             LEFT JOIN survey.translations ti ON ti.element_key = i.select_item_key AND ti.field = 'display_text'
+                AND ti.language = :language AND ti.effective_from <= :asOf AND ti.effective_to > :asOf
+                AND ti.source_hash = encode(sha256(convert_to(i.display_text, 'UTF8')), 'hex')
              WHERE a.respondent_id = :respondentId
                 AND a.deleted = false
                 AND a.text_value IS NOT NULL
@@ -76,13 +83,17 @@ public class QuestionServiceReviewTest {
              SELECT a1.id,
                 a1.respondent_id,
                 a1.display_key,
-                a1.display_text,
-                q1.short_text,
-                COALESCE(NULLIF(q1.short_text::text, ''::text), a1.display_text::text) AS short_display_text,
+                CASE WHEN a1.display_language = :language THEN a1.display_text_local ELSE a1.display_text END AS display_text,
+                COALESCE(ts1.value, q1.short_text) AS short_text,
+                COALESCE(NULLIF(COALESCE(ts1.value, q1.short_text)::text, ''::text),
+                         CASE WHEN a1.display_language = :language THEN a1.display_text_local ELSE a1.display_text END::text) AS short_display_text,
                 null AS display_value,
                 null AS question_type
              FROM survey.answers a1
              LEFT JOIN survey.questions q1 ON a1.question_id = q1.id
+             LEFT JOIN survey.translations ts1 ON ts1.element_key = q1.question_key AND ts1.field = 'short_text'
+                AND ts1.language = :language AND ts1.effective_from <= :asOf AND ts1.effective_to > :asOf
+                AND ts1.source_hash = encode(sha256(convert_to(q1.short_text, 'UTF8')), 'hex')
              WHERE a1.respondent_id = :respondentId
                 AND a1.deleted = false
                 AND a1.section_question_id IS NULL) c
@@ -96,6 +107,10 @@ public class QuestionServiceReviewTest {
 
         Query query = em.createNativeQuery(REVIEW_SQL);
         query.setParameter("respondentId", respondentId);
+        // The base-language case: no content language in force, and every respondent resolves
+        // against the current definition. ContentTranslatorTest covers the translated case.
+        query.setParameter("language", "");
+        query.setParameter("asOf", java.time.OffsetDateTime.now());
         @SuppressWarnings("unchecked")
         List<Object[]> results = query.getResultList();
 

@@ -16,6 +16,7 @@ import java.util.ArrayList;
 
 import org.eclipse.microprofile.rest.client.RestClientBuilder;
 
+import com.elicitsoftware.i18n.ContentTranslator;
 import com.elicitsoftware.UISessionDataService;
 import com.elicitsoftware.model.ReportDefinition;
 import com.elicitsoftware.model.Respondent;
@@ -64,6 +65,9 @@ public class ReportView extends VerticalLayout {
     @Inject
     UISessionDataService sessionDataService;
 
+    @Inject
+    ContentTranslator translator;
+
     ArrayList<ReportResponse> reportResponses = new ArrayList<>();
 
     public ReportView() {
@@ -93,12 +97,12 @@ public class ReportView extends VerticalLayout {
 //        Survey survey = Survey.findById(sessionDataService.getSurveyId());
         respondent = sessionDataService.getRespondent();
 
-        Button pdfButton = new Button("Generate PDF");
+        Button pdfButton = new Button(getTranslation("reportView.btnGeneratePdf"));
         pdfButton.setId("report-generate-pdf-button");
         pdfButton.addClickListener(event -> {
             try {
                 // Generate the PDF using the pdfService
-                byte[] pdfContent = pdfService.generatePDF(this.reportResponses);
+                byte[] pdfContent = pdfService.generatePDF(this.reportResponses, this.respondent.survey.title, getLocale());
 
                 // Cache the PDF and get a key
                 String pdfKey = com.elicitsoftware.report.PDFDownloadResource.cachePDF(pdfContent);
@@ -110,7 +114,7 @@ public class ReportView extends VerticalLayout {
                 UI.getCurrent().getPage().executeJs("window.open($0, '_blank')", pdfUrl);
             } catch (Exception e) {
                 Log.error("Failed to generate PDF", e);
-                Notification.show("Failed to generate PDF: " + e.getMessage(), 3000, Notification.Position.MIDDLE);
+                Notification.show(getTranslation("reportView.error.pdf", e.getMessage()), 3000, Notification.Position.MIDDLE);
             }
         });
 
@@ -122,13 +126,15 @@ public class ReportView extends VerticalLayout {
         for (ReportDefinition rpt : this.respondent.survey.reports) {
             reportResponse = callReport(rpt);
             reportResponses.add(reportResponse);
-            ReportCard reportCard = new ReportCard(rpt.name, reportResponse);
+            ReportCard reportCard = new ReportCard(
+                    translator.name(respondent.survey, rpt, Respondent.snapshotAnchor(respondent.id.intValue())),
+                    reportResponse);
             this.add(reportCard);
         }
 
 
         if (this.respondent.survey.postSurveyURL != null) {
-            Button btnNext = new Button("Next", event -> {
+            Button btnNext = new Button(getTranslation("reportView.btnNext"), event -> {
                 getUI().ifPresent(ui -> ui.getPage().open(this.respondent.survey.postSurveyURL, "_self"));
             });
             btnNext.setId("report-next-button");
@@ -166,7 +172,8 @@ public class ReportView extends VerticalLayout {
      */
     private ReportResponse callReport(ReportDefinition rpt) {
         try {
-            ReportRequest request = new ReportRequest(respondent.id);
+            ReportRequest request = new ReportRequest(respondent.id,
+                    translator.language(respondent.survey));
             ReportService reportService = RestClientBuilder.newBuilder()
                     .baseUri(new URI(rpt.url))
                     .build(ReportService.class);
@@ -174,7 +181,7 @@ public class ReportView extends VerticalLayout {
             return reportResponse;
         } catch (jakarta.ws.rs.WebApplicationException e) {
             // Handle license validation errors and other HTTP errors specifically
-            String errorMessage = "Service error: " + e.getMessage();
+            String errorMessage = getTranslation("reportView.error.service", e.getMessage());
             
             // Try to extract more detailed error information
             if (e.getResponse() != null) {
@@ -189,47 +196,35 @@ public class ReportView extends VerticalLayout {
                         }
                     } catch (Exception readException) {
                         // Response may have already been consumed, fall back to status-based message
-                        if (status == 403) {
-                            errorMessage = "Access forbidden - License validation may have failed. Please check your license configuration.";
-                        } else {
-                            errorMessage = "Service error (HTTP " + status + "): " + e.getMessage();
-                        }
+                        errorMessage = status == 403
+                                ? getTranslation("reportView.error.forbidden")
+                                : getTranslation("reportView.error.serviceHttp", status, e.getMessage());
                     }
                 } else {
                     // No response entity, provide status-based error message
-                    if (status == 403) {
-                        errorMessage = "Access forbidden - License validation may have failed. Please check your license configuration.";
-                    } else {
-                        errorMessage = "Service error (HTTP " + status + "): " + e.getMessage();
-                    }
+                    errorMessage = status == 403
+                            ? getTranslation("reportView.error.forbidden")
+                            : getTranslation("reportView.error.serviceHttp", status, e.getMessage());
                 }
             }
             
             // Check if the exception message contains clues about license validation
             if (e.getMessage() != null && e.getMessage().toLowerCase().contains("forbidden")) {
                 if (!errorMessage.toLowerCase().contains("license")) {
-                    errorMessage = "License validation failed - " + errorMessage;
+                    errorMessage = getTranslation("reportView.error.license", errorMessage);
                 }
             }
             
             ReportResponse reportResponse = new ReportResponse();
-            reportResponse.title = "Error - " + rpt.name;
-            reportResponse.innerHTML = "<div style='color: red; padding: 20px; border: 1px solid red; background-color: #ffe6e6;'>" +
-                    "<h3>Report Generation Error</h3>" +
-                    "<p><strong>Service:</strong> " + rpt.name + "</p>" +
-                    "<p><strong>Error:</strong> " + errorMessage + "</p>" +
-                    "<p><em>If this is a license error, please ensure your PREMM5 license is valid and properly configured.</em></p>" +
-                    "</div>";
+            reportResponse.title = getTranslation("reportView.error.title", rpt.name);
+            reportResponse.innerHTML = getTranslation("reportView.error.html", rpt.name, errorMessage,
+                    getTranslation("reportView.error.licenseHint"));
             return reportResponse;
         } catch (Exception e) {
             // Handle other exceptions (network issues, URI parsing, etc.)
             ReportResponse reportResponse = new ReportResponse();
-            reportResponse.title = "Error - " + rpt.name;
-            reportResponse.innerHTML = "<div style='color: red; padding: 20px; border: 1px solid red; background-color: #ffe6e6;'>" +
-                    "<h3>Report Generation Error</h3>" +
-                    "<p><strong>Service:</strong> " + rpt.name + "</p>" +
-                    "<p><strong>Error:</strong> " + e.getMessage() + "</p>" +
-                    "</div>";
+            reportResponse.title = getTranslation("reportView.error.title", rpt.name);
+            reportResponse.innerHTML = getTranslation("reportView.error.html", rpt.name, e.getMessage(), "");
             return reportResponse;
         }
     }

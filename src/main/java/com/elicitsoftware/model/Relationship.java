@@ -12,7 +12,6 @@ package com.elicitsoftware.model;
  */
 
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
-import io.quarkus.panache.common.Parameters;
 import jakarta.persistence.*;
 
 import java.text.SimpleDateFormat;
@@ -20,6 +19,8 @@ import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * The Relationship class represents the relationship between different components
@@ -92,6 +93,14 @@ public class Relationship extends PanacheEntityBase {
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "RELATIONSHIPS_ID_GENERATOR")
     @Column(name = "ID", unique = true, nullable = false, precision = 20)
     public Integer id;
+
+    /**
+     * Element key (Survey V015): the identity that survives versioning and import, and what a
+     * {@link Translation} names this element by. Read-only here -- it is minted in Author and
+     * carried verbatim by Admin's import and update; Survey never writes it.
+     */
+    @Column(name = "relationship_key", insertable = false, updatable = false)
+    public UUID relationshipKey;
 
     @Column(name = "DEFAULT_UPSTREAM_VALUE", length = 255)
     public String defaultUpstreamValue;
@@ -188,8 +197,8 @@ public class Relationship extends PanacheEntityBase {
      * @return a list of {@link Relationship} entities that match the given survey ID and downstream step ID
      */
     public static List<Relationship> findRepeatByDownstreamStep(int surveyId, int downstreamStepId, OffsetDateTime asOf) {
-        return find("#Relationship.findRepeatByDownstreamStep", Parameters.with("surveyId", surveyId)
-                .and("downstreamStepId", downstreamStepId).and("asOf", asOf)).list();
+        return find("#Relationship.findRepeatByDownstreamStep", Map.of("surveyId", surveyId,
+                "downstreamStepId", downstreamStepId, "asOf", asOf)).list();
     }
 
     /**
@@ -203,8 +212,8 @@ public class Relationship extends PanacheEntityBase {
      * @return a list of {@link Relationship} entities that match the given survey ID and downstream question ID
      */
     public static List<Relationship> findByDownstream_SQ_ID(int surveyId, int downstream_sq_id, OffsetDateTime asOf) {
-        return find("#Relationship.findByDownstream_SQ_ID", Parameters.with("surveyId", surveyId)
-                .and("downstream_sq_id", downstream_sq_id).and("asOf", asOf)).list();
+        return find("#Relationship.findByDownstream_SQ_ID", Map.of("surveyId", surveyId,
+                "downstream_sq_id", downstream_sq_id, "asOf", asOf)).list();
     }
 
     /**
@@ -219,9 +228,9 @@ public class Relationship extends PanacheEntityBase {
      * @return a list of {@link Relationship} entities that match the given survey ID, downstream section ID, and step ID
      */
     public static List<Relationship> findByDownstream_SS_ID(int surveyId, int downstream_ss_id, int stepId, OffsetDateTime asOf) {
-        return find("#Relationship.findByDownstream_SS_ID", Parameters.with("surveyId", surveyId)
-                .and("downstream_ss_id", downstream_ss_id)
-                .and("stepId", stepId).and("asOf", asOf)).list();
+        return find("#Relationship.findByDownstream_SS_ID", Map.of("surveyId", surveyId,
+                "downstream_ss_id", downstream_ss_id,
+                "stepId", stepId, "asOf", asOf)).list();
     }
 
     /**
@@ -236,9 +245,9 @@ public class Relationship extends PanacheEntityBase {
      * @return a list of {@link Relationship} entities that match the given survey ID, downstream step ID, and step ID
      */
     public static List<Relationship> findByDownstream_Step_ID(int surveyId, int downstream_step_id, int stepId, OffsetDateTime asOf) {
-        return find("#Relationship.findByDownstream_Step_ID", Parameters.with("surveyId", surveyId)
-                .and("downstream_step_id", downstream_step_id)
-                .and("stepId", stepId).and("asOf", asOf)).list();
+        return find("#Relationship.findByDownstream_Step_ID", Map.of("surveyId", surveyId,
+                "downstream_step_id", downstream_step_id,
+                "stepId", stepId, "asOf", asOf)).list();
     }
 
     /**
@@ -344,8 +353,19 @@ public class Relationship extends PanacheEntityBase {
         return returnValue;
     }
 
+    /**
+     * Whether a LESS THAN / GREATER THAN comparison should read both sides as dates rather than as
+     * numbers. The type is matched by name because {@code data_type} does not separate the three
+     * date and time types from plain text ({@code DATE_TIME_PICKER} and {@code TIME_PICKER} are both
+     * {@code Text}). It used to compare against {@code "DATE"}, which is a {@code data_type} value
+     * and not the name of any question type, so no comparison ever took the date path
+     * (ElicitSoftware/Author#10).
+     * <p>
+     * Only {@code DATE_PICKER} qualifies: {@code sdf} is {@code yyyy-MM-dd}, which is the form
+     * {@code LocalDate.toString()} stores, while a datetime or a time stores a value it cannot parse.
+     */
     private static boolean isDateQuestion(Answer answer) {
         return answer.question != null && answer.question.questionType != null
-                && "DATE".equals(answer.question.questionType.name);
+                && "DATE_PICKER".equals(answer.question.questionType.name);
     }
 }

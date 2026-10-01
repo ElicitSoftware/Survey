@@ -11,6 +11,7 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
 import com.elicitsoftware.model.SelectItem;
@@ -47,10 +48,10 @@ public class ElicitMultiSelectComboBox extends ElicitComponent<MultiSelectComboB
      *                 <li>Pre-selects the value if the `Answer` object contains a non-empty text value.</li>
      *               </ul>
      */
-    public ElicitMultiSelectComboBox(Answer answer) {
-        super(new MultiSelectComboBox<SelectItem>(answer.displayText), answer);
+    public ElicitMultiSelectComboBox(Answer answer, ContentTexts texts) {
+        super(new MultiSelectComboBox<SelectItem>(answer.label()), answer, texts);
         component.setItems(answer.getSelectItems());
-        component.setItemLabelGenerator(item -> item.displayText);
+        component.setItemLabelGenerator(texts::option);
         if (answer.getTextValue() != null && !answer.getTextValue().isEmpty()) {
             setValue(answer);
         }

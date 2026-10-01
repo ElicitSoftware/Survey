@@ -13,10 +13,10 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
-        <quarkus.platform.version>3.39.2</quarkus.platform.version>
+        <quarkus.platform.version>3.40.1</quarkus.platform.version>
         <skipITs>true</skipITs>
-        <surefire-plugin.version>3.5.5</surefire-plugin.version>
-        <vaadin.version>25.2.7</vaadin.version>
+        <surefire-plugin.version>3.5.6</surefire-plugin.version>
+        <vaadin.version>25.3.0</vaadin.version>
         <javadoc-plugin.version>3.12.0</javadoc-plugin.version>
         <site-plugin.version>3.21.0</site-plugin.version>
         <timestamp>${maven.build.timestamp}</timestamp>
@@ -26,6 +26,15 @@
         <license.thirdPartyFilename>Notice.txt</license.thirdPartyFilename>
         <license.includeTransitiveDependencies>false</license.includeTransitiveDependencies>
         <license.excludedScopes>test,provided</license.excludedScopes>
+        <!--
+            vaadin-dev is a dev-mode tool and is not distributed, so the notice must not list it.
+            The vaadin-dev-tools profile adds the dependency whenever quarkus.profile is unset and
+            add-third-party runs in the default lifecycle, so without this a plain `mvn test`
+            regenerates Notice.txt naming a jar that never ships, while the image build (which sets
+            quarkus.profile=docker) regenerates it without. Excluded outright so the file is the
+            same either way.
+        -->
+        <license.excludedArtifacts>^vaadin-dev$</license.excludedArtifacts>
         <license.outputDirectory>${project.basedir}</license.outputDirectory>
     </properties>
     <dependencyManagement>
@@ -43,25 +52,6 @@
                 <version>${quarkus.platform.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
-            </dependency>
-            <!-- Fix jackson-annotations version mismatch between Vaadin BOM and Flyway -->
-            <dependency>
-                <groupId>com.fasterxml.jackson.core</groupId>
-                <artifactId>jackson-annotations</artifactId>
-                <version>2.21</version>
-            </dependency>
-            <!-- Fix JUnit 6 version mismatch: Vaadin BOM pins junit-jupiter(-api) to 6.0.3
-                 while the Quarkus BOM pins the rest of the JUnit 6 artifacts to 6.1.1. -->
-            <dependency>
-                <groupId>org.junit.jupiter</groupId>
-                <artifactId>junit-jupiter</artifactId>
-                <version>6.1.1</version>
-                <scope>test</scope>
-            </dependency>
-            <dependency>
-                <groupId>org.junit.jupiter</groupId>
-                <artifactId>junit-jupiter-api</artifactId>
-                <version>6.1.1</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -238,6 +228,27 @@
                     <exclude>application.properties</exclude>
                 </excludes>
             </resource>
+            <!--
+              The translated bundles (UC-009). They live in i18n/ beside the hand-off document that
+              produced them, because they are received from a translator rather than authored here,
+              and are packaged onto the classpath next to the English bundle so that a released
+              image carries the translation it was built and tested with.
+
+              filtering must stay false: a filtered copy is re-encoded, which corrupts the Arabic,
+              and a translated string is free to contain ${...}.
+
+              The include is translations_*.properties, not translations*.properties, so this can
+              never shadow src/main/resources/vaadin-i18n/translations.properties, the English
+              bundle Vaadin's Copilot tooling edits in place.
+            -->
+            <resource>
+                <directory>i18n</directory>
+                <targetPath>vaadin-i18n</targetPath>
+                <filtering>false</filtering>
+                <includes>
+                    <include>translations_*.properties</include>
+                </includes>
+            </resource>
         </resources>
         <plugins>
             <plugin>
@@ -372,9 +383,7 @@
                 <version>${javadoc-plugin.version}</version>
                 <configuration>
                     <outputDirectory>${project.build.directory}/javadoc</outputDirectory>
-                    <failOnError>false</failOnError>
                     <failOnWarnings>false</failOnWarnings>
-                    <additionalOptions>-Xdoclint:none</additionalOptions>
                     <quiet>true</quiet>
 <!--                    <javadocDirectory>./docs/javadoc</javadocDirectory>-->
                 </configuration>
@@ -408,7 +417,10 @@
                     <emptyLineAfterHeader>true</emptyLineAfterHeader>
                     <excludes>
                         <exclude>**/*.properties</exclude>
-                        <exclude>**/brand-config.json</exclude>
+                        <!-- JSON has no comment syntax: a header makes the file unparseable.
+                             This covers brand-config.json, brand-info.json, typography.json,
+                             i18n-config.json and anything added later. -->
+                        <exclude>**/*.json</exclude>
                     </excludes>
                     <licenseResolver>${project.baseUri}src/license</licenseResolver>
                     <processStartTag>***LICENSE_START***</processStartTag>

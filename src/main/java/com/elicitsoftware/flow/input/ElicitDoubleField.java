@@ -11,6 +11,7 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
 import com.vaadin.flow.component.textfield.NumberField;
@@ -51,8 +52,8 @@ public class ElicitDoubleField extends ElicitComponent<NumberField> {
      *               for the double field. If the text value of the answer is not null or empty,
      *               it will be used to set the initial value of the field.
      */
-    public ElicitDoubleField(Answer answer) {
-        super(new NumberField(answer.displayText), answer);
+    public ElicitDoubleField(Answer answer, ContentTexts texts) {
+        super(new NumberField(answer.label()), answer, texts);
         component.setStepButtonsVisible(true);
         if (answer.getTextValue() != null && !answer.getTextValue().isEmpty()) {
             setValue(answer);

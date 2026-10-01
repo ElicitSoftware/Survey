@@ -135,3 +135,43 @@
         transition: none;
     }
 }
+
+/* Language switcher (UC-009). A Select in the header would otherwise keep Lumo's
+   page-level tokens (dark body text on a translucent dark tint), so the field is
+   painted in the brand's header text color.
+
+   The parts are addressed one by one rather than by redefining --lumo-body-text-color
+   on the host: Vaadin 25 renders a Select's overlay inside the component, so a token
+   set here inherits into it and every option in the dropdown is drawn in the header's
+   color — white on the overlay's white, which is invisible. The overlay must keep the
+   page's own styling. */
+.branded-header .language-switcher {
+    --vaadin-field-default-width: auto;
+    min-width: 0;
+    margin-inline-start: auto;
+}
+
+.branded-header .language-switcher::part(input-field) {
+    background: color-mix(in srgb, var(--brand-header-text) 15%, transparent);
+}
+
+.branded-header .language-switcher::part(label),
+.branded-header .language-switcher::part(toggle-button),
+.branded-header .language-switcher vaadin-select-value-button,
+.branded-header .language-switcher vaadin-select-value-button > vaadin-select-item::part(content) {
+    color: var(--brand-header-text);
+}
+
+/* The field's default width is 12em, which clips the longest locale name
+   ("Español (Latinoamérica)"). --vaadin-field-default-width: auto lets it size to the
+   selected label, and min-width: max-content on the value button is what carries the
+   label's width out to the field — the value button's own min-content is zero, because
+   its label part clips. min-width: 0 on the host keeps the field shrinkable when a narrow
+   header runs out of room, so it degrades to today's clipping rather than overflowing.
+
+   The trailing padding clears the value button's fade mask: Vaadin fades its last 20px
+   whether or not the text overflows, so without it the closing glyph is half transparent. */
+.branded-header .language-switcher vaadin-select-value-button {
+    min-width: max-content;
+    padding-inline-end: 20px;
+}

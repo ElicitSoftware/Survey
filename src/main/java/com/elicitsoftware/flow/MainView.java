@@ -17,7 +17,6 @@ import com.elicitsoftware.UISessionDataService;
 import com.elicitsoftware.model.Respondent;
 import com.elicitsoftware.model.Survey;
 import com.elicitsoftware.response.NavResponse;
-import com.vaadin.flow.component.Direction;
 import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
@@ -87,7 +86,6 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
      * which is called after dependency injection is complete.
      */
     public MainView() {
-        UI.getCurrent().setLocale(java.util.Locale.US);
     }
 
     /**
@@ -163,20 +161,14 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
             }
         }
         
-        //Set up the I18n
         final UI ui = UI.getCurrent();
-        if (ui.getLocale().getLanguage().equals("ar")) {
-            ui.setDirection(Direction.RIGHT_TO_LEFT);
-        } else {
-            ui.setDirection(Direction.LEFT_TO_RIGHT);
-        }
 
         this.setAlignItems(Alignment.CENTER);
 
         //Add instruction for auto register testing.
         if (accessCodeService.isAutoRegister()) {
             Div autoRegisterInstructions = new Div();
-            autoRegisterInstructions.getElement().setProperty("innerHTML", "To test enter any value between 5 and 12 charaters. <br/>Access codes are case sensitive");
+            autoRegisterInstructions.getElement().setProperty("innerHTML", getTranslation("mainView.autoRegister.instructions"));
             this.add(autoRegisterInstructions);
         }
 
@@ -185,9 +177,9 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
         loginLayout.setAlignItems(Alignment.CENTER);
 
         // Use TextField for standard text input with validation
-        txtAccessCode = new TextField("Enter your access code");
+        txtAccessCode = new TextField(getTranslation("mainView.txtAccessCode"));
         txtAccessCode.setId("login-access-code-field");
-        txtAccessCode.setTooltipText("Access code is case-sensitive");
+        txtAccessCode.setTooltipText(getTranslation("mainView.txtAccessCode.tooltip"));
         txtAccessCode.addThemeName("bordered");
         txtAccessCode.setAutofocus(true);
         txtAccessCode.addThemeVariants(TextFieldVariant.LUMO_SMALL);
@@ -196,15 +188,15 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
         txtAccessCode.addValueChangeListener(e -> {
             String accessCode = e.getValue();
             if (accessCode == null || accessCode.trim().isEmpty()) {
-                txtAccessCode.setErrorMessage("Access code cannot be empty");
+                txtAccessCode.setErrorMessage(getTranslation("mainView.accessCode.empty"));
                 txtAccessCode.setInvalid(true);
                 isAccessCodeValid = false;
             } else if (accessCode.length() < 5) {
-                txtAccessCode.setErrorMessage("Access code must be at least 5 characters");
+                txtAccessCode.setErrorMessage(getTranslation("mainView.accessCode.tooShort"));
                 txtAccessCode.setInvalid(true);
                 isAccessCodeValid = false;
             } else if (accessCode.length() > 12) {
-                txtAccessCode.setErrorMessage("Access code must be at most 12 characters");
+                txtAccessCode.setErrorMessage(getTranslation("mainView.accessCode.tooLong"));
                 txtAccessCode.setInvalid(true);
                 isAccessCodeValid = false;
             } else {
@@ -216,7 +208,7 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
 
 
         // Button click listeners can be defined as lambda expressions
-        Button btnLogin = new Button("Login");
+        Button btnLogin = new Button(getTranslation("mainView.btnLogin"));
         btnLogin.setId("login-button");
         btnLogin.addClickListener(e -> {
             // Trigger validation by setting the value to itself
@@ -248,10 +240,10 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
                         ui.navigate("report");
                     }
                 } else {
-                    Notification.show("Invalid access code. Please check your access code and try again.");
+                    Notification.show(getTranslation("mainView.error.invalidAccessCode"));
                 }
             } else {
-                Notification.show("Please correct the errors before logging in.");
+                Notification.show(getTranslation("mainView.error.fixErrors"));
             }
         });
 
@@ -265,11 +257,11 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
 
         List<Survey> surveys = accessCodeService.getSurveys().get("Surveys");
         if (surveys.isEmpty()) {
-            loginLayout.add(new Paragraph("There are no surveys to login"));
+            loginLayout.add(new Paragraph(getTranslation("mainView.surveys.isEmpty")));
         } else if (surveys.size() == 1) {
             sessionDataService.setSurveyId(surveys.get(0).id.intValue());
         } else {
-            ComboBox<Survey> comboBox = new ComboBox<>("Surveys");
+            ComboBox<Survey> comboBox = new ComboBox<>(getTranslation("mainView.comboBox"));
             comboBox.setId("login-survey-select");
             comboBox.setItems(accessCodeService.getSurveys().get("Surveys"));
             comboBox.setItemLabelGenerator(survey -> survey.name);
@@ -287,7 +279,7 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
         //Add the auto register WARNING
         if (accessCodeService.isAutoRegister()) {
             Div autoRegisterWarning = new Div();
-            autoRegisterWarning.getElement().setProperty("innerHTML", "<h5>Warning: the property accessCode.autoRegister is set to true.<br/>This is for testng only and should be removed for production.</h5>");
+            autoRegisterWarning.getElement().setProperty("innerHTML", getTranslation("mainView.autoRegister.warning"));
             this.add(autoRegisterWarning);
         }
     }
@@ -329,6 +321,6 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
      */
     @Override
     public String getPageTitle() {
-        return "Login";
+        return getTranslation("mainView.pageTitle");
     }
 }

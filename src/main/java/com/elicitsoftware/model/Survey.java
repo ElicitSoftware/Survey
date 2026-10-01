@@ -15,6 +15,7 @@ import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Represents a survey entity in the system. Each survey contains metadata such as name, title,
@@ -34,6 +35,14 @@ public class Survey extends PanacheEntityBase {
     @Column(name = "id", unique = true, nullable = false)
     public Integer id;
 
+    /**
+     * Element key (Survey V015): the identity that survives versioning and import, and what a
+     * {@link Translation} names this element by. Read-only here -- it is minted in Author and
+     * carried verbatim by Admin's import and update; Survey never writes it.
+     */
+    @Column(name = "survey_key", insertable = false, updatable = false)
+    public UUID surveyKey;
+
     @Column(name = "display_order", nullable = false, precision = 3)
     public Integer displayOrder;
 
@@ -48,6 +57,21 @@ public class Survey extends PanacheEntityBase {
 
     @Column(name = "initial_display_key")
     public String initialDisplayKey;
+
+    /**
+     * The language this survey's content was authored in, and the one every string falls back to
+     * when no current translation applies (Survey V019; UC-009 BR-005).
+     */
+    @Column(name = "base_language", nullable = false, length = 35)
+    public String baseLanguage = "en";
+
+    /**
+     * Comma-separated BCP-47 tags the author has published content translations for. What a
+     * respondent is actually offered here is the intersection of this with the languages mounted
+     * for the chrome at this site (UC-009 BR-009); {@code ContentTranslator} is the only reader.
+     */
+    @Column(name = "content_languages", length = 255)
+    public String contentLanguages;
 
     // This is the URL to redirect after the survey is over.
     @Column(name = "post_survey_url")

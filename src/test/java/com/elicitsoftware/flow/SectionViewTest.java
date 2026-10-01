@@ -72,8 +72,10 @@ class SectionViewTest extends QuarkusBrowserlessTest {
             Button next = find(Button.class).id("section-next-button");
 
             assertFalse(previous.isEnabled(), "First section must not allow navigating further back");
-            assertTrue(next.getText().equals("Next") || next.getText().equals("Review"),
-                    "Next button must read either 'Next' or 'Review', got: " + next.getText());
+            String nextLabel = next.getTranslation("sectionView.btnNext");
+            String reviewLabel = next.getTranslation("sectionView.btnReview");
+            assertTrue(next.getText().equals(nextLabel) || next.getText().equals(reviewLabel),
+                    "Next button must read either the Next or the Review label, got: " + next.getText());
         } finally {
             cleanup(respondent.id);
         }

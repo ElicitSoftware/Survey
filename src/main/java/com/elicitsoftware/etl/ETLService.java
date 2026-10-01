@@ -135,7 +135,7 @@ public class ETLService {
     public record RebuildResult(RebuildStatus status, String message) {
     }
 
-    /** Serialises concurrent rebuild requests; the DDL steps are not safe to interleave. */
+    /** Serializes concurrent rebuild requests; the DDL steps are not safe to interleave. */
     private final ReentrantLock rebuildLock = new ReentrantLock();
 
     /**
@@ -386,7 +386,7 @@ public class ETLService {
      * showing the number of keys associated with the respondent
      */
     private String saveSectionFacts(Integer respondentId) {
-        return "Addeded respondent " + respondentId + " to fact_sections:" + System.lineSeparator() +
+        return "Added respondent " + respondentId + " to fact_sections:" + System.lineSeparator() +
                 respondentId + ": " + addRespondentFactSections(respondentId) + " keys";
     }
 
@@ -470,7 +470,7 @@ public class ETLService {
             String column = (String) result[0];
             String dimension = (String) result[1];
             returnValue.append(column).append('\n');
-            addDinensionColumnsToFactSectionTable(column, dimension);
+            addDimensionColumnsToFactSectionTable(column, dimension);
         }
         return "new Dimesions tables = " + returnValue;
     }
@@ -484,7 +484,7 @@ public class ETLService {
      * @param dimension the dimension name associated with the column being added
      * @return the number of rows affected by the executed SQL query
      */
-    private int addDinensionColumnsToFactSectionTable(String column, String dimension) {
+    private int addDimensionColumnsToFactSectionTable(String column, String dimension) {
         String sql = Sql.ADD_DIM_COLUMN_TO_FACT_SECTIONS_TABLE.replace("<COL>", column);
         sql = sql.replaceAll("<DIM>", dimension);
         Log.info(sql);
