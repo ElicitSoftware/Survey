@@ -1,5 +1,5 @@
 echo "Set java to 25"
-jenv local graalvm64-25.0.1
+jenv local 25
 export JAVA_HOME="$(jenv javahome)"
 echo "build survey"
 
