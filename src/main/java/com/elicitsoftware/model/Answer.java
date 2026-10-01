@@ -15,7 +15,6 @@ import com.elicitsoftware.DisplayKey;
 import com.elicitsoftware.flow.GlobalStrings;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import io.quarkus.logging.Log;
-import io.quarkus.panache.common.Parameters;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -465,8 +464,8 @@ public class Answer extends PanacheEntityBase {
      * @return the first matching Answer entity, or null if no match is found
      */
     public static Answer findByStepSQ(Integer respondentId, int sectionQuestionId, int question_instance) {
-        return find("#Answer.findByStepSQ", Parameters.with("respondentId", respondentId)
-                .and("sectionQuestionId", sectionQuestionId).and("question_instance", question_instance)).firstResult();
+        return find("#Answer.findByStepSQ", Map.of("respondentId", respondentId,
+                "sectionQuestionId", sectionQuestionId, "question_instance", question_instance)).firstResult();
     }
 
     /**
@@ -478,8 +477,8 @@ public class Answer extends PanacheEntityBase {
      * @return the first active {@link Answer} matching the given respondent ID and display key, or null if none found
      */
     public static Answer findByDisplayKeyActive(int respondentId, String displaykey) {
-        return find("#Answer.findByDisplayKeyActive", Parameters.with("displaykey", displaykey)
-                .and("respondentId", respondentId)).firstResult();
+        return find("#Answer.findByDisplayKeyActive", Map.of("displaykey", displaykey,
+                "respondentId", respondentId)).firstResult();
     }
 
     /**
@@ -492,8 +491,8 @@ public class Answer extends PanacheEntityBase {
      * or {@code null} if no matching answer is found
      */
     public static Answer findByDisplayKeyAll(int respondentId, String displaykey) {
-        return find("#Answer.findByDisplayKeyAll", Parameters.with("displaykey", displaykey)
-                .and("respondentId", respondentId)).firstResult();
+        return find("#Answer.findByDisplayKeyAll", Map.of("displaykey", displaykey,
+                "respondentId", respondentId)).firstResult();
     }
 
     /**
@@ -504,8 +503,8 @@ public class Answer extends PanacheEntityBase {
      * @return a list of Answer objects that match the given respondent ID and query string criteria
      */
     public static List<Answer> findByAnswerQueryString(int respondentId, String answerQuery) {
-        return find("#Answer.findByAnswerQueryString", Parameters.with("answerQuery", answerQuery)
-                .and("respondentId", respondentId)).list();
+        return find("#Answer.findByAnswerQueryString", Map.of("answerQuery", answerQuery,
+                "respondentId", respondentId)).list();
     }
 
     /**
@@ -517,8 +516,8 @@ public class Answer extends PanacheEntityBase {
      * @return a list of answers matching the specified criteria.
      */
     public static List<Answer> findBySectionInstancesQueryString(int respondentId, DisplayKey key) {
-        return find("#Answer.findBySectionInstancesQueryString", Parameters.with("respondentId", respondentId)
-                .and("sectionQuery", key.getAnswerQueryString())).list();
+        return find("#Answer.findBySectionInstancesQueryString", Map.of("respondentId", respondentId,
+                "sectionQuery", key.getAnswerQueryString())).list();
     }
 
     /**
@@ -529,12 +528,12 @@ public class Answer extends PanacheEntityBase {
      * @return a list of Answer objects matching the criteria
      */
     public static List<Answer> findBySectionDisplaykey(int respondentId, DisplayKey key) {
-        return find("#Answer.findBySectionDisplaykey", Parameters.with("respondentId", respondentId)
-                .and("surveyId", key.getSurvey())
-                .and("stepId", key.getStep())
-                .and("stepInstance", key.getStepInstance())
-                .and("sectionId", key.getSection())
-                .and("sectionInstance", key.getSectionInstance())).list();
+        return find("#Answer.findBySectionDisplaykey", Map.of("respondentId", respondentId,
+                "surveyId", key.getSurvey(),
+                "stepId", key.getStep(),
+                "stepInstance", key.getStepInstance(),
+                "sectionId", key.getSection(),
+                "sectionInstance", key.getSectionInstance())).list();
     }
 
     /**
@@ -546,7 +545,8 @@ public class Answer extends PanacheEntityBase {
      * or null if no matching answer is found
      */
     public static Answer findUpstreamAnswerByRelationshipId(int respondentId, int relationshipID) {
-        return find("#Answer.findUpstreamAnswerByRelationshipId", Parameters.with("respondentId", respondentId).and("relationshipID", relationshipID)).firstResult();
+        return find("#Answer.findUpstreamAnswerByRelationshipId",
+                Map.of("respondentId", respondentId, "relationshipID", relationshipID)).firstResult();
     }
 
     /**
@@ -555,7 +555,7 @@ public class Answer extends PanacheEntityBase {
      * @param respondentId the unique identifier of the respondent whose deleted answers are to be purged
      */
     public static void purgeDeleted(int respondentId) {
-        Answer.delete("#Answer.purgeDeleted", Parameters.with("respondentId", respondentId));
+        Answer.delete("#Answer.purgeDeleted", Map.of("respondentId", respondentId));
     }
 
     /**
