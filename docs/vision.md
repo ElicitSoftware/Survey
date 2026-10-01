@@ -61,8 +61,8 @@ Elicit Survey itself is the respondent-facing module of the broader
 - **License:** PolyForm Noncommercial 1.0.0.
 - **Stack (do not deviate without explicit approval):**
   - Java 25
-  - Quarkus 3.39.x
-  - Vaadin 25.2.x (Flow / server-side UI)
+  - Quarkus 3.40.x (LTS)
+  - Vaadin 25.3.x (Flow / server-side UI)
   - Hibernate ORM with Panache (JPA) — *not* jOOQ
   - PostgreSQL
   - Maven build, Docker deploy
