@@ -146,6 +146,8 @@ Every row is one key in `translations.properties`. Return a file `translations_<
 | `pdf.page` | Page {0} of {1} | PDF report · page footer | 30 | params: {0} = page number, {1} = page count |
 | `pdf.download.missingKey` | Missing key parameter | PDF download link · plain-text error | 60 |  |
 | `pdf.download.expired` | PDF not found or expired | PDF download link · plain-text error | 60 |  |
+| `datePicker.today` | Today | Survey page · button in the calendar of a date question | 20 |  |
+| `datePicker.cancel` | Cancel | Survey page · button in the calendar of a date question | 20 |  |
 
 ## English source file
 
@@ -220,4 +222,6 @@ pdf.header={0} - Page {1} of {2}
 pdf.page=Page {0} of {1}
 pdf.download.missingKey=Missing key parameter
 pdf.download.expired=PDF not found or expired
+datePicker.today=Today
+datePicker.cancel=Cancel
 ```

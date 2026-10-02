@@ -50,6 +50,7 @@ public class ElicitDatePicker extends ElicitComponent<DatePicker> {
      */
     public ElicitDatePicker(Answer answer, ContentTexts texts) {
         super(new DatePicker(answer.label()), answer, texts);
+        component.setI18n(PickerTexts.datePicker());
         if (answer.getTextValue() != null && !answer.getTextValue().isEmpty()) {
             setValue(answer);
         }
