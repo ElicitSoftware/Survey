@@ -259,10 +259,11 @@ VALUES (43, 1, 1, 4, 0, 7, 1, NULL, 0, 34, 34, '0001-0004-0000-0007-0001-0002-00
 INSERT INTO survey.answers (id, survey_id, respondent_id, step, step_instance, section, section_instance, question_display_order, question_instance, section_question_id, question_id, display_key, display_text, text_value, deleted, created_dt, saved_dt)
 VALUES (44, 1, 1, 4, 0, 7, 1, NULL, 0, 35, 35, '0001-0004-0000-0007-0001-0003-0000', 'Alternate contact name for this renewal (if different from account holder)', 'Tim ', false, '2026-05-07 20:44:15.014+00', '2026-05-07 20:45:12.633+00');
 
--- ---- Step 4: CheckoutRequest / Section 6: Checkout 0 (base/phantom instance created by engine) ----
--- Section header — Checkout 0 (engine artifact from R31 BOOLEAN SHOW Q65→Q66)
-INSERT INTO survey.answers (id, survey_id, respondent_id, step, step_instance, section, section_instance, question_display_order, question_instance, section_question_id, question_id, display_key, display_text, text_value, deleted, created_dt, saved_dt)
-VALUES (45, 1, 1, 4, 0, 6, 0, NULL, 0, NULL, NULL, '0001-0004-0000-0006-0000-0000-0000', 'Checkout 0', NULL, false, '2026-05-07 20:44:18.162+00', NULL);
+-- ---- Step 4: CheckoutRequest / Section 6: questions shown inside a checkout instance ----
+-- The engine used to add a section header here for an instance 0 that nobody was shown
+-- ('Checkout 0', answer 45): a question shown inside a repeated section looked up its header
+-- with the instance zeroed, found none, and made one. UC-002 BR-014 looks it up with the
+-- instance, so a replay no longer produces that row and it is no longer seeded.
 
 -- Q66: TEXTAREA — Hold instructions checkout 1 (shown via R31; no text entered)
 INSERT INTO survey.answers (id, survey_id, respondent_id, step, step_instance, section, section_instance, question_display_order, question_instance, section_question_id, question_id, display_key, display_text, text_value, deleted, created_dt, saved_dt)
@@ -365,7 +366,6 @@ INSERT INTO survey.dependents (id, respondent_id, upstream_id, downstream_id, re
 INSERT INTO survey.dependents (id, respondent_id, upstream_id, downstream_id, relationship_id, deleted) VALUES (47, 1, 26, 44, 15, false);
 
 -- R31: Q65 BOOLEAN SHOW → Q66 hold instructions (hold=true → instructions shown)
-INSERT INTO survey.dependents (id, respondent_id, upstream_id, downstream_id, relationship_id, deleted) VALUES (48, 1, 28, 45, 17, false);
 INSERT INTO survey.dependents (id, respondent_id, upstream_id, downstream_id, relationship_id, deleted) VALUES (49, 1, 28, 46, 17, false);
 
 -- R30: Q63 NOT_EQUAL 'book' SHOW → Q64 format notes (audiobook type → format notes shown)

@@ -27,6 +27,7 @@ import jakarta.transaction.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map.Entry;
@@ -394,7 +395,12 @@ public class QuestionManager {
      */
     private Section getSectionByDisplayKey(int respondentId, String key) {
         DisplayKey dkey = new DisplayKey(key);
+        // A placement is the same row whichever instance of it a respondent is looking at, and its
+        // key carries no instances. Leaving the section instance in found nothing for the marker of
+        // a repeated section, which then kept the text it was first built with and never got its
+        // name in the respondent's language.
         dkey.setStepInstance(0);
+        dkey.setSectionInstance(0);
         // Snapshot-anchored (research/Kimball_type_2.md) to this respondent's firstAccessDt:
         // the placement and then the section version it names are both resolved as of the
         // same instant. A missing placement is a null, never an exception to swallow.
@@ -821,8 +827,12 @@ public class QuestionManager {
                                 Question question = questionOf(downstreamQuestion, upstreamAnswer.respondentId);
 
                                 key.setQuestion(downstreamQuestion.displayOrder.intValue());
-                                // this may be the first answer in a section
-                                buildSectionAnswer(upstreamAnswer.respondentId, key.getSectionString(), dependents);
+                                // this may be the first answer in a section. The marker is the
+                                // one of the instance the question is shown in: zeroing the
+                                // instance here gave a question shown inside a repeated section a
+                                // second marker, instance 0, that depended on an answer inside the
+                                // section it marks -- and removing an instance then never ended.
+                                buildSectionAnswer(upstreamAnswer.respondentId, key.getSectionInstanceString(), dependents);
                                 Answer a = new Answer(key, downstreamQuestion, question, question.text,
                                         upstreamAnswer.respondentId, question.defaultValue);
                                 a = saveAnswer(a, dependents);
@@ -1324,8 +1334,12 @@ public class QuestionManager {
 
         List<Answer> answers = Answer.findByAnswerQueryString(respondentId, answerKey.getAnswerQueryString());
 
-        int repeatValue = Integer.parseInt(upstreamAnswer.getTextValue());
-        if (repeatValue >= answers.size()) {
+        // UC-002 BR-012: 1 to N for a count, the position of each selected item for a selection.
+        List<Integer> instances = repeatInstances(upstreamAnswer);
+        // A count is raised over the instances it already built. An item's instance is its
+        // position in the list, so there is no "built up to here" to skip past.
+        int built = RepeatSource.perItem(upstreamAnswer.question) ? 0 : answers.size();
+        if (!instances.isEmpty()) {
             // We are adding new Answers here. These could be based on sub
             // sections or section question
             Answer answer;
@@ -1342,7 +1356,10 @@ public class QuestionManager {
             }
             Question question = questionOf(downstreamQuestion, respondentId);
             DisplayKey newKey;
-            for (int i = answers.size() + 1; i <= repeatValue; i++) {
+            for (int i : instances) {
+                if (i <= built) {
+                    continue;
+                }
                 newKey = new DisplayKey(key.getValue());
                 newKey.setQuestionInstance(i);
                 answer = new Answer(newKey, downstreamQuestion, question, question.text,
@@ -1387,19 +1404,94 @@ public class QuestionManager {
 
             List<Answer> answers = Answer.findBySectionInstancesQueryString(relationshipId, answerKey);
 
-            if (upstreamAnswer.getTextValue() != null) {
-                long count = Long.parseLong(upstreamAnswer.getTextValue());
-                if (count > answers.size()) {
-                    DisplayKey key;
-                    for (int i = answers.size(); i < count; i++) {
-                        key = buildDisplayKey(upstreamAnswer, r);
-                        key.setSectionInstance(i + 1);
-                        saveAnswer(new Answer(key, null, null, downstreamSection.name, upstreamAnswer.respondentId), dependents);
-                        buildInitialSectionAnswers(r, upstreamAnswer, key, dependents, false);
-                    }
+            // UC-002 BR-012: 1 to N for a count, the position of each selected item for a
+            // selection (see buildRepeatedAnswers for why a selection skips nothing).
+            int built = RepeatSource.perItem(upstreamAnswer.question) ? 0 : answers.size();
+            DisplayKey key;
+            for (int i : repeatInstances(upstreamAnswer)) {
+                if (i <= built) {
+                    continue;
                 }
+                key = buildDisplayKey(upstreamAnswer, r);
+                key.setSectionInstance(i);
+                saveAnswer(new Answer(key, null, null, downstreamSection.name, upstreamAnswer.respondentId), dependents);
+                buildInitialSectionAnswers(r, upstreamAnswer, key, dependents, false);
             }
         }
+    }
+
+    /**
+     * The instances a Repeat rule builds from the answer it reads (UC-002 BR-012).
+     *
+     * @param upstreamAnswer the answer the rule reads
+     * @return the instance numbers in ascending order, empty when nothing was answered
+     */
+    private List<Integer> repeatInstances(Answer upstreamAnswer) {
+        return RepeatSource.instances(upstreamAnswer.question, upstreamAnswer.getTextValue(), repeatItems(upstreamAnswer));
+    }
+
+    /**
+     * The list a per-item repeat numbers its instances by: the upstream question's select items as
+     * of the respondent's snapshot anchor, in display order. Items sharing a display order are
+     * ordered by durable id so that a position names the same item every time it is asked for.
+     *
+     * @param upstreamAnswer the answer a Repeat rule reads
+     * @return the items, empty for a question that is not answered by selecting several
+     */
+    private List<SelectItem> repeatItems(Answer upstreamAnswer) {
+        if (!RepeatSource.perItem(upstreamAnswer.question)) {
+            return List.of();
+        }
+        List<SelectItem> items = new ArrayList<>(SelectItem.findByGroupAsOf(
+                upstreamAnswer.question.selectGroupId, resolveAsOf(upstreamAnswer.respondentId)));
+        items.sort(Comparator.comparing((SelectItem item) -> item.displayOrder)
+                .thenComparing(item -> item.selectItemId));
+        return items;
+    }
+
+    /**
+     * The select item a downstream answer's repeated instance was built from, when the rule that
+     * fills its token reads the multi-select that drove the repeat (UC-002 BR-013).
+     * <p>
+     * The instance number is the item's position (BR-012), and which number to read -- the
+     * question instance or the section instance -- is decided by the Repeat rule that reaches the
+     * downstream answer, not by the rule carrying the token: a Text rule on a repeated section
+     * fills its token per instance exactly as the Repeat rule's own token would.
+     *
+     * @param dependent the rule, the answer it reads and the answer whose text is being built
+     * @return the item, or {@code null} when the downstream answer is not in such an instance
+     */
+    private SelectItem repeatedItem(Dependent dependent) {
+        Answer upstream = dependent.upstream;
+        Answer downstream = dependent.downstream;
+        if (upstream == null || downstream == null || !RepeatSource.perItem(upstream.question)) {
+            return null;
+        }
+        Relationship rule = dependent.relationship;
+        OffsetDateTime asOf = resolveAsOf(downstream.respondentId);
+        List<Relationship> repeats = "REPEAT".equals(rule.actionType.name) ? List.of(rule)
+                : Relationship.findRepeatByUpstream(rule.surveyId, rule.upstreamSqId, asOf);
+        DisplayKey key = downstream.getKey();
+        for (Relationship repeat : repeats) {
+            int instance = 0;
+            if (repeat.downstreamSqId != null) {
+                SectionsQuestion placement = downstream.section_question_id == null ? null
+                        : SectionsQuestion.findById(downstream.section_question_id);
+                if (placement != null && repeat.downstreamSqId.equals(placement.sectionsQuestionId)) {
+                    instance = key.getQuestionInstance();
+                }
+            } else if (repeat.downstreamSsId != null) {
+                StepsSections mount = StepsSections.findAsOf(repeat.downstreamSsId, asOf);
+                if (mount != null && mount.getKey().getStep() == key.getStep()
+                        && mount.getKey().getSection() == key.getSection()) {
+                    instance = key.getSectionInstance();
+                }
+            }
+            if (instance > 0) {
+                return RepeatSource.item(repeatItems(upstream), instance);
+            }
+        }
+        return null;
     }
 
     /**
@@ -1550,24 +1642,37 @@ public class QuestionManager {
      * its translation and the base rendering the base text. Keeping the source rule beside each
      * value is what lets one walk of the dependents serve both.
      *
+     * <p>
+     * A select item's text is authored prose too (UC-002 BR-013), with a translation of its own,
+     * so the item is kept beside its value in the same way.
+     *
      * @param base    token to the value the base-language sentence uses
      * @param sources token to the rule that supplied it, for the tokens that came from a rule's
      *                default upstream value; absent for a respondent's own text
+     * @param items   token to the select item whose text fills it, for the tokens filled from the
+     *                item a repeated instance was built from
      */
-    private record TokenValues(TreeMap<String, String> base, TreeMap<String, Relationship> sources) {
+    private record TokenValues(TreeMap<String, String> base, TreeMap<String, Relationship> sources,
+                               TreeMap<String, SelectItem> items) {
 
         TokenValues() {
-            this(new TreeMap<>(), new TreeMap<>());
+            this(new TreeMap<>(), new TreeMap<>(), new TreeMap<>());
         }
 
         void putAll(TokenValues other) {
+            // The inner value replaces the outer one whole: where it came from goes with it, or
+            // the local rendering would translate a value the base rendering no longer uses.
+            sources.keySet().removeAll(other.base().keySet());
+            items.keySet().removeAll(other.base().keySet());
             base.putAll(other.base());
             sources.putAll(other.sources());
+            items.putAll(other.items());
         }
 
-        /** The same tokens with every rule-supplied value replaced by its translation. */
+        /** The same tokens with every rule-supplied value and item text replaced by its translation. */
         TreeMap<String, String> localized(Survey survey, ContentTranslator translator, OffsetDateTime asOf) {
             TreeMap<String, String> localized = new TreeMap<>(base);
+            items.forEach((token, item) -> localized.put(token, translator.displayText(survey, item, asOf)));
             sources.forEach((token, relationship) -> {
                 String translated = translator.defaultUpstreamValue(survey, relationship, asOf);
                 if (translated != null) {
@@ -1808,7 +1913,20 @@ public class QuestionManager {
                     // If this is the root answer then they are altering it we
                     // may have to only remove some of the downstream elements.
                     if (upstreamAnswer.id == rootAnswerId) {
-                        if (dependent.relationship.downstreamSqId != null
+                        if (RepeatSource.perItem(upstreamAnswer.question)) {
+                            // UC-002 A3b / BR-012: an instance belongs to one item, so a changed
+                            // selection removes the instances of the items no longer selected and
+                            // leaves every other one, with its answers, where it is. None are
+                            // wanted once the rule's own condition stops holding.
+                            List<Integer> wanted = dependent.relationship.evaluateOperator(upstreamAnswer)
+                                    ? repeatInstances(upstreamAnswer) : List.of();
+                            int instance = dependent.relationship.downstreamSqId != null
+                                    ? dependent.downstream.question_instance
+                                    : dependent.downstream.sectionInstance;
+                            if (!wanted.contains(instance)) {
+                                deleteAnswers(dependent.downstream, rootAnswerId);
+                            }
+                        } else if (dependent.relationship.downstreamSqId != null
                                 && !dependent.upstream.getTextValue().isBlank()) {
                             if (Integer.parseInt(dependent.upstream.getTextValue()) < dependent.downstream.question_instance) {
                                 deleteAnswers(dependent.downstream, rootAnswerId);
@@ -2147,6 +2265,16 @@ public class QuestionManager {
                 if (key == null || key.isEmpty()) {
                     continue;
                 }
+                // UC-002 BR-013: inside an instance built from a selected item, the slot holds
+                // that item's text. It outranks the rule's constant, which is the same for every
+                // instance.
+                SelectItem item = repeatedItem(dependent);
+                if (item != null && item.displayText != null && !item.displayText.isBlank()) {
+                    values.base().put(key, item.displayText);
+                    values.sources().remove(key);
+                    values.items().put(key, item);
+                    continue;
+                }
                 // What can go in the slot, and whether it is the rule's authored prose or the
                 // respondent's own answer, is decided from the question the rule reads (see
                 // TokenSource).
@@ -2162,6 +2290,7 @@ public class QuestionManager {
                     continue;
                 }
                 values.base().put(key, fill.value());
+                values.items().remove(key);
                 if (fill.fromRule()) {
                     // Authored prose the respondent reads, so it is translatable; the respondent's
                     // own text is not, and must not keep an earlier rule's translation.
