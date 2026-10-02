@@ -187,6 +187,21 @@ public class Relationship extends PanacheEntityBase {
     public Integer downstreamSqVersion = 0;
 
     /**
+     * The Repeat rules that read one question, as of a respondent's snapshot anchor. A rule of
+     * another action reading the same question uses them to learn which repeated instance its
+     * downstream answer sits in (UC-002 BR-013).
+     *
+     * @param surveyId     the survey
+     * @param upstreamSqId the durable id of the question placement the rules read
+     * @param asOf         the respondent's snapshot anchor
+     * @return the Repeat rules in id order
+     */
+    public static List<Relationship> findRepeatByUpstream(int surveyId, int upstreamSqId, OffsetDateTime asOf) {
+        return list("surveyId = ?1 and upstreamSqId = ?2 and actionType.name = 'REPEAT' "
+                + "and effectiveFrom <= ?3 and effectiveTo > ?3 order by id", surveyId, upstreamSqId, asOf);
+    }
+
+    /**
      * Finds and retrieves a list of {@link Relationship} entities based on the specified survey ID
      * and downstream step ID. This method is typically used to identify relationships that are
      * associated with a given downstream step in the context of a survey.
