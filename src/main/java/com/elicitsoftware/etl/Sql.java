@@ -169,6 +169,8 @@ public final class Sql {
             CREATE INDEX IF NOT EXISTS idx_fact_sections_section_instance ON <SCHEMA>.fact_sections(section_key, section_instance);
             CREATE INDEX IF NOT EXISTS idx_fact_sections_name ON <SCHEMA>.fact_sections(name) WHERE name IS NOT NULL;
             CREATE INDEX IF NOT EXISTS idx_fact_sections_item ON <SCHEMA>.fact_sections(item_key) WHERE item_key <> -1;
+            CREATE INDEX IF NOT EXISTS idx_fact_sections_view_join
+                ON <SCHEMA>.fact_sections(respondent_id, step_key, step_instance, section_instance, section_key);
             GRANT USAGE ON SEQUENCE <SCHEMA>.fact_sections_seq TO <SURVEY_USER>;
             GRANT INSERT, SELECT, UPDATE ON <SCHEMA>.fact_sections TO <SURVEY_USER>;
             GRANT SELECT ON <SCHEMA>.fact_sections TO <REPORT_USER>;
