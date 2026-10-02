@@ -7,6 +7,7 @@ actor "External Report Service" as ReportSvc
 actor "External Post-Survey-Action Service" as PsaSvc
 actor "System Operator" as Operator
 actor "Admin Module" as AdminApp
+actor "Authoring Module" as AuthorApp
 
 rectangle "Elicit Survey" {
   usecase "UC-001\nEnter Survey via Access Code" as UC001
@@ -18,6 +19,8 @@ rectangle "Elicit Survey" {
   usecase "UC-007\nLog Startup Diagnostics" as UC007
   usecase "UC-008\nRebuild Reporting Schema" as UC008
   usecase "UC-009\nComplete the Survey in My Language" as UC009
+  usecase "UC-010\nRename Reporting Schema" as UC010
+  usecase "UC-011\nDrop Reporting Schema" as UC011
 }
 
 Respondent --> UC001
@@ -27,7 +30,9 @@ Respondent --> UC004
 Respondent --> UC005
 Respondent --> UC006
 Operator --> UC007 : reads the log
-AdminApp --> UC008 : POST /api/etl/build\nafter applying a survey definition
+AdminApp --> UC008 : POST /api/etl/build?survey=<key>\nafter applying a survey definition
+AdminApp --> UC010 : POST /api/etl/schema/<key>/rename
+AuthorApp --> UC011 : DELETE /api/etl/schema/<key>\nbefore deleting the survey
 Respondent --> UC009
 
 UC004 ..> UC005 : <<include>>\n(navigates to report view)

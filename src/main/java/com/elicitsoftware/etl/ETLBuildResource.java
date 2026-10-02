@@ -15,25 +15,31 @@ import jakarta.inject.Inject;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
+import java.util.Optional;
+import java.util.UUID;
+
 /**
- * {@code POST /api/etl/build}: rebuilds the {@code surveyreport} star schema for the whole site
- * (UC-008), so a survey definition the Admin module has just installed or updated gets its
- * dimensions, fact columns and views without a restart of this application.
+ * {@code POST /api/etl/build?survey=<survey_key>}: builds one survey's reporting star schema
+ * (UC-008), so a survey definition the Admin module has just installed or updated gets its own
+ * schema, dimensions, fact columns and views without a restart of this application. Without
+ * {@code survey}, every installed survey is built in turn (A5).
  * <p>
  * The endpoint takes no body and answers JSON, {@code {"status": ..., "message": ...}}:
  * <ul>
- * <li>{@code 200 ok} -- the build ran; the message summarizes what it did.</li>
+ * <li>{@code 200 ok} -- the build ran; the message summarizes what it did, one line per survey.</li>
+ * <li>{@code 400 invalid} -- {@code survey} is not a UUID.</li>
+ * <li>{@code 404 unknown} -- no survey has that key.</li>
  * <li>{@code 409 disabled} -- {@code elicit.etl.enabled=false} on this instance.</li>
- * <li>{@code 500 failed} -- the build threw; the message is the root cause (for example the
- * {@code dim_step_un} duplicate-key error two surveys sharing a step dimension name produce).
+ * <li>{@code 500 failed} -- a build threw; the message names the survey and the root cause.
  * The failure is logged here and never propagates.</li>
  * </ul>
  * The call is idempotent -- it runs the same build the application runs at startup, every
  * step of which only creates what is missing or upserts by durable key -- and synchronous:
- * the response comes back when the build is done, which for a site with many respondents
+ * the response comes back when the build is done, which for a survey with many respondents
  * still missing fact rows can take a while. Concurrent calls are serialized.
  * <p>
  * Survey has no authentication on its REST endpoints (it authenticates respondents by access
@@ -52,20 +58,32 @@ public class ETLBuildResource {
     /**
      * Runs the reporting schema build and reports the outcome.
      *
-     * @return 200, 409 or 500 with a {@code status}/{@code message} JSON body
+     * @param survey the portable key of the survey to build, or null for every survey
+     * @return 200, 400, 404, 409 or 500 with a {@code status}/{@code message} JSON body
      */
     @POST
     @Produces(MediaType.APPLICATION_JSON)
-    public Response build() {
-        ETLService.RebuildResult result = etlService.rebuildReportingSchema();
+    public Response build(@QueryParam("survey") String survey) {
+        Optional<UUID> key;
+        try {
+            key = survey == null || survey.isBlank() ? Optional.empty() : Optional.of(UUID.fromString(survey.trim()));
+        } catch (IllegalArgumentException e) {
+            return respond(Response.Status.BAD_REQUEST, "invalid", "survey must be a survey key (UUID): " + survey);
+        }
+        ETLService.RebuildResult result = etlService.rebuildReportingSchema(key);
         Response.Status http = switch (result.status()) {
             case OK -> Response.Status.OK;
             case DISABLED -> Response.Status.CONFLICT;
+            case UNKNOWN -> Response.Status.NOT_FOUND;
             case FAILED -> Response.Status.INTERNAL_SERVER_ERROR;
         };
+        return respond(http, result.status().name().toLowerCase(), result.message());
+    }
+
+    static Response respond(Response.Status http, String status, String message) {
         return Response.status(http)
                 .type(MediaType.APPLICATION_JSON)
-                .entity(json(result.status().name().toLowerCase(), result.message()))
+                .entity(json(status, message))
                 .build();
     }
 
@@ -77,7 +95,7 @@ public class ETLBuildResource {
         return "{\"status\":\"" + escape(status) + "\",\"message\":\"" + escape(message) + "\"}";
     }
 
-    private static String escape(String value) {
+    static String escape(String value) {
         if (value == null) {
             return "";
         }

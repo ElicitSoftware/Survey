@@ -4,7 +4,7 @@ package com.elicitsoftware.etl;
  * ***LICENSE_START***
  * Elicit Survey
  * %%
- * Copyright (C) 2025 The Regents of the University of Michigan - Rogel Cancer Center
+ * Copyright (C) 2025 - 2026 The Regents of the University of Michigan - Rogel Cancer Center
  * %%
  * PolyForm Noncommercial License 1.0.0
  * <https://polyformproject.org/licenses/noncommercial/1.0.0>
@@ -21,28 +21,27 @@ import jakarta.persistence.Query;
 import jakarta.transaction.Transactional;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * The ETLService class is responsible for performing Extract, Transform, and Load (ETL) operations
- * for the application. It provides methods for updating and building dimension tables,
- * managing fact sections, and creating views in the database. These operations are crucial
- * for integrating and organizing data for analysis and reporting.
+ * The reporting ETL: builds, fills, renames and drops each survey's reporting star schema
+ * (UC-008, UC-010, UC-011) and loads a finalized respondent's fact rows into it (UC-004).
  * <p>
- * Fields:
- * - LOGGER: Used for logging events and errors during the ETL process.
- * - entityManager: Provides database access and executes native SQL queries.
- * - REPORT_USER: Specifies the database user performing ETL tasks, often used in SQL scripts.
+ * Every survey has a schema of its own, named on {@code survey.surveys.report_schema}
+ * (UC-008 BR-006). The common schema {@code surveyreport} holds only {@code dim_date} and
+ * {@code dim_status}, which the migrations create. Every statement here runs through
+ * {@link Sql#in(String, String)} against one survey's schema and reads one survey's
+ * definition, so a second survey at the site never touches the first survey's star (BR-009).
  * <p>
- * Methods include:
- * - Initialization of the ETL process during application startup.
- * - Updating and building dimension tables and fact sections in the database.
- * - Managing new respondents and their associated data.
- * - Building and updating database views for reporting purposes.
- * <p>
- * Many methods utilize native SQL queries for database interactions and are designed to maintain
- * transactional consistency.
+ * All database access is native SQL on the {@code owner} persistence unit, the role that owns
+ * the reporting schemas. The step methods are public and {@code @Transactional} so that each
+ * step of a build commits on its own, as before: a failing step rolls back alone and the next
+ * build, every step of which only creates what is missing, completes the schema (BR-001).
  */
 @ApplicationScoped
 public class ETLService {
@@ -57,141 +56,187 @@ public class ETLService {
     String SURVEY_USER;
 
     /**
-     * Handles the application startup event and initializes the ETL process.
-     * <p>
-     * Does nothing when no survey is installed yet: see
-     * {@link #shouldBuildReportingSchema(long, long)} for why an empty
-     * {@code survey.surveys} has to short-circuit the build rather than run it against
-     * empty source tables.
-     */
-    // void onStart(@Observes StartupEvent ev) {
-    /**
      * {@code elicit.etl.enabled=false} turns the reporting ETL off for an instance that only
      * renders surveys -- the Author stack's preview instance runs against Author's working
-     * database, which holds many surveys whose step names collide in the site-wide
-     * {@code surveyreport.dim_step} and whose answers are never reported.
+     * database, which holds many drafts whose answers are never reported, and should not grow
+     * one reporting schema per draft until the reporting work needs it to.
      */
     @ConfigProperty(name = "elicit.etl.enabled", defaultValue = "true")
     boolean etlEnabled;
 
-    @Startup
-    void init() {
-        if (!etlEnabled) {
-            Log.warn("Reporting ETL is disabled (elicit.etl.enabled=false): the reporting schema is not built or updated by this instance.");
-            return;
-        }
+    /**
+     * {@code elicit.etl.drop.enabled=true} lets {@code DELETE /api/etl/schema/{key}} drop a
+     * survey's reporting schema (UC-011 BR-001). Off by default: on a site the next build would
+     * regenerate the schema with new surrogate ids, which breaks an extract keyed on them, so
+     * only a database that holds no reporting anyone depends on -- Author's -- turns it on.
+     */
+    @ConfigProperty(name = "elicit.etl.drop.enabled", defaultValue = "false")
+    boolean dropEnabled;
 
-        long surveys = countSurveys();
-        if (surveys == 0) {
-            // Nothing to build a reporting schema from: every dimension and fact this
-            // method derives comes from survey.steps/sections/dimensions/ontology, which
-            // are all empty until a survey definition is imported. Skipping leaves
-            // surveyreport.dim_section empty, so the next startup after an import runs the
-            // full build -- import the survey, then restart this application.
-            // WARN, not INFO: containers default to quarkus.log.level=WARN, and this is the
-            // one startup condition an operator has to act on -- at INFO it would be invisible
-            // in exactly the deployment where it matters.
-            Log.warn("No survey is defined in the database (survey.surveys is empty). "
-                    + "Reporting schema generation skipped. Import a survey definition through "
-                    + "the Admin application, then restart this application to build it.");
-            return;
-        }
+    /** Serializes builds, renames and drops; the DDL steps are not safe to interleave (BR-005). */
+    private final ReentrantLock rebuildLock = new ReentrantLock();
 
-        // Replace this SQL with the appropriate SQL for checking table existence for your DB
-        Query checkQuery = entityManager.createNativeQuery("SELECT COUNT(*) FROM surveyreport.dim_section");
-
-        Long rows = (Long) checkQuery.getSingleResult();
-        if (shouldBuildReportingSchema(surveys, rows)) {
-            Log.info("ETL Service initialization.");
-            Log.info("Initializing ETL");
-            Log.info("Update Step Dimension Table: " + updateStepDimensionTable());
-            Log.info("Update Section Dimension Table: " + updateSectionDimensionTable());
-            Log.info("Build Dimension Tables: " + buildDimensionTables());
-            Log.info("Build Fact Respondents View: " + buildFactRespondentsView());
-            Log.info("Build Fact Sections Table: " + buildFactSectionTable());
-            Log.info("Build Dimension Tables: " + buildFactSectionView());
-        } else {
-            Log.info("ETL Service Init found records in surveyreport.dim_section, No initialization needed.");
-        }
-        populateAllFactSectionsTable();
+    /** A survey as the ETL sees it: its id, portable key, name and schema (null until built). */
+    public record SurveyRef(int id, UUID key, String name, String schema) {
     }
 
-    /** Outcome of {@link #rebuildReportingSchema()}. */
+    /** Outcome of {@link #rebuildReportingSchema(Optional)}. */
     public enum RebuildStatus {
-        /** The build sequence ran to completion. */
+        /** The build sequence ran to completion for every survey asked for. */
         OK,
         /** {@code elicit.etl.enabled=false}: nothing was touched. */
         DISABLED,
-        /** The build threw; the failing step was rolled back and the cause is in the message. */
+        /** No survey has the key given: nothing was touched. */
+        UNKNOWN,
+        /** A build threw; the failing step was rolled back and the cause is in the message. */
         FAILED
     }
 
     /**
-     * What {@link #rebuildReportingSchema()} did.
+     * What {@link #rebuildReportingSchema(Optional)} did.
      *
-     * @param status  whether the build ran, was disabled, or failed
-     * @param message a one-line summary, the disabled reason, or the failure's root cause
+     * @param status  whether the build ran, was disabled, found no such survey, or failed
+     * @param message one summary line per survey, the disabled reason, or the failure's root cause
      */
     public record RebuildResult(RebuildStatus status, String message) {
     }
 
-    /** Serializes concurrent rebuild requests; the DDL steps are not safe to interleave. */
-    private final ReentrantLock rebuildLock = new ReentrantLock();
+    /** Outcome of {@link #renameReportingSchema(UUID, String)} (UC-010). */
+    public enum RenameStatus {
+        OK, INVALID, TAKEN, UNBUILT, UNKNOWN, FAILED
+    }
+
+    public record RenameResult(RenameStatus status, String message, String schema) {
+    }
+
+    /** Outcome of {@link #dropReportingSchema(UUID)} (UC-011). */
+    public enum DropStatus {
+        OK, DISABLED, UNKNOWN, FAILED
+    }
+
+    public record DropResult(DropStatus status, String message) {
+    }
+
+    // ── startup (UC-008 A7) ──────────────────────────────────────────────────────────────────
+
+    @Startup
+    void init() {
+        if (!etlEnabled) {
+            Log.warn("Reporting ETL is disabled (elicit.etl.enabled=false): no reporting schema is built or updated by this instance.");
+            return;
+        }
+        List<SurveyRef> surveys = listSurveys();
+        if (surveys.isEmpty()) {
+            // Nothing to build a reporting schema from: every dimension and fact this class
+            // derives comes from a survey definition. Admin's apply calls the build endpoint
+            // (UC-008) once a definition is imported, so no restart is needed.
+            // WARN, not INFO: containers default to quarkus.log.level=WARN, and this is the
+            // one startup condition an operator may have to act on.
+            Log.warn("No survey is defined in the database (survey.surveys is empty). "
+                    + "Reporting schema generation skipped. Import a survey definition through "
+                    + "the Admin application; its apply builds the survey's reporting schema.");
+            return;
+        }
+        Log.info("ETL Service initialization: " + surveys.size() + " survey(s).");
+        rebuildLock.lock();
+        try {
+            for (SurveyRef survey : surveys) {
+                try {
+                    Log.info(build(survey));
+                } catch (Exception e) {
+                    // One broken survey must not stop the others from being reportable (A7).
+                    Log.error("Reporting schema build failed for survey " + survey.name()
+                            + " (" + survey.key() + "): " + rootMessage(e), e);
+                }
+            }
+        } finally {
+            rebuildLock.unlock();
+        }
+    }
+
+    // ── build on request (UC-008) ────────────────────────────────────────────────────────────
+
+    /** Every survey, as {@code POST /api/etl/build} without {@code survey} asks (A5). */
+    public RebuildResult rebuildReportingSchema() {
+        return rebuildReportingSchema(Optional.empty());
+    }
 
     /**
-     * Runs the startup build sequence again for the whole site, on request (UC-008).
+     * Runs the build sequence for one survey, or for every survey, on request (UC-008).
      * <p>
-     * {@link #init()} only builds when {@code surveyreport.dim_section} is still empty, so a
-     * survey definition the Admin module installs or updates after startup gets no dimension
-     * tables, no fact_sections columns and no view columns until this application restarts.
-     * This method is what Admin calls instead. Every step is idempotent -- the dimension
-     * upserts are keyed on the durable step/section ids, the table and column builders only
-     * create what does not exist yet, and the views are dropped and recreated -- so it can be
-     * called as often as needed and runs the same code the startup build does.
-     * <p>
-     * Known limitation, surfaced rather than fixed: {@code surveyreport.dim_step.value} and
-     * {@code dim_section.value} are unique per site ({@code dim_step_un}, {@code dim_section_un}).
-     * Two surveys that share a step or section dimension name make the upsert throw a
-     * duplicate-key error, which comes back here as {@link RebuildStatus#FAILED} with that
-     * message. Revisions of one survey are fine: the upsert is {@code ON CONFLICT (step_id)}.
-     * <p>
-     * Never throws: a failure is logged at ERROR and returned, so the caller can report it
-     * without the request blowing up.
+     * Every step is idempotent -- the dimension upserts are keyed on the durable step/section
+     * ids, the table and column builders only create what does not exist yet, and the views
+     * are dropped and recreated -- so it can be called as often as needed and runs the same
+     * code the startup build does. Never throws: a failure is logged at ERROR and returned,
+     * so the caller can report it without the request blowing up (BR-003).
      *
+     * @param surveyKey the survey to build, or empty for all of them
      * @return what happened, with a message fit for an operator
      */
-    public RebuildResult rebuildReportingSchema() {
+    public RebuildResult rebuildReportingSchema(Optional<UUID> surveyKey) {
         if (!etlEnabled) {
             return new RebuildResult(RebuildStatus.DISABLED,
                     "Reporting ETL is disabled (elicit.etl.enabled=false)");
         }
         rebuildLock.lock();
         try {
-            long surveys = countSurveys();
-            if (surveys == 0) {
-                return new RebuildResult(RebuildStatus.OK,
-                        "No survey is installed (survey.surveys is empty); nothing to build.");
+            List<SurveyRef> surveys;
+            if (surveyKey.isPresent()) {
+                SurveyRef survey = findSurvey(surveyKey.get());
+                if (survey == null) {
+                    return new RebuildResult(RebuildStatus.UNKNOWN, "No survey has the key " + surveyKey.get());
+                }
+                surveys = List.of(survey);
+            } else {
+                surveys = listSurveys();
+                if (surveys.isEmpty()) {
+                    return new RebuildResult(RebuildStatus.OK,
+                            "No survey is installed (survey.surveys is empty); nothing to build.");
+                }
             }
-            Log.info("Rebuilding the reporting schema on request.");
-            StringBuilder summary = new StringBuilder();
-            summary.append("Step dimensions upserted: ").append(updateStepDimensionTable());
-            summary.append("; section dimensions upserted: ").append(updateSectionDimensionTable());
-            summary.append("; ").append(buildDimensionTables());
-            summary.append("; fact_respondents_view: ").append(buildFactRespondentsView());
-            summary.append("; fact_sections columns: ").append(buildFactSectionTable().replace('\n', ' ').trim());
-            String view = buildFactSectionView();
-            summary.append("; fact_sections_view: ")
-                    .append(view.startsWith("CREATE") ? "recreated" : view);
-            summary.append("; respondents back-filled into fact_sections: ").append(populateAllFactSectionsTable());
-            String message = summary.toString();
-            Log.info("Reporting schema rebuilt: " + message);
-            return new RebuildResult(RebuildStatus.OK, message);
-        } catch (Exception e) {
-            Log.error("Reporting schema rebuild failed", e);
-            return new RebuildResult(RebuildStatus.FAILED, rootMessage(e));
+            Log.info("Rebuilding the reporting schema on request for " + surveys.size() + " survey(s).");
+            List<String> lines = new ArrayList<>();
+            List<String> failures = new ArrayList<>();
+            for (SurveyRef survey : surveys) {
+                try {
+                    String line = build(survey);
+                    Log.info("Reporting schema rebuilt: " + line);
+                    lines.add(line);
+                } catch (Exception e) {
+                    Log.error("Reporting schema rebuild failed for survey " + survey.name(), e);
+                    String cause = survey.name() + ": " + rootMessage(e);
+                    failures.add(cause);
+                    lines.add(cause);
+                }
+            }
+            if (!failures.isEmpty()) {
+                return new RebuildResult(RebuildStatus.FAILED, String.join(" | ", failures));
+            }
+            return new RebuildResult(RebuildStatus.OK, String.join(" | ", lines));
         } finally {
             rebuildLock.unlock();
         }
+    }
+
+    /**
+     * The build sequence for one survey (UC-008 steps 3-6). Runs under the rebuild lock.
+     *
+     * @return a one-line summary naming the survey, its schema and what each step did
+     */
+    String build(SurveyRef survey) {
+        String schema = ensureSchema(survey);
+        StringBuilder summary = new StringBuilder();
+        summary.append(survey.name()).append(" [").append(schema).append("]: ");
+        summary.append("step dimensions upserted: ").append(updateStepDimensionTable(schema, survey.id()));
+        summary.append("; section dimensions upserted: ").append(updateSectionDimensionTable(schema, survey.id()));
+        refuseReservedTags(survey);
+        summary.append("; ").append(buildDimensionTables(schema, survey.id()));
+        summary.append("; fact_respondents_view: ").append(buildFactRespondentsView(schema, survey.id()));
+        summary.append("; fact_sections columns: ").append(buildFactSectionTable(schema, survey.id()).replace('\n', ' ').trim());
+        String view = buildFactSectionView(schema, survey.id());
+        summary.append("; fact_sections_view: ").append(view.startsWith("CREATE") ? "recreated" : view);
+        summary.append("; respondents back-filled into fact_sections: ").append(populateAllFactSectionsTable(schema, survey.id()));
+        return summary.toString();
     }
 
     /**
@@ -208,22 +253,42 @@ public class ETLService {
         return message == null || message.isBlank() ? root.getClass().getName() : message.trim();
     }
 
-    /**
-     * Decides whether {@link #init()} should generate the reporting schema.
-     * <p>
-     * Two conditions have to hold. There must be at least one survey -- the dimension and
-     * fact structures are derived from a survey definition, so with none there is nothing
-     * to derive and the build would produce an empty schema that a later import could not
-     * add to (the {@code dimSectionRows > 0} arm below would then skip it forever).
-     * And {@code surveyreport.dim_section} must still be empty, which is this schema's
-     * marker for "never built here".
-     *
-     * @param surveyCount    rows in {@code survey.surveys}
-     * @param dimSectionRows rows in {@code surveyreport.dim_section}
-     * @return {@code true} when the reporting schema should be built now
-     */
-    static boolean shouldBuildReportingSchema(long surveyCount, long dimSectionRows) {
-        return surveyCount > 0 && dimSectionRows == 0;
+    // ── surveys and their schemas ────────────────────────────────────────────────────────────
+
+    /** Every installed survey, in display order. */
+    @SuppressWarnings("unchecked")
+    public List<SurveyRef> listSurveys() {
+        List<Object[]> rows = entityManager.createNativeQuery(
+                "SELECT id, survey_key, name, report_schema FROM survey.surveys ORDER BY display_order, id").getResultList();
+        List<SurveyRef> surveys = new ArrayList<>(rows.size());
+        for (Object[] row : rows) {
+            surveys.add(toRef(row));
+        }
+        return surveys;
+    }
+
+    /** The survey with that portable key, or {@code null}. */
+    @SuppressWarnings("unchecked")
+    public SurveyRef findSurvey(UUID key) {
+        List<Object[]> rows = entityManager.createNativeQuery(
+                        "SELECT id, survey_key, name, report_schema FROM survey.surveys WHERE survey_key = CAST(:key AS uuid)")
+                .setParameter("key", key.toString()).getResultList();
+        return rows.isEmpty() ? null : toRef(rows.get(0));
+    }
+
+    /** The survey a respondent belongs to, or {@code null} for an unknown respondent. */
+    @SuppressWarnings("unchecked")
+    SurveyRef findSurveyOfRespondent(int respondentId) {
+        List<Object[]> rows = entityManager.createNativeQuery(
+                        "SELECT s.id, s.survey_key, s.name, s.report_schema FROM survey.surveys s "
+                                + "JOIN survey.respondents r ON r.survey_id = s.id WHERE r.id = :id")
+                .setParameter("id", respondentId).getResultList();
+        return rows.isEmpty() ? null : toRef(rows.get(0));
+    }
+
+    private static SurveyRef toRef(Object[] row) {
+        UUID key = row[1] instanceof UUID uuid ? uuid : UUID.fromString(String.valueOf(row[1]));
+        return new SurveyRef(((Number) row[0]).intValue(), key, (String) row[2], (String) row[3]);
     }
 
     /**
@@ -237,131 +302,270 @@ public class ETLService {
     }
 
     /**
-     * Updates the step dimension table in the database using a native SQL query.
-     * This method executes an update query defined by the SQL statement referenced
-     * in {@code Sql.UPDATE_STEPS_DIMENSION_TABLE_SQL}.
+     * UC-008 step 3: the survey's schema, named on first contact (BR-006) and created with its
+     * grants and fixed tables (BR-007). Idempotent: an existing schema is left as it is.
      *
-     * @return the number of rows affected by the update operation.
+     * @return the schema name
      */
+    public String ensureSchema(SurveyRef survey) {
+        String schema = survey.schema();
+        if (schema == null) {
+            schema = assignSchemaName(survey);
+        }
+        createSchemaObjects(schema);
+        return schema;
+    }
+
+    /** Derives and stores the survey's schema name (BR-006), in its own transaction. */
     @Transactional
-    public int updateStepDimensionTable() {
+    public String assignSchemaName(SurveyRef survey) {
+        String name = ReportSchemaNames.derive(survey.name(), this::schemaNameTaken);
+        entityManager.createNativeQuery("UPDATE survey.surveys SET report_schema = :name WHERE id = :id")
+                .setParameter("name", name).setParameter("id", survey.id()).executeUpdate();
+        Log.info("Survey " + survey.name() + " (" + survey.key() + ") reports in schema " + name);
+        return name;
+    }
+
+    /** Whether another survey holds the name, or a schema of that name exists (UC-010 BR-004). */
+    boolean schemaNameTaken(String name) {
+        long surveys = ((Number) entityManager.createNativeQuery(
+                        "SELECT COUNT(*) FROM survey.surveys WHERE report_schema = :name")
+                .setParameter("name", name).getSingleResult()).longValue();
+        if (surveys > 0) {
+            return true;
+        }
+        long schemas = ((Number) entityManager.createNativeQuery(Sql.SCHEMA_EXISTS_SQL)
+                .setParameter("name", name).getSingleResult()).longValue();
+        return schemas > 0;
+    }
+
+    /** Creates the schema, its grants and its fixed tables; every statement is IF NOT EXISTS. */
+    @Transactional
+    public void createSchemaObjects(String schema) {
+        DatabaseRetryUtil.executeWithRetry(() -> {
+            String script = Sql.in(schema, Sql.CREATE_SURVEY_SCHEMA_SQL)
+                    .replace("<REPORT_USER>", REPORT_USER)
+                    .replace("<SURVEY_USER>", SURVEY_USER);
+            entityManager.createNativeQuery(script).executeUpdate();
+            return null;
+        }, "creating reporting schema " + schema);
+    }
+
+    // ── rename (UC-010) and drop (UC-011) ────────────────────────────────────────────────────
+
+    /**
+     * Renames a survey's reporting schema (UC-010): the schema and the survey's
+     * {@code report_schema} change together or not at all (BR-001). Never throws.
+     */
+    public RenameResult renameReportingSchema(UUID surveyKey, String newName) {
+        rebuildLock.lock();
+        try {
+            SurveyRef survey = findSurvey(surveyKey);
+            if (survey == null) {
+                return new RenameResult(RenameStatus.UNKNOWN, "No survey has the key " + surveyKey, null);
+            }
+            if (survey.schema() == null) {
+                return new RenameResult(RenameStatus.UNBUILT,
+                        "Survey " + survey.name() + " has no reporting schema yet; build it first.", null);
+            }
+            String objection = ReportSchemaNames.objection(newName);
+            if (objection != null) {
+                return new RenameResult(RenameStatus.INVALID, objection, survey.schema());
+            }
+            if (newName.equals(survey.schema())) {
+                return new RenameResult(RenameStatus.OK, "The reporting schema is already named " + newName + ".", newName);
+            }
+            if (schemaNameTaken(newName)) {
+                return new RenameResult(RenameStatus.TAKEN, "The name " + newName + " is already in use.", survey.schema());
+            }
+            try {
+                renameSchema(survey, newName);
+                String message = "Reporting schema of " + survey.name() + " renamed from " + survey.schema() + " to " + newName + ".";
+                Log.info(message);
+                return new RenameResult(RenameStatus.OK, message, newName);
+            } catch (Exception e) {
+                Log.error("Reporting schema rename failed for survey " + survey.name(), e);
+                return new RenameResult(RenameStatus.FAILED, rootMessage(e), survey.schema());
+            }
+        } finally {
+            rebuildLock.unlock();
+        }
+    }
+
+    @Transactional
+    public void renameSchema(SurveyRef survey, String newName) {
+        String sql = Sql.RENAME_SCHEMA_SQL
+                .replace("<OLD>", Sql.requireValidSchema(survey.schema()))
+                .replace("<NEW>", Sql.requireValidSchema(newName));
+        entityManager.createNativeQuery(sql).executeUpdate();
+        entityManager.createNativeQuery("UPDATE survey.surveys SET report_schema = :name WHERE id = :id")
+                .setParameter("name", newName).setParameter("id", survey.id()).executeUpdate();
+    }
+
+    /**
+     * Drops a survey's reporting schema with everything in it and clears the survey's
+     * {@code report_schema} (UC-011), when this instance allows it (BR-001). Independent of
+     * {@code elicit.etl.enabled} (BR-004). Never throws.
+     */
+    public DropResult dropReportingSchema(UUID surveyKey) {
+        if (!dropEnabled) {
+            return new DropResult(DropStatus.DISABLED,
+                    "Dropping a reporting schema is not enabled on this instance (elicit.etl.drop.enabled=false)");
+        }
+        rebuildLock.lock();
+        try {
+            SurveyRef survey = findSurvey(surveyKey);
+            if (survey == null) {
+                return new DropResult(DropStatus.UNKNOWN, "No survey has the key " + surveyKey);
+            }
+            if (survey.schema() == null) {
+                return new DropResult(DropStatus.OK, "Survey " + survey.name() + " has no reporting schema; nothing to drop.");
+            }
+            try {
+                dropSchema(survey);
+                String message = "Reporting schema " + survey.schema() + " of " + survey.name() + " dropped.";
+                Log.info(message);
+                return new DropResult(DropStatus.OK, message);
+            } catch (Exception e) {
+                Log.error("Reporting schema drop failed for survey " + survey.name(), e);
+                return new DropResult(DropStatus.FAILED, rootMessage(e));
+            }
+        } finally {
+            rebuildLock.unlock();
+        }
+    }
+
+    @Transactional
+    public void dropSchema(SurveyRef survey) {
+        entityManager.createNativeQuery(Sql.in(survey.schema(), Sql.DROP_SCHEMA_SQL)).executeUpdate();
+        entityManager.createNativeQuery("UPDATE survey.surveys SET report_schema = NULL WHERE id = :id")
+                .setParameter("id", survey.id()).executeUpdate();
+    }
+
+    // ── the build steps ──────────────────────────────────────────────────────────────────────
+
+    /** UC-008 step 4: upserts the survey's current steps into its {@code dim_step}. */
+    @Transactional
+    public int updateStepDimensionTable(String schema, int surveyId) {
         return DatabaseRetryUtil.executeWithRetry(() -> {
-            Query query = entityManager.createNativeQuery(Sql.UPDATE_STEPS_DIMENSION_TABLE_SQL);
+            Query query = entityManager.createNativeQuery(Sql.in(schema, Sql.UPDATE_STEPS_DIMENSION_TABLE_SQL));
+            query.setParameter("surveyId", surveyId);
             return query.executeUpdate();
         }, "updating step dimension table");
     }
 
-    /**
-     * Updates the Section Dimension table in the database by executing a native SQL query.
-     *
-     * @return the number of rows affected by the update operation
-     */
+    /** UC-008 step 4: upserts the survey's current sections into its {@code dim_section}. */
     @Transactional
-    public int updateSectionDimensionTable() {
+    public int updateSectionDimensionTable(String schema, int surveyId) {
         return DatabaseRetryUtil.executeWithRetry(() -> {
-            Query query = entityManager.createNativeQuery(Sql.UPDATE_SECTIONS_DIMENSION_TABLE_SQL);
+            Query query = entityManager.createNativeQuery(Sql.in(schema, Sql.UPDATE_SECTIONS_DIMENSION_TABLE_SQL));
+            query.setParameter("surveyId", surveyId);
             return query.executeUpdate();
         }, "updating section dimension table");
     }
 
     /**
-     * Builds new dimension tables by identifying dimension tables that need to be created
-     * and invoking the creation process for each identified dimension table.
-     * <p>
-     * This method uses a native SQL query to fetch the list of new dimension tables, iterates
-     * through the result, and processes each dimension table accordingly. It returns a
-     * summary string indicating the new dimension tables created.
+     * BR-012: a tag whose fact column would be one of the fixed columns is refused before any
+     * column is added, so the build fails with the tag named rather than silently reusing
+     * {@code question_key} or {@code item_key} for something else.
+     */
+    @SuppressWarnings("unchecked")
+    void refuseReservedTags(SurveyRef survey) {
+        List<String> tags = entityManager.createNativeQuery(Sql.FIND_RESERVED_TAGS_SQL)
+                .setParameter("surveyId", survey.id()).getResultList();
+        if (!tags.isEmpty()) {
+            throw new IllegalStateException("Survey " + survey.name() + " has reporting tag(s) " + tags
+                    + " whose column name is reserved for a fixed column of fact_sections (step, section, question, item); rename the tag.");
+        }
+    }
+
+    /**
+     * UC-008 step 5: creates a {@code dim_<name>} table in the survey's schema for every
+     * dimension its metadata names that has no table yet.
      *
-     * @return A string indicating the dimension tables that were processed, formatted as
-     * "new Dimensions tables = [dimension1, dimension2, ...]".
+     * @return "new Dimesions tables = [dimension1, dimension2, ...]"
      */
     @Transactional
-    public String buildDimensionTables() {
+    public String buildDimensionTables(String schema, int surveyId) {
         Query query = entityManager.createNativeQuery(Sql.FIND_NEW_DIMENSION_TABLES_SQL);
+        query.setParameter("surveyId", surveyId);
+        query.setParameter("schema", schema);
         @SuppressWarnings("unchecked")
         List<String> results = query.getResultList();
         for (String dimension : results) {
-            buildDimension(dimension);
+            buildDimension(schema, dimension);
         }
         return "new Dimesions tables = " + results;
     }
 
-    /**
-     * Builds a new dimension by creating a corresponding table in the database.
-     * The method dynamically replaces placeholders in a predefined SQL script
-     * with the provided dimension name and the report user, then executes the script.
-     *
-     * @param dimensionName the name of the dimension for which the table is to be created
-     * @return the number of rows affected by the SQL execution
-     */
-    private int buildDimension(String dimensionName) {
+    private int buildDimension(String schema, String dimensionName) {
         return DatabaseRetryUtil.executeWithRetry(() -> {
-            String script = Sql.CREATE_NEW_DIMENSION_TABLE_SQL.replaceAll("<TABLE_NAME>", dimensionName);
-            script = script.replaceAll("<REPORT_USER>", REPORT_USER);
+            String script = Sql.in(schema, Sql.CREATE_NEW_DIMENSION_TABLE_SQL)
+                    .replace("<TABLE_NAME>", Sql.requireValidIdentifier(dimensionName))
+                    .replace("<REPORT_USER>", REPORT_USER);
             Query query = entityManager.createNativeQuery(script);
             return query.executeUpdate();
         }, "building dimension table for " + dimensionName);
     }
 
     /**
-     * Populates the "Fact Sections" table for all missing respondents.
-     * <p>
-     * This method retrieves a list of respondents with missing fact section data using
-     * a predefined SQL query. It iterates over the list of respondent IDs, processes
-     * each respondent by populating their fact section data, and logs progress and
-     * results for each operation.
-     * <p>
-     * The SQL query to find the missing fact section respondents is defined in the
-     * Sql.FIND_MISSING_FACT_SECTION_RESPONDENTS constant.
-     * <p>
-     * For each respondent ID in the result list, the method:
-     * 1. Logs the progress of the operation, indicating the current step and total respondents to process.
-     * 2. Invokes the populateFactSectionTable method to populate the fact section data for the given respondent ID.
-     * 3. Logs the result of the population operation for each respondent.
+     * UC-008 step 6: loads every finalized respondent of the survey who has no fact rows yet.
      *
      * @return the number of respondents processed
      */
-    private int populateAllFactSectionsTable() {
-
-        Query respondentsQuery = entityManager.createNativeQuery(Sql.FIND_MISSING_FACT_SECTION_RESPONDENTS);
+    private int populateAllFactSectionsTable(String schema, int surveyId) {
+        Query respondentsQuery = entityManager.createNativeQuery(Sql.in(schema, Sql.FIND_MISSING_FACT_SECTION_RESPONDENTS));
+        respondentsQuery.setParameter("surveyId", surveyId);
         @SuppressWarnings("unchecked")
         List<Object> respondents = respondentsQuery.getResultList();
         int r = 1;
-        Integer id;
-        for (Object respondent_id : respondents) {
-            id = (Integer) respondent_id;
+        for (Object respondentId : respondents) {
+            Integer id = ((Number) respondentId).intValue();
             Log.info("progress " + r + " of " + respondents.size());
-            Log.info(populateFactSectionTable(id));
+            Log.info(loadRespondent(schema, id));
             r++;
         }
         return respondents.size();
     }
 
+    // ── per respondent (UC-004 at finalize; UC-008 step 6) ───────────────────────────────────
+
     /**
-     * Populates the fact section table for a given respondent by combining dimension data
-     * and section facts related to the respondent.
+     * Loads one respondent's dimension values and fact rows into their survey's schema.
+     * Called at finalize (UC-004, through {@link ETLRespondentService}) and by the back-fill.
+     * A survey that has no schema yet -- never built, or dropped -- is skipped with a message;
+     * the next build's back-fill supplies the rows.
      *
-     * @param respondentId the unique identifier of the respondent for which the fact section
-     *                     table will be populated.
-     * @return a combined string summarizing the results of populating the dimension tables
-     * and saving the section facts for the specified respondent.
+     * @param respondentId the respondent
+     * @return a summary of what was loaded, or why nothing was
      */
     public String populateFactSectionTable(Integer respondentId) {
-        String dim = populateDimensionTables(respondentId);
-        String facts = saveSectionFacts(respondentId);
+        if (!etlEnabled) {
+            return "Reporting ETL disabled (elicit.etl.enabled=false)";
+        }
+        SurveyRef survey = findSurveyOfRespondent(respondentId);
+        if (survey == null) {
+            return "Respondent " + respondentId + " not found; nothing loaded";
+        }
+        if (survey.schema() == null) {
+            String message = "Survey " + survey.name() + " has no reporting schema yet; respondent "
+                    + respondentId + " will be loaded by the next build";
+            Log.warn(message);
+            return message;
+        }
+        return loadRespondent(survey.schema(), respondentId);
+    }
+
+    String loadRespondent(String schema, Integer respondentId) {
+        String dim = populateDimensionTables(schema, respondentId);
+        String facts = "Added respondent " + respondentId + " to fact_sections:" + System.lineSeparator()
+                + respondentId + ": " + addRespondentFactSections(schema, respondentId) + " keys";
         return facts + System.lineSeparator() + dim + System.lineSeparator();
     }
 
-    /**
-     * Populates the dimension tables with values associated with the specified respondent ID.
-     * Queries for dimension values using the provided respondent ID, processes the results,
-     * and inserts them into the appropriate dimension tables.
-     *
-     * @param respondentId the ID of the respondent whose dimension values are to be populated
-     * @return a message indicating the number of dimension tables populated
-     */
+    /** Inserts the respondent's answer values into the survey's {@code dim_<tag>} tables. */
     @Transactional
-    public String populateDimensionTables(Integer respondentId) {
+    public String populateDimensionTables(String schema, Integer respondentId) {
         return DatabaseRetryUtil.executeWithRetry(() -> {
             Query query = entityManager.createNativeQuery(Sql.FIND_DIMENSTION_VALUES_SQL);
             query.setParameter("respondentId", respondentId);
@@ -370,167 +574,151 @@ public class ETLService {
             for (Object[] result : results) {
                 String dimension = (String) result[0];
                 String value = (String) result[1];
-                insertDimensionValue(dimension, value);
+                insertDimensionValue(schema, dimension, value);
             }
             return "Populated Dimesions tables = " + results.size();
         }, "populating dimension tables for respondent " + respondentId);
     }
 
-    /**
-     * Saves the section facts for a given respondent by adding them to the fact_sections table.
-     * It associates the provided respondent identifier with specific fact sections and
-     * returns a confirmation message including the number of keys processed.
-     *
-     * @param respondentId the ID of the respondent for whom the section facts are saved
-     * @return a string message indicating that the respondent has been added to the fact_sections table and
-     * showing the number of keys associated with the respondent
-     */
-    private String saveSectionFacts(Integer respondentId) {
-        return "Added respondent " + respondentId + " to fact_sections:" + System.lineSeparator() +
-                respondentId + ": " + addRespondentFactSections(respondentId) + " keys";
-    }
-
-    /**
-     * Inserts a value into a specified dimension table in the database.
-     * Constructs a SQL statement using the provided dimension and value,
-     * executes the query, and returns the number of records updated.
-     *
-     * @param dim   the name of the dimension table where the value will be inserted
-     * @param value the value to be inserted into the dimension table
-     * @return the number of rows affected by the insert operation
-     */
-    private int insertDimensionValue(String dim, String value) {
-        String sql = Sql.INSERT_INTO_DIMENSION.replace("<DIM>", Sql.requireValidIdentifier(dim));
+    private int insertDimensionValue(String schema, String dim, String value) {
+        String sql = Sql.in(schema, Sql.INSERT_INTO_DIMENSION).replace("<DIM>", Sql.requireValidIdentifier(dim));
         Query query = entityManager.createNativeQuery(sql);
         query.setParameter("val", value);
         return query.executeUpdate();
     }
 
-
     /**
-     * Adds fact sections for the specified respondent, initializing them with missing fact section data
-     * and updating their dimensions and values based on predefined SQL queries.
+     * Inserts the respondent's fact rows (BR-011), resolves every tag key on them, and names the
+     * question and item of each per-item section instance (BR-012).
      *
-     * @param respondent_id the unique identifier of the respondent for whom fact sections are being added
-     * @return the total count of fact section updates made as a String
+     * @return the number of tag keys written, plus one
      */
     @Transactional
-    public String addRespondentFactSections(Integer respondent_id) {
-
+    public String addRespondentFactSections(String schema, Integer respondentId) {
         //Add the base fact rows without the dimensional data
-        Query factSectionQuery = entityManager.createNativeQuery(Sql.INSERT_MISSING_FACT_SECTION_SQL);
-        factSectionQuery.setParameter("respondent_id", respondent_id);
+        Query factSectionQuery = entityManager.createNativeQuery(Sql.in(schema, Sql.INSERT_MISSING_FACT_SECTION_SQL));
+        factSectionQuery.setParameter("respondent_id", respondentId);
         factSectionQuery.executeUpdate();
 
-        Query query = entityManager.createNativeQuery(Sql.FIND_MISSING_FACT_SECTION_DIMENSIONS_SQL);
-        query.setParameter("respondent_id", respondent_id);
+        Query query = entityManager.createNativeQuery(Sql.in(schema, Sql.FIND_MISSING_FACT_SECTION_DIMENSIONS_SQL));
+        query.setParameter("respondent_id", respondentId);
         @SuppressWarnings("unchecked")
         List<Object[]> queryResults = query.getResultList();
 
-        Query updateFactQuery;
         int item = 1;
-        String key;
-        String dim;
-        String val;
-        Integer fact_id;
         for (Object[] result : queryResults) {
-            key = (String) result[0];
-            dim = (String) result[1];
-            val = (String) result[2];
-            fact_id = (Integer) result[3];
+            String key = (String) result[0];
+            String dim = (String) result[1];
+            String val = (String) result[2];
+            Integer factId = ((Number) result[3]).intValue();
 
-            String sql = Sql.UPDATE_FACT_SECTION_DIMENSION_VALUE_SQL;
-            sql = sql.replace("<KEY>", Sql.requireValidIdentifier(key));
-            sql = sql.replace("<DIM>", Sql.requireValidIdentifier(dim));
-            updateFactQuery = entityManager.createNativeQuery(sql);
+            String sql = Sql.in(schema, Sql.UPDATE_FACT_SECTION_DIMENSION_VALUE_SQL)
+                    .replace("<KEY>", Sql.requireValidIdentifier(key))
+                    .replace("<DIM>", Sql.requireValidIdentifier(dim));
+            Query updateFactQuery = entityManager.createNativeQuery(sql);
             updateFactQuery.setParameter("val", val);
-            updateFactQuery.setParameter("factId", fact_id);
-            updateFactQuery.setParameter("respondentId", respondent_id);
+            updateFactQuery.setParameter("factId", factId);
+            updateFactQuery.setParameter("respondentId", respondentId);
             updateFactQuery.executeUpdate();
             item++;
         }
+        nameRepeatedItems(schema, respondentId);
         return String.valueOf(item);
     }
 
     /**
-     * Builds the fact section table by identifying and adding necessary dimension columns.
-     * Executes a native SQL query to retrieve dimensions to add to the fact sections table.
-     * Iterates through the query results, appending column names to a string buffer and
-     * invoking the method to add dimension columns to the table.
+     * BR-012: for each of the respondent's fact rows that is a per-item section instance, upserts
+     * the question and the item into {@code dim_question} and {@code dim_item} by their portable
+     * keys and points the row at them. Rows the query does not return keep {@code -1}.
+     */
+    @SuppressWarnings("unchecked")
+    private void nameRepeatedItems(String schema, Integer respondentId) {
+        List<Object[]> rows = entityManager.createNativeQuery(Sql.in(schema, Sql.FIND_REPEATED_ITEM_FACTS_SQL))
+                .setParameter("respondent_id", respondentId).getResultList();
+        for (Object[] row : rows) {
+            Integer factId = ((Number) row[0]).intValue();
+            Number questionId = (Number) entityManager.createNativeQuery(Sql.in(schema, Sql.UPSERT_DIM_QUESTION_SQL))
+                    .setParameter("key", String.valueOf(row[1]))
+                    .setParameter("value", (String) row[2])
+                    .getSingleResult();
+            Number itemId = (Number) entityManager.createNativeQuery(Sql.in(schema, Sql.UPSERT_DIM_ITEM_SQL))
+                    .setParameter("key", String.valueOf(row[3]))
+                    .setParameter("value", (String) row[4])
+                    .setParameter("displayText", (String) row[5])
+                    .setParameter("listName", (String) row[6])
+                    .setParameter("displayOrder", row[7] == null ? null : new BigDecimal(String.valueOf(row[7])))
+                    .getSingleResult();
+            entityManager.createNativeQuery(Sql.in(schema, Sql.UPDATE_FACT_SECTION_ITEM_SQL))
+                    .setParameter("questionKey", questionId.intValue())
+                    .setParameter("itemKey", itemId.intValue())
+                    .setParameter("factId", factId)
+                    .executeUpdate();
+        }
+    }
+
+    /**
+     * UC-008 step 5: adds a {@code <tag>_key} column to the survey's {@code fact_sections} for
+     * every dimension of the survey that has none yet.
      *
-     * @return A string containing the newly added dimension table columns with their names.
+     * @return the columns added, one per line
      */
     @Transactional
-    public String buildFactSectionTable() {
+    public String buildFactSectionTable(String schema, int surveyId) {
         StringBuilder returnValue = new StringBuilder();
         Query query = entityManager.createNativeQuery(Sql.FIND_DIMENSIONS_TO_ADD_TO_FACT_SECTIONS_TABLE);
+        query.setParameter("schema", schema);
+        query.setParameter("surveyId", surveyId);
         @SuppressWarnings("unchecked")
         List<Object[]> results = query.getResultList();
         for (Object[] result : results) {
             String column = (String) result[0];
             String dimension = (String) result[1];
             returnValue.append(column).append('\n');
-            addDimensionColumnsToFactSectionTable(column, dimension);
+            addDimensionColumnsToFactSectionTable(schema, column, dimension);
         }
         return "new Dimesions tables = " + returnValue;
     }
 
-    /**
-     * Adds a dimension column to the fact sections table in the database.
-     * This method customizes and executes a SQL query to add a new column
-     * based on the provided column name and dimension name.
-     *
-     * @param column    the name of the column to be added to the fact sections table
-     * @param dimension the dimension name associated with the column being added
-     * @return the number of rows affected by the executed SQL query
-     */
-    private int addDimensionColumnsToFactSectionTable(String column, String dimension) {
-        String sql = Sql.ADD_DIM_COLUMN_TO_FACT_SECTIONS_TABLE.replace("<COL>", column);
-        sql = sql.replaceAll("<DIM>", dimension);
+    private int addDimensionColumnsToFactSectionTable(String schema, String column, String dimension) {
+        String sql = Sql.in(schema, Sql.ADD_DIM_COLUMN_TO_FACT_SECTIONS_TABLE)
+                .replace("<COL>", Sql.requireValidIdentifier(column))
+                .replace("<DIM>", Sql.requireValidIdentifier(dimension));
         Log.info(sql);
         Query query = entityManager.createNativeQuery(sql);
         return query.executeUpdate();
     }
 
     /**
-     * Builds and updates the fact section view by dynamically constructing and
-     * executing SQL queries for creating the view based on the results of a
-     * pre-existing query. Handles dependencies and ensures proper formatting
-     * of the generated SQL statements.
-     * <p>
-     * The method performs the following steps:
-     * 1. Drops the existing view if it exists.
-     * 2. Constructs a SELECT and FROM clause based on database content.
-     * 3. Iterates through result columns to dynamically generate SQL join clauses.
-     * 4. Executes the constructed SQL to create the view and apply necessary grants.
-     * 5. Handles errors related to possible dependencies by logging relevant information.
+     * UC-008 step 5: drops and recreates the survey's {@code fact_sections_view} over every
+     * dimension its fact table has a key for.
      *
-     * @return A string representation of the SQL query used to create the fact section view.
-     * If an error occurs, a message indicating potential dependency issues is returned.
+     * @return the SQL used, or a message when a dependency an operator created by hand blocks
+     * the drop (see UC-008 Notes)
      */
     @Transactional
-    public String buildFactSectionView() {
-
+    public String buildFactSectionView(String schema, int surveyId) {
         try {
-            Query dropQuery = entityManager.createNativeQuery(Sql.DROP_SECTION_VIEW_SQL);
+            Query dropQuery = entityManager.createNativeQuery(Sql.in(schema, Sql.DROP_SECTION_VIEW_SQL));
             dropQuery.executeUpdate();
-            StringBuilder selectSQL = new StringBuilder(Sql.FACT_SECTION_VIEW_SELECT_SQL);
-            StringBuilder fromSQL = new StringBuilder(Sql.FACT_SECTION_VIEW_FROM_SQL);
+            StringBuilder selectSQL = new StringBuilder(Sql.in(schema, Sql.FACT_SECTION_VIEW_SELECT_SQL));
+            StringBuilder fromSQL = new StringBuilder(Sql.in(schema, Sql.FACT_SECTION_VIEW_FROM_SQL));
 
             Query query = entityManager.createNativeQuery(Sql.FIND_FACT_SECTION_JOIN_COLUMNS);
+            query.setParameter("schema", schema);
+            query.setParameter("surveyId", surveyId);
             @SuppressWarnings("unchecked")
             List<Object[]> results = query.getResultList();
             for (Object[] result : results) {
-                String column = (String) result[0];
-                String dimension = (String) result[1];
+                String column = Sql.requireValidIdentifier((String) result[0]);
+                String dimension = Sql.requireValidIdentifier((String) result[1]);
                 selectSQL.append("    ").append(column).append(".value as ").append(column.replace("_key", "")).append(",").append(System.lineSeparator());
-                fromSQL.append(Sql.FACT_VIEW_JOIN_CLAUSE_SQL.replace("<COL>", column).replace("<DIM>", dimension));
+                fromSQL.append(Sql.in(schema, Sql.FACT_VIEW_JOIN_CLAUSE_SQL).replace("<COL>", column).replace("<DIM>", dimension));
             }
             String createSQL = selectSQL.toString();
             // remove the last comma
             createSQL = createSQL.substring(0, createSQL.length() - 2);
-            String grantReportUser = Sql.FACT_SECTIONS_VIEW_GRANT_CLAUSE_SQL.replace("<REPORT_USER>", REPORT_USER);
-            String grantSurveyUser = Sql.FACT_SECTIONS_VIEW_GRANT_CLAUSE_SQL.replace("<REPORT_USER>", SURVEY_USER);
+            String grantReportUser = Sql.in(schema, Sql.FACT_SECTIONS_VIEW_GRANT_CLAUSE_SQL).replace("<REPORT_USER>", REPORT_USER);
+            String grantSurveyUser = Sql.in(schema, Sql.FACT_SECTIONS_VIEW_GRANT_CLAUSE_SQL).replace("<REPORT_USER>", SURVEY_USER);
             createSQL = createSQL + fromSQL + "); " + grantReportUser + grantSurveyUser;
             Query query2 = entityManager.createNativeQuery(createSQL);
             query2.executeUpdate();
@@ -544,71 +732,26 @@ public class ETLService {
     }
 
     /**
-     * Builds the `fact_respondents_view` database view by executing a SQL script
-     * that replaces a placeholder for the report user. The SQL script is defined
-     * in `Sql.CREATE_FACT_RESPONDENTS_VIEW_SQL` and parameterized with the `REPORT_USER`
-     * field of the containing class. This method ensures that the view is created
-     * or updated as needed.
-     * <p>
-     * The method wraps the execution in a `try-catch` block to handle any exceptions
-     * that may occur during the execution of the SQL. In case of an exception,
-     * it returns the message from the root cause of the exception.
-     * <p>
-     * This method is transactional, ensuring that changes are applied in a database
-     * transaction.
+     * UC-008 step 5, BR-010: (re)creates the survey's {@code fact_respondents} view and
+     * {@code fact_respondents_view}.
      *
-     * @return A status message indicating either the successful creation of the
-     * `surveyreport.fact_respondents_view` database view or an error message
-     * in case of failure.
+     * @return a status message, or the root cause when the create failed
      */
     @Transactional
-    public String buildFactRespondentsView() {
+    public String buildFactRespondentsView(String schema, int surveyId) {
         try {
             DatabaseRetryUtil.executeWithRetry(() -> {
-                Query query = entityManager.createNativeQuery(Sql.CREATE_FACT_RESPONDENTS_VIEW_SQL.replace("<REPORT_USER>", REPORT_USER));
+                String sql = Sql.in(schema, Sql.CREATE_FACT_RESPONDENTS_VIEW_SQL)
+                        .replace("<SURVEY_ID>", Integer.toString(surveyId))
+                        .replace("<REPORT_USER>", REPORT_USER)
+                        .replace("<SURVEY_USER>", SURVEY_USER);
+                Query query = entityManager.createNativeQuery(sql);
                 query.executeUpdate();
                 return null;
             }, "building fact respondents view");
-            return "Created surveyreport.fact_respondents_view";
+            return "Created " + schema + ".fact_respondents_view";
         } catch (Exception e) {
             return e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
         }
     }
-
-    /**
-     * Adds the given list of respondent identifiers to the fact section in the database
-     * by executing a native SQL query to insert missing fact section records.
-     *
-     * @param newRespondents a list of respondent IDs to be added to the fact section
-     */
-//    private void addRespondentsToFactSection(List<Long> newRespondents) {
-//        //Add the base fact rows without the dimensional data
-//        Query factSectionQuery = entityManager.createNativeQuery(Sql.INSERT_MISSING_FACT_SECTION_SQL);
-//        factSectionQuery.setParameter("respondents", newRespondents);
-//        factSectionQuery.executeUpdate();
-//    }
-
-
-    /**
-     * Updates the facts in the database based on the specified parameters and returns the status report as a String.
-     *
-     * @param result An array of Objects containing necessary data fields used for building and executing the SQL query.
-     *               It includes the dimension name, key, and tag values to replace placeholders in the SQL query.
-     * @param newRespondents A List of Long values representing the IDs of new respondents to be processed and added
-     *                       during the update operation.
-     * @return A String representing the result of the SQL update operation, including the number of records updated
-     *         for the specified key in the result parameter.
-     */
-//    private String updateFacts(Object[] result, List<Long> newRespondents) {
-//        StringBuilder response = new StringBuilder();
-//        String sql = Sql.NEW_FIND_MISSING_FACT_SECTION_DIMENSIONS_SQL;
-//        sql = sql.replaceAll("<DIM>", (String) result[0]);
-//        sql = sql.replaceAll("<KEY>", (String) result[1]);
-//        sql = sql.replaceAll("<TAG>", (String) result[2]);
-//        Query updateQuery = entityManager.createNativeQuery(sql);
-//        updateQuery.setParameter("respondents", newRespondents);
-//        response.append(result[1]).append(": ").append(updateQuery.executeUpdate()).append(System.lineSeparator());
-//        LOGGER.info(result[1] + ": " + updateQuery.executeUpdate());
-//        return response.toString();
-//    }
 }

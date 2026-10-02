@@ -4,7 +4,7 @@ package com.elicitsoftware.etl;
  * ***LICENSE_START***
  * Elicit Survey
  * %%
- * Copyright (C) 2025 The Regents of the University of Michigan - Rogel Cancer Center
+ * Copyright (C) 2025 - 2026 The Regents of the University of Michigan - Rogel Cancer Center
  * %%
  * PolyForm Noncommercial License 1.0.0
  * <https://polyformproject.org/licenses/noncommercial/1.0.0>
@@ -12,160 +12,28 @@ package com.elicitsoftware.etl;
  */
 
 import com.vaadin.quarkus.annotation.NormalUIScoped;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
-import jakarta.persistence.Query;
-import jakarta.transaction.Transactional;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-
-import java.util.List;
+import jakarta.inject.Inject;
 
 /**
- * The ETLService class is responsible for performing Extract, Transform, and Load (ETL) operations
- * for the application. It provides methods for updating and building dimension tables,
- * managing fact sections, and creating views in the database. These operations are crucial
- * for integrating and organizing data for analysis and reporting.
- * <p>
- * Fields:
- * - LOGGER: Used for logging events and errors during the ETL process.
- * - entityManager: Provides database access and executes native SQL queries.
- * - REPORT_USER: Specifies the database user performing ETL tasks, often used in SQL scripts.
- * <p>
- * Methods include:
- * - Initialization of the ETL process during application startup.
- * - Updating and building dimension tables and fact sections in the database.
- * - Managing new respondents and their associated data.
- * - Building and updating database views for reporting purposes.
- * <p>
- * Many methods utilize native SQL queries for database interactions and are designed to maintain
- * transactional consistency.
+ * The finalize-time load (UC-004): a respondent's dimension values and fact rows go into the
+ * reporting schema of the survey they answered. The UI-scoped facade {@code QuestionService}
+ * injects; the work is {@link ETLService#populateFactSectionTable(Integer)}, the same code the
+ * build's back-fill runs (UC-008 step 6), so the two can never drift apart.
  */
 @NormalUIScoped
 public class ETLRespondentService {
 
-    @PersistenceContext(unitName = "owner")
-    EntityManager entityManager;
-
-    @ConfigProperty(name = "quarkus.flyway.owner.placeholders.surveyreport_user", defaultValue = "surveyreport_user")
-    String REPORT_USER;
+    @Inject
+    ETLService etlService;
 
     /**
-     * Populates the fact section table for a given respondent by combining dimension data
-     * and section facts related to the respondent.
+     * Loads one respondent into their survey's reporting schema.
      *
-     * @param respondentId the unique identifier of the respondent for which the fact section
-     *                     table will be populated.
-     * @return a combined string summarizing the results of populating the dimension tables
-     * and saving the section facts for the specified respondent.
+     * @param respondentId the respondent who has just finalized
+     * @return a summary of what was loaded, or why nothing was: the ETL is disabled on this
+     * instance, or the survey has no schema yet and the next build's back-fill will load them
      */
-    /** See {@link ETLService#etlEnabled}: a preview instance records answers but never reports them. */
-    @ConfigProperty(name = "elicit.etl.enabled", defaultValue = "true")
-    boolean etlEnabled;
-
     public String populateFactSectionTable(Integer respondentId) {
-        if (!etlEnabled) {
-            return "Reporting ETL disabled (elicit.etl.enabled=false)";
-        }
-        String dim = populateDimensionTables(respondentId);
-        String facts = saveSectionFacts(respondentId);
-        return facts + System.lineSeparator() + dim + System.lineSeparator();
-    }
-
-    /**
-     * Populates the dimension tables with values associated with the specified respondent ID.
-     * Queries for dimension values using the provided respondent ID, processes the results,
-     * and inserts them into the appropriate dimension tables.
-     *
-     * @param respondentId the ID of the respondent whose dimension values are to be populated
-     * @return a message indicating the number of dimension tables populated
-     */
-    @SuppressWarnings("unchecked")
-    @Transactional
-    public String populateDimensionTables(Integer respondentId) {
-        Query query = entityManager.createNativeQuery(Sql.FIND_DIMENSTION_VALUES_SQL);
-        query.setParameter("respondentId", respondentId);
-        List<Object[]> results = query.getResultList();
-        for (Object[] result : results) {
-            String dimension = (String) result[0];
-            String value = (String) result[1];
-            insertDimensionValue(dimension, value);
-        }
-        return "Populated Dimesions tables = " + results.size();
-    }
-
-    /**
-     * Saves the section facts for a given respondent by adding them to the fact_sections table.
-     * It associates the provided respondent identifier with specific fact sections and
-     * returns a confirmation message including the number of keys processed.
-     *
-     * @param respondentId the ID of the respondent for whom the section facts are saved
-     * @return a string message indicating that the respondent has been added to the fact_sections table and
-     * showing the number of keys associated with the respondent
-     */
-    private String saveSectionFacts(Integer respondentId) {
-        return "Added respondent " + respondentId + " to fact_sections:" + System.lineSeparator() +
-                respondentId + ": " + addOrUpdateRespondentFactSections(respondentId) + " keys";
-    }
-
-    /**
-     * Inserts a value into a specified dimension table in the database.
-     * Constructs a SQL statement using the provided dimension and value,
-     * executes the query, and returns the number of records updated.
-     *
-     * @param dim   the name of the dimension table where the value will be inserted
-     * @param value the value to be inserted into the dimension table
-     * @return the number of rows affected by the insert operation
-     */
-    private int insertDimensionValue(String dim, String value) {
-        String sql = Sql.INSERT_INTO_DIMENSION.replace("<DIM>", Sql.requireValidIdentifier(dim));
-        Query query = entityManager.createNativeQuery(sql);
-        query.setParameter("val", value);
-        return query.executeUpdate();
-    }
-
-
-    /**
-     * Adds fact sections for the specified respondent, initializing them with missing fact section data
-     * and updating their dimensions and values based on predefined SQL queries.
-     *
-     * @param respondent_id the unique identifier of the respondent for whom fact sections are being added
-     * @return the total count of fact section updates made as a String
-     */
-    @SuppressWarnings("unchecked")
-    @Transactional
-    public String addOrUpdateRespondentFactSections(Integer respondent_id) {
-
-        //Add the base fact rows without the dimensional data
-        Query factSectionQuery = entityManager.createNativeQuery(Sql.INSERT_MISSING_FACT_SECTION_SQL);
-        factSectionQuery.setParameter("respondent_id", respondent_id);
-        factSectionQuery.executeUpdate();
-
-        Query query = entityManager.createNativeQuery(Sql.FIND_MISSING_FACT_SECTION_DIMENSIONS_SQL);
-        query.setParameter("respondent_id", respondent_id);
-        List<Object[]> queryResults = query.getResultList();
-
-        Query updateFactQuery;
-        int item = 1;
-        String key;
-        String dim;
-        String val;
-        Integer fact_id;
-        for (Object[] result : queryResults) {
-            key = (String) result[0];
-            dim = (String) result[1];
-            val = (String) result[2];
-            fact_id = (Integer) result[3];
-
-            String sql = Sql.UPDATE_FACT_SECTION_DIMENSION_VALUE_SQL;
-            sql = sql.replace("<KEY>", Sql.requireValidIdentifier(key));
-            sql = sql.replace("<DIM>", Sql.requireValidIdentifier(dim));
-            updateFactQuery = entityManager.createNativeQuery(sql);
-            updateFactQuery.setParameter("val", val);
-            updateFactQuery.setParameter("factId", fact_id);
-            updateFactQuery.setParameter("respondentId", respondent_id);
-            updateFactQuery.executeUpdate();
-            item++;
-        }
-        return String.valueOf(item);
+        return etlService.populateFactSectionTable(respondentId);
     }
 }

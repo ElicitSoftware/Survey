@@ -77,6 +77,16 @@ public class Survey extends PanacheEntityBase {
     @Column(name = "post_survey_url")
     public String postSurveyURL;
 
+    /**
+     * The name of this survey's own reporting schema at this site (Survey V021; UC-008 BR-006).
+     * Assigned by the ETL the first time the survey is built, changed only by a rename
+     * (UC-010), cleared only by a drop (UC-011), and null until then. Site-local: a survey
+     * definition file never carries it. The ETL is the only writer; this mapping is read-only so
+     * that nothing persisting a {@code Survey} can overwrite what the ETL stored.
+     */
+    @Column(name = "report_schema", length = 63, insertable = false, updatable = false)
+    public String reportSchema;
+
     @OneToMany(mappedBy = "survey", fetch = FetchType.LAZY)
     @OrderBy("displayOrder ASC")
     public Set<ReportDefinition> reports;
