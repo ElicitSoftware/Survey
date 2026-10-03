@@ -28,19 +28,16 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Characterization tests for {@link ETLService} against TODAY's schema (surrogate-id
- * keyed dim_step/dim_section, no Type 2 versioning anywhere). There were zero tests for
- * this class before this file. These lock in current behavior so that, once
- * research/Kimball_type_2.md's durable-key rewrite lands, an unmodified re-run of this
- * suite proves nothing regressed for pre-migration (epoch-dated) data — see that doc's
- * Migration Strategy step 7 and Open Question 1's testing checklist.
+ * {@link ETLService} against the Library fixture's own reporting schema (UC-008).
  * <p>
  * Driven by the V9005/V9005.5/V9005.6 "Library Card Registration" fixture (survey_id=1,
  * Tess Tester = respondent_id=1, already finalized). {@code ETLService.init()} is
- * {@code @Startup}, so by the time any test method runs, dim_step/dim_section/the
- * dim_* tag tables/fact_sections have already been populated once for the whole test
- * JVM — these tests assert against that already-populated state and confirm re-running
- * the same operations is idempotent, rather than assuming an empty starting point.
+ * {@code @Startup}, so by the time any test method runs every fixture survey has been built
+ * once for the whole test JVM: the Library survey reports in {@value #SCHEMA} (BR-006), and
+ * its dim_step/dim_section/dim_* tag tables/fact_sections are populated. These tests assert
+ * against that state and confirm re-running the same operations is idempotent, rather than
+ * assuming an empty starting point. The two-survey tests add a survey whose names collide
+ * with the Library's and check it gets a schema of its own (BR-008, BR-009).
  */
 @QuarkusTest
 @QuarkusTestResource(PostgresTestResource.class)
@@ -65,6 +62,8 @@ class ETLServiceTest {
     EntityManager ownerEm;
 
     static final int SURVEY_ID = 1;
+    /** UC-008 BR-006: "LibraryCardReg" lower-cased behind the prefix. */
+    static final String SCHEMA = "report_librarycardreg";
     static final int TESS_RESPONDENT_ID = 1;
     static final int WELCOME_STEP_ID = 1;
     static final int WELCOME_SECTION_ID = 1;
@@ -104,7 +103,7 @@ class ETLServiceTest {
                     SELECT DISTINCT a.step, a.step_instance, a.section, a.section_instance
                     FROM survey.answers a
                     JOIN survey.respondents r ON a.respondent_id = r.id
-                    JOIN survey.steps s ON a.step = s.id
+                    JOIN survey.steps s ON a.step = s.display_order AND s.survey_id = a.survey_id
                     WHERE a.deleted != true
                       AND a.text_value IS NOT NULL
                       AND a.saved_dt IS NOT NULL
@@ -128,11 +127,9 @@ class ETLServiceTest {
     // ── no-survey guard ─────────────────────────────────────────────────────
 
     /**
-     * Ties {@link ETLService#shouldBuildReportingSchema(long, long)} to the live query that
-     * feeds it. The matrix of decisions that function makes is covered without a database in
-     * {@link ETLServiceNoSurveyTest}; what cannot be checked there is that
-     * {@link ETLService#countSurveys()} actually reads survey.surveys, so a schema change to
-     * that table would surface here rather than silently making init() skip forever.
+     * Ties {@link ETLService#countSurveys()} and {@link ETLService#listSurveys()} to
+     * survey.surveys, so a schema change to that table surfaces here rather than silently
+     * making {@code init()} build nothing.
      */
     @Test
     void countSurveysSeesTheFixtureSurvey() {
@@ -140,31 +137,216 @@ class ETLServiceTest {
         assertTrue(expected > 0, "fixture must install at least one survey");
         assertEquals(expected, etlService.countSurveys(),
                 "countSurveys() must report the rows actually in survey.surveys");
-        assertTrue(ETLService.shouldBuildReportingSchema(etlService.countSurveys(), 0),
-                "with the fixture survey installed, an unbuilt schema must be built");
+        assertEquals(expected, etlService.listSurveys().size(),
+                "listSurveys() must return every row of survey.surveys");
+    }
+
+    @Test
+    // UC-008 BR-006: the startup build named the Library survey's schema after it and stored
+    // the name on the survey; BR-007: the fixed tables and views are in that schema.
+    void given_startupAlreadyRan_then_librarySurveyReportsInItsOwnSchema() {
+        String schema = (String) em.createNativeQuery("SELECT report_schema FROM survey.surveys WHERE id = ?1")
+                .setParameter(1, SURVEY_ID).getSingleResult();
+        assertEquals(SCHEMA, schema);
+        for (String table : List.of("dim_step", "dim_section", "dim_question", "dim_item", "fact_sections",
+                "fact_respondents", "fact_respondents_view", "fact_sections_view")) {
+            assertEquals(1, nativeCount(ownerEm,
+                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = ?1 AND table_name = ?2", SCHEMA, table),
+                    schema + "." + table + " must exist after the startup build");
+        }
+        assertEquals(0, nativeCount(ownerEm,
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'surveyreport' AND table_name = 'fact_sections'"),
+                "the common schema holds no fact table any more");
+    }
+
+    /**
+     * The javadoc's "the surrogate-keyed relationship this test pins" is history: BR-011 resolves
+     * step_key through dim_step.step_id, so the assertion below checks the resolved step, not an
+     * id coincidence.
+     */
+    @Test
+    // UC-008 BR-011: a fact row's step_key and section_key are dimension ids, resolved as of the
+    // respondent's anchor, so joining them back yields the step and section the answer was in.
+    void given_tessWelcomeAnswer_when_populateFactSectionTable_then_keysResolveToWelcomeStepAndSection() {
+        etlService.populateFactSectionTable(TESS_RESPONDENT_ID);
+
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = em.createNativeQuery(
+                "SELECT ds.value, dsec.value FROM report_librarycardreg.fact_sections f "
+                        + "JOIN report_librarycardreg.dim_step ds ON ds.id = f.step_key "
+                        + "JOIN report_librarycardreg.dim_section dsec ON dsec.id = f.section_key "
+                        + "WHERE f.respondent_id = ?1 AND f.name = 'Welcome'")
+                .setParameter(1, TESS_RESPONDENT_ID).getResultList();
+        assertFalse(rows.isEmpty(), "Tess has a Welcome fact row");
+        assertEquals("Welcome", rows.get(0)[0], "step_key resolves to the Welcome step's dimension");
+        assertEquals("Welcome", rows.get(0)[1], "section_key resolves to the Welcome section's dimension");
+    }
+
+    // ── two surveys (UC-008 BR-008, BR-009) ──────────────────────────────────
+
+    /**
+     * A second survey whose step, section and tag names are the Library's. Before UC-008 the
+     * step upsert tripped the site-wide dim_step_un; now it gets a schema of its own.
+     */
+    private record Twin(int id, java.util.UUID key, int respondentId) {
+    }
+
+    private Twin installTwin() {
+        return QuarkusTransaction.requiringNew().call(() -> {
+            java.util.UUID key = java.util.UUID.randomUUID();
+            Integer id = ((Number) em.createNativeQuery(
+                    "INSERT INTO survey.surveys(id, name, display_order, title, description, initial_display_key, post_survey_url, survey_key) "
+                            + "VALUES (NEXTVAL('survey.surveys_seq'), 'Etl Twin', 903, 'ETL twin fixture', "
+                            + "'Second survey reusing the Library''s names', NULL, NULL, ?1) RETURNING id")
+                    .setParameter(1, key).getSingleResult()).intValue();
+            em.createNativeQuery(
+                    "INSERT INTO survey.steps(id, survey_id, display_order, name, dimension_name, description, step_key) "
+                            + "SELECT NEXTVAL('survey.steps_seq'), ?1, s.display_order, s.name, s.dimension_name, s.description, gen_random_uuid() "
+                            + "FROM survey.steps s WHERE s.survey_id = ?2 AND s.id = ?3")
+                    .setParameter(1, id).setParameter(2, SURVEY_ID).setParameter(3, WELCOME_STEP_ID).executeUpdate();
+            em.createNativeQuery(
+                    "INSERT INTO survey.sections(id, survey_id, display_order, name, dimension_name, description, section_key) "
+                            + "SELECT NEXTVAL('survey.sections_seq'), ?1, s.display_order, s.name, s.dimension_name, s.description, gen_random_uuid() "
+                            + "FROM survey.sections s WHERE s.survey_id = ?2 AND s.id = ?3")
+                    .setParameter(1, id).setParameter(2, SURVEY_ID).setParameter(3, WELCOME_SECTION_ID).executeUpdate();
+            // The same tag name as a Library tag, standalone (no dimension), so the twin asks
+            // for a dim_terms_consent_direct_probe of its own.
+            em.createNativeQuery(
+                    "INSERT INTO survey.ontology (id, survey_id, name, tag, dimension) "
+                            + "VALUES (NEXTVAL('survey.ontology_seq'), ?1, 'Twin probe', 'terms_consent_direct_probe', NULL)")
+                    .setParameter(1, id).executeUpdate();
+            em.createNativeQuery(
+                    "INSERT INTO survey.metadata (id, survey_id, steps_sections_id, ontology_id) "
+                            + "SELECT NEXTVAL('survey.metadata_seq'), ?1, ss.steps_sections_id, o.id "
+                            + "FROM survey.steps_sections ss, survey.ontology o "
+                            + "WHERE ss.survey_id = ?2 AND o.survey_id = ?1 LIMIT 1")
+                    .setParameter(1, id).setParameter(2, SURVEY_ID).executeUpdate();
+            Integer respondentId = ((Number) em.createNativeQuery(
+                    "INSERT INTO survey.respondents(id, survey_id, access_code, active, logins, created_dt, first_access_dt, finalized_dt) "
+                            + "VALUES (NEXTVAL('survey.respondents_seq'), ?1, ?2, false, 1, NOW(), NOW(), NOW()) RETURNING id")
+                    .setParameter(1, id).setParameter(2, "twin_" + System.nanoTime()).getSingleResult()).intValue();
+            return new Twin(id, key, respondentId);
+        });
+    }
+
+    private void removeTwin(Twin twin) {
+        QuarkusTransaction.requiringNew().run(() -> {
+            em.createNativeQuery("DELETE FROM survey.respondents WHERE survey_id = ?1").setParameter(1, twin.id()).executeUpdate();
+            em.createNativeQuery("DELETE FROM survey.metadata WHERE survey_id = ?1").setParameter(1, twin.id()).executeUpdate();
+            em.createNativeQuery("DELETE FROM survey.ontology WHERE survey_id = ?1").setParameter(1, twin.id()).executeUpdate();
+            em.createNativeQuery("DELETE FROM survey.sections WHERE survey_id = ?1").setParameter(1, twin.id()).executeUpdate();
+            em.createNativeQuery("DELETE FROM survey.steps WHERE survey_id = ?1").setParameter(1, twin.id()).executeUpdate();
+            em.createNativeQuery("DELETE FROM survey.surveys WHERE id = ?1").setParameter(1, twin.id()).executeUpdate();
+        });
+        QuarkusTransaction.requiringNew().run(() ->
+                ownerEm.createNativeQuery("DROP SCHEMA IF EXISTS report_etl_twin CASCADE").executeUpdate());
+    }
+
+    @Test
+    // UC-008 BR-006/BR-008/BR-009: a survey reusing the Library's step and section dimension
+    // names builds without a dim_step_un failure, in a schema named after it, and nothing of
+    // it lands in the Library's schema -- its tag column is on its own fact_sections only.
+    void given_secondSurveyReusingNames_when_rebuild_then_ownSchemaAndNothingShared() {
+        long libraryStepsBefore = nativeCount("SELECT COUNT(*) FROM report_librarycardreg.dim_step");
+        long libraryColumnsBefore = nativeCount(ownerEm,
+                "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'report_librarycardreg' AND table_name = 'fact_sections'");
+        Twin twin = installTwin();
+        try {
+            ETLService.RebuildResult result = etlService.rebuildReportingSchema(java.util.Optional.of(twin.key()));
+
+            assertEquals(ETLService.RebuildStatus.OK, result.status(), result.message());
+            String schema = (String) em.createNativeQuery("SELECT report_schema FROM survey.surveys WHERE id = ?1")
+                    .setParameter(1, twin.id()).getSingleResult();
+            assertEquals("report_etl_twin", schema, "BR-006: the name is derived from the survey's name");
+            assertEquals(1, nativeCount(ownerEm,
+                    "SELECT COUNT(*) FROM report_etl_twin.dim_step WHERE value = (SELECT dimension_name FROM survey.steps WHERE id = ?1)",
+                    WELCOME_STEP_ID), "BR-008: the colliding step name is fine in the twin's own dim_step");
+            assertEquals(1, nativeCount(ownerEm,
+                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'report_etl_twin' AND table_name = 'dim_terms_consent_direct_probe'"),
+                    "the twin's tag gets a dimension table in the twin's schema");
+            assertEquals(1, nativeCount(ownerEm,
+                    "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'report_etl_twin' AND table_name = 'fact_sections' AND column_name = 'terms_consent_direct_probe_key'"));
+            assertEquals(0, nativeCount(ownerEm,
+                    "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'report_etl_twin' AND table_name = 'fact_sections' AND column_name = 'terms_consent_key'"),
+                    "BR-009: the Library's other tags are not columns of the twin's fact table");
+            assertEquals(libraryStepsBefore, nativeCount("SELECT COUNT(*) FROM report_librarycardreg.dim_step"),
+                    "BR-009: the Library's dim_step is untouched by the twin's build");
+            assertEquals(libraryColumnsBefore, nativeCount(ownerEm,
+                    "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'report_librarycardreg' AND table_name = 'fact_sections'"),
+                    "BR-009: the Library's fact_sections gained no column from the twin");
+            // The twin's finalized respondent has no answers, so the back-fill selects it and
+            // inserts nothing; a second build must still answer OK (the work list is per build).
+            assertEquals(ETLService.RebuildStatus.OK, etlService.rebuildReportingSchema(java.util.Optional.of(twin.key())).status());
+            assertEquals(0, nativeCount(ownerEm, "SELECT COUNT(*) FROM report_etl_twin.fact_sections"));
+            assertEquals(1, nativeCount(ownerEm, "SELECT COUNT(*) FROM report_etl_twin.fact_respondents WHERE id = ?1 AND status = 2", twin.respondentId()),
+                    "BR-010: the finalized respondent shows as finished in the twin's fact_respondents view");
+        } finally {
+            removeTwin(twin);
+        }
+    }
+
+    @Test
+    // UC-008 A6 / BR-003: an unknown key is reported, not thrown, and builds nothing.
+    void given_unknownSurveyKey_when_rebuild_then_unknown() {
+        ETLService.RebuildResult result = etlService.rebuildReportingSchema(java.util.Optional.of(java.util.UUID.randomUUID()));
+        assertEquals(ETLService.RebuildStatus.UNKNOWN, result.status());
+    }
+
+    @Test
+    // UC-008 BR-010: fact_respondents is a view, so a respondent's status moves without any
+    // build, and a created date outside dim_date still appears in fact_respondents_view.
+    void given_respondentProgresses_then_factRespondentsViewFollowsWithoutABuild() {
+        Respondent r = QuarkusTransaction.requiringNew().call(this::createFreshUnfinalizedRespondent);
+        try {
+            assertEquals(0, statusOf(r.id), "not started");
+            QuarkusTransaction.requiringNew().run(() ->
+                    em.createNativeQuery("UPDATE survey.respondents SET first_access_dt = NOW() WHERE id = ?1")
+                            .setParameter(1, r.id).executeUpdate());
+            assertEquals(1, statusOf(r.id), "in progress");
+            QuarkusTransaction.requiringNew().run(() ->
+                    em.createNativeQuery("UPDATE survey.respondents SET finalized_dt = NOW(), created_dt = '2031-03-04' WHERE id = ?1")
+                            .setParameter(1, r.id).executeUpdate());
+            assertEquals(2, statusOf(r.id), "finished");
+            @SuppressWarnings("unchecked")
+            List<Object[]> rows = em.createNativeQuery(
+                    "SELECT created, status FROM report_librarycardreg.fact_respondents_view WHERE id = ?1")
+                    .setParameter(1, r.id).getResultList();
+            assertEquals(1, rows.size(), "a date beyond dim_date must not hide the respondent (LEFT JOIN)");
+            assertNull(rows.get(0)[0], "the date label is null, not a missing row");
+            assertEquals("Finished", rows.get(0)[1]);
+        } finally {
+            QuarkusTransaction.requiringNew().run(() ->
+                    em.createNativeQuery("DELETE FROM survey.respondents WHERE id = ?1")
+                            .setParameter(1, r.id).executeUpdate());
+        }
+    }
+
+    private int statusOf(int respondentId) {
+        return ((Number) em.createNativeQuery("SELECT status FROM report_librarycardreg.fact_respondents WHERE id = ?1")
+                .setParameter(1, respondentId).getSingleResult()).intValue();
     }
 
     // ── dim_step / dim_section ──────────────────────────────────────────────
 
     @Test
     void given_startupAlreadyRan_when_updateStepDimensionTable_then_idempotent() {
-        long before = nativeCount("SELECT COUNT(*) FROM surveyreport.dim_step");
+        long before = nativeCount("SELECT COUNT(*) FROM report_librarycardreg.dim_step");
         assertTrue(before > 0, "@Startup must have already populated dim_step");
 
-        etlService.updateStepDimensionTable();
+        etlService.updateStepDimensionTable(SCHEMA, SURVEY_ID);
 
-        long after = nativeCount("SELECT COUNT(*) FROM surveyreport.dim_step");
+        long after = nativeCount("SELECT COUNT(*) FROM report_librarycardreg.dim_step");
         assertEquals(before, after, "Re-running updateStepDimensionTable() must not add rows");
     }
 
     @Test
     void given_startupAlreadyRan_when_updateSectionDimensionTable_then_idempotent() {
-        long before = nativeCount("SELECT COUNT(*) FROM surveyreport.dim_section");
+        long before = nativeCount("SELECT COUNT(*) FROM report_librarycardreg.dim_section");
         assertTrue(before > 0, "@Startup must have already populated dim_section");
 
-        etlService.updateSectionDimensionTable();
+        etlService.updateSectionDimensionTable(SCHEMA, SURVEY_ID);
 
-        long after = nativeCount("SELECT COUNT(*) FROM surveyreport.dim_section");
+        long after = nativeCount("SELECT COUNT(*) FROM report_librarycardreg.dim_section");
         assertEquals(before, after, "Re-running updateSectionDimensionTable() must not add rows");
     }
 
@@ -182,7 +364,7 @@ class ETLServiceTest {
         // enlisted to the same transaction") — each write below runs in its own
         // short-lived transaction instead, and the rename is reverted in `finally` since
         // nothing here auto-rolls-back.
-        long countBefore = nativeCount("SELECT COUNT(*) FROM surveyreport.dim_step");
+        long countBefore = nativeCount("SELECT COUNT(*) FROM report_librarycardreg.dim_step");
 
         try {
             QuarkusTransaction.requiringNew().run(() ->
@@ -190,10 +372,10 @@ class ETLServiceTest {
                             .setParameter(1, WELCOME_STEP_ID)
                             .executeUpdate());
 
-            etlService.updateStepDimensionTable();
+            etlService.updateStepDimensionTable(SCHEMA, SURVEY_ID);
 
-            long countAfter = nativeCount("SELECT COUNT(*) FROM surveyreport.dim_step");
-            String value = (String) em.createNativeQuery("SELECT value FROM surveyreport.dim_step WHERE id = ?1")
+            long countAfter = nativeCount("SELECT COUNT(*) FROM report_librarycardreg.dim_step");
+            String value = (String) em.createNativeQuery("SELECT value FROM report_librarycardreg.dim_step WHERE id = ?1")
                     .setParameter(1, WELCOME_STEP_ID)
                     .getSingleResult();
 
@@ -204,7 +386,7 @@ class ETLServiceTest {
                     em.createNativeQuery("UPDATE survey.steps SET dimension_name = 'Welcome' WHERE id = ?1")
                             .setParameter(1, WELCOME_STEP_ID)
                             .executeUpdate());
-            etlService.updateStepDimensionTable();
+            etlService.updateStepDimensionTable(SCHEMA, SURVEY_ID);
         }
     }
 
@@ -213,7 +395,7 @@ class ETLServiceTest {
         // Mirrors given_stepRenamed_when_updateStepDimensionTable_then_sameRowUpdatedInPlace —
         // locks in today's SCD-Type-1-on-dim_section behavior (Kimball_type_2.md Gap ETL-5)
         // for sections, which only had an idempotency test before this.
-        long countBefore = nativeCount("SELECT COUNT(*) FROM surveyreport.dim_section");
+        long countBefore = nativeCount("SELECT COUNT(*) FROM report_librarycardreg.dim_section");
 
         try {
             QuarkusTransaction.requiringNew().run(() ->
@@ -221,10 +403,10 @@ class ETLServiceTest {
                             .setParameter(1, WELCOME_SECTION_ID)
                             .executeUpdate());
 
-            etlService.updateSectionDimensionTable();
+            etlService.updateSectionDimensionTable(SCHEMA, SURVEY_ID);
 
-            long countAfter = nativeCount("SELECT COUNT(*) FROM surveyreport.dim_section");
-            String value = (String) em.createNativeQuery("SELECT value FROM surveyreport.dim_section WHERE id = ?1")
+            long countAfter = nativeCount("SELECT COUNT(*) FROM report_librarycardreg.dim_section");
+            String value = (String) em.createNativeQuery("SELECT value FROM report_librarycardreg.dim_section WHERE id = ?1")
                     .setParameter(1, WELCOME_SECTION_ID)
                     .getSingleResult();
 
@@ -235,7 +417,7 @@ class ETLServiceTest {
                     em.createNativeQuery("UPDATE survey.sections SET dimension_name = 'Welcome' WHERE id = ?1")
                             .setParameter(1, WELCOME_SECTION_ID)
                             .executeUpdate());
-            etlService.updateSectionDimensionTable();
+            etlService.updateSectionDimensionTable(SCHEMA, SURVEY_ID);
         }
     }
 
@@ -244,7 +426,7 @@ class ETLServiceTest {
     @Test
     void given_allDimensionTablesAlreadyBuilt_when_buildDimensionTables_then_noNewTablesFound() {
         // @Startup already ran buildDimensionTables() once for the whole test JVM.
-        String result = etlService.buildDimensionTables();
+        String result = etlService.buildDimensionTables(SCHEMA, SURVEY_ID);
         assertEquals("new Dimesions tables = []", result,
                 "Second call must find zero new dimension tables — the discovery query is idempotent");
     }
@@ -255,9 +437,9 @@ class ETLServiceTest {
         // chain must have produced (PatronProfile dimension covers terms_consent +
         // digital_access; Branch is a tag-only-looking name but is dimensioned).
         long patronProfile = nativeCount(ownerEm,
-                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='surveyreport' AND table_name='dim_patronprofile'");
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='report_librarycardreg' AND table_name='dim_patronprofile'");
         long branch = nativeCount(ownerEm,
-                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='surveyreport' AND table_name='dim_branch'");
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='report_librarycardreg' AND table_name='dim_branch'");
         assertEquals(1, patronProfile, "dim_patronprofile must exist (PatronProfile dimension: terms_consent, digital_access)");
         assertEquals(1, branch, "dim_branch must exist (Branch dimension: pickup_branch)");
     }
@@ -287,15 +469,15 @@ class ETLServiceTest {
 
         try {
             long existsBefore = nativeCount(ownerEm,
-                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='surveyreport' AND table_name=?1",
+                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='report_librarycardreg' AND table_name=?1",
                     tableName);
             assertEquals(0, existsBefore, tableName + " must not exist before buildDimensionTables() discovers it");
 
-            String result = etlService.buildDimensionTables();
+            String result = etlService.buildDimensionTables(SCHEMA, SURVEY_ID);
 
             assertTrue(result.contains(tableName), "buildDimensionTables() return value must name the newly discovered table: " + result);
             long existsAfter = nativeCount(ownerEm,
-                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='surveyreport' AND table_name=?1",
+                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='report_librarycardreg' AND table_name=?1",
                     tableName);
             assertEquals(1, existsAfter, tableName + " must exist after buildDimensionTables()");
         } finally {
@@ -306,9 +488,9 @@ class ETLServiceTest {
                         .setParameter(1, ontologyId).executeUpdate();
             });
             QuarkusTransaction.requiringNew().run(() ->
-                    ownerEm.createNativeQuery("DROP TABLE IF EXISTS surveyreport." + tableName).executeUpdate());
+                    ownerEm.createNativeQuery("DROP TABLE IF EXISTS report_librarycardreg." + tableName).executeUpdate());
             QuarkusTransaction.requiringNew().run(() ->
-                    ownerEm.createNativeQuery("DROP SEQUENCE IF EXISTS surveyreport." + tableName + "_seq").executeUpdate());
+                    ownerEm.createNativeQuery("DROP SEQUENCE IF EXISTS report_librarycardreg." + tableName + "_seq").executeUpdate());
         }
     }
 
@@ -319,7 +501,7 @@ class ETLServiceTest {
         etlService.populateFactSectionTable(TESS_RESPONDENT_ID);
 
         long actual = nativeCount(
-                "SELECT COUNT(*) FROM surveyreport.fact_sections WHERE survey_id = ?1 AND respondent_id = ?2",
+                "SELECT COUNT(*) FROM report_librarycardreg.fact_sections WHERE survey_id = ?1 AND respondent_id = ?2",
                 SURVEY_ID, TESS_RESPONDENT_ID);
 
         assertEquals(expectedFactSectionTupleCount(TESS_RESPONDENT_ID), actual,
@@ -328,34 +510,16 @@ class ETLServiceTest {
     }
 
     @Test
-    void given_tessWelcomeAnswer_when_populateFactSectionTable_then_stepKeyMatchesKnownDimStepId() {
-        // given_tessFinalized_...rowCountMatchesOracle only checks a row COUNT against an
-        // oracle query that duplicates INSERT_MISSING_FACT_SECTION_SQL's own "a.step = s.id"
-        // join. This asserts an actual resolved value independently of that join.
-        etlService.populateFactSectionTable(TESS_RESPONDENT_ID);
-
-        Integer stepKey = (Integer) em.createNativeQuery(
-                "SELECT step_key FROM surveyreport.fact_sections "
-                        + "WHERE survey_id = ?1 AND respondent_id = ?2 AND section_key = ?3 LIMIT 1")
-                .setParameter(1, SURVEY_ID).setParameter(2, TESS_RESPONDENT_ID).setParameter(3, WELCOME_SECTION_ID)
-                .getSingleResult();
-
-        assertEquals(Integer.valueOf(WELCOME_STEP_ID), stepKey,
-                "fact_sections.step_key for a Welcome-section row must equal dim_step's id for the Welcome step "
-                        + "(today, dim_step.id == steps.id — the surrogate-keyed relationship this test pins)");
-    }
-
-    @Test
     void given_tessAlreadyProcessed_when_populateFactSectionTableAgain_then_idempotent() {
         etlService.populateFactSectionTable(TESS_RESPONDENT_ID);
         long before = nativeCount(
-                "SELECT COUNT(*) FROM surveyreport.fact_sections WHERE survey_id = ?1 AND respondent_id = ?2",
+                "SELECT COUNT(*) FROM report_librarycardreg.fact_sections WHERE survey_id = ?1 AND respondent_id = ?2",
                 SURVEY_ID, TESS_RESPONDENT_ID);
 
         etlService.populateFactSectionTable(TESS_RESPONDENT_ID);
 
         long after = nativeCount(
-                "SELECT COUNT(*) FROM surveyreport.fact_sections WHERE survey_id = ?1 AND respondent_id = ?2",
+                "SELECT COUNT(*) FROM report_librarycardreg.fact_sections WHERE survey_id = ?1 AND respondent_id = ?2",
                 SURVEY_ID, TESS_RESPONDENT_ID);
         assertEquals(before, after,
                 "The NOT EXISTS guard in INSERT_MISSING_FACT_SECTION_SQL must make a second "
@@ -371,7 +535,7 @@ class ETLServiceTest {
             etlService.populateFactSectionTable(r.id);
 
             long count = nativeCount(
-                    "SELECT COUNT(*) FROM surveyreport.fact_sections WHERE respondent_id = ?1", r.id);
+                    "SELECT COUNT(*) FROM report_librarycardreg.fact_sections WHERE respondent_id = ?1", r.id);
             assertEquals(0, count,
                     "INSERT_MISSING_FACT_SECTION_SQL filters on r.finalized_dt IS NOT NULL — "
                             + "an in-progress respondent must produce zero fact_sections rows");
@@ -426,8 +590,8 @@ class ETLServiceTest {
         // Single-column native queries return the scalar type directly (List<String>),
         // not List<Object[]> — unlike the multi-column queries elsewhere in this class.
         Query q = ownerEm.createNativeQuery(
-                "SELECT d.value FROM surveyreport.fact_sections f "
-                        + "JOIN surveyreport." + dimTable + " d ON d.id = f." + keyColumn + " "
+                "SELECT d.value FROM report_librarycardreg.fact_sections f "
+                        + "JOIN report_librarycardreg." + dimTable + " d ON d.id = f." + keyColumn + " "
                         + "WHERE f.survey_id = ?1 AND f.respondent_id = ?2 AND f.step_key = ?3 AND f.section_key = ?4");
         q.setParameter(1, SURVEY_ID).setParameter(2, TESS_RESPONDENT_ID)
                 .setParameter(3, WELCOME_STEP_ID).setParameter(4, WELCOME_SECTION_ID);

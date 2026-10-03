@@ -219,10 +219,24 @@ class ManualSchemaMigratorUpgradeTest {
             assertHasColumns(conn, "answers", "question_version");
             assertAccessCodeSchema(conn);
 
-            assertEquals(1, countColumn(conn, "surveyreport", "dim_step", "step_id"),
-                    "surveyreport.dim_step must gain the durable step_id column via the upgrade path");
-            assertEquals(1, countColumn(conn, "surveyreport", "dim_section", "section_id"),
-                    "surveyreport.dim_section must gain the durable section_id column via the upgrade path");
+            // V021: the single site-wide star is dropped (the next startup regenerates one
+            // schema per survey, UC-008 BR-006); the conformed dimensions stay; the triggers go.
+            assertEquals(0, countColumn(conn, "surveyreport", "dim_step", "step_id"),
+                    "surveyreport.dim_step must be dropped by V021");
+            assertEquals(0, countColumn(conn, "surveyreport", "fact_sections", "id"),
+                    "surveyreport.fact_sections must be dropped by V021");
+            assertEquals(0, countColumn(conn, "surveyreport", "fact_respondents", "id"),
+                    "surveyreport.fact_respondents must be dropped by V021");
+            assertEquals(1, countColumn(conn, "surveyreport", "dim_date", "datekey"),
+                    "surveyreport.dim_date is the common schema's and stays");
+            assertEquals(1, countColumn(conn, "surveyreport", "dim_status", "value"),
+                    "surveyreport.dim_status is the common schema's and stays");
+            assertHasColumns(conn, "surveys", "report_schema");
+            try (var st = conn.createStatement();
+                 var rs = st.executeQuery("SELECT COUNT(*) FROM pg_trigger WHERE tgname IN ('fact_respondent_insert', 'fact_update')")) {
+                rs.next();
+                assertEquals(0, rs.getInt(1), "V021 drops the fact_respondents triggers");
+            }
         }
     }
 

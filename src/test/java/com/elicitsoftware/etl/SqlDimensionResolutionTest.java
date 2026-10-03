@@ -100,7 +100,8 @@ class SqlDimensionResolutionTest {
     void given_tessFactSectionsPopulated_when_findMissingFactSectionDimensions_then_allThreePathsPresent() {
         // Relies on @Startup's ETLService.init() having already run addRespondentFactSections()
         // for every finalized respondent (Tess included) once for this test JVM.
-        Query q = em.createNativeQuery(Sql.FIND_MISSING_FACT_SECTION_DIMENSIONS_SQL);
+        // The template is per survey (UC-008 BR-009): the Library survey reports in report_librarycardreg.
+        Query q = em.createNativeQuery(Sql.in("report_librarycardreg", Sql.FIND_MISSING_FACT_SECTION_DIMENSIONS_SQL));
         q.setParameter("respondent_id", TESS_RESPONDENT_ID);
         @SuppressWarnings("unchecked")
         List<Object[]> rows = q.getResultList();

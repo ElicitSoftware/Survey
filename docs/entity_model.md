@@ -60,10 +60,11 @@ erDiagram
     RESPONDENT ||--o{ RESPONDENT_PSA : "has attempts"
 ```
 
-*(The `surveyreport` star schema — `DIM_DATE`, `DIM_STEP`, `DIM_SECTION`, `DIM_STATUS`,
-`FACT_SECTIONS`, `FACT_RESPONDENTS` — is described in its own subsection below and omitted
-from the diagram above to keep the operational-schema relationships legible; see
-"surveyreport Schema (ETL Star Schema)".)*
+*(The reporting star — the common `surveyreport` schema with `DIM_DATE` and `DIM_STATUS`, and
+one schema per survey with `DIM_STEP`, `DIM_SECTION`, `DIM_QUESTION`, `DIM_ITEM`, the tag
+dimensions, `FACT_SECTIONS` and the `FACT_RESPONDENTS` view — is described in its own
+subsection below and omitted from the diagram above to keep the operational-schema
+relationships legible; see "Reporting Schemas (ETL Star Schema)".)*
 
 ---
 
@@ -84,6 +85,7 @@ A single configured questionnaire definition — the root of a decision-tree sur
 | postSurveyURL | URL the respondent is redirected to after viewing reports, if configured. | String | 255 | Optional |
 | baseLanguage | BCP-47 tag of the language this survey's content was authored in; the language every string falls back to. | String | 35 | Not Null, Default: "en" |
 | contentLanguages | Comma-separated BCP-47 tags the author has published content translations for. A site serves one of them only when it is also mounted for the application's own texts there (UC-009 BR-009). | String | 255 | Optional |
+| reportSchema | The name of this survey's own reporting schema at this site, assigned by the first build from the survey's name (UC-008 BR-006) and changed only by a rename (UC-010); null until the survey has been built. Site-local: never carried in a survey definition file. | String | 63 | Optional, Unique, `^[a-z_][a-z0-9_]{0,62}$` |
 
 ### RESPONDENT
 
@@ -424,16 +426,26 @@ One piece of survey content in one language: the translated value of one field o
 
 ---
 
-## surveyreport Schema (ETL Star Schema) *(no JPA entities — documented from SQL DDL; populated by `ETLService`/`ETLRespondentService` via native SQL)*
+## Reporting Schemas (ETL Star Schema) *(no JPA entities — documented from SQL DDL and the ETL's own templates; created and populated by `ETLService`/`ETLRespondentService` via native SQL)*
+
+Two kinds of schema hold the star (UC-008 BR-006, BR-007):
+
+- **`surveyreport`**, the common schema, created by the migrations (V002) and shared by every
+  survey. It holds only the conformed dimensions `DIM_DATE` and `DIM_STATUS`.
+- **One schema per survey**, named on `SURVEY.reportSchema`, created by the first build and
+  owned by Survey's owner role. It holds that survey's `DIM_STEP`, `DIM_SECTION`, `DIM_QUESTION`,
+  `DIM_ITEM`, one `DIM_<tag>` per reporting tag, `FACT_SECTIONS`, and the views
+  `FACT_RESPONDENTS`, `FACT_RESPONDENTS_VIEW` and `FACT_SECTIONS_VIEW`. The identifiers are the
+  same in every survey's schema; only the qualifier differs.
 
 > The project's own documentation calls these "Kimball Type 2 dimensions," but nothing in
 > the DDL or ETL code implements true SCD Type 2 (no effective-dated/versioned rows) — they
-> are simple lookup/dimension tables plus two fact tables. Flagging the mismatch between
-> stated intent and actual implementation rather than perpetuating the label.
+> are simple lookup/dimension tables plus one fact table and one fact view. Flagging the
+> mismatch between stated intent and actual implementation rather than perpetuating the label.
 
-### DIM_DATE
+### DIM_DATE *(surveyreport)*
 
-Standard date dimension used to key the respondent fact table's created/first-access/finalized dates for time-based reporting.
+Standard date dimension used to key the respondent fact view's created/first-access/finalized dates for time-based reporting. Holds 1970-01-01 (the "no date" member) and 2020-01-01 through 2029-12-31; the views join it with a `LEFT JOIN`, so a date outside that range yields a null label rather than a missing row (UC-008 BR-010).
 
 | Attribute | Description | Data Type | Length/Precision | Validation Rules |
 |---|---|---|---|---|
@@ -459,67 +471,104 @@ Standard date dimension used to key the respondent fact table's created/first-ac
 | fiscalYearMonth | Combined fiscal year-month label. | String | 10 | Not Null |
 | fiscalYearQtr | Combined fiscal year-quarter label. | String | 10 | Not Null |
 
-### DIM_STEP
+### DIM_STATUS *(surveyreport)*
 
-Dimension mapping a step's name to a stable surrogate key used by FACT_SECTIONS.
-
-| Attribute | Description | Data Type | Length/Precision | Validation Rules |
-|---|---|---|---|---|
-| id | Primary key. | Integer | — | Primary Key |
-| value | The step name/value being keyed. | String | 50 | Not Null, Unique |
-
-### DIM_SECTION
-
-Dimension mapping a section's name to a stable surrogate key used by FACT_SECTIONS.
-
-| Attribute | Description | Data Type | Length/Precision | Validation Rules |
-|---|---|---|---|---|
-| id | Primary key. | Integer | — | Primary Key |
-| value | The section name/value being keyed. | String | 50 | Not Null, Unique |
-
-### DIM_STATUS
-
-Dimension of respondent completion status values.
+Dimension of respondent completion status values: 0 Not Started, 1 In Progress, 2 Finished.
 
 | Attribute | Description | Data Type | Length/Precision | Validation Rules |
 |---|---|---|---|---|
 | id | Primary key. | Integer | — | Primary Key, Sequence |
 | value | The status label. | String | 50 | Unique |
 
-### FACT_SECTIONS
+### DIM_STEP *(per survey)*
 
-One row per section instance visited by a respondent — the granular fact table behind section-level completion reporting.
+Dimension mapping a step's dimension name to a stable surrogate key used by FACT_SECTIONS. Upserted by the durable `stepId`, so a renamed step updates its row in place and keeps its id.
+
+| Attribute | Description | Data Type | Length/Precision | Validation Rules |
+|---|---|---|---|---|
+| id | Primary key; the surrogate id of the first version of the step ever seen. | Integer | — | Primary Key |
+| value | The step's dimension name. | String | 50 | Not Null, Unique within the survey |
+| stepId | The durable id of the step (`STEP.stepId`). | Integer | — | Unique |
+
+### DIM_SECTION *(per survey)*
+
+Dimension mapping a section's dimension name to a stable surrogate key used by FACT_SECTIONS, keyed as DIM_STEP is.
+
+| Attribute | Description | Data Type | Length/Precision | Validation Rules |
+|---|---|---|---|---|
+| id | Primary key; the surrogate id of the first version of the section ever seen. | Integer | — | Primary Key |
+| value | The section's dimension name. | String | 50 | Not Null, Unique within the survey |
+| sectionId | The durable id of the section (`SECTION.sectionId`). | Integer | — | Unique |
+
+### DIM_QUESTION *(per survey)*
+
+The questions a Repeat rule reads to build one section instance per selected item (UC-008 BR-012). Keyed by the portable `questionKey`, so a reworded question updates its row and moves no fact. Holds the `(-1, null)` "no value" member.
 
 | Attribute | Description | Data Type | Length/Precision | Validation Rules |
 |---|---|---|---|---|
 | id | Primary key. | Integer | — | Primary Key, Sequence |
-| surveyId | The survey the visit belongs to. | Integer | — | Not Null |
-| respondentId | The respondent who visited this section instance. | Integer | — | Not Null |
-| stepKey | The DIM_STEP surrogate key for the step this section instance belongs to. | Integer | — | Not Null, Default: 0, Foreign Key (DIM_STEP.id) |
-| name | Denormalized section/step display name for convenience. | String | 50 | Optional |
-| stepInstance | Which repeated instance of the step this row belongs to. | Integer | — | Not Null, Default: 0 |
-| sectionKey | The DIM_SECTION surrogate key for the section visited. | Integer | — | Not Null, Foreign Key (DIM_SECTION.id) |
-| sectionInstance | Which repeated instance of the section this row belongs to. | Integer | — | Not Null, Default: 0 |
+| questionKey | The portable key of the question (`QUESTION.questionKey`). | UUID | — | Unique |
+| value | The question's short text. | String | 255 | Optional |
 
-### FACT_RESPONDENTS
+### DIM_ITEM *(per survey)*
 
-One row per respondent — the survey-level completion fact table, auto-populated by a database trigger when a new respondent is inserted (for `survey_id = 1` — a hardcoded survey id, per the trigger definition).
+The items such instances were built from (UC-008 BR-012). Keyed by the portable `selectItemKey`, so reordering or rewording a list updates one row and moves no fact. Holds the `(-1, null)` "no value" member.
 
 | Attribute | Description | Data Type | Length/Precision | Validation Rules |
 |---|---|---|---|---|
-| id | Primary key; mirrors the RESPONDENT.id it summarizes. | Integer | — | Primary Key |
-| surveyId | The survey the respondent belongs to. | Integer | — | Not Null |
-| createdKey | The DIM_DATE key for the respondent's creation date. | Integer | — | Not Null, Foreign Key (DIM_DATE.dateKey) |
-| firstAccessKey | The DIM_DATE key for the respondent's first-access date. | Integer | — | Not Null, Foreign Key (DIM_DATE.dateKey) |
-| finalizedKey | The DIM_DATE key for the respondent's finalize date. | Integer | — | Not Null, Foreign Key (DIM_DATE.dateKey) |
-| active | Whether the respondent is still active. | Boolean | — | Not Null |
-| logins | Number of logins. | Integer | — | Not Null, Default: 0 |
-| status | Completion status code (0 = not started, 1 = in progress, 2 = finished — encoded directly as an integer rather than via a DIM_STATUS foreign key). | Integer | — | Not Null, Default: 0 |
-| duration | Elapsed time between first access and finalization. | Decimal *(interval)* | — | Optional, Default: 0 |
+| id | Primary key. | Integer | — | Primary Key, Sequence |
+| selectItemKey | The portable key of the item (`SELECT_ITEM.selectItemKey`). | UUID | — | Unique |
+| value | The item's coded value, lower-cased and trimmed as every tag dimension value is. | String | 255 | Optional |
+| displayText | The item's text in the survey's base language. | String | 255 | Optional |
+| listName | The name of the list the item belongs to. | String | 255 | Optional |
+| displayOrder | The item's position in its list as last built. | Decimal | — | Optional |
 
-*Known gap: `status` is a hardcoded integer code (0/1/2) rather than a foreign key into `DIM_STATUS`, even though `DIM_STATUS` exists specifically to hold status values — the two are not currently wired together.*
+### DIM_<tag> *(per survey)*
 
----
+One table per reporting tag or named dimension of the survey, created by the build when first seen. `value` is the coded value or the answer text, lower-cased and trimmed. Holds the `(-1, null)` "no value" member.
+
+| Attribute | Description | Data Type | Length/Precision | Validation Rules |
+|---|---|---|---|---|
+| id | Primary key. | Integer | — | Primary Key, Sequence |
+| value | The dimension value. | String | 255 | Unique |
+
+### FACT_SECTIONS *(per survey)*
+
+One row per section instance visited by a finalized respondent — the granular fact table behind section-level reporting. Gains one `<tag>_key` column per reporting tag, each `NOT NULL DEFAULT -1` with a foreign key to its dimension.
+
+| Attribute | Description | Data Type | Length/Precision | Validation Rules |
+|---|---|---|---|---|
+| id | Primary key. | Integer | — | Primary Key, Sequence |
+| surveyId | The survey the visit belongs to (redundant inside the schema; kept for unions across surveys). | Integer | — | Not Null |
+| respondentId | The respondent who visited this section instance. | Integer | — | Not Null |
+| stepKey | The DIM_STEP key of the step this section instance belongs to, resolved as of the respondent's anchor (UC-008 BR-011). | Integer | — | Not Null, Foreign Key (DIM_STEP.id) |
+| name | The step's name. | String | 50 | Optional |
+| stepInstance | Which repeated instance of the step this row belongs to. | Integer | — | Not Null, Default: 0 |
+| sectionKey | The DIM_SECTION key of the section visited, resolved as of the respondent's anchor (UC-008 BR-011). | Integer | — | Not Null, Foreign Key (DIM_SECTION.id) |
+| sectionInstance | Which repeated instance of the section this row belongs to; for a section repeated per selected item, the item's position in its list. | Integer | — | Not Null, Default: 0 |
+| questionKey | The DIM_QUESTION key of the question a per-item instance was built from; -1 otherwise (UC-008 BR-012). | Integer | — | Not Null, Default: -1, Foreign Key (DIM_QUESTION.id) |
+| itemKey | The DIM_ITEM key of the item a per-item instance is about; -1 otherwise (UC-008 BR-012). | Integer | — | Not Null, Default: -1, Foreign Key (DIM_ITEM.id) |
+
+### FACT_RESPONDENTS *(per survey, a view)*
+
+One row per respondent of the survey, selected from `RESPONDENT` on the fly (UC-008 BR-010) — no trigger and no table, so status and dates are always current and nothing is written into a reporting schema when a respondent is inserted or updated.
+
+| Attribute | Description | Data Type | Length/Precision | Validation Rules |
+|---|---|---|---|---|
+| id | The RESPONDENT.id it summarizes. | Integer | — | — |
+| surveyId | The survey the respondent belongs to. | Integer | — | — |
+| createdKey | The DIM_DATE key for the respondent's creation date; 19700101 when null. | Integer | — | — |
+| firstAccessKey | The DIM_DATE key for the respondent's first-access date; 19700101 when null. | Integer | — | — |
+| finalizedKey | The DIM_DATE key for the respondent's finalize date; 19700101 when null. | Integer | — | — |
+| active | Whether the respondent is still active. | Boolean | — | — |
+| logins | Number of logins. | Integer | — | — |
+| status | 0 = not started, 1 = in progress, 2 = finished; the id of the DIM_STATUS member. | Integer | — | — |
+| duration | `finalizedDt - firstAccessDt`, the time spent answering; 0 until finished. | Interval | — | — |
+
+### Views
+
+- `FACT_RESPONDENTS_VIEW` joins `FACT_RESPONDENTS` to `surveyreport.DIM_DATE` (three `LEFT JOIN`s) and `surveyreport.DIM_STATUS`, exposing the date names and the status label.
+- `FACT_SECTIONS_VIEW` joins `FACT_SECTIONS` to every dimension it has a key for, exposing each as the column name without `_key`: `step`, `section`, `question`, `item` and one column per tag.
 
 ## Cross-Validation Notes
 

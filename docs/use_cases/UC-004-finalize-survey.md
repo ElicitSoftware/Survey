@@ -36,7 +36,7 @@
 ## Postconditions
 
 **Success:**
-- The respondent is inactive and finalized; the ETL fact tables reflect their path; every configured post-survey action has been attempted at least once (success or recorded failure).
+- The respondent is inactive and finalized; the fact tables in their survey's own reporting schema (UC-008 BR-006) reflect their path, or, when the survey has no schema yet because it has never been built, the load was skipped with a log line and the next build's back-fill will supply the rows; every configured post-survey action has been attempted at least once (success or recorded failure).
 
 **Failure:**
 - Individual post-survey action failures are recorded per-action; they do not roll back the respondent's inactive/finalized state or the ETL extraction.

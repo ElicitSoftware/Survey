@@ -49,15 +49,18 @@ class DimStepSectionRekeySpecTest {
     @Inject
     EntityManager em;
 
+    /** UC-008 BR-006: the fixture survey "ScdSpecFixture" reports in this schema. */
+    static final String SCHEMA = "report_scdspecfixture";
+
     static final OffsetDateTime MAX_SENTINEL = OffsetDateTime.parse("9999-12-31T23:59:59+00:00");
 
     @Test
     void migration_addsUniqueStepIdAndSectionIdColumnsToDimTables() {
         long dimStepCol = ((Number) em.createNativeQuery(
-                "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='surveyreport' "
+                "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='report_scdspecfixture' "
                         + "AND table_name='dim_step' AND column_name='step_id'").getSingleResult()).longValue();
         long dimSectionCol = ((Number) em.createNativeQuery(
-                "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='surveyreport' "
+                "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='report_scdspecfixture' "
                         + "AND table_name='dim_section' AND column_name='section_id'").getSingleResult()).longValue();
         assertEquals(1, dimStepCol);
         assertEquals(1, dimSectionCol);
@@ -77,9 +80,9 @@ class DimStepSectionRekeySpecTest {
         Integer durableStepId = (Integer) em.createNativeQuery(
                 "SELECT step_id FROM survey.steps WHERE id = ?1").setParameter(1, stepSurrogateIdBefore).getSingleResult();
 
-        etlService.updateStepDimensionTable();
+        etlService.updateStepDimensionTable(SCHEMA, ScdFixtureIds.surveyId(em));
         long dimRowCountBefore = ((Number) em.createNativeQuery(
-                "SELECT COUNT(*) FROM surveyreport.dim_step WHERE step_id = ?1")
+                "SELECT COUNT(*) FROM report_scdspecfixture.dim_step WHERE step_id = ?1")
                 .setParameter(1, durableStepId).getSingleResult()).longValue();
         assertEquals(1, dimRowCountBefore, "The durable step_id must already map to exactly one dim_step row");
 
@@ -101,13 +104,13 @@ class DimStepSectionRekeySpecTest {
                         .setParameter(4, MAX_SENTINEL).setParameter(5, currentVersion).executeUpdate();
             });
 
-            etlService.updateStepDimensionTable();
+            etlService.updateStepDimensionTable(SCHEMA, ScdFixtureIds.surveyId(em));
 
             long dimRowCountAfter = ((Number) em.createNativeQuery(
-                    "SELECT COUNT(*) FROM surveyreport.dim_step WHERE step_id = ?1")
+                    "SELECT COUNT(*) FROM report_scdspecfixture.dim_step WHERE step_id = ?1")
                     .setParameter(1, durableStepId).getSingleResult()).longValue();
             String valueAfter = (String) em.createNativeQuery(
-                    "SELECT value FROM surveyreport.dim_step WHERE step_id = ?1")
+                    "SELECT value FROM report_scdspecfixture.dim_step WHERE step_id = ?1")
                     .setParameter(1, durableStepId).getSingleResult();
 
             assertEquals(1, dimRowCountAfter,
@@ -120,7 +123,7 @@ class DimStepSectionRekeySpecTest {
                 em.createNativeQuery("UPDATE survey.steps SET effective_to = ?2 WHERE step_id = ?1 AND version = ?3")
                         .setParameter(1, durableStepId).setParameter(2, MAX_SENTINEL).setParameter(3, currentVersion).executeUpdate();
             });
-            etlService.updateStepDimensionTable();
+            etlService.updateStepDimensionTable(SCHEMA, ScdFixtureIds.surveyId(em));
         }
     }
 }

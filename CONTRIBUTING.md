@@ -336,9 +336,10 @@ Dynamic text replacement for personalized question text, implemented in `Questio
 
 ### Metadata & Dimensional Modeling (ETL)
 
-- Ontology tags on questions/sections automatically drive `dim_*` dimension tables in the `surveyreport` schema
-- `ETLService`/`ETLRespondentService` populate `surveyreport.fact_sections` and `surveyreport.fact_respondents` on survey finalize
-- Table/column identifiers derived from ontology tags are validated (`Sql.requireValidIdentifier`) before being spliced into native SQL, since JDBC can't bind identifiers as parameters — respondent-entered *values* are always passed as bind parameters, never spliced
+- Every survey has a reporting schema of its own, named on `survey.surveys.report_schema` (UC-008 BR-006; `report_<slug>` by default); the common `surveyreport` schema holds only `dim_date` and `dim_status`
+- Ontology tags on questions/sections automatically drive `dim_*` dimension tables in the survey's schema
+- `ETLService` populates the survey's `fact_sections` on survey finalize (through `ETLRespondentService`) and on a build (`POST /api/etl/build?survey=<key>`); `fact_respondents` is a view
+- Table/column identifiers derived from ontology tags are validated (`Sql.requireValidIdentifier`), and schema names by `Sql.requireValidSchema`, before being spliced into native SQL, since JDBC can't bind identifiers as parameters — respondent-entered *values* are always passed as bind parameters, never spliced
 
 ### Key Database Tables
 
