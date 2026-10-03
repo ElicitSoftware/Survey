@@ -12,6 +12,7 @@
 ## Preconditions
 
 - The respondent has finalized their survey (UC-004), or is a returning respondent who had already finalized on a prior visit (UC-001, alternative routing).
+- The survey lists at least one report. A survey with none has no report page (A2, BR-014).
 
 ## Main Success Scenario
 
@@ -28,8 +29,10 @@
 - System renders that report's card with an error message instead of report content (including a special-cased, more specific message when the failure looks like a licensing rejection from a known downstream service), and continues rendering any other configured reports normally.
 
 **A2: No reports configured for the survey**
-- **Trigger:** The survey has zero `ReportDefinition` rows.
-- No report cards are shown; the PDF download and any configured "Next" redirect are still available.
+- **Trigger:** The survey has zero `ReportDefinition` rows when the respondent is routed to the report page, whether from Finish (UC-004), from a returning respondent's sign-in (UC-001) or from a restored session.
+- There is nothing to show and nothing to print, so the page shows no report cards and no "Generate PDF" button (BR-014).
+- If the survey has a post-survey redirect URL, the system sends the browser straight to it, leaving the Survey application, as if the respondent had pressed "Next".
+- If it has none, the page shows a completion notice and nothing else.
 
 **A3: Respondent downloads the PDF more than once**
 - **Trigger:** Respondent clicks "Generate PDF" again, or reopens a previously generated PDF's link.
@@ -38,7 +41,7 @@
 ## Postconditions
 
 **Success:**
-- The respondent has viewed their configured report(s) and/or downloaded a PDF of their answers.
+- The respondent has viewed their configured report(s) and/or downloaded a PDF of their answers, or, for a survey that lists no reports, has been sent to its post-survey destination.
 
 **Failure:**
 - Individual failed reports are shown as errored cards; this does not prevent PDF download or viewing other reports.
@@ -46,6 +49,7 @@
 ## Business Rules
 
 - **BR-012:** Reports render in the survey-configured display order.
+- **BR-014:** A survey with no reports has no report page. "Generate PDF" is shown only when at least one report is listed, and a respondent routed to the page is sent straight to the survey's post-survey URL when it has one, on every path that leads there (Finish, returning sign-in, restored session). Without a post-survey URL the page shows a completion notice only.
 - **BR-013:** The PDF download endpoint is intentionally unauthenticated (publicly reachable given a valid, time-limited cache key) — it relies on the cache key's unguessability and short lifetime rather than a login check.
 
 ## Notes / Known Gaps
