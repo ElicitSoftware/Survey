@@ -583,14 +583,19 @@ public class Answer extends PanacheEntityBase {
         this.stepId = BigDecimal.valueOf(displayKey.getStep());
         this.stepInstance = displayKey.getStepInstance();
         // survey.answers.section is nullable and FK'd to survey.sections(id), which never
-        // has a row with id 0 -- valueOrNull() (already applied to section_question_id above)
-        // must apply here too, or a step-only relationship (no downstream section) fails
-        // answers_section_fk on every save. sectionId is NUMERIC (see its field doc above),
-        // so wrap directly rather than reusing valueOrNull()'s Integer-typed helper.
+        // has a row with id 0 -- valueOrNull() must apply here, or a step-only relationship
+        // (no downstream section) fails answers_section_fk on every save. sectionId is NUMERIC
+        // (see its field doc above), so wrap directly rather than reusing valueOrNull()'s
+        // Integer-typed helper.
         Integer section = valueOrNull(displayKey.getSection());
         this.sectionId = section == null ? null : BigDecimal.valueOf(section);
         this.sectionInstance = displayKey.getSectionInstance();
-        this.section_question_id = valueOrNull(displayKey.getQuestion());
+        // section_question_id is deliberately NOT taken from the key. Its sixth segment is the
+        // placement's display order (DisplayKey.getQuestion()), while the column is a surrogate
+        // FK to survey.sections_questions(id). The two share small integers, so a display order
+        // written here would attach the answer to an unrelated placement and the FK would never
+        // object. The constructors set it from SectionsQuestion.id, and a marker answer (a step
+        // or section with no placement) correctly has none.
         this.question_instance = displayKey.getQuestionInstance();
     }
 
