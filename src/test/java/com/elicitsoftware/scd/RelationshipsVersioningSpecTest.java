@@ -24,9 +24,8 @@ import java.time.OffsetDateTime;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Executable spec for Type 2 versioning of {@code survey.relationships} —
- * research/Kimball_type_2.md, "Schema Changes Per Table &rarr; relationships" and
- * "Versioning Workflows &rarr; Changing conditional logic". Covers the
+ * Executable spec for Type 2 versioning of {@code survey.relationships} (UC-002 BR-009;
+ * changing conditional logic versions the rule). Covers the
  * {@code downstream_s_id -> downstream_ss_id} rename and all 5 durable-key FK columns.
  */
 @QuarkusTest

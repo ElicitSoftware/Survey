@@ -25,8 +25,8 @@ import java.time.OffsetDateTime;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Executable spec for research/Kimball_type_2.md "dim_step and dim_section — Rekey by
- * Durable UUID" [sic — durable INTEGER in the final design]. Contrasts directly with
+ * Executable spec for the rekey of dim_step and dim_section by durable id (UC-008 step 4).
+ * Contrasts directly with
  * {@code ETLServiceTest.given_stepRenamed_when_updateStepDimensionTable_then_sameRowUpdatedInPlace}
  * (Track A, today's surrogate-`id`-keyed behavior): today a rename mutates the existing
  * row in place only because the surrogate `id` never changes on an in-place UPDATE. Once

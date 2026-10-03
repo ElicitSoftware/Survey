@@ -76,8 +76,7 @@ public class StepsSections extends PanacheEntityBase {
     @Column(name = "step_id", nullable = false)
     public Integer stepId;
 
-    // NUMERIC, not INTEGER (Kimball Type 2 SCD, research/Kimball_type_2.md's "Adding a new
-    // question" section) -- supports decimal-midpoint insertion between existing positions.
+    // NUMERIC, not INTEGER -- supports decimal-midpoint insertion between existing positions.
     @Column(name = "step_display_order", nullable = false, precision = 4)
     public BigDecimal stepDisplayOrder;
 
@@ -94,7 +93,7 @@ public class StepsSections extends PanacheEntityBase {
     @Column(name = "display_key", nullable = false, length = 34)
     public String displaykey;
 
-    // Kimball Type 2 SCD (research/Kimball_type_2.md) — steps_sections_id is the durable
+    // Kimball Type 2 SCD (UC-002 BR-009) — steps_sections_id is the durable
     // key that survives re-versioning; id (above) is the surrogate, per-version row id.
     @Column(name = "steps_sections_id", nullable = false)
     public Integer stepsSectionsId;
@@ -115,7 +114,7 @@ public class StepsSections extends PanacheEntityBase {
     public String publishedComment;
 
     // FK-companion columns pinning the referenced rows to their entity-existence checks
-    // (always 0 — see research/Kimball_type_2.md's "Resolving the FK Cascade Problem").
+    // (always 0 -- the FK targets the referenced table's (durable id, version) unique constraint, and pinning 0 keeps this row valid across that entity's versions; the version in effect is resolved by the snapshot anchor, Respondent.snapshotAnchor).
     @Column(name = "step_version", nullable = false)
     public Integer stepVersion = 0;
 
@@ -134,7 +133,7 @@ public class StepsSections extends PanacheEntityBase {
     }
 
     /**
-     * Snapshot-anchored (research/Kimball_type_2.md) variant of findByDisplayKeyQuery:
+     * Snapshot-anchored ({@link Respondent#snapshotAnchor}) variant of findByDisplayKeyQuery:
      * resolves only the steps_sections row whose effective window covers {@code asOf}
      * (the respondent's firstAccessDt, or NOW() for a brand-new respondent).
      */
@@ -149,7 +148,7 @@ public class StepsSections extends PanacheEntityBase {
     }
 
     /**
-     * Snapshot-anchored (research/Kimball_type_2.md) listing of a survey's step/section
+     * Snapshot-anchored ({@link Respondent#snapshotAnchor}) listing of a survey's step/section
      * placements: only the rows whose effective window covers {@code asOf} (the respondent's
      * firstAccessDt, or NOW() for a brand-new respondent). This used to fetch-join the step
      * and section, but with the as-of guard on steps_sections alone, so once a step or
@@ -166,7 +165,7 @@ public class StepsSections extends PanacheEntityBase {
     }
 
     /**
-     * Snapshot-anchored (research/Kimball_type_2.md) lookup of the placement addressed by an
+     * Snapshot-anchored ({@link Respondent#snapshotAnchor}) lookup of the placement addressed by an
      * exact display key: the row whose effective window covers {@code asOf}. See
      * {@link #findBySurveyIdAsOf} for why the step and section are no longer fetch-joined.
      *
@@ -181,7 +180,7 @@ public class StepsSections extends PanacheEntityBase {
 
     /**
      * The version of the durable {@code steps_sections_id} in effect at {@code asOf}
-     * (research/Kimball_type_2.md, "Snapshot Anchor"). See {@link Step#findAsOf} for why
+     * (the snapshot anchor, {@link Respondent#snapshotAnchor}). See {@link Step#findAsOf} for why
      * durable keys are resolved through a finder rather than mapped as JPA associations.
      *
      * @param stepsSectionsId the durable {@code steps_sections.steps_sections_id}; {@code null} yields {@code null}

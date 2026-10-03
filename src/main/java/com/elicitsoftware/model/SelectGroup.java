@@ -55,7 +55,7 @@ public class SelectGroup extends PanacheEntityBase {
     @Column(length = 255)
     public String name;
 
-    // Kimball Type 2 SCD (research/Kimball_type_2.md) — select_group_id is the durable key
+    // Kimball Type 2 SCD (UC-002 BR-009) — select_group_id is the durable key
     // that survives re-versioning; id (above) is the surrogate, per-version row id.
     @Column(name = "select_group_id", nullable = false)
     public Integer selectGroupId;
@@ -77,8 +77,8 @@ public class SelectGroup extends PanacheEntityBase {
 
     // select_items.select_group_id holds the durable select_group_id (not select_groups.id),
     // and every item has one row per version, so this is not a @OneToMany: it is filled by
-    // findAsOf with the items in effect at the same instant as the group (research/
-    // Kimball_type_2.md, "Snapshot Anchor").
+    // findAsOf with the items in effect at the same instant as the group (the snapshot
+    // anchor, Respondent.snapshotAnchor).
     @Transient
     public List<SelectItem> selectItems;
 

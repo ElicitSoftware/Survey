@@ -42,8 +42,7 @@ public class SectionsQuestion extends PanacheEntityBase {
     @Column(unique = true, nullable = false, precision = 20)
     public Integer id;
 
-    // NUMERIC, not INTEGER (Kimball Type 2 SCD, research/Kimball_type_2.md's "Adding a new
-    // question" section) -- supports decimal-midpoint insertion between existing positions.
+    // NUMERIC, not INTEGER -- supports decimal-midpoint insertion between existing positions.
     // DisplayKey's fixed-width zero-padded string encoding does not support decimals, so
     // every read into a DisplayKey segment truncates via .intValue() until that encoding is
     // redesigned as part of a future Author Tool effort.
@@ -67,7 +66,7 @@ public class SectionsQuestion extends PanacheEntityBase {
     @Column(name = "survey_id", nullable = false, precision = 20)
     public Integer surveyId;
 
-    // Kimball Type 2 SCD (research/Kimball_type_2.md) — sections_question_id is the
+    // Kimball Type 2 SCD (UC-002 BR-009) — sections_question_id is the
     // durable key that survives re-versioning; id (above) is the surrogate, per-version
     // row id, and is what answers.section_question_id pins to at response time.
     @Column(name = "sections_question_id", nullable = false)
@@ -89,7 +88,7 @@ public class SectionsQuestion extends PanacheEntityBase {
     public String publishedComment;
 
     // FK-companion columns pinning the referenced rows to their entity-existence checks
-    // (always 0 — see research/Kimball_type_2.md's "Resolving the FK Cascade Problem").
+    // (always 0 -- the FK targets the referenced table's (durable id, version) unique constraint, and pinning 0 keeps this row valid across that entity's versions; the version in effect is resolved by the snapshot anchor, Respondent.snapshotAnchor).
     @Column(name = "question_version", nullable = false)
     public Integer questionVersion = 0;
 
@@ -98,7 +97,7 @@ public class SectionsQuestion extends PanacheEntityBase {
 
     /**
      * The version of the durable {@code sections_question_id} in effect at {@code asOf}
-     * (research/Kimball_type_2.md, "Snapshot Anchor"). See {@link Step#findAsOf} for why
+     * (the snapshot anchor, {@link Respondent#snapshotAnchor}). See {@link Step#findAsOf} for why
      * durable keys are resolved through a finder rather than mapped as JPA associations.
      *
      * @param sectionsQuestionId the durable {@code sections_questions.sections_question_id}; {@code null} yields {@code null}

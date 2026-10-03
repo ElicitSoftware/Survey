@@ -21,6 +21,6 @@ once every environment's `flyway_history` has converged onto `db/migration` —
 and revert `quarkus.flyway.owner.migrate-at-start` in `application.properties` back to
 Quarkus-managed auto-migration.
 
-Tracked in `research/Kimball_type_2.md` and the repo-root `DeploymentScript.md` — update both
+Tracked in the repo-root `DeploymentScript.md` — update it
 when this directory is actually removed. (The sibling FHHS app has the identical pattern, at
 `FHHS/src/main/resources/db/migration-v3/`, on the same removal timeline.)

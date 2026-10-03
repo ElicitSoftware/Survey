@@ -352,8 +352,8 @@ class ETLServiceTest {
 
     @Test
     void given_stepRenamed_when_updateStepDimensionTable_then_sameRowUpdatedInPlace() {
-        // Locks in today's SCD-Type-1-on-dim_step behavior (Kimball_type_2.md Gap ETL-5's
-        // documented *intentional* current/future behavior) so the durable-key rekey can
+        // Locks in the intentional SCD-Type-1-on-dim_step behavior (a rename is a clarification
+        // and every report shows the current label) so the durable-key rekey can
         // be compared against it later: renaming updates the existing dim_step row, it
         // does not insert a second row for the same steps.id.
         //
@@ -393,7 +393,7 @@ class ETLServiceTest {
     @Test
     void given_sectionRenamed_when_updateSectionDimensionTable_then_sameRowUpdatedInPlace() {
         // Mirrors given_stepRenamed_when_updateStepDimensionTable_then_sameRowUpdatedInPlace —
-        // locks in today's SCD-Type-1-on-dim_section behavior (Kimball_type_2.md Gap ETL-5)
+        // locks in the intentional SCD-Type-1-on-dim_section behavior
         // for sections, which only had an idempotency test before this.
         long countBefore = nativeCount("SELECT COUNT(*) FROM report_librarycardreg.dim_section");
 

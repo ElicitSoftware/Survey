@@ -25,7 +25,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The shared hash vector (docs/research/i18n_survey.md section 3.2).
+ * The shared hash vector of {@link ContentHash}: lower-case hex SHA-256 of the UTF-8 bytes of the
+ * exact stored string, no trimming, no normalization (UC-009 BR-005).
  * <p>
  * Three implementations have to agree on this number -- Java here, Java in Author when it writes a
  * translation, and PostgreSQL in the review query's join -- or a translation is either served when

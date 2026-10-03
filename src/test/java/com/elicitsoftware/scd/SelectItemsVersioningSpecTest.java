@@ -25,8 +25,7 @@ import java.time.OffsetDateTime;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Executable spec for Type 2 versioning of {@code survey.select_items} —
- * research/Kimball_type_2.md, "Schema Changes Per Table &rarr; select_items". Covers
+ * Executable spec for Type 2 versioning of {@code survey.select_items} (UC-002 BR-009). Covers
  * the {@code group_id -> select_group_id} rename/backfill and the
  * {@code select_group_version} FK-companion column, on top of the same
  * versioning/constraint pattern as {@link QuestionsVersioningSpecTest}.

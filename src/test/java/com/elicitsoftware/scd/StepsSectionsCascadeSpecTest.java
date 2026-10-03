@@ -25,8 +25,7 @@ import java.time.OffsetDateTime;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Executable spec for {@code survey.steps_sections} — research/Kimball_type_2.md,
- * "Schema Changes Per Table &rarr; steps_sections". Same cascade-immunity pattern as
+ * Executable spec for {@code survey.steps_sections} (UC-002 BR-009). Same cascade-immunity pattern as
  * {@link SectionsQuestionsCascadeSpecTest} applied to the step/section pair; also
  * covers {@code display_key} stability within a version's effective period
  * (Open Question 2, resolved) and reordering (Gap ETL-3 / Edge case R-2).

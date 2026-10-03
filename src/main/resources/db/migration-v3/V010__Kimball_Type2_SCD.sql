@@ -14,8 +14,8 @@
 -- ALTER-based migration for existing v2.x databases (the "brownfield" track — see
 -- com.elicitsoftware.flyway.SchemaTrackFlywayCustomizer, which routes an existing database
 -- into this src/main/resources/db/migration-v3/ location instead of the greenfield
--- src/main/resources/db/migration/ root). Implements research/Kimball_type_2.md's
--- "Schema Changes Per Table" section against the REAL constraint names created by
+-- src/main/resources/db/migration/ root). Implements the Kimball Type 2 schema change
+-- per table against the REAL constraint names created by
 -- V001__Create_Survey_Schema.sql in this same folder (the doc's own DDL says "adjust name
 -- to match actual constraint" everywhere — this file is that adjustment).
 --

@@ -39,9 +39,9 @@ import java.util.Map;
 // ManualSchemaMigratorUpgradeTest.java, and ManualSchemaMigratorScaleTest.java (which only
 // times db/migration-v3's ALTER migration — see its own header) should ALL be deleted, and
 // quarkus.flyway.owner.migrate-at-start should revert to the plain Quarkus-managed
-// auto-migration this class replaced (see application.properties). Tracked in
-// research/Kimball_type_2.md and the repo-root DeploymentScript.md — check those before
-// removing, and update them when this class is actually deleted.
+// auto-migration this class replaced (see application.properties). Tracked in the
+// repo-root DeploymentScript.md — check it before removing, and update it when this class
+// is actually deleted.
 //
 // Runs Flyway manually against a database-detected brownfield/greenfield/converged location,
 // replacing Quarkus's migrate-at-start (deliberately disabled — see the comment on
@@ -69,8 +69,9 @@ import java.util.Map;
 // boot's validate() against db/migration succeeds and this database converges onto it for good.
 // The two locations are siblings, not nested — Flyway's classpath location scanning is recursive,
 // so db/migration-v3 must NOT live under db/migration.
-// See research/Kimball_type_2.md ("Migration Strategy for Existing Data") and the plan at
-// /Users/mdemerat/.claude/plans/mighty-roaming-tide.md.
+// The strategy: an already-deployed V2.x database is upgraded in place by db/migration-v3
+// (ALTER-based) and its history then repaired against db/migration, so every database
+// converges on the greenfield track; see the README in db/migration-v3 and DeploymentScript.md.
 @ApplicationScoped
 public class ManualSchemaMigrator {
 

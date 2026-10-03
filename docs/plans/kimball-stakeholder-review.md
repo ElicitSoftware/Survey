@@ -88,9 +88,10 @@ revisited, changing either behavior would require new work (the system would nee
 start keeping a dated history of category assignments, similar to what it already does
 for question wording).
 
-**Reference for engineers:** this reflects Gap ETL-1 and Gap ETL-5 in
-`Survey/research/Kimball_type_2.md`, called out in that document's "Implementation
-Readiness Notes" as needing this sign-off before being treated as fully closed.
+**Reference for engineers:** this reflects two decisions of the Kimball Type 2 design:
+`dim_step`/`dim_section` are SCD Type 1 (a rename updates the row in place, so every report,
+historical or not, shows the current label), and a retagged question reclassifies every
+respondent's answers retroactively. Both needed this sign-off before being treated as closed.
 
 | Reviewer | Role | Decision | Date |
 |---|---|---|---|
