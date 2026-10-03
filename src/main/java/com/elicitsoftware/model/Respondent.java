@@ -67,7 +67,7 @@ public class Respondent extends PanacheEntityBase {
     public OffsetDateTime firstAccessDt;
 
     /**
-     * The snapshot anchor (research/Kimball_type_2.md, "Snapshot Anchor") every structural
+     * The snapshot anchor (UC-002 BR-009) every structural
      * lookup for a respondent is resolved as of: their {@link #firstAccessDt} once set, or
      * NOW() for a brand-new respondent who has not been anchored yet (and for an unknown id).
      * Every version-aware finder ({@code Step.findAsOf}, {@code Question.findAsOf}, ...) is

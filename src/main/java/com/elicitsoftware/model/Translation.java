@@ -25,8 +25,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * One field of one survey element in one language (Survey V019; docs/research/i18n_survey.md
- * section 3.2).
+ * One field of one survey element in one language (Survey V019; UC-009 BR-005).
  * <p>
  * A translation attaches to what it translates by that element's {@code *_key} UUID and the name of
  * the base column, never by a surrogate or durable id: surrogate ids change on every version and

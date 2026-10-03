@@ -414,8 +414,9 @@ public final class Sql {
     /**
      * The fact rows a finalized respondent's answers call for, one per distinct (step, step
      * instance, section, section instance) with a saved value. {@code answers.step} and
-     * {@code answers.section} are display orders, not ids (see research/Kimball_type_2.md,
-     * "INSERT_MISSING_FACT_SECTION_SQL -- Display-Order Join Fix"); {@code respondents.first_access_dt}
+     * {@code answers.section} are display orders, not ids (a join on {@code steps.id} only ever
+     * worked while steps had been inserted in display order, and a renamed step at display order 1
+     * gets a new id); {@code respondents.first_access_dt}
      * anchors them to the step and placement the respondent actually saw, and the dimension rows
      * are found through those durable ids (BR-011). The NOT EXISTS guard makes the insert
      * idempotent on the resolved keys.

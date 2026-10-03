@@ -18,7 +18,7 @@ import java.util.HexFormat;
 
 /**
  * The hash a content translation carries of the base text it was translated from
- * (docs/research/i18n_survey.md section 3.2).
+ * ({@code survey.translations.source_hash}, Survey V019; UC-009 BR-005).
  * <p>
  * Lower-case hex SHA-256 of the UTF-8 bytes of the exact stored string, with no trimming and no
  * normalization. Three modules compute it -- Author when it writes a translation, Survey when it

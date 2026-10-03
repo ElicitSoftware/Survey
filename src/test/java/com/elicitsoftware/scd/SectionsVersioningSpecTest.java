@@ -24,8 +24,7 @@ import java.time.OffsetDateTime;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Executable spec for Type 2 versioning of {@code survey.sections} —
- * research/Kimball_type_2.md, "Schema Changes Per Table &rarr; sections". Same
+ * Executable spec for Type 2 versioning of {@code survey.sections} (UC-002 BR-009). Same
  * versioning/constraint/display_order-NUMERIC pattern as {@link StepsVersioningSpecTest}
  * (see that class for the decimal-midpoint-insertion round-trip test); this class covers
  * the sections-specific constraint checks only.

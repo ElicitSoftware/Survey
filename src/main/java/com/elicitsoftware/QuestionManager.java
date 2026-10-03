@@ -290,7 +290,7 @@ public class QuestionManager {
     }
 
     /**
-     * Resolves the snapshot instant (research/Kimball_type_2.md, "Snapshot Anchor") that
+     * Resolves the snapshot instant ({@link Respondent#snapshotAnchor}) that
      * structural queries (questions, sections, steps, relationships, ...) must be resolved
      * as of for the given respondent: their {@code firstAccessDt} once set, or NOW() for a
      * brand-new respondent who has not yet been anchored. This guarantees a respondent stays
@@ -337,7 +337,7 @@ public class QuestionManager {
 
         DisplayKey displaykey = new DisplayKey(key);
 
-        // Snapshot-anchored (research/Kimball_type_2.md) to this respondent's firstAccessDt so
+        // Snapshot-anchored (Respondent.snapshotAnchor) to this respondent's firstAccessDt so
         // they stay pinned to the survey definition as it existed when they first accessed it.
         List<StepsSections> steps = StepsSections.findBySurveyIdAsOf(displaykey.getSurvey(), resolveAsOf(respondentId));
         for (StepsSections step : steps) {
@@ -401,7 +401,7 @@ public class QuestionManager {
         // name in the respondent's language.
         dkey.setStepInstance(0);
         dkey.setSectionInstance(0);
-        // Snapshot-anchored (research/Kimball_type_2.md) to this respondent's firstAccessDt:
+        // Snapshot-anchored (Respondent.snapshotAnchor) to this respondent's firstAccessDt:
         // the placement and then the section version it names are both resolved as of the
         // same instant. A missing placement is a null, never an exception to swallow.
         OffsetDateTime asOf = resolveAsOf(respondentId);
@@ -549,7 +549,7 @@ public class QuestionManager {
         // SS.ID/SQ.ID below are replaced with SS.steps_sections_id/SQ.sections_question_id
         // (the durable keys) wherever compared against R.DOWNSTREAM_SS_ID/R.DOWNSTREAM_SQ_ID —
         // those relationship columns were retargeted to durable ids by the Kimball Type 2 SCD
-        // migration (research/Kimball_type_2.md), while SS.ID/SQ.ID remain each row's surrogate,
+        // migration (UC-002 BR-009), while SS.ID/SQ.ID remain each row's surrogate,
         // per-version id. EFFECTIVE_FROM/EFFECTIVE_TO guards snapshot-anchor the resolution to
         // this respondent's firstAccessDt so they stay pinned to what they first saw.
         String sqlStep = "SELECT SQ.ID, SQ.DISPLAY_ORDER FROM SURVEY.SECTIONS_QUESTIONS SQ "
@@ -633,7 +633,7 @@ public class QuestionManager {
         // S.ID NOT IN (...R.DOWNSTREAM_SQ_ID...) and the nested SS.ID = R.DOWNSTREAM_SS_ID join
         // are replaced with the durable S.SECTIONS_QUESTION_ID / SS.STEPS_SECTIONS_ID columns —
         // R.DOWNSTREAM_SQ_ID/R.DOWNSTREAM_SS_ID were retargeted to durable ids by the Kimball
-        // Type 2 SCD migration (research/Kimball_type_2.md). The A.SECTION_QUESTION_ID = S.ID
+        // Type 2 SCD migration (UC-002 BR-009). The A.SECTION_QUESTION_ID = S.ID
         // and SS.STEP_ID = R.DOWNSTREAM_STEP_ID comparisons are unaffected — the former compares
         // two surrogate ids (answers pin the exact surrogate row), the latter compares two
         // already-durable ids. EFFECTIVE_FROM/EFFECTIVE_TO guards snapshot-anchor the
@@ -808,7 +808,7 @@ public class QuestionManager {
 
         HashMap<Integer, Dependent> dependents;
         // The rule's endpoints are durable ids; every row they name is resolved as of this
-        // respondent's snapshot anchor (research/Kimball_type_2.md), never through a mapping.
+        // respondent's snapshot anchor (Respondent.snapshotAnchor), never through a mapping.
         OffsetDateTime asOf = resolveAsOf(upstreamAnswer.respondentId);
 
         // now loop through them and see if the operator evaluates to true

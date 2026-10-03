@@ -10,7 +10,7 @@
 
 -- ============================================================
 -- Minimal, isolated fixture for the Kimball Type 2 SCD spec suite
--- (src/test/java/com/elicitsoftware/scd/**) — see research/Kimball_type_2.md.
+-- (src/test/java/com/elicitsoftware/scd/**; UC-002 BR-009).
 --
 -- Deliberately its own survey, separate from the V005/V005.5/V005.6
 -- "Library Card Registration" fixture used by QuestionManagerTest and the

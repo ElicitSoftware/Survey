@@ -67,7 +67,7 @@ import java.util.UUID;
  * The five endpoint columns (`upstreamStepId`, `upstreamSqId`, `downstreamStepId`,
  * `downstreamSsId`, `downstreamSqId`) hold durable ids and are deliberately plain columns:
  * the endpoint rows are resolved with the `findAsOf` finders on `Step`, `SectionsQuestion`
- * and `StepsSections` at the respondent's snapshot anchor (research/Kimball_type_2.md).
+ * and `StepsSections` at the respondent's snapshot anchor (`Respondent.snapshotAnchor`).
  * <p>
  * The class leverages JPA for database interactions and includes transient fields
  * for internal utility purposes (e.g., date formatting during operator evaluation).
@@ -130,7 +130,7 @@ public class Relationship extends PanacheEntityBase {
     // row per version, so a JPA association on it fails with "More than one row with the given
     // identifier" as soon as a revision exists, marking the transaction rollback-only. Callers
     // resolve the endpoint they need with Step.findAsOf / SectionsQuestion.findAsOf /
-    // StepsSections.findAsOf at the respondent's snapshot anchor (research/Kimball_type_2.md).
+    // StepsSections.findAsOf at the respondent's snapshot anchor (Respondent.snapshotAnchor).
     @Column(name = "UPSTREAM_STEP_ID")
     public Integer upstreamStepId;
 
@@ -149,7 +149,7 @@ public class Relationship extends PanacheEntityBase {
     @Column(name = "SURVEY_ID", nullable = false, precision = 20)
     public Integer surveyId;
 
-    // Kimball Type 2 SCD (research/Kimball_type_2.md) — relationship_id is the durable
+    // Kimball Type 2 SCD (UC-002 BR-009) — relationship_id is the durable
     // key that survives re-versioning; id (above) is the surrogate, per-version row id.
     @Column(name = "relationship_id", nullable = false)
     public Integer relationshipId;
@@ -170,7 +170,7 @@ public class Relationship extends PanacheEntityBase {
     public String publishedComment;
 
     // FK-companion columns pinning the referenced rows to their entity-existence checks
-    // (always 0 — see research/Kimball_type_2.md's "Resolving the FK Cascade Problem").
+    // (always 0 -- the FK targets the referenced table's (durable id, version) unique constraint, and pinning 0 keeps this row valid across that entity's versions; the version in effect is resolved by the snapshot anchor, Respondent.snapshotAnchor).
     @Column(name = "upstream_step_version", nullable = false)
     public Integer upstreamStepVersion = 0;
 

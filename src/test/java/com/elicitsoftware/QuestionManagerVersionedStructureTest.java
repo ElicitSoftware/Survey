@@ -32,8 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * UC-002 (Answer Survey Questions), BR-009, against research/Kimball_type_2.md ("Snapshot
- * Anchor") and Author's scd-contract.md: once Admin applies a revision every structure table
+ * UC-002 (Answer Survey Questions), BR-009 (the snapshot anchor) and Author's scd-contract.md: once Admin applies a revision every structure table
  * holds two rows per durable id, and a respondent must be served the version whose effective
  * window covers their first access -- whether that is before or after the revision.
  * <p>

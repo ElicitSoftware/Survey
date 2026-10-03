@@ -30,10 +30,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Times {@code db/migration-v3}'s V010 (the ALTER-based Kimball Type 2 SCD migration) against
- * a synthetically large database, addressing the "Migration lock/duration risk" flagged in
- * research/Kimball_type_2.md's Implementation Readiness Notes: "Test the actual migration
- * against a production-sized data snapshot before committing to a single-transaction rollout;
- * batch it if it's too slow or holds locks too long."
+ * a synthetically large database, addressing the migration lock/duration risk flagged in the
+ * Kimball Type 2 design review: test the actual migration against a production-sized data
+ * snapshot before committing to a single-transaction rollout; batch it if it is too slow or
+ * holds locks too long.
  * <p>
  * <b>This is a synthetic proxy, not a substitute for testing against a real (anonymised)
  * production snapshot.</b> No such snapshot is available in this environment. The row counts

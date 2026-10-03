@@ -28,10 +28,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * (question_id-direct, section_question_id, step_section_id) — finer-grained than
  * {@link ETLServiceTest}: these tests run the SQL constants directly via native
  * queries and inspect the raw tuples, independent of ETLService's table-creation
- * plumbing. Both dimension-value-resolution SQL constants must be rewritten to use
- * durable keys per research/Kimball_type_2.md ("ETL Dimension-Discovery and Value
- * Queries — Time-Range Guards"); this is the query-level "before" picture the
- * rewrite must reproduce (modulo the join column itself).
+ * plumbing. Both dimension-value-resolution SQL constants traverse the structural tables
+ * by durable key with effective_from/effective_to guards (UC-008); this is the query-level
+ * picture that rewrite had to reproduce (modulo the join column itself).
  * <p>
  * Uses the V005/V9005.5/V9005.6 fixture (survey_id=1, Tess Tester = respondent_id=1).
  */

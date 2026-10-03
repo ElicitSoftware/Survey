@@ -132,7 +132,7 @@ public class Answer extends PanacheEntityBase {
      * Typically relates to the "Step" entity in the system, which defines
      * the steps within a survey.
      * <p>
-     * NUMERIC, not INTEGER (Kimball Type 2 SCD, research/Kimball_type_2.md) — stores the
+     * NUMERIC, not INTEGER — stores the
      * step's display_order at response time, which is itself NUMERIC to support decimal-
      * midpoint insertion; matching the type here keeps it lossless.
      */
@@ -161,7 +161,7 @@ public class Answer extends PanacheEntityBase {
      * - The column is non-nullable, ensuring that an answer is always associated with a valid section.
      * - Precision of 20 denotes the maximum size of the integer value.
      * <p>
-     * NUMERIC, not INTEGER (Kimball Type 2 SCD, research/Kimball_type_2.md) — stores the
+     * NUMERIC, not INTEGER — stores the
      * section's display_order at response time; same reasoning as stepId above.
      */
     @Column(name = "section", nullable = false, precision = 20)
@@ -310,9 +310,9 @@ public class Answer extends PanacheEntityBase {
 
     /**
      * Pins the {@code questions.version} the respondent actually saw at response time
-     * (research/Kimball_type_2.md, Gap ETL-2) — question.id already pins the exact surrogate
-     * row, but this makes the version explicit for reporting joins against dim_question
-     * without a lookup. Defaults to 0 (matches the DB column's default) until the associated
+     * -- question.id already pins the exact surrogate row, but this makes the version explicit
+     * for reporting joins without a lookup; a placement needs no such pin because the
+     * sections_questions row in effect is re-derived from the snapshot anchor. Defaults to 0 (matches the DB column's default) until the associated
      * question is resolved in the constructor below.
      */
     @Column(name = "question_version", nullable = false)
@@ -320,7 +320,7 @@ public class Answer extends PanacheEntityBase {
 
     /**
      * The select items this answer's question offers, as of the respondent's snapshot anchor
-     * (research/Kimball_type_2.md). {@code questions.select_group_id} is a durable id and every
+     * ({@link Respondent#snapshotAnchor}). {@code questions.select_group_id} is a durable id and every
      * item has one row per version, so the items are not reachable through a JPA association;
      * {@link #getSelectItems()} resolves them once and caches them here for the UI wrappers.
      */
@@ -414,9 +414,9 @@ public class Answer extends PanacheEntityBase {
             // the respondent's snapshot anchor (Question.findAsOf).
             this.question = question;
             this.section_question_id = sectionsQuestion.id;
-            // Pin the version of the question actually shown, per research/Kimball_type_2.md
-            // Gap ETL-2 — question.id already pins the exact surrogate row, so this is safe
-            // even if a later reword closes it out and inserts a new version.
+            // Pin the version of the question actually shown -- question.id already pins the
+            // exact surrogate row, so this is safe even if a later reword closes it out and
+            // inserts a new version.
             this.questionVersion = this.question.version;
         }
     }
@@ -442,9 +442,9 @@ public class Answer extends PanacheEntityBase {
             // See the constructor above for why the question is resolved by the caller.
             this.question = question;
             this.section_question_id = sectionsQuestion.id;
-            // Pin the version of the question actually shown, per research/Kimball_type_2.md
-            // Gap ETL-2 — question.id already pins the exact surrogate row, so this is safe
-            // even if a later reword closes it out and inserts a new version.
+            // Pin the version of the question actually shown -- question.id already pins the
+            // exact surrogate row, so this is safe even if a later reword closes it out and
+            // inserts a new version.
             this.questionVersion = this.question.version;
         }
         if (textValue != null) {
@@ -673,7 +673,7 @@ public class Answer extends PanacheEntityBase {
 
     /**
      * The select items this answer's question offers, as of the respondent's snapshot anchor
-     * (research/Kimball_type_2.md, "Snapshot Anchor"). Resolved on first use through
+     * ({@link Respondent#snapshotAnchor}). Resolved on first use through
      * {@link SelectItem#findByGroupAsOf} and cached; {@link #setSelectItems} lets a caller
      * that already holds the list (or a unit test with no database) supply it instead.
      *

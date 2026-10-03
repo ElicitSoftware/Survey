@@ -25,9 +25,8 @@ import java.time.OffsetDateTime;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Executable spec for {@code survey.sections_questions} — research/Kimball_type_2.md,
- * "Schema Changes Per Table &rarr; sections_questions" and the "FK Reference Migration
- * Summary". This is the core "FK cascade problem" claim: a join-table row referencing a
+ * Executable spec for {@code survey.sections_questions} (UC-002 BR-009). This is the core
+ * "FK cascade problem" claim: a join-table row referencing a
  * durable id must survive a version change on either side untouched.
  */
 @QuarkusTest
