@@ -215,11 +215,18 @@ class ETLServiceTest {
                     "INSERT INTO survey.ontology (id, survey_id, name, tag, dimension) "
                             + "VALUES (NEXTVAL('survey.ontology_seq'), ?1, 'Twin probe', 'terms_consent_direct_probe', NULL)")
                     .setParameter(1, id).executeUpdate();
+            // A tag-only tag whose name is a *dimension* of the Library survey (PatronProfile):
+            // survey.dimensions is site-wide, and the column discovery must not let the Library's
+            // dimension swallow the twin's tag (BR-009; the multilingual suite found this).
+            em.createNativeQuery(
+                    "INSERT INTO survey.ontology (id, survey_id, name, tag, dimension) "
+                            + "VALUES (NEXTVAL('survey.ontology_seq'), ?1, 'Twin profile', 'patronprofile', NULL)")
+                    .setParameter(1, id).executeUpdate();
             em.createNativeQuery(
                     "INSERT INTO survey.metadata (id, survey_id, steps_sections_id, ontology_id) "
                             + "SELECT NEXTVAL('survey.metadata_seq'), ?1, ss.steps_sections_id, o.id "
-                            + "FROM survey.steps_sections ss, survey.ontology o "
-                            + "WHERE ss.survey_id = ?2 AND o.survey_id = ?1 LIMIT 1")
+                            + "FROM (SELECT steps_sections_id FROM survey.steps_sections WHERE survey_id = ?2 LIMIT 1) ss, "
+                            + "survey.ontology o WHERE o.survey_id = ?1")
                     .setParameter(1, id).setParameter(2, SURVEY_ID).executeUpdate();
             Integer respondentId = ((Number) em.createNativeQuery(
                     "INSERT INTO survey.respondents(id, survey_id, access_code, active, logins, created_dt, first_access_dt, finalized_dt) "
@@ -269,6 +276,12 @@ class ETLServiceTest {
             assertEquals(0, nativeCount(ownerEm,
                     "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'report_etl_twin' AND table_name = 'fact_sections' AND column_name = 'terms_consent_key'"),
                     "BR-009: the Library's other tags are not columns of the twin's fact table");
+            assertEquals(1, nativeCount(ownerEm,
+                    "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'report_etl_twin' AND table_name = 'fact_sections' AND column_name = 'patronprofile_key'"),
+                    "BR-009: the Library's PatronProfile dimension must not swallow the twin's tag-only patronprofile tag");
+            assertEquals(1, nativeCount(ownerEm,
+                    "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'report_etl_twin' AND table_name = 'fact_sections_view' AND column_name = 'patronprofile'"),
+                    "and the twin's view exposes it");
             assertEquals(libraryStepsBefore, nativeCount("SELECT COUNT(*) FROM report_librarycardreg.dim_step"),
                     "BR-009: the Library's dim_step is untouched by the twin's build");
             assertEquals(libraryColumnsBefore, nativeCount(ownerEm,
