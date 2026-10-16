@@ -149,8 +149,24 @@ public class QuestionService {
      * and step information for the specified display key
      */
     @Timed(value = "survey.init", description = "Time to initialize survey for respondent", histogram = true)
-    @Transactional(Transactional.TxType.REQUIRES_NEW)
     public NavResponse init(int respondentId, String displaykey) {
+        // Two transactions on purpose (UC-012 BR-004): the activity stamp joins the caller's
+        // transaction when there is one (session restore has just logged the respondent in and
+        // holds their row), while the page render keeps its own, as it always has. Stamping the
+        // row from inside the nested transaction would wait on the outer one until it timed out.
+        self.recordActivity(respondentId);
+        return self.renderPage(respondentId, displaykey);
+    }
+
+    /** Records the respondent's activity in the caller's transaction, or one of its own. */
+    @Transactional
+    public void recordActivity(int respondentId) {
+        questionManager.recordActivity(respondentId);
+    }
+
+    /** Builds the respondent's missing rows and renders the page, in a transaction of its own. */
+    @Transactional(Transactional.TxType.REQUIRES_NEW)
+    public NavResponse renderPage(int respondentId, String displaykey) {
         questionManager.init(respondentId, displaykey);
         return questionManager.navigate(respondentId, displaykey);
     }
@@ -163,7 +179,6 @@ public class QuestionService {
      * @return an instance of {@code NavResponse}, which includes navigation details, answers,
      * and step information for the specified display key
      */
-    @Transactional(Transactional.TxType.REQUIRES_NEW)
     public NavResponse init(String displaykey) {
         Respondent respondent = sessionDataService.getRespondent();
         return init(respondent.id, displaykey);
@@ -319,6 +334,7 @@ public class QuestionService {
             // Build Downstream questions and sections
             questionManager.buildDownstreamQuestions(a);
         }
+        questionManager.recordActivity(a.respondentId);
 
         // Now build a new set of Answers and return it.
         return questionManager.navigate(a.respondentId, a.getDisplayKey());
