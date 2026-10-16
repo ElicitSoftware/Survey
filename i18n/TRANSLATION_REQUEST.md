@@ -121,6 +121,7 @@ Every row is one key in `translations.properties`. Return a file `translations_<
 | `reviewView.note` | Note: After submission you will not be able to edit your answers. | Review page · paragraph | 100 |  |
 | `reportView.btnGeneratePdf` | Generate PDF | Report page · button | 25 |  |
 | `reportView.btnNext` | Next | Report page · button leading to the post-survey site | 20 |  |
+| `reportView.complete` | Thank you. Your survey has been submitted. | Report page, shown only when the survey has no reports and no post-survey site · paragraph | 80 |  |
 | `reportView.error.pdf` | Failed to generate PDF: {0} | Report page · notification | 100 | params: {0} = technical error text |
 | `reportView.error.service` | Service error: {0} | Report page · error text | 100 | params: {0} = technical error text |
 | `reportView.error.forbidden` | Access forbidden - License validation may have failed. Please check your license configuration. | Report page · error text | 160 |  |
@@ -197,6 +198,7 @@ reviewView.instructions=Please review your answers for each section below. If yo
 reviewView.note=Note: After submission you will not be able to edit your answers.
 reportView.btnGeneratePdf=Generate PDF
 reportView.btnNext=Next
+reportView.complete=Thank you. Your survey has been submitted.
 reportView.error.pdf=Failed to generate PDF: {0}
 reportView.error.service=Service error: {0}
 reportView.error.forbidden=Access forbidden - License validation may have failed. Please check your license configuration.

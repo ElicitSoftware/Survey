@@ -19,7 +19,7 @@
 2. System permanently discards any answers and dependency records that were soft-deleted during the survey (e.g., branches shown then later hidden by an answer change).
 3. System extracts the respondent's completed section path into the analytical ("fact") tables used for downstream reporting.
 4. For each post-survey action configured on the survey (in a fixed execution order), system sends a notification (webhook) to the configured external service, including the respondent's identifier.
-5. Respondent is routed to the reports view (UC-005).
+5. Respondent is routed to the reports view (UC-005), which sends them straight to the survey's post-survey URL when the survey lists no reports (UC-005 BR-014).
 
 ## Alternative Flows
 

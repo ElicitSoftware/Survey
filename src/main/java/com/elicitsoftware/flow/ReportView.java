@@ -26,8 +26,11 @@ import com.elicitsoftware.report.ReportResponse;
 import com.elicitsoftware.report.ReportService;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.router.BeforeEnterEvent;
+import com.vaadin.flow.router.BeforeEnterObserver;
 import com.vaadin.flow.router.Route;
 import com.vaadin.quarkus.annotation.NormalUIScoped;
 import io.quarkus.logging.Log;
@@ -52,10 +55,16 @@ import jakarta.inject.Inject;
  * - Displays the generated report content in the form of dynamically created ReportCards.
  * <p>
  * This view is UI-scoped to prevent data leakage between browser tabs.
+ * <p>
+ * A survey that lists no reports has no report page (UC-005 BR-014): there is nothing to show
+ * and nothing to print, so no "Generate PDF" button is rendered, and the respondent is sent
+ * straight to the survey's post-survey URL when it has one. Doing that here rather than at each
+ * caller covers every path to {@code /report}: Finish, a returning respondent's sign-in and a
+ * restored session.
  */
 @Route(value = "report", layout = MainLayout.class)
 @NormalUIScoped
-public class ReportView extends VerticalLayout {
+public class ReportView extends VerticalLayout implements BeforeEnterObserver {
 
     Respondent respondent;
 
@@ -94,8 +103,21 @@ public class ReportView extends VerticalLayout {
     @PostConstruct
     public void init() {
         setSizeFull();
-//        Survey survey = Survey.findById(sessionDataService.getSurveyId());
         respondent = sessionDataService.getRespondent();
+        if (respondent == null) {
+            return;
+        }
+
+        // UC-005 BR-014: no reports, no report page. With a post-survey URL, beforeEnter() sends
+        // the browser there; without one, all there is to say is that the survey is complete.
+        if (!hasReports()) {
+            if (postSurveyUrl() == null) {
+                Paragraph complete = new Paragraph(getTranslation("reportView.complete"));
+                complete.setId("report-complete-notice");
+                this.add(complete);
+            }
+            return;
+        }
 
         Button pdfButton = new Button(getTranslation("reportView.btnGeneratePdf"));
         pdfButton.setId("report-generate-pdf-button");
@@ -140,6 +162,26 @@ public class ReportView extends VerticalLayout {
             btnNext.setId("report-next-button");
             this.add(btnNext);
         }
+    }
+
+    /**
+     * UC-005 BR-014: a respondent routed to the report page of a survey that lists no reports is
+     * sent straight to the survey's post-survey URL, whichever path brought them here.
+     */
+    @Override
+    public void beforeEnter(BeforeEnterEvent event) {
+        if (respondent != null && !hasReports() && postSurveyUrl() != null) {
+            event.getUI().getPage().setLocation(postSurveyUrl());
+        }
+    }
+
+    private boolean hasReports() {
+        return respondent.survey.reports != null && !respondent.survey.reports.isEmpty();
+    }
+
+    private String postSurveyUrl() {
+        String url = respondent.survey.postSurveyURL;
+        return url == null || url.isBlank() ? null : url;
     }
 
     private ArrayList<ReportCard> getCards() {
