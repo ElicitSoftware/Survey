@@ -22,7 +22,10 @@ import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 
+import java.util.Date;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -116,6 +119,82 @@ class QuestionManagerTest {
         long countAfterSecond = Answer.count("respondentId = ?1 and deleted = false", r.id);
 
         assertEquals(countAfterFirst, countAfterSecond, "Second init() must not create duplicate answers");
+    }
+
+    // ── UC-012 Record Respondent Progress ───────────────────────────────────
+
+    @Test
+    @TestTransaction
+    void given_unstampedRows_when_navigate_then_onlyTheRenderedPagesRowsArePresented() {
+        // UC-012 BR-001: the page render stamps presented_dt on exactly the rows it returns.
+        // Tess (V9005.5) has rows on every active page, none stamped: the fixture is inserted
+        // after V022's back-fill. The transaction rolls back, so the fixture stays unstamped.
+        List<Answer> built = Answer.find("respondentId = ?1 and deleted = false", TESS_RESPONDENT_ID).list();
+        assertTrue(built.stream().allMatch(a -> a.presentedDt == null), "fixture rows carry no stamp");
+
+        NavResponse response = questionManager.navigate(TESS_RESPONDENT_ID, WELCOME_SECTION);
+        em.flush();
+
+        assertFalse(response.getAnswers().isEmpty(), "the welcome page has rows");
+        assertTrue(response.getAnswers().stream().allMatch(a -> a.presentedDt != null),
+                "every row of the rendered page is stamped");
+        List<Answer> elsewhere = Answer.find(
+                "respondentId = ?1 and deleted = false and displayKey not like '0001-0001-0000-0001-0000-%'",
+                TESS_RESPONDENT_ID).list();
+        assertFalse(elsewhere.isEmpty(), "rows for other pages exist");
+        assertTrue(elsewhere.stream().allMatch(a -> a.presentedDt == null),
+                "rows of pages not rendered stay unstamped");
+    }
+
+    @Test
+    @TestTransaction
+    void given_freshRespondent_when_init_then_nothingIsPresented() {
+        // UC-012 BR-001 / A3: login builds rows ahead of the respondent and stamps none of them.
+        Respondent r = createFreshRespondent();
+        questionManager.init(r.id.intValue(), WELCOME_SECTION);
+
+        List<Answer> built = Answer.find("respondentId = ?1 and deleted = false", r.id).list();
+        assertFalse(built.isEmpty());
+        assertTrue(built.stream().allMatch(a -> a.presentedDt == null), "init() must not stamp presented_dt");
+    }
+
+    @Test
+    @TestTransaction
+    void given_renderedPage_when_navigateAgain_then_presentedDtIsKept() {
+        // UC-012 BR-001: the stamp records the first render; a re-render (every save causes one)
+        // leaves it alone.
+        Respondent r = createFreshRespondent();
+        questionManager.init(r.id.intValue(), WELCOME_SECTION);
+        NavResponse first = questionManager.navigate(r.id.intValue(), WELCOME_SECTION);
+        Map<String, Date> stamps = first.getAnswers().stream()
+                .collect(Collectors.toMap(Answer::getDisplayKey, a -> a.presentedDt));
+
+        NavResponse second = questionManager.navigate(r.id.intValue(), WELCOME_SECTION);
+
+        for (Answer a : second.getAnswers()) {
+            assertEquals(stamps.get(a.getDisplayKey()), a.presentedDt, "stamp kept for " + a.getDisplayKey());
+        }
+    }
+
+    @Test
+    @TestTransaction
+    void given_freshRespondent_when_recordActivity_then_lastActivityDtIsSet() {
+        // UC-012 BR-004: QuestionService calls this with every page render and every save.
+        Respondent r = createFreshRespondent();
+        assertNull(r.lastActivityDt, "a respondent who has opened no page has no activity");
+
+        questionManager.recordActivity(r.id.intValue());
+        em.flush();
+
+        assertNotNull(Respondent.<Respondent>findById(r.id).lastActivityDt,
+                "recordActivity() must stamp the respondent");
+    }
+
+    @Test
+    void given_noTransaction_when_recordActivity_then_nothingThrows() {
+        // UC-012 BR-004: outside a transaction the stamp is simply not persisted, as the
+        // presented stamps are not; nothing may fail.
+        assertDoesNotThrow(() -> questionManager.recordActivity(TESS_RESPONDENT_ID));
     }
 
     // ── US-2 Navigate ───────────────────────────────────────────────────────

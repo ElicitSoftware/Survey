@@ -358,6 +358,15 @@ public class Answer extends PanacheEntityBase {
     public Date savedDt;
 
     /**
+     * When the page holding this row was first rendered for the respondent (UC-012 BR-001).
+     * Stamped by {@code QuestionManager.getAnswersBySection}, the one query every page render
+     * passes through, and only where still null. A row built at login or by a rule for a page
+     * the respondent has not reached carries no stamp.
+     */
+    @Column(name = "presented_dt")
+    public Date presentedDt;
+
+    /**
      * Represents the display key associated with an answer in the survey context.
      * This key uniquely identifies the context of the answer, including its
      * survey, section, question, and instances details.
@@ -448,9 +457,10 @@ public class Answer extends PanacheEntityBase {
             this.questionVersion = this.question.version;
         }
         if (textValue != null) {
+            // A value supplied here is the question's default: it is stored and shown, but
+            // savedDt stays null because the respondent has not changed anything (UC-012 BR-002).
             this.textValue = textValue;
             this.textArray = new ArrayList<>(Arrays.asList(textValue.split(",")));
-            this.savedDt = new Date();
         }
     }
 
