@@ -28,6 +28,7 @@ import jakarta.transaction.Transactional;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map.Entry;
@@ -469,6 +470,25 @@ public class QuestionManager {
     }
 
     /**
+     * Records that the respondent did something just now (UC-012 BR-004): a page render or a
+     * save. Set on the managed entity and flushed with the caller's transaction. It is not done
+     * inside {@link #navigate} on purpose: a page render runs in a transaction of its own
+     * ({@code QuestionService.init} is REQUIRES_NEW), and when that is nested in a transaction
+     * that has already written the respondent's row -- session restore logs the respondent in
+     * and then renders the page -- an update of the same row from the inner transaction waits
+     * on the outer one until the transaction times out. The caller stamps in a transaction
+     * that joins the outer one when there is one.
+     *
+     * @param respondentId the respondent who is active
+     */
+    public void recordActivity(int respondentId) {
+        Respondent respondent = Respondent.findById(respondentId);
+        if (respondent != null) {
+            respondent.lastActivityDt = OffsetDateTime.now();
+        }
+    }
+
+    /**
      * Retrieves the current NavigationItem that matches the given key from the provided array of NavigationItems.
      * This method iterates through the navItems array, comparing the path of each item to the section string
      * derived from the given key, and returns the first matching NavigationItem.
@@ -513,9 +533,16 @@ public class QuestionManager {
         // this next call ensures that all the initial answers are generated.
         buildInitialAnswers(respondentId, key);
         List<Answer> existing = Answer.findBySectionDisplaykey(respondentId, key);
+        // These are exactly the rows of the page about to be rendered, so this is where
+        // "presented" is recorded: once per row, on its first render (UC-012 BR-001). The
+        // entities are managed in the caller's transaction and the stamp is flushed with it.
+        Date presentedNow = new Date();
         TreeMap<String, Answer> answers = new TreeMap<>();
         // move all the answers to an ordered map.
         for (Answer answer : existing) {
+            if (answer.presentedDt == null) {
+                answer.presentedDt = presentedNow;
+            }
             // Resolve the select items (as of this respondent's anchor) while the transaction
             // is open, so the UI wrappers never query for them from the request thread.
             answer.getSelectItems();
