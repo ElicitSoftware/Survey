@@ -445,7 +445,7 @@ Two kinds of schema hold the star (UC-008 BR-006, BR-007):
 
 ### DIM_DATE *(surveyreport)*
 
-Standard date dimension used to key the respondent fact view's created/first-access/finalized dates for time-based reporting. Holds 1970-01-01 (the "no date" member) and 2020-01-01 through 2029-12-31; the views join it with a `LEFT JOIN`, so a date outside that range yields a null label rather than a missing row (UC-008 BR-010).
+Standard date dimension used to key the respondent fact view's created/first-access/finalized dates for time-based reporting. Holds 1970-01-01 (the "no date" member) and every day from 2020-01-01 through 2050-12-31 (UC-008 BR-013): V004 seeded 2020 to 2029 by hand, and V024 generates the calendar through 2050 from one `generate_series`, so widening the span is a change to its two bounds. The views join it with a `LEFT JOIN`, so a date outside the span yields a null label rather than a missing row (UC-008 BR-010). Column rules: `dayOfWeek` is 1 Sunday to 7 Saturday; Saturday and Sunday are the weekend; weeks start on Sunday and week 1 is the week holding January 1; the fiscal year starts on July 1 (`FY2021-01` is July 2020).
 
 | Attribute | Description | Data Type | Length/Precision | Validation Rules |
 |---|---|---|---|---|
@@ -456,8 +456,8 @@ Standard date dimension used to key the respondent fact view's created/first-acc
 | dayNameOfWeek | Name of the day of week. | String | 10 | Not Null |
 | dayOfMonth | Day-of-month number. | Integer | — | Not Null |
 | dayOfYear | Day-of-year number. | Integer | — | Not Null |
-| weekdayWeekend | Whether the date is a weekday or weekend. | String | 10 | Not Null |
-| weekOfYear | ISO week-of-year number. | Integer | — | Not Null |
+| weekdayWeekend | `Weekend` for Saturday and Sunday, `Weekday` otherwise. | String | 10 | Not Null |
+| weekOfYear | Week-of-year number: weeks start on Sunday, week 1 holds January 1 (not ISO). | Integer | — | Not Null |
 | monthName | Name of the month. | String | 10 | Not Null |
 | monthOfYear | Numeric month. | Integer | — | Not Null |
 | isLastDayOfMonth | Whether this date is the last day of its month. | String | 1 | Not Null |
