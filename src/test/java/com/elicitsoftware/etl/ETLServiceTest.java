@@ -306,8 +306,9 @@ class ETLServiceTest {
     }
 
     @Test
-    // UC-008 BR-010: fact_respondents is a view, so a respondent's status moves without any
-    // build, and a created date outside dim_date still appears in fact_respondents_view.
+    // UC-008 BR-010, BR-013: fact_respondents is a view, so a respondent's status moves without
+    // any build; a created date inside dim_date's span (through 2050) is labeled, and one past
+    // it still appears in fact_respondents_view with a null label.
     void given_respondentProgresses_then_factRespondentsViewFollowsWithoutABuild() {
         Respondent r = QuarkusTransaction.requiringNew().call(this::createFreshUnfinalizedRespondent);
         try {
@@ -317,16 +318,25 @@ class ETLServiceTest {
                             .setParameter(1, r.id).executeUpdate());
             assertEquals(1, statusOf(r.id), "in progress");
             QuarkusTransaction.requiringNew().run(() ->
-                    em.createNativeQuery("UPDATE survey.respondents SET finalized_dt = NOW(), created_dt = '2031-03-04' WHERE id = ?1")
+                    em.createNativeQuery("UPDATE survey.respondents SET finalized_dt = NOW(), created_dt = '2045-03-04' WHERE id = ?1")
                             .setParameter(1, r.id).executeUpdate());
             assertEquals(2, statusOf(r.id), "finished");
             @SuppressWarnings("unchecked")
             List<Object[]> rows = em.createNativeQuery(
                     "SELECT created, status FROM report_librarycardreg.fact_respondents_view WHERE id = ?1")
                     .setParameter(1, r.id).getResultList();
-            assertEquals(1, rows.size(), "a date beyond dim_date must not hide the respondent (LEFT JOIN)");
-            assertNull(rows.get(0)[0], "the date label is null, not a missing row");
+            assertEquals(1, rows.size());
+            assertEquals("2045/03/04", rows.get(0)[0], "a date inside dim_date's span is labeled (BR-013)");
             assertEquals("Finished", rows.get(0)[1]);
+            QuarkusTransaction.requiringNew().run(() ->
+                    em.createNativeQuery("UPDATE survey.respondents SET created_dt = '2061-03-04' WHERE id = ?1")
+                            .setParameter(1, r.id).executeUpdate());
+            @SuppressWarnings("unchecked")
+            List<Object[]> beyond = em.createNativeQuery(
+                    "SELECT created, status FROM report_librarycardreg.fact_respondents_view WHERE id = ?1")
+                    .setParameter(1, r.id).getResultList();
+            assertEquals(1, beyond.size(), "a date beyond dim_date must not hide the respondent (LEFT JOIN)");
+            assertNull(beyond.get(0)[0], "the date label is null, not a missing row");
         } finally {
             QuarkusTransaction.requiringNew().run(() ->
                     em.createNativeQuery("DELETE FROM survey.respondents WHERE id = ?1")
