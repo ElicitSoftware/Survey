@@ -138,6 +138,38 @@ class ReportViewTest extends QuarkusBrowserlessTest {
         }
     }
 
+    @Test
+    // UC-005 BR-015 / UC-014 BR-001: a report whose address is a path is the built-in report,
+    // rendered in process -- a card with the summary, not an error card and no HTTP call.
+    void surveyWithAPathReport_reportView_rendersTheBuiltInReportInProcess() {
+        Respondent respondent = QuarkusTransaction.requiringNew().call(this::createFinishedRespondent);
+        try {
+            com.elicitsoftware.model.ReportDefinition builtIn = new com.elicitsoftware.model.ReportDefinition();
+            builtIn.name = "Summary of your answers";
+            builtIn.description = "The answers you gave.";
+            builtIn.url = com.elicitsoftware.report.builtin.RespondentSummaryService.PATH;
+            builtIn.displayOrder = 1;
+            builtIn.survey = respondent.survey;
+            respondent.survey.reports = new HashSet<>(List.of(builtIn));
+            sessionDataService.setSurveyId(SURVEY_ID);
+            sessionDataService.setRespondent(respondent);
+
+            navigate(ReportView.class);
+
+            ReportCard card = find(ReportCard.class).single();
+            String html = card.getElement().getChildren()
+                    .flatMap(c -> c.getChildren())
+                    .map(e -> e.getProperty("innerHTML"))
+                    .filter(java.util.Objects::nonNull)
+                    .reduce("", String::concat);
+            assertTrue(html.contains("respondent-summary"), "the built-in report's card, got: " + html);
+            assertFalse(html.contains("Report Generation Error"), html);
+            assertTrue(find(Button.class).id("report-generate-pdf-button").isEnabled());
+        } finally {
+            cleanup(respondent.id);
+        }
+    }
+
     private Respondent createFinishedRespondent() {
         // ReportView.init() iterates respondent.survey.reports outside of any transaction
         // (the view is rendered after this @Transactional-boundary method returns), so the
