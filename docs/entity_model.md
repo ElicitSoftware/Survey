@@ -384,6 +384,24 @@ Attaches an ONTOLOGY tag's value to exactly one of a step/section mapping, a que
 
 *Validation note (from SQL): a check constraint requires exactly one of `stepSectionId`/`questionId`/`sectionQuestionId` to be set (enforced as `(a+b+c) > 0`, which also technically permits more than one being set simultaneously — a loose approximation of "exactly one," not a strict XOR).*
 
+### REPORT_ITEM *(no JPA entity — documented from SQL DDL; Survey V023)*
+
+A mark of what one of the survey's default reports shows (UC-013): exactly one of a step/section placement, a question, or a section-question placement, for the respondent report or the administrator report, in report order and under an optional label. Authored in Author, carried in the `.elicit` file as `report_items`, installed by Admin's apply; Survey never writes it.
+
+| Attribute | Description | Data Type | Length/Precision | Validation Rules |
+|---|---|---|---|---|
+| id | Primary key. | Integer | — | Primary Key, Sequence |
+| surveyId | The survey this mark belongs to. | Integer | — | Not Null, Foreign Key (SURVEY.id) |
+| reportItemKey | Cross-instance identity of the mark, minted in Author and carried verbatim by export, import and update. | UUID | — | Not Null, Unique |
+| reportType | Which default report the mark is for: `RESPONDENT` or `ADMINISTRATOR`. | String | 13 | Not Null, Check (one of the two) |
+| stepSectionId | The step/section placement marked, by durable id (`steps_sections.steps_sections_id`), if applicable. | Integer | — | Optional, no FK (durable id) |
+| questionId | The question marked, by durable id (`questions.question_id`), if applicable. | Integer | — | Optional, no FK (durable id) |
+| sectionQuestionId | The question placement marked, by durable id (`sections_questions.sections_question_id`), if applicable. | Integer | — | Optional, no FK (durable id) |
+| label | Text shown on the report instead of the element's own text; translatable (TRANSLATION with `element_type` `report_items`, `field` `label`). | String | 255 | Optional |
+| displayOrder | Position within the report. | Integer | — | Not Null, Default 0 |
+
+*Validation note (from SQL): `report_items_element_ck` requires exactly one of `stepSectionId`/`questionId`/`sectionQuestionId` (`num_nonnulls(...) = 1`, a strict exactly-one, unlike METADATA's).*
+
 ### EXCLUDED_XIDS *(no JPA entity — documented from SQL DDL)*
 
 Tracks external subject identifiers ("xid") excluded from a given department/study, along with why and by whom — appears to support downstream exclusion logic (e.g., in a companion Admin app) rather than being read by the Survey app itself; no Java code in this codebase references it.
@@ -407,7 +425,7 @@ One piece of survey content in one language: the translated value of one field o
 |---|---|---|---|---|
 | id | Primary key. | Long | — | Primary Key, Sequence |
 | surveyId | The survey this translation belongs to. | Long | — | Not Null, Foreign Key (SURVEY.id) |
-| elementType | Which table the translated element lives in: `surveys`, `steps`, `sections`, `questions`, `select_items`, `relationships` or `reports`. | String | 32 | Not Null, Check constraint |
+| elementType | Which table the translated element lives in: `surveys`, `steps`, `sections`, `questions`, `select_items`, `relationships`, `reports` or `report_items` (V023). | String | 32 | Not Null, Check constraint |
 | elementKey | The `*_key` UUID of the translated element. Never a surrogate id and never a durable id, both of which are per instance. | UUID | — | Not Null |
 | field | The column name of the base text this row translates (`text`, `short_text`, `tool_tip`, `placeholder`, `validation_text`, `name`, `description`, `display_text`, `default_upstream_value`), constrained by the translatable-field whitelist. | String | 32 | Not Null |
 | language | BCP-47 tag, written as the mounted chrome bundles write it (`es-419`, `ar`). | String | 35 | Not Null |
