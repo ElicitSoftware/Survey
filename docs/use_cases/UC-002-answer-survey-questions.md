@@ -14,7 +14,7 @@
 
 ## Main Success Scenario
 
-1. System presents the current section's questions to the respondent, one input control per question (text, number, date, single-select, multi-select, checkbox, etc., depending on the question's configured type).
+1. System presents the current section's questions to the respondent, one input control per question (text, number, date, single-select, multi-select, checkbox, etc., depending on the question's configured type), and records that these questions were presented (UC-012).
 2. Respondent provides a value for a question.
 3. System validates the value against the question's configured rules (required, min/max, format) as soon as the respondent leaves the field.
 4. System saves the answer.
@@ -67,7 +67,7 @@
 ## Business Rules
 
 - **BR-004:** Every question's required/min/max/format validation rule is defined per-question in the survey configuration and enforced before section navigation is allowed.
-- **BR-005:** For a CHECKBOX question, an unchecked (false) value is stored as no value (null), not as the literal text "false" — there is no explicit false state, only "answered true" or "not answered."
+- **BR-005:** For a CHECKBOX question, an unchecked (false) value is stored as no value (null), not as the literal text "false" — there is no explicit false state, only "answered true" or "not answered." A report reads No from a row that was presented and holds no value (UC-012 BR-003).
 - **BR-006:** A branching rule's condition is evaluated using the operator configured on the relationship (e.g., equality, contains, field-exists) against the upstream answer's value; if the answer or the configured reference value cannot be parsed for that operator, the rule silently evaluates to not-satisfied rather than raising an error to the respondent.
 - **BR-007:** Changing an answer that already caused downstream questions/sections/steps to be shown re-evaluates every affected relationship and removes any downstream answers whose condition is no longer met.
 - **BR-008:** An answer identifies its step and section by display order (that is what its display key encodes), while a branching rule identifies its upstream and downstream step, section and question by durable id. Whenever the two are compared -- finding the rules an answer triggers, the sibling rules that must all hold, the rules whose text a step or section answer carries, or the initial questions of a shown step -- the display order is resolved to the durable id (or back) as of the respondent's snapshot anchor, never compared directly. The seeded surveys happen to number their steps so the two coincide; an authored survey does not.

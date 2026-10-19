@@ -101,6 +101,7 @@ A single person's attempt at taking a survey, identified by their access code; t
 | createdDt | When the respondent record was created. | DateTime | — | Not Null |
 | firstAccessDt | When the respondent first logged in. | DateTime | — | Optional |
 | finalizedDt | When the respondent finalized the survey. | DateTime | — | Optional |
+| lastActivityDt | The instant of the respondent's latest page render or save (UC-012 BR-004); null until they have opened a page. | DateTime | — | Optional |
 
 *Uniqueness note (from SQL, not enforced at the Java level as a bean-validation rule): `(survey_id, access_code)` is unique.*
 
@@ -234,7 +235,8 @@ The respondent's recorded response to a single question instance — or, when it
 | textValue | The raw stored answer value (interpreted per question type — e.g., parsed as a date, number, or comma-joined list of selections). | String | 255 | Optional |
 | deleted | Soft-delete flag; true when a branching change has removed this answer from the respondent's current path. | Boolean | — | Not Null, Default: false |
 | createdDt | When the answer row was first created. | DateTime | — | Not Null |
-| savedDt | When the answer's value was last saved by the respondent. | DateTime | — | Optional |
+| savedDt | When the respondent last changed this answer's value (UC-012 BR-002). Null for a row created with a question's default value that the respondent never changed, and for a row with no value. | DateTime | — | Optional |
+| presentedDt | When the page holding this row was first rendered for the respondent (UC-012 BR-001). Null for a row built for a page the respondent has not reached. | DateTime | — | Optional |
 
 *Uniqueness note (from SQL): `(respondent_id, display_key)` is unique.*
 
