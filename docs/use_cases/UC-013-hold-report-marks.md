@@ -7,7 +7,7 @@
 - **Primary Actor:** Admin Module
 - **Secondary Actors:** Authoring Module
 - **Goal:** Keep, with each installed survey, the author's choice of what the survey's default reports show: which questions, question placements or sections the respondent report echoes back, and which ones the administrator report monitors, in what order and under what label. Survey owns the `survey` schema, so it owns the table; Author writes the marks, Admin installs them with the survey definition, and Survey's own report service reads them.
-- **Status:** Implemented (the table and its translation hook; the report that reads it is a later use case)
+- **Status:** Implemented (the table and its translation hook; the respondent report reads it, UC-014; the administrator report is Admin's)
 
 ## Preconditions
 
@@ -52,5 +52,5 @@
 
 ## Notes / Known Gaps
 
-- The reports that read the marks are later releases: the respondent report in Survey (umbrella `docs/research/default_reports.md`, section 3) and the administrator report in Admin (section 4). Until then the rows are installed and read by nothing.
+- The respondent report in Survey reads the `RESPONDENT` marks (UC-014). The administrator report in Admin (umbrella `docs/research/default_reports.md`, section 4) is a later release; until then the `ADMINISTRATOR` rows are installed and read by nothing.
 - Author's Reports page and the `report_items` records in the `.elicit` file, and Admin's parsers for them, are the other halves of this release (Author and Admin, phase 3 of the plan).

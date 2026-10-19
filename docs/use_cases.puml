@@ -23,6 +23,7 @@ rectangle "Elicit Survey" {
   usecase "UC-011\nDrop Reporting Schema" as UC011
   usecase "UC-012\nRecord Respondent Progress" as UC012
   usecase "UC-013\nHold Report Marks" as UC013
+  usecase "UC-014\nRender the Respondent Report" as UC014
 }
 
 Respondent --> UC001
@@ -39,7 +40,10 @@ Respondent --> UC009
 AdminApp --> UC012 : reads presented_dt, last_activity_dt\nand saved_dt for its participation report
 AdminApp --> UC013 : installs report_items\nwith the survey definition
 AuthorApp --> UC013 : mints the marks and exports\nthem in the .elicit file
+AdminApp --> UC014 : POST /api/reports/respondent-summary\nwhen printing a respondent's reports
 
+UC005 ..> UC014 : <<include>>\n(a report whose address is a path\nis the built-in report, called in process)
+UC014 ..> UC013 : <<include>>\n(reads the RESPONDENT marks)
 UC004 ..> UC005 : <<include>>\n(navigates to report view, which sends\nthe respondent straight to the post-survey\nURL when the survey lists no reports)
 UC009 ..> UC001 : <<extend>>\n(language applies to every page)
 UC002 ..> UC002 : <<extend>>\n(branching shows/hides/repeats\ndownstream questions)

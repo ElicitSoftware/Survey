@@ -384,9 +384,9 @@ Attaches an ONTOLOGY tag's value to exactly one of a step/section mapping, a que
 
 *Validation note (from SQL): a check constraint requires exactly one of `stepSectionId`/`questionId`/`sectionQuestionId` to be set (enforced as `(a+b+c) > 0`, which also technically permits more than one being set simultaneously — a loose approximation of "exactly one," not a strict XOR).*
 
-### REPORT_ITEM *(no JPA entity — documented from SQL DDL; Survey V023)*
+### REPORT_ITEM *(Survey V023; mapped read-only by `ReportItem`)*
 
-A mark of what one of the survey's default reports shows (UC-013): exactly one of a step/section placement, a question, or a section-question placement, for the respondent report or the administrator report, in report order and under an optional label. Authored in Author, carried in the `.elicit` file as `report_items`, installed by Admin's apply; Survey never writes it.
+A mark of what one of the survey's default reports shows (UC-013): exactly one of a step/section placement, a question, or a section-question placement, for the respondent report or the administrator report, in report order and under an optional label. Authored in Author, carried in the `.elicit` file as `report_items`, installed by Admin's apply; Survey never writes it, and reads the `RESPONDENT` rows to render the respondent report (UC-014).
 
 | Attribute | Description | Data Type | Length/Precision | Validation Rules |
 |---|---|---|---|---|
