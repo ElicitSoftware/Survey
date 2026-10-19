@@ -24,6 +24,7 @@ import com.elicitsoftware.report.PDFService;
 import com.elicitsoftware.report.ReportRequest;
 import com.elicitsoftware.report.ReportResponse;
 import com.elicitsoftware.report.ReportService;
+import com.elicitsoftware.report.builtin.BuiltInReports;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.html.Paragraph;
@@ -76,6 +77,9 @@ public class ReportView extends VerticalLayout implements BeforeEnterObserver {
 
     @Inject
     ContentTranslator translator;
+
+    @Inject
+    BuiltInReports builtInReports;
 
     ArrayList<ReportResponse> reportResponses = new ArrayList<>();
 
@@ -216,6 +220,16 @@ public class ReportView extends VerticalLayout implements BeforeEnterObserver {
         try {
             ReportRequest request = new ReportRequest(respondent.id,
                     translator.language(respondent.survey));
+            // UC-005 BR-015 / UC-014 BR-001: a path names a report built into Survey; call it in
+            // process rather than over HTTP to ourselves.
+            if (BuiltInReports.isPath(rpt.url)) {
+                BuiltInReports.Service builtIn = builtInReports.find(rpt.url).orElse(null);
+                if (builtIn == null) {
+                    throw new IllegalStateException(getTranslation("reportView.error.noBuiltIn", rpt.url));
+                }
+                return builtIn.render(request, "report page") // i18n:ignore
+                        .orElseThrow(() -> new IllegalStateException(getTranslation("reportView.error.noRespondent")));
+            }
             ReportService reportService = RestClientBuilder.newBuilder()
                     .baseUri(new URI(rpt.url))
                     .build(ReportService.class);

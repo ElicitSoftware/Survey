@@ -16,7 +16,7 @@
 
 ## Main Success Scenario
 
-1. System calls each report configured for the survey, in its configured display order, passing the respondent's identifier to the report's configured external service endpoint.
+1. System calls each report configured for the survey, in its configured display order, passing the respondent's identifier and language to the report's configured service: over HTTP for an absolute address, in process for a path, which names a report built into Survey (UC-014, BR-015).
 2. System renders each report's returned content in its own card on the page.
 3. Respondent clicks "Generate PDF."
 4. System builds a PDF of the respondent's submitted answers, temporarily caches it server-side, and opens it in a new browser tab for viewing/printing/saving.
@@ -50,6 +50,7 @@
 
 - **BR-012:** Reports render in the survey-configured display order.
 - **BR-014:** A survey with no reports has no report page. "Generate PDF" is shown only when at least one report is listed, and a respondent routed to the page is sent straight to the survey's post-survey URL when it has one, on every path that leads there (Finish, returning sign-in, restored session). Without a post-survey URL the page shows a completion notice only.
+- **BR-015:** A report whose address starts with `/` is a built-in report service and is called in process by its path, never over HTTP to Survey itself (UC-014 BR-001). The startup diagnostics (UC-007) report such an address as built in rather than probing it.
 - **BR-013:** The PDF download endpoint is intentionally unauthenticated (publicly reachable given a valid, time-limited cache key) — it relies on the cache key's unguessability and short lifetime rather than a login check.
 
 ## Notes / Known Gaps

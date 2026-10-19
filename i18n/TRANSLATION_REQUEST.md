@@ -149,6 +149,15 @@ Every row is one key in `translations.properties`. Return a file `translations_<
 | `pdf.download.expired` | PDF not found or expired | PDF download link · plain-text error | 60 |  |
 | `datePicker.today` | Today | Survey page · button in the calendar of a date question | 20 |  |
 | `datePicker.cancel` | Cancel | Survey page · button in the calendar of a date question | 20 |  |
+| `respondentSummary.title` | Summary of your answers | Respondent report · the report's name when the survey's row has none | 40 |  |
+| `respondentSummary.completed` | Completed {0} | Respondent report · line under the title | 40 | params: {0} = the date the respondent finished, already formatted |
+| `respondentSummary.inProgress` | Not finished yet | Respondent report · line under the title when the respondent has not finished | 40 |  |
+| `respondentSummary.question` | Question | Respondent report · PDF table header | 15 |  |
+| `respondentSummary.answer` | Answer | Respondent report · PDF table header | 15 |  |
+| `respondentSummary.yes` | Yes | Respondent report · value of a ticked checkbox | 10 |  |
+| `respondentSummary.no` | No | Respondent report · value of an unticked checkbox; identical in Spanish | 10 |  |
+| `reportView.error.noBuiltIn` | No report is built into Survey at {0} | Report page · error when a report address names no built-in report | 80 | params: {0} = the address |
+| `reportView.error.noRespondent` | The respondent no longer exists | Report page · error when the respondent cannot be found | 60 |  |
 
 ## English source file
 
@@ -226,4 +235,13 @@ pdf.download.missingKey=Missing key parameter
 pdf.download.expired=PDF not found or expired
 datePicker.today=Today
 datePicker.cancel=Cancel
+respondentSummary.title=Summary of your answers
+respondentSummary.completed=Completed {0}
+respondentSummary.inProgress=Not finished yet
+respondentSummary.question=Question
+respondentSummary.answer=Answer
+respondentSummary.yes=Yes
+respondentSummary.no=No
+reportView.error.noBuiltIn=No report is built into Survey at {0}
+reportView.error.noRespondent=The respondent no longer exists
 ```
