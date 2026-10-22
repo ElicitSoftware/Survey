@@ -9,7 +9,7 @@
 -- ***LICENSE_END***
 --
 
--- V019: other languages of a survey's content (docs/research/i18n_survey.md, sections 3.2 and 3.3).
+-- V019: other languages of a survey's content (Survey UC-009 BR-005, FR-024).
 --
 -- One row per (survey, element, field, language): the translated value of one base-language column
 -- of one element, attached to that element by its *_key UUID and the name of the column, never by a

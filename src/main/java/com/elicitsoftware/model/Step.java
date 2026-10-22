@@ -53,8 +53,7 @@ public class Step extends PanacheEntityBase {
     @Column(name = "step_key", insertable = false, updatable = false)
     public UUID stepKey;
 
-    // NUMERIC, not INTEGER (Kimball Type 2 SCD, research/Kimball_type_2.md's "Adding a new
-    // question" section) -- supports decimal-midpoint insertion between existing positions
+    // NUMERIC, not INTEGER -- supports decimal-midpoint insertion between existing positions
     // without renumbering, once an eventual Author Tool can create fractional values here.
     @Column(name = "display_order", nullable = false, precision = 3)
     public BigDecimal displayOrder;
@@ -65,7 +64,7 @@ public class Step extends PanacheEntityBase {
     @Column(length = 255)
     public String name;
 
-    // Kimball Type 2 SCD (research/Kimball_type_2.md) — step_id is the durable key
+    // Kimball Type 2 SCD (UC-002 BR-009) — step_id is the durable key
     // that survives re-versioning; id (above) is the surrogate, per-version row id.
     @Column(name = "step_id", nullable = false)
     public Integer stepId;
@@ -86,8 +85,8 @@ public class Step extends PanacheEntityBase {
     public String publishedComment;
 
     /**
-     * The version of the durable {@code step_id} in effect at {@code asOf} (research/
-     * Kimball_type_2.md, "Snapshot Anchor"): the one row whose effective window covers the
+     * The version of the durable {@code step_id} in effect at {@code asOf} (the snapshot
+     * anchor, {@link Respondent#snapshotAnchor}): the one row whose effective window covers the
      * instant. Durable keys are never mapped as JPA associations -- once a revision exists a
      * durable id has a row per version and Hibernate refuses to pick one ("More than one row
      * with the given identifier was found"), which marked the whole transaction rollback-only.

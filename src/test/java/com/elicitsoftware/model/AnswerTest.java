@@ -114,13 +114,14 @@ class AnswerTest {
     }
 
     @Test
-    void constructor_withTextValue_splitsIntoTextArrayAndStampsSavedDt() {
+    void constructor_withTextValue_splitsIntoTextArrayWithoutStampingSavedDt() {
+        // UC-012 BR-002: a value given at creation is the question's default, not a save.
         DisplayKey key = new DisplayKey("1-1-0-1-0-1-0");
         Answer answer = new Answer(key, null, null, "text", 7, "a,b,c");
 
         assertEquals("a,b,c", answer.getTextValue());
         assertEquals(List.of("a", "b", "c"), answer.textArray);
-        assertNotNull(answer.savedDt);
+        assertNull(answer.savedDt);
     }
 
     @Test
@@ -269,5 +270,26 @@ class AnswerTest {
         answer.setSelectedItems(Set.of(item("A")));
 
         assertEquals("A", answer.getTextValue());
+    }
+
+    @Test
+    void constructor_withDefaultValue_storesValueWithoutSavedDt() {
+        // UC-012 BR-002: a row created with the question's default value has a value the
+        // respondent can see and validate against, but no saved stamp and no presented stamp.
+        Answer answer = new Answer(new DisplayKey("0001-0001-0000-0001-0000-0002-0000"), null, null,
+                "Terms of Use", 1, "true");
+
+        assertEquals("true", answer.getTextValue());
+        assertNull(answer.savedDt, "a default is not a change the respondent made");
+        assertNull(answer.presentedDt, "creation is not a render");
+    }
+
+    @Test
+    void constructor_withoutValue_storesNothing() {
+        Answer answer = new Answer(new DisplayKey("0001-0001-0000-0001-0000-0002-0000"), null, null,
+                "Terms of Use", 1, null);
+
+        assertNull(answer.getTextValue());
+        assertNull(answer.savedDt);
     }
 }

@@ -1,0 +1,60 @@
+name: Bug
+description: Something Survey does that it should not, or fails to do.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did and what Survey did. Paste exact messages.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should have happened
+      description: Cite the use case or business rule that says so (UC-NNN, BR-NNN) when you know it.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: Image tag, release, or `git rev-parse --short HEAD`.
+    validations:
+      required: true
+  - type: dropdown
+    id: database
+    attributes:
+      label: Database state
+      options:
+        - Greenfield (resetDatabase.sh V3)
+        - Brownfield (resetDatabase.sh V2, upgraded from a V2 database)
+        - An existing development database
+        - Not applicable
+    validations:
+      required: true
+  - type: input
+    id: aiup
+    attributes:
+      label: Affected AIUP artifacts
+      description: The FR, UC or BR IDs under docs/ that describe the behavior, or "unknown".
+      placeholder: UC-004, BR-012
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs, screenshots, SQL
+      description: Anything that helps; this field renders as code.
+      render: shell

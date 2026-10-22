@@ -67,7 +67,7 @@ public class Respondent extends PanacheEntityBase {
     public OffsetDateTime firstAccessDt;
 
     /**
-     * The snapshot anchor (research/Kimball_type_2.md, "Snapshot Anchor") every structural
+     * The snapshot anchor (UC-002 BR-009) every structural
      * lookup for a respondent is resolved as of: their {@link #firstAccessDt} once set, or
      * NOW() for a brand-new respondent who has not been anchored yet (and for an unknown id).
      * Every version-aware finder ({@code Step.findAsOf}, {@code Question.findAsOf}, ...) is
@@ -84,6 +84,10 @@ public class Respondent extends PanacheEntityBase {
 
     @Column(name = "finalized_dt")
     public OffsetDateTime finalizedDt;
+
+    /** The respondent's latest page render or save (UC-012 BR-004); null until they open a page. */
+    @Column(name = "last_activity_dt")
+    public OffsetDateTime lastActivityDt;
 
     public boolean active;
     public int logins;

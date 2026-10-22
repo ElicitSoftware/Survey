@@ -10,7 +10,7 @@
 
 -- ============================================================
 -- Minimal, isolated, generic (non-FHHS) fixture for
--- QuestionManagerBranchCoverageTest — see research/Kimball_type_2.md.
+-- QuestionManagerBranchCoverageTest.
 --
 -- Its own survey, separate from the V005/V005.5/V005.6 "Library Card
 -- Registration" fixture and the V011 "ScdSpecFixture": exercises two
@@ -37,9 +37,9 @@
 -- displayOrder value in QuestionManager.findRelationshipsByUpstreamQuestion.
 -- Both only work because every existing fixture's low display_order values
 -- (1, 2, 3...) happen to collide with *some* row's real id in the shared,
--- globally-sequenced steps/sections tables (see Kimball_type_2.md's
--- "INSERT_MISSING_FACT_SECTION_SQL — Display-Order Join Fix", which
--- documents this exact coincidence). Rather than gamble on that coincidence
+-- globally-sequenced steps/sections tables (the ETL's fact insert once joined
+-- answers.step, a display order, to steps.id and only worked by exactly this
+-- coincidence). Rather than gamble on that coincidence
 -- holding for whatever ids happen to be free when this migration runs, this
 -- fixture makes it hold *by construction*: each step/section's display_order
 -- is set equal to its own generated id in a follow-up UPDATE.

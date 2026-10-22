@@ -56,8 +56,7 @@ public class Section extends PanacheEntityBase {
     @Column(name = "section_key", insertable = false, updatable = false)
     public UUID sectionKey;
 
-    // NUMERIC, not INTEGER (Kimball Type 2 SCD, research/Kimball_type_2.md's "Adding a new
-    // question" section) -- supports decimal-midpoint insertion between existing positions
+    // NUMERIC, not INTEGER -- supports decimal-midpoint insertion between existing positions
     // without renumbering, once an eventual Author Tool can create fractional values here.
     @Column(name = "display_order", nullable = false, precision = 3)
     public BigDecimal displayOrder;
@@ -68,7 +67,7 @@ public class Section extends PanacheEntityBase {
     @Column(length = 255)
     public String description;
 
-    // Kimball Type 2 SCD (research/Kimball_type_2.md) — section_id is the durable key
+    // Kimball Type 2 SCD (UC-002 BR-009) — section_id is the durable key
     // that survives re-versioning; id (above) is the surrogate, per-version row id.
     @Column(name = "section_id", nullable = false)
     public Integer sectionId;
@@ -89,8 +88,8 @@ public class Section extends PanacheEntityBase {
     public String publishedComment;
 
     /**
-     * The version of the durable {@code section_id} in effect at {@code asOf} (research/
-     * Kimball_type_2.md, "Snapshot Anchor"). See {@link Step#findAsOf} for why durable keys
+     * The version of the durable {@code section_id} in effect at {@code asOf} (the snapshot
+     * anchor, {@link Respondent#snapshotAnchor}). See {@link Step#findAsOf} for why durable keys
      * are resolved through a finder rather than mapped as JPA associations.
      *
      * @param sectionId the durable {@code sections.section_id}; {@code null} yields {@code null}

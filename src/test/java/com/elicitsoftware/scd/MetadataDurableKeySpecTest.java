@@ -24,10 +24,10 @@ import java.time.OffsetDateTime;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Executable spec for research/Kimball_type_2.md "Metadata, Ontology, and ETL Impact"
- * — {@code survey.metadata}'s migration to durable keys, "Rule 1: Versioning an
- * existing row — no ontology changes needed", and Gap ETL-1's *accepted* retroactive
- * reclassification behavior.
+ * Executable spec for {@code survey.metadata}'s durable keys: versioning an existing row
+ * needs no ontology change, because one metadata row references the durable id and so covers
+ * every version of the element; and retagging reclassifies every respondent's answers
+ * retroactively, which was accepted (docs/plans/kimball-stakeholder-review.md).
  * <p>
  * Written as direct native SQL against the doc's revised join shape
  * ({@code m.question_id = q.question_id}, a durable integer, not the surrogate

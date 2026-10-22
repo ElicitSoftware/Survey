@@ -31,8 +31,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Exercises {@link ManualSchemaMigrator}'s upgrade branch — the one path in
- * research/Kimball_type_2.md's "Migration Strategy for Existing Data" that no other test
+ * Exercises {@link ManualSchemaMigrator}'s upgrade branch — the one path of the V2-to-V3
+ * migration strategy (DeploymentScript.md) that no other test
  * in the suite touches. Every {@code @QuarkusTest} in this project boots a genuinely fresh
  * Testcontainers Postgres (see {@code PostgresTestResource}), so {@code ManualSchemaMigrator}
  * always takes the greenfield {@code db/migration} branch before any test method gets to

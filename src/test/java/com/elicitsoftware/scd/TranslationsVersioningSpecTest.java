@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Executable spec for V019 and docs/research/i18n_survey.md sections 3.2 and 3.3: {@code
+ * Executable spec for V019 (UC-009 BR-005): {@code
  * survey.translations} is Type 2 in the same shape as the eight structural tables, but keyed to
  * what it translates by that element's {@code *_key} rather than by a durable-id companion column.
  * <p>

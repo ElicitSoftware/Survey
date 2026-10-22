@@ -36,6 +36,11 @@ public class ReportRequest {
      */
     private String language;
 
+    /** For the JSON mapper of the built-in report resource (UC-014 A1). */
+    public ReportRequest() {
+        super();
+    }
+
     public ReportRequest(int id) {
         super();
         this.id = id;

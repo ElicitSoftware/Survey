@@ -16,7 +16,7 @@
 -- v2.x migrations followed by db/migration-v3/V010__Kimball_Type2_SCD.sql
 -- (an ALTER-based upgrade) — see com.elicitsoftware.flyway.SchemaTrackFlywayCustomizer
 -- for how a given database is routed to one track or the other. Both tracks
--- must converge on an identical resulting schema; see research/Kimball_type_2.md.
+-- must converge on an identical resulting schema (UC-002 BR-009 for the versioning model).
 -- ============================================================
 
 SET TIMEZONE TO 'America/Detroit';
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS survey.surveys
     -- survey_key is preserved verbatim across a create-import — it is the one
     -- identifier that has to mean "the same authored survey" across separate
     -- deployed databases (e.g. two institutions importing the same survey).
-    -- See research/Kimball_type_2.md "surveys" — surveys itself stays Type 1
+    -- surveys itself stays Type 1
     -- (id never changes; no version/effective_from/effective_to).
     survey_key          uuid                   NOT NULL,
     name                character varying(255) NOT NULL,
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS survey.surveys
     initial_display_key character varying(255),
     post_survey_url     character varying(255),
     -- Type 1 (in-place) change tracking only — surveys is a container, not a
-    -- versioned structural element. See research/Kimball_type_2.md "surveys".
+    -- versioned structural element.
     published_by        text,
     published_comment   text,
     CONSTRAINT surveys_pk PRIMARY KEY (id),
@@ -673,7 +673,9 @@ CREATE TABLE IF NOT EXISTS survey.answers
     section_question_id    integer,
     question_id            integer,
     -- Pins the exact questions.version the respondent saw at answer time,
-    -- independent of any later reword. See research/Kimball_type_2.md Gap ETL-2.
+    -- independent of any later reword (question_id already pins the surrogate row; this
+    -- makes the version explicit for reporting). A placement needs no such pin: the
+    -- sections_questions row in effect is re-derived from the snapshot anchor.
     question_version       integer                 NOT NULL DEFAULT 0,
     display_key            character varying(34)   NOT NULL,
     display_text           character varying(8000) NOT NULL,
@@ -772,7 +774,7 @@ CREATE INDEX IF NOT EXISTS ontology_dimension_index ON survey.ontology USING btr
 GRANT DELETE, UPDATE, INSERT, SELECT ON TABLE survey.ontology TO ${survey_user};
 --------------------------------
 -- metadata — bridge table to the ontology/reporting chain. NOT versioned itself
--- (research/Kimball_type_2.md "The metadata Table" / "Rule 1"): its three element
+-- (versioning an existing row needs no ontology change): its three element
 -- columns are durable integer references from the start, so one metadata row
 -- automatically covers every version of the referenced entity. Deliberately no
 -- FK constraint on these three columns back to the structural tables — a plain

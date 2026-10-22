@@ -24,10 +24,10 @@ import java.time.OffsetDateTime;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Executable spec for research/Kimball_type_2.md "Workflow 2: Respondent Survey
- * Workflow" — the guarantees that matter most for not breaking a respondent mid-survey.
+ * Executable spec for the respondent's path through a versioned survey (UC-002 BR-009) —
+ * the guarantees that matter most for not breaking a respondent mid-survey.
  * All resolution here uses {@code respondents.firstAccessDt} as the snapshot anchor,
- * exactly as the doc specifies, against the {@code questions} table (any structural
+ * exactly as {@code Respondent.snapshotAnchor} does, against the {@code questions} table (any structural
  * table demonstrates the same pattern; see *VersioningSpecTest classes for the others).
  */
 @QuarkusTest

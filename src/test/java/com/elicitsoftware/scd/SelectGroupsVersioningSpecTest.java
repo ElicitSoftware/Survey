@@ -24,8 +24,7 @@ import java.time.OffsetDateTime;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Executable spec for Type 2 versioning of {@code survey.select_groups} —
- * research/Kimball_type_2.md, "Schema Changes Per Table &rarr; select_groups". Same
+ * Executable spec for Type 2 versioning of {@code survey.select_groups} (UC-002 BR-009). Same
  * pattern as {@link QuestionsVersioningSpecTest}; see that class for the fully
  * annotated reference implementation.
  */

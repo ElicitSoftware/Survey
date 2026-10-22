@@ -113,7 +113,7 @@ public class Question extends PanacheEntityBase {
     @Column(name = "variant", length = 255)
     public String variant;
 
-    // Kimball Type 2 SCD (research/Kimball_type_2.md) — question_id is the durable key
+    // Kimball Type 2 SCD (UC-002 BR-009) — question_id is the durable key
     // that survives re-versioning; id (above) is the surrogate, per-version row id, and
     // is what answers.question_id pins to at response time.
     @Column(name = "question_id", nullable = false)
@@ -135,13 +135,13 @@ public class Question extends PanacheEntityBase {
     public String publishedComment;
 
     // FK-companion column pinning the referenced select_groups row to its entity-existence
-    // check (always 0 — see research/Kimball_type_2.md's "Resolving the FK Cascade Problem").
+    // check (always 0 -- the FK targets the referenced table's (durable id, version) unique constraint, and pinning 0 keeps this row valid across that entity's versions; the version in effect is resolved by the snapshot anchor, Respondent.snapshotAnchor).
     @Column(name = "select_group_version", nullable = false)
     public Integer selectGroupVersion = 0;
 
     /**
-     * The version of the durable {@code question_id} in effect at {@code asOf} (research/
-     * Kimball_type_2.md, "Snapshot Anchor"). See {@link Step#findAsOf} for why durable keys
+     * The version of the durable {@code question_id} in effect at {@code asOf} (the snapshot
+     * anchor, {@link Respondent#snapshotAnchor}). See {@link Step#findAsOf} for why durable keys
      * are resolved through a finder rather than mapped as JPA associations. Note that an
      * {@link Answer} pins the surrogate {@code questions.id} it was created against, so
      * {@code Answer.question} stays a plain JPA association; this finder is for reaching a

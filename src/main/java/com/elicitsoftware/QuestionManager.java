@@ -28,6 +28,7 @@ import jakarta.transaction.Transactional;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map.Entry;
@@ -290,7 +291,7 @@ public class QuestionManager {
     }
 
     /**
-     * Resolves the snapshot instant (research/Kimball_type_2.md, "Snapshot Anchor") that
+     * Resolves the snapshot instant ({@link Respondent#snapshotAnchor}) that
      * structural queries (questions, sections, steps, relationships, ...) must be resolved
      * as of for the given respondent: their {@code firstAccessDt} once set, or NOW() for a
      * brand-new respondent who has not yet been anchored. This guarantees a respondent stays
@@ -337,7 +338,7 @@ public class QuestionManager {
 
         DisplayKey displaykey = new DisplayKey(key);
 
-        // Snapshot-anchored (research/Kimball_type_2.md) to this respondent's firstAccessDt so
+        // Snapshot-anchored (Respondent.snapshotAnchor) to this respondent's firstAccessDt so
         // they stay pinned to the survey definition as it existed when they first accessed it.
         List<StepsSections> steps = StepsSections.findBySurveyIdAsOf(displaykey.getSurvey(), resolveAsOf(respondentId));
         for (StepsSections step : steps) {
@@ -401,7 +402,7 @@ public class QuestionManager {
         // name in the respondent's language.
         dkey.setStepInstance(0);
         dkey.setSectionInstance(0);
-        // Snapshot-anchored (research/Kimball_type_2.md) to this respondent's firstAccessDt:
+        // Snapshot-anchored (Respondent.snapshotAnchor) to this respondent's firstAccessDt:
         // the placement and then the section version it names are both resolved as of the
         // same instant. A missing placement is a null, never an exception to swallow.
         OffsetDateTime asOf = resolveAsOf(respondentId);
@@ -469,6 +470,25 @@ public class QuestionManager {
     }
 
     /**
+     * Records that the respondent did something just now (UC-012 BR-004): a page render or a
+     * save. Set on the managed entity and flushed with the caller's transaction. It is not done
+     * inside {@link #navigate} on purpose: a page render runs in a transaction of its own
+     * ({@code QuestionService.init} is REQUIRES_NEW), and when that is nested in a transaction
+     * that has already written the respondent's row -- session restore logs the respondent in
+     * and then renders the page -- an update of the same row from the inner transaction waits
+     * on the outer one until the transaction times out. The caller stamps in a transaction
+     * that joins the outer one when there is one.
+     *
+     * @param respondentId the respondent who is active
+     */
+    public void recordActivity(int respondentId) {
+        Respondent respondent = Respondent.findById(respondentId);
+        if (respondent != null) {
+            respondent.lastActivityDt = OffsetDateTime.now();
+        }
+    }
+
+    /**
      * Retrieves the current NavigationItem that matches the given key from the provided array of NavigationItems.
      * This method iterates through the navItems array, comparing the path of each item to the section string
      * derived from the given key, and returns the first matching NavigationItem.
@@ -513,9 +533,16 @@ public class QuestionManager {
         // this next call ensures that all the initial answers are generated.
         buildInitialAnswers(respondentId, key);
         List<Answer> existing = Answer.findBySectionDisplaykey(respondentId, key);
+        // These are exactly the rows of the page about to be rendered, so this is where
+        // "presented" is recorded: once per row, on its first render (UC-012 BR-001). The
+        // entities are managed in the caller's transaction and the stamp is flushed with it.
+        Date presentedNow = new Date();
         TreeMap<String, Answer> answers = new TreeMap<>();
         // move all the answers to an ordered map.
         for (Answer answer : existing) {
+            if (answer.presentedDt == null) {
+                answer.presentedDt = presentedNow;
+            }
             // Resolve the select items (as of this respondent's anchor) while the transaction
             // is open, so the UI wrappers never query for them from the request thread.
             answer.getSelectItems();
@@ -549,7 +576,7 @@ public class QuestionManager {
         // SS.ID/SQ.ID below are replaced with SS.steps_sections_id/SQ.sections_question_id
         // (the durable keys) wherever compared against R.DOWNSTREAM_SS_ID/R.DOWNSTREAM_SQ_ID —
         // those relationship columns were retargeted to durable ids by the Kimball Type 2 SCD
-        // migration (research/Kimball_type_2.md), while SS.ID/SQ.ID remain each row's surrogate,
+        // migration (UC-002 BR-009), while SS.ID/SQ.ID remain each row's surrogate,
         // per-version id. EFFECTIVE_FROM/EFFECTIVE_TO guards snapshot-anchor the resolution to
         // this respondent's firstAccessDt so they stay pinned to what they first saw.
         String sqlStep = "SELECT SQ.ID, SQ.DISPLAY_ORDER FROM SURVEY.SECTIONS_QUESTIONS SQ "
@@ -633,7 +660,7 @@ public class QuestionManager {
         // S.ID NOT IN (...R.DOWNSTREAM_SQ_ID...) and the nested SS.ID = R.DOWNSTREAM_SS_ID join
         // are replaced with the durable S.SECTIONS_QUESTION_ID / SS.STEPS_SECTIONS_ID columns —
         // R.DOWNSTREAM_SQ_ID/R.DOWNSTREAM_SS_ID were retargeted to durable ids by the Kimball
-        // Type 2 SCD migration (research/Kimball_type_2.md). The A.SECTION_QUESTION_ID = S.ID
+        // Type 2 SCD migration (UC-002 BR-009). The A.SECTION_QUESTION_ID = S.ID
         // and SS.STEP_ID = R.DOWNSTREAM_STEP_ID comparisons are unaffected — the former compares
         // two surrogate ids (answers pin the exact surrogate row), the latter compares two
         // already-durable ids. EFFECTIVE_FROM/EFFECTIVE_TO guards snapshot-anchor the
@@ -808,7 +835,7 @@ public class QuestionManager {
 
         HashMap<Integer, Dependent> dependents;
         // The rule's endpoints are durable ids; every row they name is resolved as of this
-        // respondent's snapshot anchor (research/Kimball_type_2.md), never through a mapping.
+        // respondent's snapshot anchor (Respondent.snapshotAnchor), never through a mapping.
         OffsetDateTime asOf = resolveAsOf(upstreamAnswer.respondentId);
 
         // now loop through them and see if the operator evaluates to true

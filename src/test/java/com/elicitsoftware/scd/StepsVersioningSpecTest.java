@@ -25,11 +25,10 @@ import java.time.OffsetDateTime;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Executable spec for Type 2 versioning of {@code survey.steps} —
- * research/Kimball_type_2.md, "Schema Changes Per Table &rarr; steps". Covers the same
+ * Executable spec for Type 2 versioning of {@code survey.steps} (UC-002 BR-009). Covers the same
  * versioning/constraint pattern as {@link QuestionsVersioningSpecTest} plus the
- * {@code display_order INTEGER -> NUMERIC} conversion ("Adding a new question" &rarr;
- * decimal midpoint insertion).
+ * {@code display_order INTEGER -> NUMERIC} conversion (decimal midpoint insertion between
+ * existing positions).
  */
 @QuarkusTest
 @QuarkusTestResource(PostgresTestResource.class)

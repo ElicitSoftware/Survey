@@ -73,6 +73,11 @@ the codebase predates AIUP adoption.
 
 ## Git Commits
 
+- `main` and `V3` change only through a pull request whose CI check passed; a ruleset
+  enforces it on GitHub and `.claude/hooks/branch-guard.py` (a `PreToolUse` hook in
+  `.claude/settings.json`) refuses `git commit` and `git push` on `main`, `master`, `V2` or
+  `V3` locally. Branch from `V3` as `<type>/<issue>-<slug>`; never set the hook's
+  `ELICIT_ALLOW_PROTECTED` override yourself.
 - Never append a `Co-Authored-By: Claude` (or similar AI co-author) trailer to
   commit messages.
 

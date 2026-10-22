@@ -32,10 +32,10 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Characterization tests for {@link QuestionManager} and its model entities against
- * TODAY's schema (surrogate ids, INTEGER display_order, DOWNSTREAM_S_ID column) — see
- * research/Kimball_type_2.md. These lock in current behavior for code paths the doc
- * says it will rename, retype, or rewire, so that an unmodified re-run of this suite
- * proves nothing regressed once that migration lands.
+ * TODAY's schema (surrogate ids, INTEGER display_order, DOWNSTREAM_S_ID column). These lock
+ * in current behavior for code paths the Kimball Type 2 migration renamed, retyped, or
+ * rewired, so that an unmodified re-run of this suite proves nothing regressed once that
+ * migration landed.
  * <p>
  * Uses its own isolated, generic (non-FHHS) fixture — V9012__QuestionManager_Branch_Fixture.sql
  * — because every relationship in the existing Library/Tess fixture that sets
@@ -307,7 +307,7 @@ class QuestionManagerBranchCoverageTest {
                 "the count answer itself must have been kept");
     }
 
-    // ── Entity field round-trips (fields research/Kimball_type_2.md renames/retypes) ──
+    // ── Entity field round-trips (fields the Kimball Type 2 migration renames/retypes) ──
 
     @Test
     void relationshipDownstreamSection_roundTripsAsStepsSectionsReference() {
@@ -328,8 +328,8 @@ class QuestionManagerBranchCoverageTest {
 
     @Test
     void stepAndSectionDisplayOrder_roundTripAsBigDecimal() {
-        // display_order is NUMERIC, not INTEGER (Kimball Type 2 SCD, research/Kimball_type_2.md's
-        // "Adding a new question" section) -- supports decimal-midpoint insertion.
+        // display_order is NUMERIC, not INTEGER (Kimball Type 2 SCD) -- supports decimal-midpoint
+        // insertion between existing positions.
         Integer surveyId = surveyId();
         Step stepOne = Step.find("surveyId = ?1 and name = ?2", surveyId, "BranchStepOne").firstResult();
         Step stepTwo = Step.find("surveyId = ?1 and name = ?2", surveyId, "BranchStepTwo").firstResult();

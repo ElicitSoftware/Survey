@@ -139,6 +139,11 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-rest-client-jsonb</artifactId>
         </dependency>
+        <!-- Server-side JSON for the built-in report service (UC-014 A1) -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-rest-jsonb</artifactId>
+        </dependency>
         <!-- Testing -->
         <dependency>
             <groupId>io.quarkus</groupId>

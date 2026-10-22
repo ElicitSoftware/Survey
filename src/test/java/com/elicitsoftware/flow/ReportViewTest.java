@@ -15,7 +15,10 @@ import com.elicitsoftware.UISessionDataService;
 import com.elicitsoftware.model.Respondent;
 import com.elicitsoftware.model.Survey;
 import com.vaadin.browserless.quarkus.QuarkusBrowserlessTest;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.html.Paragraph;
+import com.vaadin.flow.component.internal.PendingJavaScriptInvocation;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.common.QuarkusTestResource;
@@ -23,6 +26,9 @@ import com.elicitsoftware.PostgresTestResource;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
+
+import java.util.HashSet;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -79,6 +85,86 @@ class ReportViewTest extends QuarkusBrowserlessTest {
             navigate(ReportView.class);
 
             assertFalse(find(Button.class).withId("report-next-button").exists());
+        } finally {
+            cleanup(respondent.id);
+        }
+    }
+
+    @Test
+    // UC-005 A2 / BR-014: a survey with no reports and a post-survey URL has no report page.
+    // The PDF button is not rendered and the browser is sent straight to the URL.
+    void surveyWithoutReports_withPostSurveyUrl_hidesPdfButtonAndRedirects() {
+        Respondent respondent = QuarkusTransaction.requiringNew().call(this::createFinishedRespondent);
+        try {
+            // The survey is detached once the transaction above has returned, so these edits
+            // reach the view through the session only and never the database.
+            respondent.survey.reports = new HashSet<>();
+            respondent.survey.postSurveyURL = "https://example.test/after-the-survey";
+            sessionDataService.setSurveyId(SURVEY_ID);
+            sessionDataService.setRespondent(respondent);
+
+            navigate(ReportView.class);
+
+            assertFalse(find(Button.class).withId("report-generate-pdf-button").exists());
+            assertFalse(find(Paragraph.class).withId("report-complete-notice").exists());
+            List<PendingJavaScriptInvocation> pending =
+                    UI.getCurrent().getInternals().dumpPendingJavaScriptInvocations();
+            assertTrue(pending.stream().anyMatch(p -> p.getInvocation().getParameters()
+                            .contains("https://example.test/after-the-survey")),
+                    "expected a redirect to the post-survey URL, got " + pending);
+        } finally {
+            cleanup(respondent.id);
+        }
+    }
+
+    @Test
+    // UC-005 A2 / BR-014: a survey with no reports and no post-survey URL shows a completion
+    // notice and nothing else.
+    void surveyWithoutReports_withoutPostSurveyUrl_showsCompletionNoticeOnly() {
+        Respondent respondent = QuarkusTransaction.requiringNew().call(this::createFinishedRespondent);
+        try {
+            respondent.survey.reports = new HashSet<>();
+            respondent.survey.postSurveyURL = null;
+            sessionDataService.setSurveyId(SURVEY_ID);
+            sessionDataService.setRespondent(respondent);
+
+            navigate(ReportView.class);
+
+            assertFalse(find(Button.class).withId("report-generate-pdf-button").exists());
+            assertFalse(find(Button.class).withId("report-next-button").exists());
+            assertTrue(find(Paragraph.class).withId("report-complete-notice").exists());
+        } finally {
+            cleanup(respondent.id);
+        }
+    }
+
+    @Test
+    // UC-005 BR-015 / UC-014 BR-001: a report whose address is a path is the built-in report,
+    // rendered in process -- a card with the summary, not an error card and no HTTP call.
+    void surveyWithAPathReport_reportView_rendersTheBuiltInReportInProcess() {
+        Respondent respondent = QuarkusTransaction.requiringNew().call(this::createFinishedRespondent);
+        try {
+            com.elicitsoftware.model.ReportDefinition builtIn = new com.elicitsoftware.model.ReportDefinition();
+            builtIn.name = "Summary of your answers";
+            builtIn.description = "The answers you gave.";
+            builtIn.url = com.elicitsoftware.report.builtin.RespondentSummaryService.PATH;
+            builtIn.displayOrder = 1;
+            builtIn.survey = respondent.survey;
+            respondent.survey.reports = new HashSet<>(List.of(builtIn));
+            sessionDataService.setSurveyId(SURVEY_ID);
+            sessionDataService.setRespondent(respondent);
+
+            navigate(ReportView.class);
+
+            ReportCard card = find(ReportCard.class).single();
+            String html = card.getElement().getChildren()
+                    .flatMap(c -> c.getChildren())
+                    .map(e -> e.getProperty("innerHTML"))
+                    .filter(java.util.Objects::nonNull)
+                    .reduce("", String::concat);
+            assertTrue(html.contains("respondent-summary"), "the built-in report's card, got: " + html);
+            assertFalse(html.contains("Report Generation Error"), html);
+            assertTrue(find(Button.class).id("report-generate-pdf-button").isEnabled());
         } finally {
             cleanup(respondent.id);
         }

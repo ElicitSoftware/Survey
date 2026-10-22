@@ -40,8 +40,8 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Serves a survey's content in the respondent's language (docs/research/i18n_survey.md section 4.1;
- * Survey UC-009 BR-005, BR-008, BR-009, BR-010).
+ * Serves a survey's content in the respondent's language (Survey UC-009 BR-005, BR-008, BR-009,
+ * BR-010).
  * <p>
  * This is the only place the session locale is consulted for content. Everything it returns is
  * either a translation that applies or the base text; nothing else in the runtime has to know which

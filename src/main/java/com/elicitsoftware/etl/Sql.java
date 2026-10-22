@@ -414,8 +414,9 @@ public final class Sql {
     /**
      * The fact rows a finalized respondent's answers call for, one per distinct (step, step
      * instance, section, section instance) with a saved value. {@code answers.step} and
-     * {@code answers.section} are display orders, not ids (see research/Kimball_type_2.md,
-     * "INSERT_MISSING_FACT_SECTION_SQL -- Display-Order Join Fix"); {@code respondents.first_access_dt}
+     * {@code answers.section} are display orders, not ids (a join on {@code steps.id} only ever
+     * worked while steps had been inserted in display order, and a renamed step at display order 1
+     * gets a new id); {@code respondents.first_access_dt}
      * anchors them to the step and placement the respondent actually saw, and the dimension rows
      * are found through those durable ids (BR-011). The NOT EXISTS guard makes the insert
      * idempotent on the resolved keys.
@@ -723,6 +724,16 @@ public final class Sql {
 
     // ── fact_sections columns and the views (UC-008 step 5) ──────────────────────────────────
 
+    /**
+     * The {@code <tag>_key} columns the survey's {@code fact_sections} still lacks: one per
+     * dimension table in its schema that is not a named dimension (those get their columns from
+     * the tags that use them, the second branch), plus one per tag of a named dimension.
+     * {@code survey.dimensions} is site-wide (it has no {@code survey_id}), so the exclusion is
+     * narrowed to the dimensions this survey's ontology uses, compared lower-cased as the table
+     * is named: another survey's dimension {@code Gender} must not swallow this survey's tag-only
+     * {@code gender}, which would leave {@code dim_gender} without a {@code gender_key} and fail
+     * every finalize (found by the multilingual e2e suite, 2026-10-03).
+     */
     public static final String FIND_DIMENSIONS_TO_ADD_TO_FACT_SECTIONS_TABLE = """
             SELECT X.* FROM(
                 SELECT REPLACE(t.table_name, 'dim_', '') || '_key' AS COL,
@@ -730,7 +741,11 @@ public final class Sql {
                 FROM information_schema.tables t
                 WHERE t.table_schema = :schema
                 AND t.table_name NOT LIKE ('fact_%')
-                AND t.table_name NOT IN (select 'dim_' || d.name from survey.dimensions d)
+                AND t.table_name NOT IN (
+                    SELECT LOWER('dim_' || d.name)
+                    FROM survey.dimensions d
+                    JOIN survey.ontology o ON o.dimension = d.id
+                    WHERE o.survey_id = :surveyId)
             UNION
             SELECT LOWER(REPLACE(REPLACE(o.tag,' ','_'),'-','') || '_key') AS col, LOWER('dim_' || d.name) AS dim
             FROM survey.ontology o
@@ -789,7 +804,11 @@ public final class Sql {
                     FROM information_schema.tables t
                     WHERE t.table_schema = :schema
                     AND t.table_name  not like ('fact_%')
-                    AND t.table_name NOT IN (select 'dim_' || d.name from survey.dimensions d)
+                    AND t.table_name NOT IN (
+                        SELECT LOWER('dim_' || d.name)
+                        FROM survey.dimensions d
+                        JOIN survey.ontology o ON o.dimension = d.id
+                        WHERE o.survey_id = :surveyId)
                 UNION
                     SELECT LOWER(REPLACE(REPLACE( o.tag,' ','_'),'-','') || '_key') AS col,
                     LOWER(COALESCE('dim_' || d.name, 'dim_' || replace(o.tag,' ','_'))) as dim

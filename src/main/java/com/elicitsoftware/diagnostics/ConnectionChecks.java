@@ -53,7 +53,9 @@ public class ConnectionChecks {
         /** GET the address; any HTTP answer counts as reachable. */
         HTTP,
         /** Open a TCP connection to host:port. */
-        TCP
+        TCP,
+        /** A report built into Survey (a path, UC-005 BR-015): nothing to probe, always up. */
+        BUILT_IN
     }
 
     /**
@@ -85,7 +87,8 @@ public class ConnectionChecks {
         for (ReportDefinition report : ReportDefinition.<ReportDefinition>listAll()) {
             if (report.url != null && !report.url.isBlank()) {
                 String survey = report.survey != null ? report.survey.name : "?";
-                targets.add(new Target("Report service", report.name + " (" + survey + ")", report.url, Kind.HTTP));
+                targets.add(new Target("Report service", report.name + " (" + survey + ")", report.url,
+                        com.elicitsoftware.report.builtin.BuiltInReports.isPath(report.url) ? Kind.BUILT_IN : Kind.HTTP));
             }
         }
         for (PostSurveyAction action : PostSurveyAction.<PostSurveyAction>listAll()) {
@@ -112,6 +115,7 @@ public class ConnectionChecks {
             return switch (target.kind()) {
                 case HTTP -> http(target, start);
                 case TCP -> tcp(target, start);
+                case BUILT_IN -> CheckResult.up(target.name(), "built into Survey", elapsed(start));
             };
         } catch (HttpTimeoutException e) {
             return CheckResult.down(target.name(), "timed out after " + TIMEOUT.toSeconds() + " s", elapsed(start));

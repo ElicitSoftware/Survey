@@ -29,9 +29,8 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Executable spec for Type 2 versioning of {@code survey.questions} —
- * research/Kimball_type_2.md, "Schema Changes Per Table &rarr; questions" and
- * "Versioning Workflows &rarr; Rewording a question". This is the reference
+ * Executable spec for Type 2 versioning of {@code survey.questions} (UC-002 BR-009; a
+ * reword closes the current row and inserts the next version). This is the reference
  * implementation the other 7 structural-table *VersioningSpecTest classes follow.
  * <p>
  * Written entirely against native SQL (no new Panache entity fields), so it compiles

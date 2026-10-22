@@ -215,11 +215,18 @@ class ETLServiceTest {
                     "INSERT INTO survey.ontology (id, survey_id, name, tag, dimension) "
                             + "VALUES (NEXTVAL('survey.ontology_seq'), ?1, 'Twin probe', 'terms_consent_direct_probe', NULL)")
                     .setParameter(1, id).executeUpdate();
+            // A tag-only tag whose name is a *dimension* of the Library survey (PatronProfile):
+            // survey.dimensions is site-wide, and the column discovery must not let the Library's
+            // dimension swallow the twin's tag (BR-009; the multilingual suite found this).
+            em.createNativeQuery(
+                    "INSERT INTO survey.ontology (id, survey_id, name, tag, dimension) "
+                            + "VALUES (NEXTVAL('survey.ontology_seq'), ?1, 'Twin profile', 'patronprofile', NULL)")
+                    .setParameter(1, id).executeUpdate();
             em.createNativeQuery(
                     "INSERT INTO survey.metadata (id, survey_id, steps_sections_id, ontology_id) "
                             + "SELECT NEXTVAL('survey.metadata_seq'), ?1, ss.steps_sections_id, o.id "
-                            + "FROM survey.steps_sections ss, survey.ontology o "
-                            + "WHERE ss.survey_id = ?2 AND o.survey_id = ?1 LIMIT 1")
+                            + "FROM (SELECT steps_sections_id FROM survey.steps_sections WHERE survey_id = ?2 LIMIT 1) ss, "
+                            + "survey.ontology o WHERE o.survey_id = ?1")
                     .setParameter(1, id).setParameter(2, SURVEY_ID).executeUpdate();
             Integer respondentId = ((Number) em.createNativeQuery(
                     "INSERT INTO survey.respondents(id, survey_id, access_code, active, logins, created_dt, first_access_dt, finalized_dt) "
@@ -269,6 +276,12 @@ class ETLServiceTest {
             assertEquals(0, nativeCount(ownerEm,
                     "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'report_etl_twin' AND table_name = 'fact_sections' AND column_name = 'terms_consent_key'"),
                     "BR-009: the Library's other tags are not columns of the twin's fact table");
+            assertEquals(1, nativeCount(ownerEm,
+                    "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'report_etl_twin' AND table_name = 'fact_sections' AND column_name = 'patronprofile_key'"),
+                    "BR-009: the Library's PatronProfile dimension must not swallow the twin's tag-only patronprofile tag");
+            assertEquals(1, nativeCount(ownerEm,
+                    "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'report_etl_twin' AND table_name = 'fact_sections_view' AND column_name = 'patronprofile'"),
+                    "and the twin's view exposes it");
             assertEquals(libraryStepsBefore, nativeCount("SELECT COUNT(*) FROM report_librarycardreg.dim_step"),
                     "BR-009: the Library's dim_step is untouched by the twin's build");
             assertEquals(libraryColumnsBefore, nativeCount(ownerEm,
@@ -293,8 +306,9 @@ class ETLServiceTest {
     }
 
     @Test
-    // UC-008 BR-010: fact_respondents is a view, so a respondent's status moves without any
-    // build, and a created date outside dim_date still appears in fact_respondents_view.
+    // UC-008 BR-010, BR-013: fact_respondents is a view, so a respondent's status moves without
+    // any build; a created date inside dim_date's span (through 2050) is labeled, and one past
+    // it still appears in fact_respondents_view with a null label.
     void given_respondentProgresses_then_factRespondentsViewFollowsWithoutABuild() {
         Respondent r = QuarkusTransaction.requiringNew().call(this::createFreshUnfinalizedRespondent);
         try {
@@ -304,16 +318,25 @@ class ETLServiceTest {
                             .setParameter(1, r.id).executeUpdate());
             assertEquals(1, statusOf(r.id), "in progress");
             QuarkusTransaction.requiringNew().run(() ->
-                    em.createNativeQuery("UPDATE survey.respondents SET finalized_dt = NOW(), created_dt = '2031-03-04' WHERE id = ?1")
+                    em.createNativeQuery("UPDATE survey.respondents SET finalized_dt = NOW(), created_dt = '2045-03-04' WHERE id = ?1")
                             .setParameter(1, r.id).executeUpdate());
             assertEquals(2, statusOf(r.id), "finished");
             @SuppressWarnings("unchecked")
             List<Object[]> rows = em.createNativeQuery(
                     "SELECT created, status FROM report_librarycardreg.fact_respondents_view WHERE id = ?1")
                     .setParameter(1, r.id).getResultList();
-            assertEquals(1, rows.size(), "a date beyond dim_date must not hide the respondent (LEFT JOIN)");
-            assertNull(rows.get(0)[0], "the date label is null, not a missing row");
+            assertEquals(1, rows.size());
+            assertEquals("2045/03/04", rows.get(0)[0], "a date inside dim_date's span is labeled (BR-013)");
             assertEquals("Finished", rows.get(0)[1]);
+            QuarkusTransaction.requiringNew().run(() ->
+                    em.createNativeQuery("UPDATE survey.respondents SET created_dt = '2061-03-04' WHERE id = ?1")
+                            .setParameter(1, r.id).executeUpdate());
+            @SuppressWarnings("unchecked")
+            List<Object[]> beyond = em.createNativeQuery(
+                    "SELECT created, status FROM report_librarycardreg.fact_respondents_view WHERE id = ?1")
+                    .setParameter(1, r.id).getResultList();
+            assertEquals(1, beyond.size(), "a date beyond dim_date must not hide the respondent (LEFT JOIN)");
+            assertNull(beyond.get(0)[0], "the date label is null, not a missing row");
         } finally {
             QuarkusTransaction.requiringNew().run(() ->
                     em.createNativeQuery("DELETE FROM survey.respondents WHERE id = ?1")
@@ -352,8 +375,8 @@ class ETLServiceTest {
 
     @Test
     void given_stepRenamed_when_updateStepDimensionTable_then_sameRowUpdatedInPlace() {
-        // Locks in today's SCD-Type-1-on-dim_step behavior (Kimball_type_2.md Gap ETL-5's
-        // documented *intentional* current/future behavior) so the durable-key rekey can
+        // Locks in the intentional SCD-Type-1-on-dim_step behavior (a rename is a clarification
+        // and every report shows the current label) so the durable-key rekey can
         // be compared against it later: renaming updates the existing dim_step row, it
         // does not insert a second row for the same steps.id.
         //
@@ -393,7 +416,7 @@ class ETLServiceTest {
     @Test
     void given_sectionRenamed_when_updateSectionDimensionTable_then_sameRowUpdatedInPlace() {
         // Mirrors given_stepRenamed_when_updateStepDimensionTable_then_sameRowUpdatedInPlace —
-        // locks in today's SCD-Type-1-on-dim_section behavior (Kimball_type_2.md Gap ETL-5)
+        // locks in the intentional SCD-Type-1-on-dim_section behavior
         // for sections, which only had an idempotency test before this.
         long countBefore = nativeCount("SELECT COUNT(*) FROM report_librarycardreg.dim_section");
 

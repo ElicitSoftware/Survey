@@ -47,7 +47,7 @@ Elicit Survey itself is the respondent-facing module of the broader
 - Question rendering, validation, branching, and submission via the Vaadin UI.
 - Persistence of answers and decision-tree paths in PostgreSQL.
 - PDF report generation for the respondent.
-- ETL hand-off (Kimball Type 2 dimensions — see `research/Kimball_type_2.md`).
+- ETL hand-off (Kimball Type 2 versioning — UC-002 BR-009, UC-008).
 - OpenTelemetry-based observability (see `guides/OPENTELEMETRY_SETUP.md`,
   `guides/METRICS_GUIDE.md`).
 
