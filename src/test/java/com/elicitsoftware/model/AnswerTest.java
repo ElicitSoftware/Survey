@@ -86,10 +86,10 @@ class AnswerTest {
     @Test
     void constructor_zeroValuedQuestionSegment_sectionQuestionIdBecomesNull() {
         // setDisplayKeyValues()'s own comment says "some of the foreign keys are nullable... in
-        // the Display key they are value 0 but in this class null" -- but valueOrNull() is only
-        // actually applied to section_question_id below. sectionId/sectionInstance are assigned
-        // directly and stay literal 0, not null, for a zero-valued key segment; pinning the real
-        // behavior rather than the comment's broader claim.
+        // the Display key they are value 0 but in this class null" -- but section_question_id is
+        // never taken from the key at all (see the next test), and sectionInstance is assigned
+        // directly and stays literal 0, not null, for a zero-valued key segment; pinning the
+        // real behavior rather than the comment's broader claim.
         DisplayKey key = new DisplayKey("1-2-0-3-0-0-0");
 
         Answer answer = new Answer(key, null, null, "text", 7);
@@ -97,6 +97,20 @@ class AnswerTest {
         assertNull(answer.section_question_id);
         assertEquals(0, answer.sectionInstance);
         assertEquals(BigDecimal.valueOf(3), answer.sectionId);
+    }
+
+    @Test
+    void constructor_nonZeroQuestionSegment_withoutSectionsQuestion_leavesSectionQuestionIdNull() {
+        // The key's sixth segment is the placement's display order, not sections_questions.id.
+        // A marker answer built without a SectionsQuestion must not have that order written into
+        // the surrogate FK, where it would point at an unrelated placement and the FK constraint
+        // could not tell (Survey #127).
+        DisplayKey key = new DisplayKey("1-2-0-3-0-4-0");
+
+        Answer answer = new Answer(key, null, null, "text", 7);
+
+        assertNull(answer.section_question_id);
+        assertEquals(0, answer.question_instance);
     }
 
     @Test
