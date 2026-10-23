@@ -416,6 +416,79 @@
                 </executions>
             </plugin>
             <plugin>
+                <!--
+                    Pitest mutation testing (https://pitest.org). Not bound to any phase: it is slow
+                    and on demand only, run as `./mvnw test-compile pitest:mutationCoverage`, with the
+                    report at target/pit-reports/index.html.
+
+                    targetTests names the plain unit tests one by one, on purpose. A @QuarkusTest (or QuarkusBrowserlessTest) loads
+                    the application through QuarkusClassLoader, which reads the original bytes from
+                    target/classes and never sees Pitest's mutant, so every mutant it covers would be
+                    reported as surviving; it would also boot the application and a PostgreSQL
+                    container once per mutant. There is no glob that separates the two kinds, so a new
+                    plain unit test is added here by hand; leaving one out only lowers the score, where
+                    wrongly including a booted test would falsify it.
+
+                    Two plain tests are left out because they start a PostgreSQL container of their own:
+                    ManualSchemaMigratorUpgradeTest, and ManualSchemaMigratorScaleTest, which is also
+                    @Disabled and seeds hundreds of thousands of rows when run on demand.
+                -->
+                <groupId>org.pitest</groupId>
+                <artifactId>pitest-maven</artifactId>
+                <version>1.30.1</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.pitest</groupId>
+                        <artifactId>pitest-junit5-plugin</artifactId>
+                        <version>1.2.3</version>
+                    </dependency>
+                </dependencies>
+                <configuration>
+                    <targetClasses>
+                        <param>com.elicitsoftware.*</param>
+                    </targetClasses>
+                    <targetTests>
+                        <param>com.elicitsoftware.QuestionManagerTokenTest</param>
+                        <param>com.elicitsoftware.QuestionServiceCallPostSurveyActionTest</param>
+                        <param>com.elicitsoftware.RepeatSourceTest</param>
+                        <param>com.elicitsoftware.ReplaceTokensTest</param>
+                        <param>com.elicitsoftware.SessionPersistenceServiceTest</param>
+                        <param>com.elicitsoftware.TokenSourceTest</param>
+                        <param>com.elicitsoftware.UISessionDataServiceTest</param>
+                        <param>com.elicitsoftware.diagnostics.BrandDiagnosticsTest</param>
+                        <param>com.elicitsoftware.diagnostics.SettingsReportTest</param>
+                        <param>com.elicitsoftware.etl.ETLBuildResourceUnitTest</param>
+                        <param>com.elicitsoftware.etl.ReportSchemaNamesTest</param>
+                        <param>com.elicitsoftware.flow.AppConfigTest</param>
+                        <param>com.elicitsoftware.flow.BrandResourceHandlerTest</param>
+                        <param>com.elicitsoftware.flow.VersionViewFormatImageCreationDateTest</param>
+                        <param>com.elicitsoftware.i18n.ContentTextsShortTextTest</param>
+                        <param>com.elicitsoftware.i18n.DisplayedStringsCoverageTest</param>
+                        <param>com.elicitsoftware.i18n.ElicitI18NProviderTest</param>
+                        <param>com.elicitsoftware.i18n.LocaleConfigTest</param>
+                        <param>com.elicitsoftware.i18n.TranslationBundleConsistencyTest</param>
+                        <param>com.elicitsoftware.i18n.TranslationRequestGeneratorTest</param>
+                        <param>com.elicitsoftware.model.AnswerTest</param>
+                        <param>com.elicitsoftware.model.RelationshipTest</param>
+                        <param>com.elicitsoftware.model.StepsSectionsTest</param>
+                        <param>com.elicitsoftware.report.PDFDownloadResourceTest</param>
+                        <param>com.elicitsoftware.report.PDFServiceTest</param>
+                        <param>com.elicitsoftware.response.NavResponseTest</param>
+                        <param>com.elicitsoftware.util.BrandUtilTest</param>
+                        <param>com.elicitsoftware.util.DatabaseRetryUtilTest</param>
+                    </targetTests>
+                    <jvmArgs>
+                        <jvmArg>-Djava.util.logging.manager=org.jboss.logmanager.LogManager</jvmArg>
+                    </jvmArgs>
+                    <outputFormats>
+                        <format>HTML</format>
+                        <format>XML</format>
+                    </outputFormats>
+                    <timestampedReports>false</timestampedReports>
+                    <threads>4</threads>
+                </configuration>
+            </plugin>
+            <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>license-maven-plugin</artifactId>
                 <version>2.7.1</version>
