@@ -13,6 +13,7 @@ package com.elicitsoftware;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.TreeMap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -165,4 +166,73 @@ class ReplaceTokensTest {
                         values("S1", "Dennis"), authored()));
     }
 
+
+    @Test
+    void aMissingTextStaysMissing() {
+        assertEquals(null, QuestionManager.replaceTokens(null, values("NAME", "Alice")));
+    }
+
+    // ---- token names match without regard to case, the exact spelling first ------------------
+
+    @Test
+    void aTokenIsFilledWhateverTheCaseOfTheRulesToken() {
+        assertEquals("How old is Alice?",
+                QuestionManager.replaceTokens("How old is {<name>|this person}?", values("NAME", "Alice")));
+    }
+
+    @Test
+    void anExactlySpelledTokenOutranksOneThatDiffersOnlyInCase() {
+        // TreeMap order puts "NAME" before "name", so a case-insensitive scan alone would pick "Upper".
+        assertEquals("Hi lower", QuestionManager.replaceTokens("Hi {<name>|you}",
+                values("NAME", "Upper", "name", "lower")));
+    }
+
+    // ---- BR-011: resolving authored values stops at a bound of five rounds -------------------
+
+    /**
+     * A value that refers to itself is substituted into itself once per pass, which doubles its
+     * tail each time, so the result counts the passes: one "y" as written, 2^5 after five passes.
+     */
+    @Test
+    void aSelfReferentialAuthoredValueIsResolvedExactlyFiveTimes() {
+        assertEquals("{<A>|x}" + "y".repeat(32),
+                QuestionManager.replaceTokens("{<A>|z}", values("A", "{<A>|x}y"), authored("A")));
+    }
+
+    @Test
+    void anAuthoredValueWithoutBracesIsUsedAsWritten() {
+        assertEquals("Ask your mother.",
+                QuestionManager.replaceTokens("Ask {<S1>|them}.", values("S1", "your mother"), authored("S1")));
+    }
+
+    // ---- BR-011: a bare token name in a phrase is reported once ------------------------------
+
+    @Test
+    void aPhraseNamingATokenWithoutBracketsIsLoggedOnceNamingThatToken() {
+        try (LogCapture log = LogCapture.of(QuestionManager.class)) {
+            // "AAA" sorts first and does not occur in the phrase; the warning must name S7.
+            TreeMap<String, String> vals = values("AAA", "x", "S7", "Dennis");
+            QuestionManager.replaceTokens("{Does S7 smoke|Do you smoke}?", vals, authored());
+            QuestionManager.replaceTokens("{Does S7 smoke|Do you smoke}?", vals, authored());
+
+            List<String> warnings = log.messages(LogCapture.WARN);
+            assertEquals(1, warnings.size(), warnings.toString());
+            assertTrue(warnings.get(0).contains("{Does S7 smoke}"), warnings.get(0));
+            assertTrue(warnings.get(0).contains("names the token S7 without angle brackets"), warnings.get(0));
+            assertTrue(warnings.get(0).contains("Write <S7>."), warnings.get(0));
+        }
+    }
+
+    @Test
+    void aDelimitedPhraseOrOneNamingNoTokenIsNotLogged() {
+        try (LogCapture log = LogCapture.of(QuestionManager.class)) {
+            QuestionManager.replaceTokens("{Does <S8> drink|Do you drink}?", values("S8", "Dennis"), authored());
+            QuestionManager.replaceTokens("{Does anyone sing|Do you sing}?", values("S8", "Dennis"), authored());
+            // A blank token key names nothing, even where a lone blank stands between non-word
+            // characters and so "occurs" as a whole word.
+            QuestionManager.replaceTokens("{Does ! ! dance|Do you dance}?", values(" ", "x"), authored());
+
+            assertEquals(List.of(), log.messages(LogCapture.WARN));
+        }
+    }
 }
