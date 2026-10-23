@@ -192,6 +192,72 @@ class PDFServicePaginationTest {
         }
     }
 
+    @Test
+    void given_aReportWhoseOnlyContentIsAnSvg_when_generatePDF_then_itsTitleIsKeptAboveTheDrawing() throws IOException {
+        // UC-005 (#158): the drawing used to reopen the page without appending, erasing the title.
+        byte[] bytes = service().generatePDF(reports(report("Pedigree", svg())), "Family History", Locale.ENGLISH);
+
+        try (PDDocument document = parse(bytes)) {
+            assertTrue(textOf(document, 1).contains("Pedigree"), textOf(document, 1));
+        }
+    }
+
+    @Test
+    void given_textAfterAnSvg_when_generatePDF_then_itIsDrawnBelowItOnTheSameLandscapePage() throws IOException {
+        // UC-005 (#159): the legend that follows the pedigree used to go to a closed stream.
+        byte[] bytes = service().generatePDF(reports(report("Pedigree", svg(),
+                text("red fill = family member with cancer"),
+                text("* Indicates multiple diagnoses of the same cancer type."))), "Family History", Locale.ENGLISH);
+
+        try (PDDocument document = parse(bytes)) {
+            assertEquals(1, document.getNumberOfPages(), "the legend fits under the drawing");
+            PDRectangle box = document.getPage(0).getMediaBox();
+            assertTrue(box.getWidth() > box.getHeight(), "the drawing's page is landscape");
+            String text = textOf(document, 1);
+            assertTrue(text.contains("Pedigree"), text);
+            assertTrue(text.contains("red fill = family member with cancer"), text);
+            assertTrue(text.contains("* Indicates multiple diagnoses of the same cancer type."), text);
+        }
+    }
+
+    @Test
+    void given_aReportAfterAnSvg_when_generatePDF_then_itIsDrawnOnAPortraitPage() throws IOException {
+        // UC-005 (#159): a later report without a page break used to be dropped as well.
+        byte[] bytes = service().generatePDF(reports(report("Pedigree", svg()),
+                report("Summary", text("After the drawing"))), "Family History", Locale.ENGLISH);
+
+        try (PDDocument document = parse(bytes)) {
+            assertEquals(2, document.getNumberOfPages());
+            PDRectangle second = document.getPage(1).getMediaBox();
+            assertTrue(second.getHeight() > second.getWidth(), "a report without a drawing returns to portrait");
+            String text = textOf(document, 2);
+            assertTrue(text.contains("Summary"), text);
+            assertTrue(text.contains("After the drawing"), text);
+        }
+    }
+
+    @Test
+    void given_thePedigreeAfterAPortraitReport_when_generatePDF_then_itHasALandscapePageOfItsOwn() throws IOException {
+        // UC-005: the pedigree report as FHHS sends it (page break, landscape, drawing, legend).
+        ReportResponse pedigree = report("Pedigree", svg(), text("red fill = family member with cancer"));
+        pedigree.pdf.pageBreak = true;
+        pedigree.pdf.landscape = true;
+        byte[] bytes = service().generatePDF(reports(report("Summary", text("Before the drawing")), pedigree),
+                "Family History", Locale.ENGLISH);
+
+        try (PDDocument document = parse(bytes)) {
+            assertEquals(2, document.getNumberOfPages());
+            PDRectangle first = document.getPage(0).getMediaBox();
+            PDRectangle second = document.getPage(1).getMediaBox();
+            assertTrue(first.getHeight() > first.getWidth(), "the summary stays portrait");
+            assertTrue(second.getWidth() > second.getHeight(), "the pedigree page is landscape");
+            assertTrue(textOf(document, 1).contains("Before the drawing"));
+            String pedigreePage = textOf(document, 2);
+            assertTrue(pedigreePage.contains("Pedigree"), pedigreePage);
+            assertTrue(pedigreePage.contains("red fill = family member with cancer"), pedigreePage);
+        }
+    }
+
     // ── page breaks ────────────────────────────────────────────────────────────────────────────
 
     @Test
