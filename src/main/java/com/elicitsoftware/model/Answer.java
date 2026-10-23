@@ -789,12 +789,24 @@ public class Answer extends PanacheEntityBase {
     public void setSelectedItems(Set<SelectItem> items) {
         if (question.questionType.name.equals(GlobalStrings.QUESTIION_TYPE_CHECKBOX_GROUP)
                 || question.questionType.name.equals(GlobalStrings.QUESTIION_TYPE_MULTI_SELECT_COMBOBOX)) {
-            HashSet<String> values = new HashSet<>();
-            for (SelectItem item : items) {
-                values.add(item.codedValue);
-            }
-            this.textValue = String.join(",", values);
+            this.textValue = codedValues(items);
         }
+    }
+
+    /**
+     * The coded values of the given items joined with commas, in the order the items come: the
+     * form a CHECKBOX_GROUP, MULTI_SELECT or MULTI_SELECT_COMBOBOX answer is stored in, and the
+     * form {@link #getSelectedItems()} and the input fields read back (UC-002 BR-012).
+     *
+     * @param items the selected items
+     * @return their coded values joined with commas, or an empty string for no items
+     */
+    public static String codedValues(Collection<SelectItem> items) {
+        StringJoiner joined = new StringJoiner(",");
+        for (SelectItem item : items) {
+            joined.add(item.codedValue);
+        }
+        return joined.toString();
     }
 
     /**
