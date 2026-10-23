@@ -448,33 +448,86 @@
                         <param>com.elicitsoftware.*</param>
                     </targetClasses>
                     <targetTests>
+                        <param>com.elicitsoftware.AccessCodeServiceGeneratorTest</param>
+                        <param>com.elicitsoftware.DisplayKeyTest</param>
+                        <param>com.elicitsoftware.QuestionManagerNavigationTest</param>
+                        <param>com.elicitsoftware.QuestionManagerRepeatGuardTest</param>
                         <param>com.elicitsoftware.QuestionManagerTokenTest</param>
+                        <param>com.elicitsoftware.QuestionManagerTokenValuesTest</param>
                         <param>com.elicitsoftware.QuestionServiceCallPostSurveyActionTest</param>
+                        <param>com.elicitsoftware.QuestionServiceDelegationTest</param>
                         <param>com.elicitsoftware.RepeatSourceTest</param>
                         <param>com.elicitsoftware.ReplaceTokensTest</param>
+                        <param>com.elicitsoftware.SessionPersistenceServiceSessionTest</param>
                         <param>com.elicitsoftware.SessionPersistenceServiceTest</param>
                         <param>com.elicitsoftware.TokenSourceTest</param>
                         <param>com.elicitsoftware.UISessionDataServiceTest</param>
                         <param>com.elicitsoftware.diagnostics.BrandDiagnosticsTest</param>
+                        <param>com.elicitsoftware.diagnostics.BuildInfoValuesTest</param>
+                        <param>com.elicitsoftware.diagnostics.ConnectionChecksProbeTest</param>
+                        <param>com.elicitsoftware.diagnostics.DatabaseDiagnosticsProbeTest</param>
                         <param>com.elicitsoftware.diagnostics.SettingsReportTest</param>
+                        <param>com.elicitsoftware.diagnostics.StartupDiagnosticsReportLinesTest</param>
                         <param>com.elicitsoftware.etl.ETLBuildResourceUnitTest</param>
+                        <param>com.elicitsoftware.etl.ETLSchemaResourceUnitTest</param>
+                        <param>com.elicitsoftware.etl.ETLServiceStubbedDatabaseTest</param>
                         <param>com.elicitsoftware.etl.ReportSchemaNamesTest</param>
                         <param>com.elicitsoftware.flow.AppConfigTest</param>
                         <param>com.elicitsoftware.flow.BrandResourceHandlerTest</param>
+                        <param>com.elicitsoftware.flow.LogoutViewAttachTest</param>
+                        <param>com.elicitsoftware.flow.MainLayoutHeaderNavTest</param>
+                        <param>com.elicitsoftware.flow.MainViewLoginFlowTest</param>
+                        <param>com.elicitsoftware.flow.ReportCardTest</param>
+                        <param>com.elicitsoftware.flow.ReportViewReportCallTest</param>
+                        <param>com.elicitsoftware.flow.ReviewCardTest</param>
+                        <param>com.elicitsoftware.flow.SectionViewSessionGuardTest</param>
+                        <param>com.elicitsoftware.flow.UserAccessCodeTest</param>
                         <param>com.elicitsoftware.flow.VersionViewFormatImageCreationDateTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitCheckboxGroupTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitCheckboxTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitComboBoxTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitComponentTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitDatePickerTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitDateTimePickerTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitDoubleFieldTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitEmailFieldTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitHtmlTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitIntegerFieldTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitModalTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitMultiSelectComboBoxTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitPasswordFieldTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitRadioButtonGroupTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitTextAreaTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitTextFieldTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitTimePickerTest</param>
+                        <param>com.elicitsoftware.flow.input.PickerTextsTest</param>
+                        <param>com.elicitsoftware.i18n.ContentHashUnitTest</param>
                         <param>com.elicitsoftware.i18n.ContentTextsShortTextTest</param>
+                        <param>com.elicitsoftware.i18n.ContentTextsTest</param>
+                        <param>com.elicitsoftware.i18n.ContentTranslatorUnitTest</param>
                         <param>com.elicitsoftware.i18n.DisplayedStringsCoverageTest</param>
                         <param>com.elicitsoftware.i18n.ElicitI18NProviderTest</param>
+                        <param>com.elicitsoftware.i18n.LanguageSwitcherTest</param>
                         <param>com.elicitsoftware.i18n.LocaleConfigTest</param>
+                        <param>com.elicitsoftware.i18n.LocaleInitializerTest</param>
+                        <param>com.elicitsoftware.i18n.LocaleLayoutUnitTest</param>
+                        <param>com.elicitsoftware.i18n.LocaleSelectionTest</param>
                         <param>com.elicitsoftware.i18n.TranslationBundleConsistencyTest</param>
                         <param>com.elicitsoftware.i18n.TranslationRequestGeneratorTest</param>
+                        <param>com.elicitsoftware.i18n.TranslationsTest</param>
                         <param>com.elicitsoftware.model.AnswerTest</param>
+                        <param>com.elicitsoftware.model.DependentTest</param>
                         <param>com.elicitsoftware.model.RelationshipTest</param>
+                        <param>com.elicitsoftware.model.RespondentElapsedTimeTest</param>
                         <param>com.elicitsoftware.model.StepsSectionsTest</param>
                         <param>com.elicitsoftware.report.PDFDownloadResourceTest</param>
+                        <param>com.elicitsoftware.report.PDFServicePaginationTest</param>
                         <param>com.elicitsoftware.report.PDFServiceTest</param>
+                        <param>com.elicitsoftware.report.builtin.BuiltInReportsLookupTest</param>
+                        <param>com.elicitsoftware.report.builtin.RespondentSummaryServiceRenderingTest</param>
                         <param>com.elicitsoftware.response.NavResponseTest</param>
                         <param>com.elicitsoftware.util.BrandUtilTest</param>
+                        <param>com.elicitsoftware.util.DatabaseRetryUtilClassificationTest</param>
                         <param>com.elicitsoftware.util.DatabaseRetryUtilTest</param>
                     </targetTests>
                     <jvmArgs>

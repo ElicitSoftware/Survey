@@ -292,4 +292,137 @@ class AnswerTest {
         assertNull(answer.getTextValue());
         assertNull(answer.savedDt);
     }
+
+    // --- the remaining paths of the constructors, label() and the selection accessors ---
+
+    @Test
+    void given_theSixArgumentConstructor_when_built_then_theKeysSegmentsAreCopied() {
+        Answer answer = new Answer(new DisplayKey("2-3-4-5-6-7-8"), null, null, "text", 1, "v");
+
+        assertEquals("0002-0003-0004-0005-0006-0007-0008", answer.getDisplayKey());
+        assertEquals(2, answer.surveyId);
+        assertEquals(BigDecimal.valueOf(3), answer.stepId);
+        assertEquals(4, answer.stepInstance);
+        assertEquals(BigDecimal.valueOf(5), answer.sectionId);
+        assertEquals(6, answer.sectionInstance);
+        assertEquals(8, answer.question_instance);
+    }
+
+    @Test
+    void given_aStepOnlyKey_when_built_then_theSectionIsNullNotZero() {
+        // answers.section is FK'd to survey.sections(id), which has no row 0.
+        assertNull(new Answer(new DisplayKey("1-2-0-0-0-0-0"), null, null, "Step", 7).sectionId);
+        assertNull(new Answer(new DisplayKey("1-2-0-0-0-0-0"), null, null, "Step", 7, null).sectionId);
+    }
+
+    @Test
+    void given_aPlacementAndQuestion_when_builtWithAValue_then_theQuestionVersionIsPinned() {
+        SectionsQuestion sq = new SectionsQuestion();
+        sq.id = 41;
+        Question question = new Question();
+        question.version = 3;
+
+        Answer answer = new Answer(new DisplayKey("1-1-0-1-0-2-0"), sq, question, "Q", 7, "x");
+
+        assertSame(question, answer.question);
+        assertEquals(41, answer.section_question_id);
+        assertEquals(3, answer.questionVersion);
+    }
+
+    @Test
+    void given_aTranslatedRendering_when_label_then_itIsPreferredOverTheBaseText() {
+        Answer answer = new Answer();
+        answer.displayText = "Base";
+        answer.displayTextLocal = "Local";
+
+        assertEquals("Local", answer.label());
+    }
+
+    @Test
+    void given_noOrABlankTranslatedRendering_when_label_then_theBaseTextIsUsed() {
+        Answer answer = new Answer();
+        answer.displayText = "Base";
+
+        assertEquals("Base", answer.label());
+        answer.displayTextLocal = "  ";
+        assertEquals("Base", answer.label());
+    }
+
+    @Test
+    void given_noQuestionOrNoSelectGroup_when_getSelectItems_then_emptyWithoutALookupAndCached() {
+        Answer marker = new Answer();
+        List<SelectItem> first = marker.getSelectItems();
+        assertEquals(List.of(), first);
+        assertSame(first, marker.getSelectItems());
+
+        Answer text = new Answer();
+        text.question = new Question();
+        assertEquals(List.of(), text.getSelectItems());
+    }
+
+    @Test
+    void given_aCheckboxQuestion_when_getSelectedItemAndSetSelectedItem_then_theCodedValueIsUsed() {
+        SelectItem yes = item("true");
+        Answer answer = answerWithQuestion(typeNamed("CHECKBOX"), List.of(item("false"), yes));
+        answer.setTextValue("true");
+        assertSame(yes, answer.getSelectedItem());
+
+        answer.setTextValue(null);
+        answer.setSelectedItem(yes);
+        assertEquals("true", answer.getTextValue());
+    }
+
+    @Test
+    void given_aRadioQuestionWithNoValueOrNoMatch_when_getSelectedItem_then_null() {
+        Answer answer = answerWithQuestion(typeNamed("RADIO"), List.of(item("YES")));
+        assertNull(answer.getSelectedItem());
+        answer.setTextValue("NO");
+        assertNull(answer.getSelectedItem());
+    }
+
+    @Test
+    void given_aQuestionThatIsNotASingleChoice_when_setSelectedItem_then_theValueIsUnchanged() {
+        Answer answer = answerWithQuestion(typeNamed("TEXT"), List.of());
+        answer.setTextValue("typed");
+
+        answer.setSelectedItem(item("YES"));
+
+        assertEquals("typed", answer.getTextValue());
+    }
+
+    @Test
+    void given_aMultiSelectComboboxQuestion_when_getAndSetSelectedItems_then_theCodedValuesAreUsed() {
+        SelectItem a = item("A");
+        Answer answer = answerWithQuestion(typeNamed("MULTI_SELECT_COMBOBOX"), List.of(a, item("B")));
+        answer.setTextValue("A");
+        assertEquals(Set.of(a), answer.getSelectedItems());
+
+        answer.setSelectedItems(Set.of(item("B")));
+        assertEquals("B", answer.getTextValue());
+    }
+
+    @Test
+    void given_aQuestionThatIsNotAMultiChoice_when_getAndSetSelectedItems_then_nothingIsReadOrWritten() {
+        Answer answer = answerWithQuestion(typeNamed("RADIO"), List.of(item("A")));
+        answer.setTextValue("A");
+        assertNull(answer.getSelectedItems());
+
+        answer.setSelectedItems(Set.of(item("B")));
+        assertEquals("A", answer.getTextValue());
+
+        Answer unanswered = answerWithQuestion(typeNamed("CHECKBOX_GROUP"), List.of(item("A")));
+        assertNull(unanswered.getSelectedItems());
+    }
+
+    @Test
+    void given_aValueThatIsNotANumber_when_getDoubleOrGetInteger_then_theFailureIsLogged() {
+        Answer answer = new Answer();
+        answer.setTextValue("abc");
+        try (com.elicitsoftware.LogCapture log = com.elicitsoftware.LogCapture.of(Answer.class)) {
+            assertEquals(0.0, answer.getDouble());
+            assertEquals(1, log.messages(com.elicitsoftware.LogCapture.ERROR).size());
+            assertEquals(0, answer.getInteger());
+            assertEquals(2, log.messages(com.elicitsoftware.LogCapture.ERROR).size());
+        }
+    }
 }

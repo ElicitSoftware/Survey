@@ -203,4 +203,61 @@ class QuestionServiceCallPostSurveyActionTest {
                 new QuestionService().CallPostSurveyAction(psa("Notify", url), 42));
         assertTrue(ex.getMessage().contains("Network communication failed"));
     }
+
+    @Test
+    void given_a300Response_when_callPostSurveyAction_then_itIsAnErrorNotASuccess() throws IOException {
+        // Only 2xx is success; 300 is the first status past the range.
+        String url = startServer(300, "pick one");
+        Exception ex = assertThrows(Exception.class, () ->
+                new QuestionService().CallPostSurveyAction(psa("Notify", url), 42));
+        assertEquals("Post Survey Action 'Notify' Error: HTTP 300 - pick one", ex.getMessage());
+    }
+
+    @Test
+    void given_a299Response_when_callPostSurveyAction_then_itIsASuccess() throws Exception {
+        String url = startServer(299, "fine");
+        assertEquals("fine", new QuestionService().CallPostSurveyAction(psa("Notify", url), 42));
+    }
+
+    @Test
+    void given_anErrorStatus_when_callPostSurveyAction_then_itsOwnMessageIsRethrownUnwrapped() throws IOException {
+        String url = startServer(400, null);
+        Exception ex = assertThrows(Exception.class, () ->
+                new QuestionService().CallPostSurveyAction(psa("Notify", url), 42));
+        assertEquals("Post Survey Action 'Notify' Error: Bad Request (400) - Invalid request data for respondent ID 42",
+                ex.getMessage());
+    }
+
+    @Test
+    void given_anInterruptedCaller_when_callPostSurveyAction_then_theInterruptIsRestoredAndReported()
+            throws Exception {
+        java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+        server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+        server.createContext("/", exchange -> {
+            try {
+                // Never answer while the caller waits, so the call is still pending when interrupted.
+                release.await(10, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+            exchange.close();
+        });
+        server.start();
+        String url = "http://localhost:" + server.getAddress().getPort() + "/";
+
+        Thread.currentThread().interrupt();
+        Exception ex;
+        boolean interruptedAfter;
+        try {
+            ex = assertThrows(Exception.class, () ->
+                    new QuestionService().CallPostSurveyAction(psa("Notify", url), 42));
+        } finally {
+            // Thread.interrupted() reads and clears the flag, so the test thread is left clean.
+            interruptedAfter = Thread.interrupted();
+            release.countDown();
+        }
+        assertTrue(interruptedAfter, "the interrupt status must be restored");
+        assertTrue(ex.getMessage().startsWith("Post Survey Action 'Notify' Error: Request was interrupted"),
+                ex.getMessage());
+    }
 }
