@@ -1748,7 +1748,7 @@ public class QuestionManager {
                 "updating existing answer for respondent " + finalAnswer.respondentId
             );
 
-            List<Dependent> deps = Dependent.findByDownstream(finalAnswer.id, finalAnswer.respondentId);
+            List<Dependent> deps = Dependent.findByDownstream(finalAnswer.respondentId, finalAnswer.id);
             for (Dependent dependent : deps) {
                 dependent.deleted = false;
                 saveDependent(dependent);
