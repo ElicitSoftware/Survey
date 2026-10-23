@@ -12,6 +12,7 @@ package com.elicitsoftware;
  */
 
 import com.elicitsoftware.model.Answer;
+import com.elicitsoftware.model.Dependent;
 import com.elicitsoftware.model.Respondent;
 import com.elicitsoftware.model.Survey;
 import com.elicitsoftware.response.NavResponse;
@@ -473,6 +474,82 @@ class QuestionManagerTest {
         long instance2 = Answer.count(
             "respondentId = ?1 and displayKey like '0001-0004-0000-0006-0002%' and deleted = false", r.id);
         assertEquals(0, instance2, "Checkout instance 2 must be deleted when qty decreases to 1");
+    }
+
+    static final String CHECKOUT_INSTANCE_PREFIX = "0001-0004-0000-0006-";
+
+    /** The active section marker (the row navigation is built from) of checkout instance n. */
+    Answer checkoutMarker(Respondent r, int instance) {
+        return Answer.find("respondentId = ?1 and displayKey = ?2 and deleted = false",
+                r.id, CHECKOUT_INSTANCE_PREFIX + String.format("%04d", instance) + "-0000-0000").firstResult();
+    }
+
+    /** A respondent with the checkout quantity answered; returns the quantity answer. */
+    Answer checkoutQuantity(Respondent r, String quantity) {
+        questionManager.init(r.id.intValue(), WELCOME_SECTION);
+        saveAnswer(Answer.findByDisplayKeyActive(r.id.intValue(), TERMS_DK), "TRUE");
+        questionManager.navigate(r.id.intValue(), COLLPREFS_SECTION);
+        Answer qty = Answer.findByDisplayKeyActive(r.id.intValue(), CHECKOUT_QTY_DK);
+        saveAnswer(qty, quantity);
+        return qty;
+    }
+
+    @Test
+    @TestTransaction
+    void given_threeCheckoutInstances_when_qtyLoweredTo2_then_instance2AndItsRuleLinkKept() {
+        // UC-002 BR-007, BR-012: a count gives instances 1..N, so lowering 3 to 2 removes
+        // instance 3 only. Removing instance 2 as well soft-deletes its link from the quantity
+        // answer, and re-saving the section afterwards brings the section back without it (#157).
+        Respondent r = createFreshRespondent();
+        Answer qty = checkoutQuantity(r, "3");
+        Answer second = checkoutMarker(r, 2);
+        assertNotNull(second, "Checkout instance 2 must exist after qty = 3");
+
+        saveAnswer(Answer.findByDisplayKeyActive(r.id.intValue(), CHECKOUT_QTY_DK), "2");
+
+        assertNotNull(checkoutMarker(r, 2), "Checkout instance 2 must be kept when qty is lowered to 2");
+        assertNull(checkoutMarker(r, 3), "Checkout instance 3 must be deleted when qty is lowered to 2");
+        long links = Dependent.count("respondentId = ?1 and upstream.id = ?2 and downstream.id = ?3 and deleted = false",
+                r.id.intValue(), qty.id, second.id);
+        assertEquals(1, links, "Instance 2 must still depend on the quantity answer");
+    }
+
+    @Test
+    @TestTransaction
+    void given_twoCheckoutInstances_when_qtyRaisedTo3_then_onlyInstance3Built() {
+        // UC-002 BR-012: raising a count builds the instances above those already built and
+        // leaves the built ones alone. Instance 1 is probed by soft-deleting one of its initial
+        // answers: rebuilding the instance would save that answer again (#156).
+        Respondent r = createFreshRespondent();
+        checkoutQuantity(r, "2");
+        Answer probe = Answer.find("respondentId = ?1 and displayKey like ?2 and question is not null and deleted = false "
+                        + "order by displayKey", r.id.intValue(), CHECKOUT_INSTANCE_PREFIX + "0001-%").firstResult();
+        assertNotNull(probe, "Checkout instance 1 must have an initial answer");
+        probe.deleted = true;
+        em.flush();
+
+        saveAnswer(Answer.findByDisplayKeyActive(r.id.intValue(), CHECKOUT_QTY_DK), "3");
+
+        assertNotNull(checkoutMarker(r, 3), "Checkout instance 3 must be built when qty is raised to 3");
+        assertTrue(Answer.<Answer>findById(probe.id).deleted, "Checkout instance 1 must not be rebuilt when qty is raised");
+    }
+
+    @Test
+    @TestTransaction
+    void given_qtyLoweredFrom3To2_when_raisedTo3Again_then_instance3Restored() {
+        // UC-002 BR-012: a removed instance is soft-deleted, so it is not among the built ones
+        // and raising the count again restores the same row rather than adding a second one.
+        Respondent r = createFreshRespondent();
+        checkoutQuantity(r, "3");
+        Answer third = checkoutMarker(r, 3);
+        saveAnswer(Answer.findByDisplayKeyActive(r.id.intValue(), CHECKOUT_QTY_DK), "2");
+        assertNull(checkoutMarker(r, 3), "Checkout instance 3 must be deleted when qty is lowered to 2");
+
+        saveAnswer(Answer.findByDisplayKeyActive(r.id.intValue(), CHECKOUT_QTY_DK), "3");
+
+        Answer restored = checkoutMarker(r, 3);
+        assertNotNull(restored, "Checkout instance 3 must be back when qty is raised to 3 again");
+        assertEquals(third.id, restored.id, "Instance 3 must be the restored row, not a new one");
     }
 
     // ── US-8 FIELD_EXIST + 3-level nested chain ─────────────────────────────
