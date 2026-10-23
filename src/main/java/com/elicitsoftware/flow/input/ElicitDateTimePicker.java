@@ -158,6 +158,18 @@ public class ElicitDateTimePicker extends ElicitComponent<DateTimePicker> {
      *                                  or if the hours or minutes are invalid.
      */
     private static LocalDateTime createLocalDateTimeFromHHMM(int hhmm) {
+        return LocalDateTime.of(LocalDate.now(), timeFromHHMM(hhmm));
+    }
+
+    /**
+     * Reads a time stored as HHMM, the form {@code questions.min_value} and {@code max_value} take
+     * for time and date-time questions (830 is 08:30).
+     *
+     * @param hhmm the time as HHMM, 0 to 2359
+     * @return the time of day
+     * @throws IllegalArgumentException if the value is not a time of day
+     */
+    static LocalTime timeFromHHMM(int hhmm) {
         if (hhmm < 0 || hhmm > 2359) {
             throw new IllegalArgumentException("The time must be between 0000 and 2359");
         }
@@ -171,9 +183,6 @@ public class ElicitDateTimePicker extends ElicitComponent<DateTimePicker> {
             throw new IllegalArgumentException("Invalid time specified");
         }
 
-        LocalDate currentDate = LocalDate.now(); // Get the current date
-        LocalTime time = LocalTime.of(hours, minutes);
-
-        return LocalDateTime.of(currentDate, time);
+        return LocalTime.of(hours, minutes);
     }
 }

@@ -15,6 +15,7 @@ import com.elicitsoftware.i18n.Translations;
 import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
+import com.vaadin.flow.data.binder.Binder;
 import com.vaadin.flow.component.textfield.EmailField;
 import com.vaadin.flow.component.textfield.TextFieldVariant;
 
@@ -30,7 +31,8 @@ import java.util.regex.Pattern;
  * applying configurations dynamically based on the provided Answer and Question objects.
  */
 public class ElicitEmailField extends ElicitComponent<EmailField> {
-    Pattern emailPattern = Pattern.compile("^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,}$");
+    // The local part takes the characters RFC 5322 allows unquoted, "+" among them.
+    Pattern emailPattern = Pattern.compile("^[\\w.!#$%&'*+/=?^`{|}~-]+@([\\w-]+\\.)+[\\w-]{2,}$");
 
     /**
      * Represents a specialized email input field for the Elicit survey system.
@@ -64,19 +66,22 @@ public class ElicitEmailField extends ElicitComponent<EmailField> {
      */
     @Override
     void setBindings(Answer answer) {
+        // One binding carries every rule: Binder keeps one binding per field, so a second
+        // forField for this component would replace the required rule (UC-002).
+        Binder.BindingBuilder<Answer, String> binding = binder.forField(component);
         if (answer.question.required) {
             component.setRequired(answer.question.required);
             component.setRequiredIndicatorVisible(answer.question.required);
-            this.binder.forField(component)
-                    .asRequired(requiredMessage(answer))
-                    .bind(Answer::getTextValue, Answer::setTextValue);
+            binding = binding.asRequired(requiredMessage(answer));
         }
-        if (answer.question.minValue != null && answer.question.maxValue != null) {
-            this.binder.forField(component)
-                    .withValidator(email -> email != null && emailPattern.matcher(email).matches(),
-                            validationMessage(answer, Translations.get("validation.email")))
-                    .bind(Answer::getTextValue, Answer::setTextValue);
-        }
+        // UC-002: every email answer is checked for its form, whatever the question's min and
+        // max say; an empty one is left to the required rule.
+        String emailMessage = validationMessage(answer, Translations.get("validation.email"));
+        binding.withValidator(email -> email == null || email.isEmpty() || emailPattern.matcher(email).matches(),
+                        emailMessage)
+                .bind(Answer::getTextValue, Answer::setTextValue);
+        // The field's own format check runs before the binder's; it shows the same message.
+        component.setI18n(new EmailField.EmailFieldI18n().setPatternErrorMessage(emailMessage));
     }
 
     /**

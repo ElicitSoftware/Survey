@@ -63,6 +63,10 @@ public class ElicitComboBox extends ElicitComponent<ComboBox<SelectItem>> {
         super(new ComboBox<SelectItem>(answer.label()), answer, texts);
         component.setItems(answer.getSelectItems());
         component.setItemLabelGenerator(texts::option);
+        // UC-003: a respondent who returns to the section sees the answer they gave.
+        if (answer.getTextValue() != null && !answer.getTextValue().isEmpty()) {
+            setValue(answer);
+        }
     }
 
     /**

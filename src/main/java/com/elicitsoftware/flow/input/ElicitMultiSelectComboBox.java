@@ -18,7 +18,9 @@ import com.elicitsoftware.model.SelectItem;
 import com.vaadin.flow.component.combobox.MultiSelectComboBox;
 import com.vaadin.flow.component.combobox.MultiSelectComboBoxVariant;
 
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Set;
 
 /**
  * The ElicitMultiSelectComboBox class represents a UI component for selecting multiple
@@ -98,8 +100,11 @@ public class ElicitMultiSelectComboBox extends ElicitComponent<MultiSelectComboB
     void setValue(Answer answer) {
         HashSet<SelectItem> selected = new HashSet<SelectItem>();
         if (answer.getTextValue() != null) {
+            // The stored value is the selected coded values joined with commas, so an item is
+            // selected by its whole code: "10" must not select the item coded "1".
+            Set<String> codes = new HashSet<>(Arrays.asList(answer.getTextValue().split(",")));
             for (SelectItem item : answer.getSelectItems()) {
-                if (answer.getTextValue().contains(item.codedValue)) {
+                if (codes.contains(item.codedValue)) {
                     selected.add(item);
                 }
             }

@@ -38,7 +38,7 @@ import static com.elicitsoftware.flow.input.ElicitAnswerFixtures.question;
 import static com.elicitsoftware.flow.input.ElicitAnswerFixtures.selectQuestion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -160,20 +160,16 @@ class ElicitSelectionFieldsTest {
     }
 
     @Test
-    void comboBox_construction_doesNotPrefillValueFromAnswer() {
-        // Unlike every other selection-based wrapper here (RadioButtonGroup, CheckboxGroup,
-        // MultiSelectComboBox all call setValue(answer) in their constructor when a saved
-        // textValue exists), ElicitComboBox's constructor never does - a previously-answered
-        // combo box question currently renders blank. Documenting this as the actual current
-        // behavior (looks like an unintentional gap, not a deliberate design choice) rather
-        // than silently changing it, since fixing it wasn't in scope for this test pass.
+    void comboBox_construction_prefillsValueFromAnswer() {
+        // UC-003 (#161): like every other selection-based wrapper here, a previously-answered
+        // combo box shows the saved choice when the respondent returns to the section.
         SelectItem us = item("US", "United States");
         Question question = selectQuestion(false, null, List.of(us));
         Answer answer = answer("1.1.1.1.3.4.2", "Country", question, "US");
 
         ComboBox<SelectItem> combo = new ElicitComboBox(answer, ContentTexts.base()).component;
 
-        assertNull(combo.getValue(), "ElicitComboBox construction currently leaves a saved answer unselected");
+        assertSame(us, combo.getValue(), "ElicitComboBox construction selects the saved answer");
     }
 
     @Test
