@@ -79,6 +79,7 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
     // Simple field-level validation without bean binding
     private boolean isAccessCodeValid = false;
     private TextField txtAccessCode; // Make txtAccessCode a field so it can be accessed from setParameter
+    private ComboBox<Survey> surveyPicker; // Only when there are several surveys; null otherwise
 
     /**
      * Default constructor for MainView.
@@ -215,6 +216,18 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
             txtAccessCode.setValue(txtAccessCode.getValue());
             
             if (isAccessCodeValid && txtAccessCode.getValue() != null && !txtAccessCode.getValue().trim().isEmpty()) {
+                // UC-001: a sign-in needs a survey. With none to choose from the respondent is told
+                // so; with several and none chosen, the picker is the error to correct.
+                if (sessionDataService.getSurveyId() == null) {
+                    if (surveyPicker == null) {
+                        Notification.show(getTranslation("mainView.surveys.isEmpty"));
+                    } else {
+                        surveyPicker.setInvalid(true);
+                        Notification.show(getTranslation("mainView.error.fixErrors"));
+                    }
+                    return;
+                }
+
                 // Store survey ID before clearing session data to preserve it for login
                 Integer currentSurveyId = sessionDataService.getSurveyId();
                 
@@ -267,9 +280,13 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
             comboBox.setItemLabelGenerator(survey -> survey.name);
             comboBox.onEnabledStateChanged(true);
             comboBox.addThemeVariants(ComboBoxVariant.LUMO_SMALL);
+            comboBox.setRequiredIndicatorVisible(true);
             comboBox.addValueChangeListener(e -> {
-                sessionDataService.setSurveyId(e.getValue().id);
+                // Clearing the picker leaves no survey chosen.
+                sessionDataService.setSurveyId(e.getValue() == null ? null : e.getValue().id);
+                comboBox.setInvalid(false);
             });
+            surveyPicker = comboBox;
             loginLayout.add(comboBox);
         }
         loginLayout.add(txtAccessCode, btnLogin);

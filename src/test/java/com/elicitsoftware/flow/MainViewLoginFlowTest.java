@@ -347,6 +347,51 @@ class MainViewLoginFlowTest extends PlainViewTestSupport {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void given_severalSurveysAndNoneChosen_when_loginClicked_then_pickerMarkedAndNoLoginAttempted() {
+        // UC-001 (#160): with no survey chosen the sign-in used to unbox a null survey id.
+        accessCodes.surveys = List.of(survey, survey(9, "Other"));
+        MainView view = build();
+        accessCodeField(view).setValue("abcdef");
+
+        test(loginButton(view)).click();
+
+        assertEquals(t("mainView.error.fixErrors"), onlyNotification());
+        assertTrue(byId(view, "login-survey-select", ComboBox.class).isInvalid(), "the picker shows what to fix");
+        assertEquals(List.of(), accessCodes.logins);
+        assertEquals(0, session.clearCalls, "the session is left alone when the sign-in is refused");
+    }
+
+    @Test
+    void given_noSurveys_when_loginClicked_then_noSurveysMessageShownAndNoLoginAttempted() {
+        // UC-001 (#160): there is no survey to sign in to, so the respondent is told so.
+        accessCodes.surveys = List.of();
+        MainView view = build();
+        accessCodeField(view).setValue("abcdef");
+
+        test(loginButton(view)).click();
+
+        assertEquals(t("mainView.surveys.isEmpty"), onlyNotification());
+        assertEquals(List.of(), accessCodes.logins);
+        assertEquals(0, session.clearCalls);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void given_aChosenSurvey_when_thePickerIsCleared_then_noSurveyIsStored() {
+        // UC-001 (#160): clearing the picker used to dereference the null value.
+        Survey other = survey(9, "Other");
+        accessCodes.surveys = List.of(survey, other);
+        MainView view = build();
+        ComboBox<Survey> picker = byId(view, "login-survey-select", ComboBox.class);
+        picker.setValue(other);
+
+        picker.clear();
+
+        assertNull(session.getSurveyId());
+    }
+
+    @Test
     void given_noAccessCode_when_loginClicked_then_fixErrorsShownAndNoLoginAttempted() {
         MainView view = build();
 
