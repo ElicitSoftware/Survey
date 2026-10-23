@@ -261,6 +261,46 @@ class PDFServicePaginationTest {
     // ── page breaks ────────────────────────────────────────────────────────────────────────────
 
     @Test
+    void given_oneTextBlockLongerThanAPage_when_generatePDF_then_itContinuesOnNewPagesAndNothingRunsOffThePage() throws IOException {
+        // UC-005 (#178): the page check ran once per block, so a long block was drawn below the
+        // bottom margin and off the page; each continuation page starts at its top.
+        StringBuilder words = new StringBuilder();
+        for (int i = 1; i <= 2500; i++) {
+            words.append(String.format("w%04d ", i));
+        }
+
+        byte[] bytes = service().generatePDF(reports(report("Long", text(words.toString().trim()))));
+
+        try (PDDocument document = parse(bytes)) {
+            assertTrue(document.getNumberOfPages() >= 2, "pages: " + document.getNumberOfPages());
+            String all = new PDFTextStripper().getText(document);
+            for (int i = 1; i <= 2500; i++) {
+                String word = String.format("w%04d", i);
+                assertEquals(1, all.split("\\b" + word + "\\b", -1).length - 1, word + " appears exactly once");
+            }
+            for (int p = 1; p <= document.getNumberOfPages(); p++) {
+                float lowestAllowed = document.getPage(p - 1).getMediaBox().getHeight() - (PDFService.PADDING + PDFService.FONT_SIZE);
+                List<Float> lineTops = new ArrayList<>();
+                PDFTextStripper positions = new PDFTextStripper() {
+                    @Override
+                    protected void writeString(String text, List<org.apache.pdfbox.text.TextPosition> glyphs) throws IOException {
+                        if (text.startsWith("w")) {
+                            lineTops.add(glyphs.get(0).getYDirAdj());
+                        }
+                        super.writeString(text, glyphs);
+                    }
+                };
+                positions.setStartPage(p);
+                positions.setEndPage(p);
+                positions.getText(document);
+                for (float top : lineTops) {
+                    assertTrue(top <= lowestAllowed + 0.5f, "page " + p + ": a line at " + top + " is below the text area");
+                }
+            }
+        }
+    }
+
+    @Test
     void given_moreTextThanFitsOnAPage_when_generatePDF_then_itContinuesOnNewPagesWithNothingLost() throws IOException {
         Content[] contents = new Content[90];
         for (int i = 0; i < contents.length; i++) {

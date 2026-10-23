@@ -339,17 +339,17 @@ public class PDFService {
      * @throws IOException if an error occurs while writing to the PDF
      */
     public void addTextBlock(String text) throws IOException {
-        // Check if we need a new page
-        if (yPosition < PADDING + FONT_SIZE) {
-            newPage(landscape);
-        }
         PDRectangle mediaBox = page.getMediaBox();
         float width = mediaBox.getWidth() - 2 * PADDING;
 
         List<String> lines = wrapText(text, TEXT_FONT, FONT_SIZE, width);
 
-        // Begin text
         for (String line : lines) {
+            // Before every line, not once per block: a block longer than the rest of the page
+            // continues at the top of a new one instead of running off the bottom (#178).
+            if (yPosition < PADDING + FONT_SIZE) {
+                newPage(landscape);
+            }
             contentStream.beginText();
             contentStream.setFont(TEXT_FONT, FONT_SIZE); // Ensure font is set before writing text
             contentStream.newLineAtOffset(PADDING, yPosition);
