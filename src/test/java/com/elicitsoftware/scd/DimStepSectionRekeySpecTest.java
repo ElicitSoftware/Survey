@@ -92,16 +92,20 @@ class DimStepSectionRekeySpecTest {
                 .setParameter(1, durableStepId).setParameter(2, MAX_SENTINEL).getSingleResult()).intValue();
 
         try {
+            // The version boundary is the database's now(), not the JVM's clock: the ETL picks the
+            // version in effect at the database's NOW(), and a database clock a few milliseconds
+            // behind the JVM's (Docker Desktop's VM) would leave the new version not yet in effect
+            // (#172). now() is the transaction's start, so both statements share one instant.
             QuarkusTransaction.requiringNew().run(() -> {
-                em.createNativeQuery("UPDATE survey.steps SET effective_to = ?2 WHERE step_id = ?1 AND effective_to = ?3")
-                        .setParameter(1, durableStepId).setParameter(2, OffsetDateTime.now()).setParameter(3, MAX_SENTINEL).executeUpdate();
+                em.createNativeQuery("UPDATE survey.steps SET effective_to = now() WHERE step_id = ?1 AND effective_to = ?2")
+                        .setParameter(1, durableStepId).setParameter(2, MAX_SENTINEL).executeUpdate();
                 em.createNativeQuery(
                         "INSERT INTO survey.steps (id, step_id, step_key, version, survey_id, display_order, name, dimension_name, "
                                 + "effective_from, effective_to) "
                                 + "SELECT nextval('survey.steps_seq'), step_id, step_key, ?2, survey_id, display_order, name, 'ScdStepRekeyed', "
-                                + "?3, ?4 FROM survey.steps WHERE step_id = ?1 AND version = ?5")
-                        .setParameter(1, durableStepId).setParameter(2, currentVersion + 1).setParameter(3, OffsetDateTime.now())
-                        .setParameter(4, MAX_SENTINEL).setParameter(5, currentVersion).executeUpdate();
+                                + "now(), ?3 FROM survey.steps WHERE step_id = ?1 AND version = ?4")
+                        .setParameter(1, durableStepId).setParameter(2, currentVersion + 1)
+                        .setParameter(3, MAX_SENTINEL).setParameter(4, currentVersion).executeUpdate();
             });
 
             etlService.updateStepDimensionTable(SCHEMA, ScdFixtureIds.surveyId(em));
