@@ -679,6 +679,35 @@ class QuestionManagerTest {
             "Digital section answer count must match after restore — no duplicates");
     }
 
+    @Test
+    @TestTransaction
+    void given_softDeletedAnswer_when_conditionBecomesTrue_then_itsRuleLinksRestored() {
+        // UC-002 BR-007: deleting an answer soft-deletes the links that make it depend on its
+        // upstream answer, and restoring the answer restores them; without them a later change
+        // to the upstream answer would not find it to delete (#155).
+        Respondent r = createFreshRespondent();
+        questionManager.init(r.id.intValue(), WELCOME_SECTION);
+        saveAnswer(Answer.findByDisplayKeyActive(r.id.intValue(), TERMS_DK), "TRUE");
+
+        Answer digitalAnswer = Answer.findByDisplayKeyActive(r.id.intValue(), DIGITAL_ACCESS_DK);
+        saveAnswer(digitalAnswer, "TRUE");
+        String activeLinks = "respondentId = ?1 and upstream.id = ?2 and deleted = false";
+        long linksAfterFirstTrue = Dependent.count(activeLinks, r.id.intValue(), digitalAnswer.id);
+        assertTrue(linksAfterFirstTrue > 0, "Answering TRUE must link the Digital section answers to it");
+
+        saveAnswer(Answer.findByDisplayKeyActive(r.id.intValue(), DIGITAL_ACCESS_DK), "FALSE");
+        assertEquals(0, Dependent.count(activeLinks, r.id.intValue(), digitalAnswer.id),
+            "Answering FALSE must soft-delete the links with the answers");
+
+        saveAnswer(Answer.findByDisplayKeyActive(r.id.intValue(), DIGITAL_ACCESS_DK), "TRUE");
+
+        assertEquals(linksAfterFirstTrue, Dependent.count(activeLinks, r.id.intValue(), digitalAnswer.id),
+            "Restoring the answers must restore their links to the upstream answer");
+        assertEquals(linksAfterFirstTrue, Dependent.count("respondentId = ?1 and upstream.id = ?2",
+                r.id.intValue(), digitalAnswer.id),
+            "Restoring must reuse the links rather than add new ones");
+    }
+
     // ── Additional coverage: TEXT FIELD_EXIST + CONTAINS→FIELD_EXIST chain ─
 
     @Test
