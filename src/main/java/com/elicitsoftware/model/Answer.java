@@ -518,16 +518,17 @@ public class Answer extends PanacheEntityBase {
     }
 
     /**
-     * Retrieves a list of Answer objects that match the section instances query string
-     * for the given respondent ID and display key.
+     * Retrieves the section markers (the answers without a question) of every instance of the
+     * key's section, within the key's step and step instance, for the given respondent.
      *
      * @param respondentId the ID of the respondent to filter the answers.
-     * @param key          the display key providing the query string for section filtering.
-     * @return a list of answers matching the specified criteria.
+     * @param key          the display key naming the survey, step, step instance and section;
+     *                     its section instance and question are ignored.
+     * @return the active markers of the section's instances, in display key order.
      */
     public static List<Answer> findBySectionInstancesQueryString(int respondentId, DisplayKey key) {
         return find("#Answer.findBySectionInstancesQueryString", Map.of("respondentId", respondentId,
-                "sectionQuery", key.getAnswerQueryString())).list();
+                "sectionQuery", key.getSectionQueryString())).list();
     }
 
     /**

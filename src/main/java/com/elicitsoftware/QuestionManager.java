@@ -30,8 +30,10 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -1429,14 +1431,19 @@ public class QuestionManager {
                 answerKey.setSection(getSectionDisplayOrder(r.surveyId, r.downstreamSsId, upstreamAnswer.respondentId));
             }
 
-            List<Answer> answers = Answer.findBySectionInstancesQueryString(relationshipId, answerKey);
-
             // UC-002 BR-012: 1 to N for a count, the position of each selected item for a
-            // selection (see buildRepeatedAnswers for why a selection skips nothing).
-            int built = RepeatSource.perItem(upstreamAnswer.question) ? 0 : answers.size();
+            // selection (see buildRepeatedAnswers for why a selection skips nothing). A count
+            // skips the instances whose marker is already there, so raising it builds only the
+            // new ones and leaves the respondent's answers in the built ones alone.
+            Set<Integer> built = new HashSet<>();
+            if (!RepeatSource.perItem(upstreamAnswer.question)) {
+                for (Answer marker : Answer.findBySectionInstancesQueryString(upstreamAnswer.respondentId, answerKey)) {
+                    built.add(marker.sectionInstance);
+                }
+            }
             DisplayKey key;
             for (int i : repeatInstances(upstreamAnswer)) {
-                if (i <= built) {
+                if (built.contains(i)) {
                     continue;
                 }
                 key = buildDisplayKey(upstreamAnswer, r);
@@ -1997,7 +2004,8 @@ public class QuestionManager {
                                                     DisplayKey downstreamKey, int rootAnswerId) {
         List<Answer> relationships = Answer.findByAnswerQueryString(respondentId, downstreamKey.getSectionQueryString());
         for (Answer answer : relationships) {
-            if (answer.sectionInstance > instances - 1) {
+            // A count's instances are 1 to N (UC-002 BR-012): keep those, remove the ones above.
+            if (answer.sectionInstance > instances) {
                 deleteAnswers(answer, rootAnswerId);
             }
         }
