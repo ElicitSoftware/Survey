@@ -33,8 +33,14 @@
             regenerates Notice.txt naming a jar that never ships, while the image build (which sets
             quarkus.profile=docker) regenerates it without. Excluded outright so the file is the
             same either way.
+
+            The plugin does not match this pattern on its own: it wraps it as
+            `[^:]+:[^:]*(PATTERN)[^:]*` and matches that against groupId:artifactId, so a leading
+            `^` can never match and `^vaadin-dev$` excluded nothing. The lookbehind anchors the
+            artifactId's start at the colon instead, keeping the match exact (not vaadin-dev-server
+            or any other artifactId that merely contains vaadin-dev).
         -->
-        <license.excludedArtifacts>^vaadin-dev$</license.excludedArtifacts>
+        <license.excludedArtifacts>(?&lt;=:)vaadin-dev$</license.excludedArtifacts>
         <license.outputDirectory>${project.basedir}</license.outputDirectory>
     </properties>
     <dependencyManagement>
