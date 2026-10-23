@@ -295,14 +295,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                         case GlobalStrings.QUESTION_TYPE_MULTI_SELECT:
                             ElicitMultiSelectComboBox multiSelect = new ElicitMultiSelectComboBox(answer, texts);
                             multiSelect.component.addValueChangeListener(e -> {
-                                StringBuilder val = new StringBuilder();
-                                for (SelectItem item : e.getValue()) {
-                                    val.append(item.codedValue).append(",");
-                                }
-                                if (val.toString().contains(",")) {
-                                    val = new StringBuilder(val.substring(0, val.length() - 1));
-                                }
-                                saveAnswer(answer, val.toString());
+                                saveAnswer(answer, Answer.codedValues(e.getValue()));
                             });
                             displayMap.put(answer.getDisplayKey(), multiSelect.component);
                             if (!binders.containsKey(answer.getDisplayKey())) {
@@ -312,14 +305,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                         case GlobalStrings.QUESTIION_TYPE_CHECKBOX_GROUP:
                             ElicitCheckboxGroup checkboxGroup = new ElicitCheckboxGroup(answer, texts);
                             checkboxGroup.component.addValueChangeListener(e -> {
-                                StringBuilder val = new StringBuilder();
-                                for (SelectItem item : e.getValue()) {
-                                    val.append(item.codedValue).append(",");
-                                }
-                                if (val.toString().contains(",")) {
-                                    val = new StringBuilder(val.substring(0, val.length() - 1));
-                                }
-                                saveAnswer(answer, val.toString());
+                                saveAnswer(answer, Answer.codedValues(e.getValue()));
                             });
                             displayMap.put(answer.getDisplayKey(), checkboxGroup.component);
                             if (!binders.containsKey(answer.getDisplayKey())) {
@@ -351,7 +337,9 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                         case GlobalStrings.QUESTIION_TYPE_MULTI_SELECT_COMBOBOX:
                             ElicitMultiSelectComboBox multiSelectComboBox = new ElicitMultiSelectComboBox(answer, texts);
                             multiSelectComboBox.component.addValueChangeListener(e -> {
-                                saveAnswer(answer, e.getValue().toString());
+                                // The coded values, as MULTI_SELECT and CHECKBOX_GROUP store them:
+                                // the Set's own toString() would store object identities (#173).
+                                saveAnswer(answer, Answer.codedValues(e.getValue()));
                             });
                             displayMap.put(answer.getDisplayKey(), multiSelectComboBox.component);
                             if (!binders.containsKey(answer.getDisplayKey())) {

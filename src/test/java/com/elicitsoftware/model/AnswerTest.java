@@ -273,6 +273,33 @@ class AnswerTest {
     }
 
     @Test
+    void given_selectedItems_when_codedValues_then_theirCodesJoinedWithCommasInOrder() {
+        // UC-002 BR-012 (#173): the stored form of every multiple choice, MULTI_SELECT_COMBOBOX
+        // included, which used to store the selection Set's toString() (object identities).
+        assertEquals("1,10,B", Answer.codedValues(List.of(item("1"), item("10"), item("B"))));
+    }
+
+    @Test
+    void given_noSelectedItems_when_codedValues_then_anEmptyString() {
+        assertEquals("", Answer.codedValues(List.of()));
+    }
+
+    @Test
+    void given_aMultiSelectComboBox_when_itemsSetAndReadBack_then_theSameItemsComeBack() {
+        // UC-002 BR-012 (#173): what is stored for a MULTI_SELECT_COMBOBOX is read back as the
+        // same items, the round trip a returning respondent depends on.
+        SelectItem one = item("1");
+        SelectItem two = item("2");
+        SelectItem ten = item("10");
+        Answer answer = answerWithQuestion(typeNamed("MULTI_SELECT_COMBOBOX"), List.of(one, two, ten));
+
+        answer.setTextValue(Answer.codedValues(new java.util.LinkedHashSet<>(List.of(one, ten))));
+
+        assertEquals("1,10", answer.getTextValue());
+        assertEquals(Set.of(one, ten), answer.getSelectedItems());
+    }
+
+    @Test
     void constructor_withDefaultValue_storesValueWithoutSavedDt() {
         // UC-012 BR-002: a row created with the question's default value has a value the
         // respondent can see and validate against, but no saved stamp and no presented stamp.
