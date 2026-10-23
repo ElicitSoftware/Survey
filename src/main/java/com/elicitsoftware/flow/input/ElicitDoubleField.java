@@ -14,6 +14,7 @@ package com.elicitsoftware.flow.input;
 import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
+import com.vaadin.flow.data.binder.Binder;
 import com.vaadin.flow.component.textfield.NumberField;
 import com.vaadin.flow.component.textfield.TextFieldVariant;
 
@@ -83,21 +84,26 @@ public class ElicitDoubleField extends ElicitComponent<NumberField> {
      */
     @Override
     void setBindings(Answer answer) {
+        // One binding carries every rule: Binder keeps one binding per field, so a second
+        // forField for this component would replace the required rule (UC-002).
+        Binder.BindingBuilder<Answer, Double> binding = binder.forField(component);
         if (answer.question.required) {
             component.setRequired(answer.question.required);
             component.setRequiredIndicatorVisible(answer.question.required);
-            this.binder.forField(component)
-                    .asRequired(requiredMessage(answer))
-                    .bind(Answer::getDouble, Answer::setDouble);
+            binding = binding.asRequired(requiredMessage(answer));
         }
 
         if (answer.question.minValue != null && answer.question.maxValue != null) {
-            this.binder.forField(component)
+            binding = binding
                     .withValidator(
                             value -> value != null && value >= answer.question.minValue && value <= answer.question.maxValue,
                             rangeMessage(answer)
-                    )
-                    .bind(Answer::getDouble, Answer::setDouble);
+                    );
+        }
+        // Bound only when there is a rule: a lone min or max sets the field's own limit and adds
+        // no binder rule, as before.
+        if (answer.question.required || (answer.question.minValue != null && answer.question.maxValue != null)) {
+            binding.bind(Answer::getDouble, Answer::setDouble);
         }
 
         if (answer.question.minValue != null) {
@@ -105,6 +111,16 @@ public class ElicitDoubleField extends ElicitComponent<NumberField> {
         }
         if (answer.question.maxValue != null) {
             component.setMax(answer.question.maxValue);
+        }
+
+        // The field's own range check runs before the binder's and would fail with no message;
+        // it shows the one the binder would (UC-002).
+        String rangeError = answer.question.minValue != null && answer.question.maxValue != null
+                ? rangeMessage(answer) : validationMessage(answer, null);
+        if (rangeError != null) {
+            component.setI18n(new NumberField.NumberFieldI18n()
+                    .setMinErrorMessage(rangeError)
+                    .setMaxErrorMessage(rangeError));
         }
     }
 

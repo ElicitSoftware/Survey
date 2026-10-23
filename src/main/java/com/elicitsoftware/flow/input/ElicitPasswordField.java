@@ -14,6 +14,7 @@ package com.elicitsoftware.flow.input;
 import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
+import com.vaadin.flow.data.binder.Binder;
 import com.vaadin.flow.component.textfield.PasswordField;
 import com.vaadin.flow.component.textfield.TextFieldVariant;
 
@@ -71,20 +72,25 @@ public class ElicitPasswordField extends ElicitComponent<PasswordField> {
      */
     @Override
     void setBindings(Answer answer) {
+        // One binding carries every rule: Binder keeps one binding per field, so a second
+        // forField for this component would replace the required rule (UC-002).
+        Binder.BindingBuilder<Answer, String> binding = binder.forField(component);
         if (answer.question.required) {
             component.setRequired(answer.question.required);
             component.setRequiredIndicatorVisible(answer.question.required);
-            this.binder.forField(component)
-                    .asRequired(requiredMessage(answer))
-                    .bind(Answer::getTextValue, Answer::setTextValue);
+            binding = binding.asRequired(requiredMessage(answer));
         }
 
         if (answer.question.minValue != null && answer.question.maxValue != null) {
-            binder.forField(component)
+            binding = binding
                     .withValidator(textValue -> textValue.length() >= answer.question.minValue
                                     && textValue.length() <= answer.question.maxValue,
-                            lengthMessage(answer))
-                    .bind(Answer::getTextValue, Answer::setTextValue);
+                            lengthMessage(answer));
+        }
+        // Bound only when there is a rule: a lone min or max sets the field's own limit and adds
+        // no binder rule, as before.
+        if (answer.question.required || (answer.question.minValue != null && answer.question.maxValue != null)) {
+            binding.bind(Answer::getTextValue, Answer::setTextValue);
         }
 
         if (answer.question.minValue != null) {
@@ -92,6 +98,15 @@ public class ElicitPasswordField extends ElicitComponent<PasswordField> {
         }
         if (answer.question.maxValue != null) {
             component.setMaxLength(answer.question.maxValue);
+        }
+        // The field's own length check runs before the binder's and would fail with no message;
+        // it shows the one the binder would (UC-002).
+        String lengthError = answer.question.minValue != null && answer.question.maxValue != null
+                ? lengthMessage(answer) : validationMessage(answer, null);
+        if (lengthError != null) {
+            component.setI18n(new PasswordField.PasswordFieldI18n()
+                    .setMinLengthErrorMessage(lengthError)
+                    .setMaxLengthErrorMessage(lengthError));
         }
     }
 

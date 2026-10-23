@@ -33,6 +33,7 @@ import static com.elicitsoftware.flow.input.ElicitAnswerFixtures.answer;
 import static com.elicitsoftware.flow.input.ElicitAnswerFixtures.question;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -173,19 +174,26 @@ class ElicitDateTimeFieldsTest {
     }
 
     @Test
-    void timePicker_minMax_areInterpretedAsNanoOfDay() {
-        // ElicitTimePicker.setBindings feeds Question.minValue/maxValue straight into
-        // LocalTime.ofNanoOfDay(int). Question.minValue/maxValue are plain Integer columns,
-        // and a full day is ~86.4 trillion nanoseconds - far past Integer range - so only
-        // tiny fractions of a second near midnight are actually reachable through this path.
-        // Documented here as current behavior with the values the code can actually accept.
-        Question question = question(false, 0, Integer.MAX_VALUE, null, null);
+    void timePicker_minMax_areInterpretedAsHHMM() {
+        // UC-002 (#162): Question.minValue/maxValue hold a time as HHMM, as they do for the
+        // date-time picker, so 830 is 08:30 and 1700 is 17:00.
+        Question question = question(false, 830, 1700, null, null);
         Answer answer = answer("1.1.1.1.4.3.2", "Preferred time", question, null);
 
         TimePicker picker = new ElicitTimePicker(answer, ContentTexts.base()).component;
 
-        assertEquals(LocalTime.ofNanoOfDay(0), picker.getMin());
-        assertEquals(LocalTime.ofNanoOfDay(Integer.MAX_VALUE), picker.getMax());
+        assertEquals(LocalTime.of(8, 30), picker.getMin());
+        assertEquals(LocalTime.of(17, 0), picker.getMax());
+    }
+
+    @Test
+    void timePicker_minOutsideADay_isRefused() {
+        // UC-002 (#162): an HHMM bound that is not a time of day is a broken definition, refused
+        // exactly as the date-time picker refuses it.
+        Question question = question(false, 1270, null, null, null);
+        Answer answer = answer("1.1.1.1.4.3.2", "Preferred time", question, null);
+
+        assertThrows(IllegalArgumentException.class, () -> new ElicitTimePicker(answer, ContentTexts.base()));
     }
 
     @Test

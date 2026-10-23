@@ -77,10 +77,10 @@ public class ElicitTimePicker extends ElicitComponent<TimePicker> {
                     .bind(Answer::getLocalTime, Answer::setLocalTime);
         }
         if (answer.question.minValue != null) {
-            component.setMin(LocalTime.ofNanoOfDay(answer.question.minValue));
+            component.setMin(ElicitDateTimePicker.timeFromHHMM(answer.question.minValue));
         }
         if (answer.question.maxValue != null) {
-            component.setMax(LocalTime.ofNanoOfDay(answer.question.maxValue));
+            component.setMax(ElicitDateTimePicker.timeFromHHMM(answer.question.maxValue));
         }
 
     }
