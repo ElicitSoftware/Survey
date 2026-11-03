@@ -12,7 +12,9 @@ package com.elicitsoftware.flow;
  */
 
 import java.net.URI;
+import java.time.Duration;
 import java.util.ArrayList;
+import java.util.concurrent.TimeUnit;
 
 import org.eclipse.microprofile.rest.client.RestClientBuilder;
 
@@ -66,6 +68,28 @@ import jakarta.inject.Inject;
 @Route(value = "report", layout = MainLayout.class)
 @NormalUIScoped
 public class ReportView extends VerticalLayout implements BeforeEnterObserver {
+
+    /** How long an external report service may take to accept the connection. */
+    static final Duration REPORT_CONNECT_TIMEOUT = Duration.ofSeconds(5);
+
+    /**
+     * How long an external report service may take to answer. The page is built on the
+     * respondent's request, so a service that never answers must become an error card rather
+     * than hold the page (UC-005 A1).
+     */
+    static final Duration REPORT_READ_TIMEOUT = Duration.ofSeconds(60);
+
+    /**
+     * The client for one external report service, bounded by {@link #REPORT_CONNECT_TIMEOUT} and
+     * the given read timeout. Package-private so ReportViewTest can exercise it with a short one.
+     */
+    static ReportService reportClient(URI address, Duration readTimeout) {
+        return RestClientBuilder.newBuilder()
+                .baseUri(address)
+                .connectTimeout(REPORT_CONNECT_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)
+                .readTimeout(readTimeout.toMillis(), TimeUnit.MILLISECONDS)
+                .build(ReportService.class);
+    }
 
     Respondent respondent;
 
@@ -230,9 +254,7 @@ public class ReportView extends VerticalLayout implements BeforeEnterObserver {
                 return builtIn.render(request, "report page") // i18n:ignore
                         .orElseThrow(() -> new IllegalStateException(getTranslation("reportView.error.noRespondent")));
             }
-            ReportService reportService = RestClientBuilder.newBuilder()
-                    .baseUri(new URI(rpt.url))
-                    .build(ReportService.class);
+            ReportService reportService = reportClient(new URI(rpt.url), REPORT_READ_TIMEOUT);
             ReportResponse reportResponse = reportService.callReport(request);
             return reportResponse;
         } catch (jakarta.ws.rs.WebApplicationException e) {

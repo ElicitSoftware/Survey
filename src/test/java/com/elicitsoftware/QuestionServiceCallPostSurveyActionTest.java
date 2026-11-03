@@ -260,4 +260,44 @@ class QuestionServiceCallPostSurveyActionTest {
         assertTrue(ex.getMessage().startsWith("Post Survey Action 'Notify' Error: Request was interrupted"),
                 ex.getMessage());
     }
+
+    @Test
+    void callPostSurveyAction_serviceNeverAnswers_givesUpAtTheTimeout() throws IOException {
+        // UC-004 A1: a service that accepts the call and never answers is a failure like any
+        // other, and must not hold the respondent's finalize.
+        java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+        server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+        server.createContext("/", exchange -> {
+            try {
+                release.await(10, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+            exchange.close();
+        });
+        server.start();
+        String url = "http://localhost:" + server.getAddress().getPort() + "/";
+
+        QuestionService service = new QuestionService();
+        service.postSurveyActionTimeout = java.time.Duration.ofMillis(300);
+        long start = System.nanoTime();
+        Exception ex;
+        try {
+            ex = assertThrows(Exception.class, () -> service.CallPostSurveyAction(psa("Notify", url), 42));
+        } finally {
+            release.countDown();
+        }
+        long elapsedMillis = (System.nanoTime() - start) / 1_000_000;
+        assertTrue(elapsedMillis >= 250, "waited for the service, " + elapsedMillis + " ms");
+        assertTrue(elapsedMillis < 5_000, "gave up after " + elapsedMillis + " ms");
+        assertTrue(ex.getMessage().startsWith("Post Survey Action 'Notify' Error: No answer from " + url),
+                ex.getMessage());
+    }
+
+    @Test
+    void postSurveyActionTimeouts_areBounded() {
+        assertEquals(java.time.Duration.ofSeconds(5), QuestionService.POST_SURVEY_ACTION_CONNECT_TIMEOUT);
+        assertEquals(java.time.Duration.ofSeconds(60), QuestionService.POST_SURVEY_ACTION_TIMEOUT);
+        assertEquals(QuestionService.POST_SURVEY_ACTION_TIMEOUT, new QuestionService().postSurveyActionTimeout);
+    }
 }
