@@ -26,7 +26,7 @@ Closes #
 
 - [ ] Flyway migration added to **both** `db/migration` and `db/migration-v3`, and the brownfield track verified with `resetDatabase.sh V2` from the umbrella
 - [ ] A reporting (star schema) change keeps `report_<slug>` building from the apply, and FHHS still reads it
-- [ ] New user-facing text has its key in `translations.properties`, `i18n/translations_es_419.properties` and `i18n/translations_ar.properties`, a context note, and `i18n/TRANSLATION_REQUEST.md` regenerated
+- [ ] New user-facing text has its key in `translations.properties` and in the umbrella's `elicit-i18n/<app>/translations_es_419.properties` and `translations_ar.properties` (a branch of the same name there), a context note, and `i18n/TRANSLATION_REQUEST.md` regenerated
 - [ ] Respondent credential is called the **access code**, never a token
 - [ ] Cross-module change: the tracking issue in `ElicitSoftware/Elicit` and the sibling PRs are linked above
 - [ ] No AI co-author trailer in any commit message
