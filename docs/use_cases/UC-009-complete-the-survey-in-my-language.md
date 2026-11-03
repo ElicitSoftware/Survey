@@ -10,8 +10,8 @@
 
 ## Preconditions
 
-- The application ships its own texts in every language it supports (English, Latin American Spanish and Arabic), packaged inside the release.
-- The site may offer fewer than the application ships; the languages it offers are the ones in the selector.
+- The application ships its own texts in English. The site supplies every other language as a translation file in a mounted directory; ElicitSoftware maintains a curated set (Latin American Spanish and Arabic).
+- The site may offer fewer languages than it mounts; the languages it offers are the ones in the selector.
 - The respondent has an invitation link, which may carry a language, or navigates to the login page directly.
 - The survey declares the language its content was authored in and the set of languages its content has been published in; either set may be empty of anything but the base language.
 
@@ -77,11 +77,11 @@
 
 English is the default language and the fallback for any text missing from another language file. A text missing from every language file is shown as a visible marker (`!key!`) rather than blank, so the omission is noticed and fixed.
 
-### BR-002: Available languages are the ones the release carries, less any the site withholds
+### BR-002: Available languages are English plus the ones the site mounts, less any it withholds
 
-Every language the application offers is packaged inside the release, so the wording a respondent reads is the wording that version was built and tested with. A site cannot add a language or change one; it can only offer fewer than the release carries, and a language it withholds is unreachable — absent from the selector, refused in a link, and not served for survey content either.
+The release carries English only. Every other language is a translation file the site places in the application's directory of its translations mount (`<i18n.file.system.path>/survey/translations_<tag>.properties`). A mounted file adds its language and overlays English text by text, so it may change only some texts, and a text it lacks is shown in English (BR-001). A site may offer fewer languages than it mounts (`i18n.offered.locales`). A language that is not mounted, or that the site withholds, is unreachable: it is absent from the selector, refused in a link, and not served for survey content either.
 
-Languages are curated and arrive in a release, which is what keeps a translation and the code that renders it at the same version.
+ElicitSoftware maintains a curated set of translations beside each release (the umbrella's `elicit-i18n/`). A site that mounts the set matching its release gets the wording that version was tested with.
 
 ### BR-003: Language precedence
 
@@ -89,7 +89,7 @@ Link language, then session choice, then browser preference, then English. A lan
 
 ### BR-004: Layout direction follows the language
 
-Languages written right-to-left (Arabic, Hebrew, Persian, Urdu and similar) mirror the whole page layout; all other languages are laid out left-to-right. The release declares the direction of any language whose script does not follow from its language alone, and a site may override that for one language by configuration.
+Languages written right-to-left (Arabic, Hebrew, Persian, Urdu and similar) mirror the whole page layout; all other languages are laid out left-to-right. The direction and the text size of a language can be declared in three places, each overriding the one before: by the release, in an `i18n-config.json` at the root of the translations mount, and for one language by configuration.
 
 ### BR-005: Survey content follows the respondent's language where it is published
 
@@ -117,4 +117,4 @@ Content translations are versioned like the survey's structure. A respondent see
 
 ### BR-011: Text size may follow the language
 
-A script whose letters look smaller than Latin at the same size reads smaller, however faithful the translation — Arabic is the case this rule exists for. The release may therefore declare a font scale for a language, and a site may override it by configuration; every page shown in that language is rendered at that multiple of the reader's own text size. A language with no declared scale is rendered exactly as it was before any scale existed, and a scale outside what a layout can absorb is refused rather than applied.
+A script whose letters look smaller than Latin at the same size reads smaller, however faithful the translation — Arabic is the case this rule exists for. The release may therefore declare a font scale for a language, the translations mount may declare another, and a site may override both by configuration; every page shown in that language is rendered at that multiple of the reader's own text size. A language with no declared scale is rendered exactly as it was before any scale existed, and a scale outside what a layout can absorb is refused rather than applied.
