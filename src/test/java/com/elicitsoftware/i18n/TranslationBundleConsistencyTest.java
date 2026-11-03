@@ -45,11 +45,11 @@ class TranslationBundleConsistencyTest {
 
     static final Path BUNDLE_DIR = Path.of("src/main/resources/vaadin-i18n");
     /**
-     * Where the translated {@code translations_<tag>.properties} files live in this repo (Survey#123):
-     * packaged onto the classpath at {@code vaadin-i18n/} by the {@code <resource>} block in
-     * {@code pom.xml}, alongside the hand-off document that produced them.
+     * Where the curated {@code translations_<tag>.properties} files live: the umbrella's
+     * {@code elicit-i18n/survey/}, which a deployment mounts (the image carries English only). The
+     * umbrella checkout puts it one level up from this module, and CI fetches it to the same place.
      */
-    static final Path TRANSLATIONS_DIR = Path.of("i18n");
+    static final Path TRANSLATIONS_DIR = Path.of("../elicit-i18n/survey");
     private static final Pattern LOCALE_FILE = Pattern.compile("translations_([A-Za-z0-9_]+)\\.properties");
     /** Keys passed straight to the translation API; these must exist. */
     private static final Pattern STRICT_REF = Pattern.compile(
@@ -71,11 +71,10 @@ class TranslationBundleConsistencyTest {
         Path translationsDir = root.resolve(TRANSLATIONS_DIR).normalize();
         if (!Files.isDirectory(translationsDir)) {
             problems.add("translations directory not found at " + translationsDir
-                    + " (i18n/ is part of this repo now; its absence is a real failure, not a missing umbrella checkout)");
+                    + " (clone this module inside the Elicit umbrella checkout, which carries elicit-i18n/)");
         } else {
-            // i18n/ deliberately carries no translations.properties: the pom's resource include is
-            // translations_*.properties so a stray English copy here can never shadow the authored
-            // bundle above, so there is nothing to compare it against.
+            // The mount carries no translations.properties: English is in the image, and the
+            // application only lists translations_<tag>.properties there.
             collectLocales(translationsDir, locales, problems);
             if (locales.isEmpty()) {
                 problems.add("no translations_<tag>.properties found in " + translationsDir);

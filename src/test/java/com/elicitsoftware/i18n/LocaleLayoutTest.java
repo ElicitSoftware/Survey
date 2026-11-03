@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -120,7 +121,7 @@ class LocaleLayoutTest extends QuarkusBrowserlessTest {
     @Test
     void switcher_isHidden_whenOnlyEnglishIsAvailable() {
         ElicitI18NProvider englishOnly = new ElicitI18NProvider();
-        englishOnly.bundledLocales = "en";
+        englishOnly.offeredLocales = Optional.of("en");
         englishOnly.pseudoLocaleEnabled = false;
 
         LanguageSwitcher switcher = new LanguageSwitcher(selection, englishOnly);
