@@ -67,7 +67,7 @@ class LocaleSelectionTest {
     @BeforeEach
     void setUp() {
         ElicitI18NProvider provider = new ElicitI18NProvider();
-        provider.bundledLocales = "en,es-419,ar";
+        provider.fileSystemPath = ElicitI18NProviderTest.CURATED;
         selection = new LocaleSelection();
         selection.provider = provider;
         selection.layout = new LocaleLayout() {

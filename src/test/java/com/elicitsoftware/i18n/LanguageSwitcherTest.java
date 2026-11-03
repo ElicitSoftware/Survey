@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -67,7 +68,7 @@ class LanguageSwitcherTest {
     @BeforeEach
     void setUp() {
         provider = new ElicitI18NProvider();
-        provider.bundledLocales = "en,es-419,ar";
+        provider.fileSystemPath = ElicitI18NProviderTest.CURATED;
         provider.pseudoLocaleEnabled = true;
         ui = PlainUi.of(Locale.ENGLISH, null);
     }
@@ -92,7 +93,7 @@ class LanguageSwitcherTest {
 
     @Test
     void given_englishOnly_when_built_then_hidden() {
-        provider.bundledLocales = "en";
+        provider.offeredLocales = Optional.of("en");
         LanguageSwitcher switcher = new LanguageSwitcher(selection, provider);
 
         assertFalse(switcher.isVisible(), "a site offering English alone has no choice to offer");

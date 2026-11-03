@@ -15,6 +15,8 @@ import com.vaadin.flow.i18n.I18NProvider;
 import com.vaadin.quarkus.annotation.VaadinServiceEnabled;
 import io.quarkus.arc.Unremovable;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.eclipse.microprofile.config.Config;
+import org.eclipse.microprofile.config.ConfigProvider;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
@@ -23,6 +25,9 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -32,23 +37,30 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Translation provider for the application chrome (UC-009).
  * <p>
- * Translations live in Vaadin's standard layout — {@code vaadin-i18n/translations[_tag].properties}
- * on the classpath — so the Copilot internationalization tooling keeps working. The English bundle
- * is authored under {@code src/main/resources}; the translated ones are received from a translator,
- * kept in the module's {@code i18n/} directory beside the hand-off document that produced them, and
- * packaged to the same classpath location by the build.
+ * The image carries English only, in Vaadin's standard layout -- {@code vaadin-i18n/translations.properties}
+ * on the classpath -- so the Copilot internationalization tooling keeps working. Every other language
+ * is supplied by the deployment: {@code translations_<tag>.properties} files in this application's
+ * sub-directory of the translations mount, {@code <i18n.file.system.path>/<i18n.app.name>/}
+ * ({@code /i18n/survey/} by default). One host directory can serve every module that way.
  * <p>
- * The classpath is the only source. Languages are curated and arrive in a release, so a deployment
- * can neither add one nor patch one, and a released image renders the translation it was built and
- * tested with. What a site chooses is <em>which</em> of the shipped languages it offers, through
- * {@code i18n.bundled.locales}; the rest stay in the image unreachable.
+ * A mounted file overlays the classpath key by key, so it may hold only the keys it changes, and a key
+ * missing from a language falls back to English. The languages offered are English plus every language
+ * mounted here; {@code i18n.offered.locales}, when set, narrows that to the tags it lists, and a tag it
+ * lists that has no mounted file is not offered. {@code LocaleSelection.resolve} checks every requested
+ * tag against {@link #getProvidedLocales()}, so a narrowed site cannot be talked past it with
+ * {@code ?lang=}.
  * <p>
  * Lookup order for a key: exact locale, language-only locale, default (English) bundle, then the
  * visible marker {@code !key!}. The
@@ -71,18 +83,23 @@ public class ElicitI18NProvider implements I18NProvider {
     public static final String PSEUDO_CLOSE = "⟧";
 
 
+    private static final Pattern LOCALE_FILE = Pattern.compile(BUNDLE_PREFIX + "_([A-Za-z0-9_]+)\\.properties");
+
+    /** The translations mount; this application reads its own sub-directory of it. */
+    @ConfigProperty(name = "i18n.file.system.path", defaultValue = "/i18n")
+    String fileSystemPath = "/i18n";
+
+    /** This application's sub-directory of the mount. */
+    @ConfigProperty(name = "i18n.app.name", defaultValue = "survey")
+    String appName = "survey";
+
     /**
-     * The languages this image carries, and the ones this deployment offers.
-     * <p>
-     * Both, because classpath resources cannot be listed: nothing can discover which
-     * {@code translations_*.properties} the jar holds, so the set has to be declared. A site that
-     * wants fewer narrows this property, and a language left out of it is not offered even though
-     * its bundle is still in the image. {@code LocaleSelection.resolve} checks every requested tag
-     * against {@link #getProvidedLocales()}, so a narrowed site cannot be talked past it with
-     * {@code ?lang=}.
+     * The languages this site offers, when it wants fewer than are mounted: a comma-separated list
+     * of tags. Unset or blank offers every mounted language. English is always offered, because it
+     * is the fallback for every key.
      */
-    @ConfigProperty(name = "i18n.bundled.locales", defaultValue = "en")
-    String bundledLocales = "en";
+    @ConfigProperty(name = "i18n.offered.locales")
+    Optional<String> offeredLocales = Optional.empty();
 
     @ConfigProperty(name = "i18n.pseudo-locale.enabled", defaultValue = "false")
     boolean pseudoLocaleEnabled;
@@ -90,6 +107,24 @@ public class ElicitI18NProvider implements I18NProvider {
     private final Map<Locale, Map<String, String>> bundles = new ConcurrentHashMap<>();
     private final Set<String> reportedMissing = ConcurrentHashMap.newKeySet();
     private volatile List<Locale> providedLocales;
+
+    /**
+     * A provider built outside CDI that still honours the deployment's settings: the injected
+     * fields are only set on the container's bean, so a bare {@code new} would read the default
+     * mount whatever the site configured. A setting that cannot be read keeps its default.
+     */
+    static ElicitI18NProvider fromConfig() {
+        ElicitI18NProvider p = new ElicitI18NProvider();
+        try {
+            Config config = ConfigProvider.getConfig();
+            config.getOptionalValue("i18n.file.system.path", String.class).ifPresent(v -> p.fileSystemPath = v);
+            config.getOptionalValue("i18n.app.name", String.class).ifPresent(v -> p.appName = v);
+            p.offeredLocales = config.getOptionalValue("i18n.offered.locales", String.class);
+        } catch (RuntimeException e) {
+            LOG.warn("Cannot read the i18n settings; using the defaults", e);
+        }
+        return p;
+    }
 
     @Override
     public List<Locale> getProvidedLocales() {
@@ -185,7 +220,7 @@ public class ElicitI18NProvider implements I18NProvider {
         return bundles.computeIfAbsent(locale, this::loadBundle);
     }
 
-    /** The classpath bundle for this locale, empty when the image carries no such file. */
+    /** The classpath bundle for this locale, overlaid key by key by the mounted file of the same name. */
     private Map<String, String> loadBundle(Locale locale) {
         String fileName = fileNameFor(locale);
         Map<String, String> merged = new LinkedHashMap<>();
@@ -196,6 +231,15 @@ public class ElicitI18NProvider implements I18NProvider {
             }
         } catch (IOException e) {
             LOG.warnf(e, "Cannot read classpath bundle %s", fileName);
+        }
+        Path file = mountDirectory().resolve(fileName);
+        if (Files.isRegularFile(file)) {
+            try (Reader r = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+                merged.putAll(read(r));
+                LOG.infof("Loaded %d translation(s) for '%s' from %s", merged.size(), locale.toLanguageTag(), file);
+            } catch (IOException e) {
+                LOG.warnf(e, "Cannot read translation file %s", file);
+            }
         }
         return Collections.unmodifiableMap(merged);
     }
@@ -215,17 +259,64 @@ public class ElicitI18NProvider implements I18NProvider {
         return BUNDLE_PREFIX + "_" + locale.toLanguageTag().replace('-', '_') + ".properties";
     }
 
+    /** {@code <i18n.file.system.path>/<i18n.app.name>}; the app name may not climb out of the mount. */
+    Path mountDirectory() {
+        String app = appName == null ? "" : appName.trim();
+        if (app.isEmpty() || app.contains("..") || app.contains("/") || app.contains("\\")) {
+            throw new IllegalArgumentException("i18n.app.name must be a plain directory name, got '" + app + "'");
+        }
+        String root = fileSystemPath == null || fileSystemPath.isBlank() ? "/i18n" : fileSystemPath.trim();
+        return Paths.get(root, app);
+    }
+
+    /** The languages with a {@code translations_<tag>.properties} in the mount, in no particular order. */
+    private Set<Locale> mountedLocales() {
+        Set<Locale> mounted = new LinkedHashSet<>();
+        Path dir = mountDirectory();
+        if (!Files.isDirectory(dir)) {
+            LOG.infof("No translations mounted at %s; offering English only", dir);
+            return mounted;
+        }
+        try (Stream<Path> files = Files.list(dir)) {
+            files.map(p -> p.getFileName().toString())
+                    .map(LOCALE_FILE::matcher)
+                    .filter(Matcher::matches)
+                    .map(m -> Locale.forLanguageTag(m.group(1).replace('_', '-')))
+                    .filter(l -> !l.getLanguage().isEmpty())
+                    .forEach(mounted::add);
+        } catch (IOException e) {
+            LOG.warnf(e, "Cannot list translation directory %s", dir);
+        }
+        return mounted;
+    }
+
+    /** The tags {@code i18n.offered.locales} lists, or empty when it is unset or blank. */
+    private Optional<Set<Locale>> offeredFilter() {
+        if (offeredLocales == null || offeredLocales.isEmpty() || offeredLocales.get().isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.of(Arrays.stream(offeredLocales.get().split(","))
+                .map(String::trim)
+                .filter(t -> !t.isEmpty())
+                .map(Locale::forLanguageTag)
+                .filter(l -> !l.getLanguage().isEmpty())
+                .collect(Collectors.toCollection(LinkedHashSet::new)));
+    }
+
     private List<Locale> discoverLocales() {
+        Set<Locale> mounted = mountedLocales();
+        Optional<Set<Locale>> filter = offeredFilter();
         Set<Locale> found = new LinkedHashSet<>();
         found.add(DEFAULT_LOCALE);
-        if (bundledLocales != null) {
-            Arrays.stream(bundledLocales.split(","))
-                    .map(String::trim)
-                    .filter(t -> !t.isEmpty())
-                    .map(Locale::forLanguageTag)
-                    .filter(l -> !l.getLanguage().isEmpty())
-                    .forEach(found::add);
+        for (Locale locale : mounted) {
+            if (filter.isEmpty() || filter.get().contains(locale)) {
+                found.add(locale);
+            }
         }
+        filter.ifPresent(wanted -> wanted.stream()
+                .filter(l -> !l.equals(DEFAULT_LOCALE) && !mounted.contains(l))
+                .forEach(l -> LOG.warnf("i18n.offered.locales lists %s, but %s holds no %s; it is not offered",
+                        l.toLanguageTag(), mountDirectory(), fileNameFor(l))));
         if (pseudoLocaleEnabled) {
             found.add(PSEUDO_LOCALE);
         }

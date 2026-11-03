@@ -15,7 +15,7 @@
 
 - A survey exists (test seed `src/main/resources/db/test` loaded by the `%test` profile).
 - Auto-registration is enabled so any 5–12 character access code creates a respondent (`accessCode.autoRegister=true` in the `%test` profile).
-- Spanish (`es-419`) and Arabic (`ar`) ship with the application: the bundles live in `i18n/` and are packaged onto the classpath by the build, and `i18n.bundled.locales=en,ar,es-419` offers all three. Nothing is mounted, and no umbrella checkout is needed.
+- Spanish (`es-419`) and Arabic (`ar`) are mounted: the `%test` profile points `i18n.file.system.path` at the umbrella's curated `../elicit-i18n` (CI fetches it to the same place), and `i18n.offered.locales` is unset, so all three are offered. The image itself carries English only.
 
 ## Flow
 

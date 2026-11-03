@@ -12,8 +12,14 @@ package com.elicitsoftware.i18n;
  */
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -23,8 +29,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * UC-009 BR-004 and BR-011: built-in right-to-left languages, the per-locale font scale, the
- * classpath manifest the image ships, and the per-deployment property that overrides either.
+ * UC-009 BR-004 and BR-011: built-in right-to-left languages, the per-locale font scale, and the
+ * three layers that declare them -- the classpath manifest the image ships, the manifest at the root
+ * of the translations mount, and the per-deployment property -- each winning over the one before.
  */
 class LocaleConfigTest {
 
@@ -207,5 +214,53 @@ class LocaleConfigTest {
     void parse_refusesAScaleOutsideWhatALayoutAbsorbs() {
         assertTrue(LocaleConfig.parse("{\"locales\":[{\"tag\":\"ar\",\"fontScale\":9}]}").isEmpty());
         assertTrue(LocaleConfig.parse("{\"locales\":[{\"tag\":\"ar\",\"fontScale\":0.1}]}").isEmpty());
+    }
+
+    /** A mount whose root holds {@code manifest} as i18n-config.json, plus any property overrides. */
+    private static LocaleConfig mounted(Path mount, String manifest, Map<String, String> overrides) throws IOException {
+        Files.writeString(mount.resolve(LocaleConfig.CONFIG_FILE), manifest, StandardCharsets.UTF_8);
+        Map<String, String> all = new HashMap<>(overrides);
+        all.put(LocaleConfig.MOUNT_PROPERTY, mount.toString());
+        return config(all);
+    }
+
+    @Test
+    void mountedManifest_overridesTheShippedOne(@TempDir Path mount) throws IOException {
+        LocaleConfig c = mounted(mount, "{\"locales\":[{\"tag\":\"ar\",\"fontScale\":1.3}]}", Map.of());
+
+        assertEquals(1.3, c.fontScale(Locale.forLanguageTag("ar")), "the mount wins over the shipped 1.15");
+        assertTrue(c.isRightToLeft(Locale.forLanguageTag("ar")),
+                "an entry silent on direction leaves the shipped declaration standing");
+    }
+
+    @Test
+    void mountedManifest_canDeclareALanguageTheImageDoesNotKnow(@TempDir Path mount) throws IOException {
+        LocaleConfig c = mounted(mount, "{\"locales\":[{\"tag\":\"dv\",\"direction\":\"rtl\",\"fontScale\":1.2}]}",
+                Map.of());
+
+        assertTrue(c.isRightToLeft(Locale.forLanguageTag("dv")));
+        assertEquals(1.2, c.fontScale(Locale.forLanguageTag("dv")));
+    }
+
+    @Test
+    void propertyOverridesTheMountedManifest(@TempDir Path mount) throws IOException {
+        LocaleConfig c = mounted(mount, "{\"locales\":[{\"tag\":\"ar\",\"fontScale\":1.3}]}",
+                Map.of("i18n.font-scale.ar", "1.5"));
+
+        assertEquals(1.5, c.fontScale(Locale.forLanguageTag("ar")));
+    }
+
+    @Test
+    void malformedMountedManifest_leavesTheShippedOneStanding(@TempDir Path mount) throws IOException {
+        LocaleConfig c = mounted(mount, "{ not json", Map.of());
+
+        assertEquals(1.15, c.fontScale(Locale.forLanguageTag("ar")));
+    }
+
+    @Test
+    void noMountedManifest_isTheShippedOne(@TempDir Path mount) {
+        LocaleConfig c = config(Map.of(LocaleConfig.MOUNT_PROPERTY, mount.toString()));
+
+        assertEquals(1.15, c.fontScale(Locale.forLanguageTag("ar")));
     }
 }

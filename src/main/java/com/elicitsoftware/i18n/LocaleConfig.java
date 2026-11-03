@@ -20,6 +20,10 @@ import org.jboss.logging.Logger;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
@@ -33,18 +37,20 @@ import java.util.function.Function;
  * Per-locale presentation settings (UC-009 BR-004, BR-011): text direction and font scale.
  * <p>
  * Right-to-left is inferred from the language for the well-known RTL scripts and the font scale
- * defaults to {@code 1.0}. The image states what it ships for its own languages in
- * {@code META-INF/i18n/i18n-config.json} on the classpath:
- * <pre>{"locales": [{"tag": "ar", "direction": "rtl", "fontScale": 1.15}]}</pre>
- * Both properties are optional per entry, and an entry that declares neither usably is ignored.
- * <p>
- * A deployment overrides either with a config property naming the tag, {@code i18n.direction.<tag>}
- * and {@code i18n.font-scale.<tag>}, which wins over the shipped file:
- * <pre>i18n.font-scale.ar=1.2</pre>
- * Properties rather than a file, because there is no longer a mounted directory to put a file in;
- * without them a site could not adjust typography at all short of a new build. They are read for
- * the tag being asked about rather than enumerated, so an operator can name any tag without the
- * lookup having to discover which keys exist.
+ * defaults to {@code 1.0}. Three layers can declare otherwise, each winning over the one before:
+ * <ol>
+ *   <li>{@code META-INF/i18n/i18n-config.json} on the classpath, what the image itself knows:
+ *       <pre>{"locales": [{"tag": "ar", "direction": "rtl", "fontScale": 1.15}]}</pre></li>
+ *   <li>{@code i18n-config.json} at the root of the translations mount
+ *       ({@code i18n.file.system.path}), in the same format, shipped beside the translations it
+ *       describes and shared by every application that reads the mount;</li>
+ *   <li>a config property naming the tag, {@code i18n.direction.<tag>} and
+ *       {@code i18n.font-scale.<tag>}, for one deployment's displays: <pre>i18n.font-scale.ar=1.2</pre></li>
+ * </ol>
+ * Both file properties are optional per entry; an entry silent on one leaves the layer below
+ * standing, and an entry that declares neither usably is ignored. The properties are read for the
+ * tag being asked about rather than enumerated, so an operator can name any tag without the lookup
+ * having to discover which keys exist.
  * <p>
  * The scale is per language but page-wide: it multiplies the root font size, so an Arabic page
  * grows entirely, spacing and Latin text on it included, while other languages stay at 1.0.
@@ -54,6 +60,8 @@ public class LocaleConfig {
 
     private static final Logger LOG = Logger.getLogger(LocaleConfig.class);
     static final String CONFIG_FILE = "i18n-config.json";
+    static final String MOUNT_PROPERTY = "i18n.file.system.path";
+    static final String DEFAULT_MOUNT = "/i18n";
     static final String DIRECTION_PROPERTY = "i18n.direction.";
     static final String FONT_SCALE_PROPERTY = "i18n.font-scale.";
     static final Set<String> RTL_LANGUAGES = Set.of("ar", "he", "fa", "ur", "ps", "sd", "ug", "yi", "dv", "ckb");
@@ -195,15 +203,37 @@ public class LocaleConfig {
         return map;
     }
 
-    /** The shipped manifest, or no entries when the image carries none or it cannot be read. */
+    /** The shipped manifest, overlaid per tag and property by the mounted one. */
     private Map<String, Entry> load() {
+        Map<String, Entry> merged = new HashMap<>(loadClasspath());
+        loadMounted().forEach((tag, mounted) -> merged.merge(tag, mounted, (shipped, over) -> new Entry(
+                over.rightToLeft() != null ? over.rightToLeft() : shipped.rightToLeft(),
+                over.fontScale() != null ? over.fontScale() : shipped.fontScale())));
+        return Collections.unmodifiableMap(merged);
+    }
+
+    private Map<String, Entry> loadClasspath() {
         try (InputStream in = Thread.currentThread().getContextClassLoader()
                 .getResourceAsStream("META-INF/i18n/" + CONFIG_FILE)) {
             return in == null
                     ? Collections.emptyMap()
-                    : parse(new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
+                    : parse(new String(in.readAllBytes(), StandardCharsets.UTF_8));
         } catch (IOException e) {
             LOG.warn("Cannot read classpath i18n-config.json", e);
+            return Collections.emptyMap();
+        }
+    }
+
+    /** No entries when nothing is mounted, the mount has no manifest, or it cannot be read. */
+    private Map<String, Entry> loadMounted() {
+        Path file = Paths.get(read(MOUNT_PROPERTY).map(String::trim).orElse(DEFAULT_MOUNT), CONFIG_FILE);
+        if (!Files.isRegularFile(file)) {
+            return Collections.emptyMap();
+        }
+        try {
+            return parse(Files.readString(file, StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            LOG.warnf(e, "Cannot read %s", file);
             return Collections.emptyMap();
         }
     }
@@ -211,9 +241,8 @@ public class LocaleConfig {
     /**
      * The {@code locales} entries of a manifest, by lower-cased tag.
      * <p>
-     * Separate from {@link #load()} so the parsing has a seam. The manifest is a fixed classpath
-     * resource now, so there is no longer any way to feed this a malformed or surprising document
-     * through the public API -- and it still runs at every startup, where a bad one must leave the
+     * Separate from {@link #load()} so the parsing has a seam. The mounted manifest is written by
+     * whoever runs the site, and it is read at every startup, where a malformed one must leave the
      * built-in defaults standing rather than take the application down.
      *
      * @param json the manifest's contents

@@ -23,9 +23,14 @@ import com.vaadin.flow.component.UI;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -66,7 +71,7 @@ class ContentTranslatorUnitTest {
     @BeforeEach
     void setUp() {
         provider = new ElicitI18NProvider();
-        provider.bundledLocales = "en,es-419,ar";
+        provider.fileSystemPath = ElicitI18NProviderTest.CURATED;
         translator = new ContentTranslator();
         translator.provider = provider;
         translator.ttl = Duration.ofMinutes(5);
@@ -182,14 +187,19 @@ class ContentTranslatorUnitTest {
 
     @Test
     void given_publishedButNotOfferedBySite_when_resolvingLanguage_then_baseLanguage() {
-        provider.bundledLocales = "en,ar";
+        provider.offeredLocales = Optional.of("en,ar");
         assertNull(translator.language(survey), "BR-009: a language the site does not offer is not served");
     }
 
     @Test
-    void given_sessionLanguageNotPublished_when_resolvingLanguage_then_baseLanguage() {
+    void given_sessionLanguageNotPublished_when_resolvingLanguage_then_baseLanguage(@TempDir Path mount)
+            throws IOException {
         uiLocale(Locale.FRENCH);
-        provider.bundledLocales = "en,es-419,ar,fr";
+        // The site offers French (it is mounted); the survey does not publish it.
+        Files.writeString(Files.createDirectories(mount.resolve("survey")).resolve("translations_fr.properties"),
+                "sideNav.about=À propos\n", StandardCharsets.UTF_8);
+        provider.fileSystemPath = mount.toString();
+        provider.clearCache();
         assertNull(translator.language(survey));
     }
 

@@ -59,7 +59,7 @@ class LocaleInitializerTest {
     @BeforeEach
     void setUp() {
         ElicitI18NProvider provider = new ElicitI18NProvider();
-        provider.bundledLocales = "en,es-419,ar";
+        provider.fileSystemPath = ElicitI18NProviderTest.CURATED;
         LocaleSelection selection = new LocaleSelection() {
             @Override
             public void apply(UI target, Locale locale) {
