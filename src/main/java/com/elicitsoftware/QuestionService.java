@@ -58,6 +58,20 @@ import java.util.List;
 @NormalUIScoped
 public class QuestionService {
 
+    /** How long a post-survey action service may take to accept the connection. */
+    static final Duration POST_SURVEY_ACTION_CONNECT_TIMEOUT = Duration.ofSeconds(5);
+
+    /**
+     * How long a post-survey action may take to answer. The call runs at finalize, on the
+     * respondent's request, so a service that never answers must not hold it forever; a timeout
+     * is recorded against the action like any other failure (UC-004 A1). FHHS's generate action
+     * renders a pedigree and uploads over SFTP, hence the generous bound.
+     */
+    static final Duration POST_SURVEY_ACTION_TIMEOUT = Duration.ofSeconds(60);
+
+    // Package-private so QuestionServiceCallPostSurveyActionTest can shorten it.
+    Duration postSurveyActionTimeout = POST_SURVEY_ACTION_TIMEOUT;
+
     /**
      * SQL query used to retrieve and consolidate survey answers for a specific respondent.
      * <p>
@@ -415,8 +429,9 @@ public class QuestionService {
         }
 
         try {
-            // Create a simple HTTP client using Java 11+ HttpClient
-            java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
+            java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder()
+                    .connectTimeout(POST_SURVEY_ACTION_CONNECT_TIMEOUT)
+                    .build();
             
             // Create the JSON payload
             String jsonPayload = "{\"id\":" + respondentId + "}";
@@ -425,6 +440,7 @@ public class QuestionService {
             java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
                     .uri(java.net.URI.create(psa.url))
                     .header("Content-Type", "application/json")
+                    .timeout(postSurveyActionTimeout)
                     .POST(java.net.http.HttpRequest.BodyPublishers.ofString(jsonPayload))
                     .build();
             
@@ -486,6 +502,9 @@ public class QuestionService {
             
         } catch (java.net.URISyntaxException e) {
             throw new Exception("Post Survey Action '" + psa.name + "' Error: Invalid URL format '" + psa.url + "' - " + e.getMessage(), e);
+        } catch (java.net.http.HttpTimeoutException e) {
+            throw new Exception("Post Survey Action '" + psa.name + "' Error: No answer from " + psa.url
+                    + " within " + postSurveyActionTimeout.toSeconds() + " seconds", e);
         } catch (java.io.IOException e) {
             throw new Exception("Post Survey Action '" + psa.name + "' Error: Network communication failed when calling " + psa.url + " - " + e.getMessage(), e);
         } catch (InterruptedException e) {

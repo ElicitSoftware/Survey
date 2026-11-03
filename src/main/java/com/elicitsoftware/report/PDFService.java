@@ -26,7 +26,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.apache.batik.anim.dom.SAXSVGDocumentFactory;
 import org.apache.batik.bridge.BridgeContext;
 import org.apache.batik.bridge.GVTBuilder;
-import org.apache.batik.bridge.UserAgentAdapter;
 import org.apache.batik.gvt.GraphicsNode;
 import org.apache.batik.util.XMLResourceDescriptor;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -394,7 +393,7 @@ public class PDFService {
 
         // Build GVT
         GVTBuilder builder = new GVTBuilder();
-        BridgeContext ctx = new BridgeContext(new UserAgentAdapter());
+        BridgeContext ctx = new BridgeContext(new NoExternalResourcesUserAgent());
         GraphicsNode graphicsNode = builder.build(ctx, svgDocument);
 
         // Use actual computed bounds that include all rendered content

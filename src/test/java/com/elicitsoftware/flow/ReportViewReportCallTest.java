@@ -399,6 +399,12 @@ class ReportViewReportCallTest extends PlainViewTestSupport {
     }
 
     @Test
+    void reportTimeouts_areBounded() {
+        assertEquals(java.time.Duration.ofSeconds(5), ReportView.REPORT_CONNECT_TIMEOUT);
+        assertEquals(java.time.Duration.ofSeconds(60), ReportView.REPORT_READ_TIMEOUT);
+    }
+
+    @Test
     void given_reportPage_when_pdfClicked_then_pdfIsGeneratedAndOpened() {
         builtIns.render = r -> Optional.of(new ReportResponse("T", "<p/>", null));
         survey.title = "Family history";

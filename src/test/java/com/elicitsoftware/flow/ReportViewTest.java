@@ -31,6 +31,7 @@ import java.util.HashSet;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -190,5 +191,38 @@ class ReportViewTest extends QuarkusBrowserlessTest {
         QuarkusTransaction.requiringNew().run(() ->
                 em.createNativeQuery("DELETE FROM survey.respondents WHERE id = ?1")
                         .setParameter(1, respondentId).executeUpdate());
+    }
+
+    @Test
+    // UC-005 A1: a report service that accepts the call and never answers fails at the read
+    // timeout, which callReport turns into an error card, instead of holding the page.
+    void reportClient_serviceNeverAnswers_givesUpAtTheReadTimeout() throws Exception {
+        java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+        com.sun.net.httpserver.HttpServer server =
+                com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("localhost", 0), 0);
+        server.createContext("/", exchange -> {
+            try {
+                release.await(10, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+            exchange.close();
+        });
+        server.start();
+        try {
+            com.elicitsoftware.report.ReportService client = ReportView.reportClient(
+                    java.net.URI.create("http://localhost:" + server.getAddress().getPort() + "/report"),
+                    java.time.Duration.ofMillis(300));
+            long start = System.nanoTime();
+            assertThrows(RuntimeException.class,
+                    () -> client.callReport(new com.elicitsoftware.report.ReportRequest(1, "en")));
+            long elapsedMillis = (System.nanoTime() - start) / 1_000_000;
+
+            assertTrue(elapsedMillis >= 250, "waited for the service, " + elapsedMillis + " ms");
+            assertTrue(elapsedMillis < 5_000, "gave up after " + elapsedMillis + " ms");
+        } finally {
+            release.countDown();
+            server.stop(0);
+        }
     }
 }
