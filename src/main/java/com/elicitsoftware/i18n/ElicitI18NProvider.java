@@ -15,6 +15,8 @@ import com.vaadin.flow.i18n.I18NProvider;
 import com.vaadin.quarkus.annotation.VaadinServiceEnabled;
 import io.quarkus.arc.Unremovable;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.eclipse.microprofile.config.Config;
+import org.eclipse.microprofile.config.ConfigProvider;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
@@ -105,6 +107,24 @@ public class ElicitI18NProvider implements I18NProvider {
     private final Map<Locale, Map<String, String>> bundles = new ConcurrentHashMap<>();
     private final Set<String> reportedMissing = ConcurrentHashMap.newKeySet();
     private volatile List<Locale> providedLocales;
+
+    /**
+     * A provider built outside CDI that still honours the deployment's settings: the injected
+     * fields are only set on the container's bean, so a bare {@code new} would read the default
+     * mount whatever the site configured. A setting that cannot be read keeps its default.
+     */
+    static ElicitI18NProvider fromConfig() {
+        ElicitI18NProvider p = new ElicitI18NProvider();
+        try {
+            Config config = ConfigProvider.getConfig();
+            config.getOptionalValue("i18n.file.system.path", String.class).ifPresent(v -> p.fileSystemPath = v);
+            config.getOptionalValue("i18n.app.name", String.class).ifPresent(v -> p.appName = v);
+            p.offeredLocales = config.getOptionalValue("i18n.offered.locales", String.class);
+        } catch (RuntimeException e) {
+            LOG.warn("Cannot read the i18n settings; using the defaults", e);
+        }
+        return p;
+    }
 
     @Override
     public List<Locale> getProvidedLocales() {

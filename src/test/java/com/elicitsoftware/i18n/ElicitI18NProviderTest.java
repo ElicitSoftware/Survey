@@ -191,4 +191,11 @@ class ElicitI18NProviderTest {
 
         assertThrows(IllegalArgumentException.class, p::mountDirectory);
     }
+
+    @Test
+    void fromConfig_readsTheConfiguredMount() {
+        // A provider built outside CDI (Translations off a Vaadin thread in a plain test) must not
+        // fall back to the default /i18n: the %test profile points it at the curated set.
+        assertEquals(List.of(Locale.ENGLISH, AR, ES_419), ElicitI18NProvider.fromConfig().getProvidedLocales());
+    }
 }

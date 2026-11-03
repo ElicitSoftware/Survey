@@ -15,14 +15,17 @@ import com.vaadin.flow.component.UI;
 import com.vaadin.flow.i18n.I18NProvider;
 import com.vaadin.flow.server.VaadinService;
 import com.vaadin.flow.server.VaadinSession;
+import io.quarkus.arc.Arc;
+import io.quarkus.arc.ArcContainer;
 
 import java.util.Locale;
 
 /**
  * Translation lookup for code that is not a Vaadin component (validators, the PDF renderer, REST
- * resources). Uses the running service's provider when there is one and falls back to a
- * standalone {@link ElicitI18NProvider} reading the classpath bundles, so plain unit tests and
- * non-Vaadin threads translate too.
+ * resources). Uses the running service's provider when there is one; otherwise the application's
+ * own {@link ElicitI18NProvider} bean, so a REST resource or a background thread reads the same
+ * translations mount as the UI; and outside a running application (plain unit tests) a standalone
+ * provider configured from the same settings.
  */
 public final class Translations {
 
@@ -60,9 +63,16 @@ public final class Translations {
                 return fromService;
             }
         }
+        ArcContainer container = Arc.container();
+        if (container != null && container.isRunning()) {
+            ElicitI18NProvider bean = container.instance(ElicitI18NProvider.class).get();
+            if (bean != null) {
+                return bean;
+            }
+        }
         ElicitI18NProvider p = standalone;
         if (p == null) {
-            p = new ElicitI18NProvider();
+            p = ElicitI18NProvider.fromConfig();
             standalone = p;
         }
         return p;
