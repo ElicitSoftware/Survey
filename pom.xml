@@ -42,6 +42,13 @@
         -->
         <license.excludedArtifacts>(?&lt;=:)vaadin-dev$</license.excludedArtifacts>
         <license.outputDirectory>${project.basedir}</license.outputDirectory>
+        <!--
+            add-third-party registers its output directory as a project resource with **/*.txt
+            whenever it runs. With the root as that directory every .txt in the tree was packaged:
+            the license-header templates under src/license and the i18n test allowlists (Elicit#70).
+            Switched off here; the root resource declared under <build> packages Notice.txt alone.
+        -->
+        <license.addOutputDirectoryAsResourceDir>false</license.addOutputDirectoryAsResourceDir>
     </properties>
     <dependencyManagement>
         <dependencies>
@@ -238,6 +245,16 @@
                 <excludes>
                     <exclude>application.properties</exclude>
                 </excludes>
+            </resource>
+            <!-- The third-party notice, generated at the project root so the committed copy is
+                 the reviewed one, ships in the jar: this is the only root-level resource, now that
+                 license.addOutputDirectoryAsResourceDir no longer sweeps in every .txt (Elicit#70). -->
+            <resource>
+                <directory>${project.basedir}</directory>
+                <filtering>false</filtering>
+                <includes>
+                    <include>Notice.txt</include>
+                </includes>
             </resource>
         </resources>
         <plugins>
