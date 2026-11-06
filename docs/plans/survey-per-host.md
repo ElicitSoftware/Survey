@@ -9,8 +9,9 @@ or sub-domain serves exactly one survey.
 
 Decisions taken:
 
-- The host decides **only which survey is offered**. Brand, offered languages and invitation
-  links stay one value per deployment.
+- The host decides **only which survey is offered**. Brand and invitation links stay one value
+  per deployment. The site's offered languages stay one value too, as the ceiling; which of them
+  a respondent is shown is the survey's to narrow (see "Languages follow the survey").
 - **Strict**: a host reaches only its own survey; an access code for another survey is refused
   there; a host with no mapping shows no survey. A deployment with **no mappings at all behaves
   exactly as today**.
@@ -217,6 +218,96 @@ If a site cannot provide a wildcard record and certificate for `*.preview.<site>
 is a different Survey change, not part of this one: a `/login/<code>` link that resolves the
 survey from the code and hides the picker. The bare host would still list every survey, so the
 per-host form is preferred.
+
+## Languages follow the survey
+
+Today the language choice is one list per deployment, and with several surveys in one
+installation the mixed result is visible. Two things decide what a respondent sees:
+
+- `LanguageSwitcher` (`i18n/LanguageSwitcher.java:37-41`) lists `provider.getProvidedLocales()`:
+  English plus every bundle mounted under `/opt/i18n/survey`, narrowed by `i18n.offered.locales`
+  (UC-009 BR-002). It never looks at a survey, and `LocaleSelection.resolve` (`:55`) checks a
+  `?lang=` tag against the same list.
+- `ContentTranslator.language` (`:140-165`) serves a survey's text in the session language only
+  when the survey publishes it (`surveys.content_languages`, authored in Author and carried in the
+  `.elicit`) **and** the site offers it for the chrome (BR-005, BR-009). Otherwise the questions
+  fall back to the survey's base language.
+
+So a site serving a Spanish-and-Arabic family history survey beside an English-only census lets
+the census respondent pick Arabic and read English questions between Arabic buttons. BR-009
+prevents the reverse case, translated questions between English buttons, but not this one.
+
+### Behaviour
+
+Let the *survey set* of a survey be its base language plus its published content languages, and
+the *site set* be what `ElicitI18NProvider` provides. The languages offered to a respondent are
+the **intersection of the two**, resolved exact-tag-first then same-language, the chain
+`LocaleSelection.resolve` already uses:
+
+| Where | Survey in play | Offered |
+| --- | --- | --- |
+| Login page, mapped host | the host's survey | site set ∩ survey set |
+| Login page, no mapping | none yet | site set, as today |
+| After login (and after session restore) | the respondent's survey | site set ∩ survey set |
+
+- The switcher lists the offered set and stays hidden when it has one entry, as it does now.
+- `?lang=` and the switcher refuse a language outside the offered set.
+- At login, a session language outside the respondent's survey set is replaced by the survey's
+  base language. That is a change from today, where a chosen chrome language survives into any
+  survey.
+- A survey with no published languages offers its base language alone, so a mounted Arabic
+  bundle is hidden on that survey's host. That is the point, but it is a visible change for
+  existing English-only surveys.
+- The site set remains the ceiling: `i18n.offered.locales` still narrows every survey, and a
+  survey cannot offer a language the site has not mounted (BR-002 unchanged). Direction and font
+  scale follow the language as before (BR-004, BR-011).
+
+No new configuration. The author's published set is already in the database, and the site keeps
+one mount and one offered list. If a site later wants to narrow one survey below what its author
+published, that is a site-local column like `host`, set by the same kind of endpoint and never
+carried in the file; not in this change.
+
+### Changes (`Survey/`, can be its own issue and PR after the host change)
+
+1. **`i18n/OfferedLanguages`** (pure, beside `SurveyHosts`): `offered(List<Locale> site, Survey
+   survey)`; null survey returns the site set. The same-language matching of `ContentTranslator`
+   moves here so the three callers agree.
+2. **`ContentTranslator.language`** calls it instead of its own loop; behaviour unchanged.
+3. **`LocaleSelection.resolve`** takes the survey in play: the respondent's survey from
+   `UISessionDataService` when one is in session, otherwise the single offered survey on a mapped
+   host (`AccessCodeService.offeredSurveys()` of size one), otherwise null.
+4. **`LanguageSwitcher`** is built from the same offered set and rebuilt on login and on session
+   restore, since the set changes when the survey becomes known. `MainLayout.java:151-152` creates
+   it once today.
+5. **Login** (`AccessCodeService.login`, and so session restore too): after a successful sign-in,
+   if the stored session locale is outside the survey's offered set, `LocaleSelection.apply` the
+   base language.
+6. **AIUP**: UC-009 gains BR-012 "The languages offered follow the survey in play" with the table
+   above; BR-002 gains the sentence that the site's set is the ceiling; FR for UC-009 amended;
+   UC-015 cross-references it.
+
+### Tests (each names UC-009 BR-012)
+
+- `OfferedLanguagesTest`, plain JUnit: the three rows, base language always present, a published
+  language the site lacks is dropped, same-language resolution (`es` offered for `es-419`), an
+  unpublished-but-mounted language dropped, null survey returns the site set.
+- `LanguageSwitcherTest`: items narrow once a survey is known; hidden at one entry.
+- `LocaleSelectionTest`: `?lang=ar` refused on an English-only survey's host; accepted on the
+  family history survey's host.
+- `AccessCodeService` `@QuarkusTest`: a session in Arabic that signs in to an English-only survey
+  continues in English; one that signs in to a survey publishing Arabic keeps Arabic.
+
+### Verification
+
+Against the local stack with the family history survey (publishes `es-419` and `ar`) and the
+census survey (English only) imported and both mounted languages offered:
+
+- `http://localhost:8080` (no mapping): the switcher offers all three; pick Arabic, sign in to the
+  census survey, the page returns to English and the switcher is hidden; sign in to the family
+  history survey, Arabic is kept and the layout is right-to-left.
+- With hosts mapped: `http://census.localhost:8080` shows no switcher and refuses `?lang=ar`;
+  `http://familyhistory.localhost:8080` offers all three.
+- `i18n.offered.locales=en,es-419`: Arabic disappears from the family history host too.
 
 ## Tests (each names UC-015, or UC-001 where it extends the sign-in)
 
