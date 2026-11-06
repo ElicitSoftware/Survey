@@ -141,6 +141,83 @@ Survey exposes (UC-008 BR-004).
 - Umbrella docs (`DeploymentScript.md`, the installation manual's proxy section) — a short
   follow-up in the umbrella repo describing the setting and the reverse-proxy requirement.
 
+## Author and Admin on sub-domains of the same name
+
+A site that serves `familyhistory.survey.app.med.umich.edu` and `census.survey.app.med.umich.edu`
+can serve `author.survey.app.med.umich.edu` and `admin.survey.app.med.umich.edu` too. That is
+**outside this change and needs no code in any module**: the host column above decides which
+survey *one Survey instance* offers, whereas the Author and Admin hosts are routed by the reverse
+proxy to different containers before Survey sees the request. The two features do not interact.
+
+What the site configures:
+
+- **Proxy routing by host.** The proxy sends `author.` to the Author container (8084 in Author's
+  compose file), `admin.` to Admin (8081) and every survey host to Survey (8080), forwarding
+  `X-Forwarded-Host` and `X-Forwarded-Proto`. All three applications already set
+  `quarkus.http.proxy.enable-forwarded-host=true` with address, prefix and `X-Forwarded`
+  handling (Survey `application.properties:162-165`, Admin `:117-120`, Author `:93-96`), so
+  Admin's and Author's OIDC redirect URIs are built from the public host.
+- **OIDC clients.** Both apps answer the provider on the fixed path `/callback` and sign out
+  to `/`, so the provider's `elicit-admin` and `elicit-author` clients (app registrations, on
+  Entra) need the exact redirect URIs `https://admin.survey.app.med.umich.edu/callback` and
+  `https://author.survey.app.med.umich.edu/callback`, and the post-logout URIs
+  `https://admin.survey.app.med.umich.edu/` and `https://author.survey.app.med.umich.edu/`.
+  Wildcards such as the seeded realm's `http://localhost:8081/*` are a Keycloak convenience;
+  Entra accepts none. This is done on the site's provider, not in the bundled realm file. The
+  browser is sent to `quarkus.oidc.auth-server-url`, so that must be the provider's public
+  address in both apps, not the `host.docker.internal:8180` default. Keycloak stands in for any
+  OIDC provider throughout; the provider-specific settings (role claim path, principal claim,
+  `offline_access`) are listed in Author's access-control plan, section 6.
+- **Sessions stay on their host.** No application sets a cookie domain, so Admin's and Author's
+  session cookies are never presented to the survey hosts, and a survey host's Vaadin session is
+  never presented to a sibling. The `Strict-Transport-Security: includeSubDomains` header each
+  app sends covers only hosts *beneath* its own name (`*.author.survey...`), never a sibling,
+  so it changes nothing here. The Survey mapping sees only `admin.` or `author.` if the proxy
+  mis-routes them, and then shows "no surveys" — a visible misconfiguration, not a leak.
+- **Admin to Survey is unaffected.** Admin reaches Survey at `elicit.survey.url`, the internal
+  address, and the REST API is not host-gated (above), so the apply, the ETL build and the
+  schema rename keep working whatever the public hosts are.
+- **Author to Survey is unaffected.** Author never calls the production Survey. Its one Survey
+  dependency, `author.preview.survey.url`, is the preview instance (`author-survey`, the
+  `author` database), which has no host mappings and so behaves as today.
+
+One thing to settle in Author if the preview is also to get a host, say
+`preview.survey.app.med.umich.edu`: `author.preview.survey.url` serves both a server-to-server
+call (`PreviewSurveyClient`, dropping a reporting schema before a delete) and the browser-facing
+preview link on the Reports page (`ReportsView`). Author's compose file sets it to the internal
+`http://author-survey:8080`, which a browser cannot open. Either the property is set to the public
+URL and the Author container can resolve it, or it is split into an internal and a public
+property. That is an Author issue, separate from this one.
+
+## The Author preview as a consumer
+
+Author's preview is a second Survey instance (`author-survey` in Author's compose file) over the
+`author` database, with `accessCode.autoRegister=true`. Its login page offers every authored
+survey in the picker and any typed code enters any of them. Author's per-survey access control
+(`Author/docs/plan/survey-access-control.md`) hides ungranted surveys inside Author but names the
+preview as outside its reach. This change is what lets Author close that gap; **nothing extra is
+needed here**, only the behaviour above used in a particular way:
+
+- Author maps **every** authored survey to a host (`<slug>.preview.<site>`) through
+  `SurveyHostResource` on create and import, and clears it on delete, at the internal address it
+  already holds in `author.preview.survey.url`. Once one survey is mapped the bare preview host
+  shows "no surveys", which is the intended state there.
+- The preview runs with `accessCode.autoRegister=false`. Author mints the preview respondent
+  itself, for a survey the signed-in author is granted, and opens `https://<host>/#/login/<code>`.
+  The host offers one survey, `login` refuses a code belonging to another, and with
+  auto-registration off a visitor with no minted code gets no further than the login page.
+- The two instances share the `host` column by schema only. Values are site-local, so the
+  production and preview mappings never meet, and a `.elicit` carries neither.
+
+What this does not do: hide a survey's *name* from someone who guesses its preview host. The
+login page and `/about` show that one survey's title. Author accepts the same class of leak for
+name collisions; deriving the preview host from the survey key rather than its name closes it.
+
+If a site cannot provide a wildcard record and certificate for `*.preview.<site>`, the fallback
+is a different Survey change, not part of this one: a `/login/<code>` link that resolves the
+survey from the code and hides the picker. The bare host would still list every survey, so the
+per-host form is preferred.
+
 ## Tests (each names UC-015, or UC-001 where it extends the sign-in)
 
 - `SurveyHostsTest` — plain JUnit: the three rows of the table, port and case handling,
