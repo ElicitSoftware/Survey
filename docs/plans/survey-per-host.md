@@ -261,6 +261,11 @@ the **intersection of the two**, resolved exact-tag-first then same-language, th
 - The site set remains the ceiling: `i18n.offered.locales` still narrows every survey, and a
   survey cannot offer a language the site has not mounted (BR-002 unchanged). Direction and font
   scale follow the language as before (BR-004, BR-011).
+- A survey whose base language is not English, and which publishes nothing else, offers that
+  language alone: the survey set removes English even though the provider always offers it
+  (BR-002). English remains the fallback for a chrome key the mounted bundle lacks (BR-001). A
+  French-only survey therefore needs French as its *base* language, not English plus a French
+  translation, and a French chrome bundle mounted by the site.
 
 No new configuration. The author's published set is already in the database, and the site keeps
 one mount and one offered list. If a site later wants to narrow one survey below what its author
@@ -308,6 +313,48 @@ census survey (English only) imported and both mounted languages offered:
 - With hosts mapped: `http://census.localhost:8080` shows no switcher and refuses `?lang=ar`;
   `http://familyhistory.localhost:8080` offers all three.
 - `i18n.offered.locales=en,es-419`: Arabic disappears from the family history host too.
+
+## Target deployment: what these plans deliver and what they do not
+
+Reviewed 2026-11-06 against the intended Michigan Medicine layout, so that the gaps are on record
+beside the plans. **Not being implemented now.** The site: `survey.med.umich.edu` as the base,
+`author.` and `admin.` protected by Microsoft Entra ID with users limited to the surveys they are
+authorized for, `family.` serving the family history survey in English, Spanish and Arabic,
+`census.` serving the census in English only, `french.` serving a French survey in French only,
+and no data, reports or statistics shared between surveys: to respondents, authors,
+administrators and report users each survey behaves as if it had its own database.
+
+| Host | Delivered by | Verdict |
+| --- | --- | --- |
+| `author.` | Author access-control plan PRs 1-3, its section 6 for Entra | Yes. Accepted leaks: unique survey names ("name in use"), reporting tags and dimensions as a shared vocabulary, the preview title on a guessed preview host. Previews live on a separate wildcard (`family.preview.survey.med.umich.edu`). |
+| `admin.` | nothing | **No.** Admin scopes by department, which spans surveys; `survey.user_surveys` is mapped but never read; Register offers every survey, Participation has a picker over every survey, Search and the exports follow departments; message templates are per department with the invitation host typed by hand, so a department serving two surveys cannot send the right host to each. Needs an Admin plan: grants per survey enforced in services as Author's are, Register and Participation narrowed to granted surveys, templates keyed on survey as well as department. Recorded in the Author plan's limitations as the next gap. |
+| `family.` | this change + "Languages follow the survey" | Yes. Mapped host; publishes `es-419` and `ar`; curated bundles mounted; all three offered. |
+| `census.` | this change + "Languages follow the survey" | English only **with** the language section. The host change alone still offers Spanish and Arabic chrome around English questions. |
+| `french.` | not with what exists | The curated set has no French: the site mounts a full French chrome bundle for Survey. The survey is authored with French as its base language. Author's `author.content.languages` must list French before it publishes it, and `checkLanguages.sh` requires the three curated `elicit-i18n/` directories to agree, so a *curated* French means French for Admin and Author too; a site-private mount avoids that. |
+| `survey.med.umich.edu` | this change | Shows "no surveys" once any host is mapped (the third row of the behaviour table). Route it to a landing page at the proxy if wanted. Hosts are lower-cased, so `Family.` is `family.`. |
+
+"As if it had its own database", by actor:
+
+- **Respondents: holds.** One survey per host, another survey's code refused, sessions bound to
+  the host, `/about` per host. **One condition is not optional:** the proxy must refuse `/api` on
+  every public host except `/api/pdf/download` (`DeploymentScript.md:19-23`). The REST API is not
+  host-gated and is unauthenticated, including `SurveyHostResource`, so an exposed `/api` lets
+  anyone remap the hosts.
+- **Reports: partly.** Each survey has its own `report_<slug>` schema (UC-008) and `surveyreport`
+  holds only the static `dim_date` and `dim_status`. But `etl/Sql.java:88-90` grants `USAGE` and
+  default `SELECT` on **every** survey's schema to the one `surveyreport_user` role, so a report
+  user who connects to the database reads all of them. Nothing plans a role per schema. Small
+  ETL change, its own Survey issue: one read role per report schema, created with the schema and
+  dropped with it, `surveyreport_user` kept only for the shared lookups.
+- **Statistics: holds.** The only cross-survey aggregates are the Quarkus metrics and Jaeger
+  traces, per application and operator-facing; Prometheus is not wired into the umbrella compose.
+- **Authors: holds**, with the three accepted leaks in the table.
+- **Administrators: does not hold** until the Admin plan above exists.
+- **Shared by design:** one brand (per-host brand is excluded above), one SMTP relay, one identity
+  provider, one mounted language set as the ceiling.
+
+Outstanding before the layout works as listed: the Admin per-survey plan, a read role per report
+schema, the French chrome bundle and base language, and the `/api` refusal at the proxy.
 
 ## Tests (each names UC-015, or UC-001 where it extends the sign-in)
 
