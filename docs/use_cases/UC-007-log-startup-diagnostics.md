@@ -72,7 +72,7 @@
 - **BR-002:** The report never delays or fails startup and never takes the application down: it runs on a daemon thread after the delay, and any failure is caught and logged.
 - **BR-003:** Every probe is bounded by a 5 second timeout and is harmless to its target: a GET or a TCP connect, never the POST a respondent's finalize would make (NFR-009).
 - **BR-004:** The report is visible at the default container log level. Containers run at `LOG_LEVEL=WARN`; the `com.elicitsoftware.diagnostics` category is pinned to INFO so the whole report appears, and the lines that need action are at WARN so they appear even if that pin is removed.
-- **BR-005:** A post-survey action's credential is reported as configured or not, by kind (bearer token or OIDC client), never by value (BR-001, UC-015 BR-003).
+- **BR-005:** A post-survey action's credential is reported as configured or not, never by value (BR-001, UC-015 BR-003).
 
 ## Notes / Known Gaps
 

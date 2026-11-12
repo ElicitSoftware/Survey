@@ -102,7 +102,7 @@ public class ConnectionChecks {
         for (PostSurveyAction action : PostSurveyAction.<PostSurveyAction>listAll()) {
             if (action.url != null && !action.url.isBlank()) {
                 String survey = action.survey != null ? action.survey.name : "?";
-                // UC-007 BR-005: the credential is named by kind, never by value.
+                // UC-007 BR-005: whether a credential is configured, never its value.
                 String credential = credentials == null ? "none" : credentials.describe(action.postSurveyActionKey);
                 String name = action.name + " (" + survey + "; " + action.method + "; credential: " + credential
                         + (action.sendsExternalId ? "; sends the External ID" : "") + ")";

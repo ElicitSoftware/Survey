@@ -92,7 +92,7 @@ An External ID usually identifies a person in another system. An action that sen
 
 ### BR-003: Credentials are the site's, keyed by the action
 
-A credential is never stored with the action or in a definition file. A site configures it in Survey under the action's key: `elicit.post-survey-action."<key>".bearer-token`, sent as `Authorization: Bearer <token>`, or `elicit.post-survey-action."<key>".oidc-client`, naming a configured OIDC client whose token is sent the same way. An action with neither is called without a credential. No credential is ever logged, recorded or shown; startup diagnostics say only whether each action has one (UC-007).
+A credential is never stored with the action or in a definition file. A site configures it in Survey under the action's key: `elicit.post-survey-action."<key>".bearer-token`, the token the service issued to the site, sent as `Authorization: Bearer <token>`. Survey only presents a token it was given; it never obtains or refreshes one, so a site replaces an expired token in its configuration. An action without one is called without a credential. No credential is ever logged, recorded or shown; startup diagnostics say only whether each action has one (UC-007).
 
 ### BR-004: Survey owns the call, not what the service does next
 
