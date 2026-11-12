@@ -20,7 +20,7 @@
 2. The system writes what is running: application name, version, build time, active profile, start time and uptime.
 3. The system probes the application connection (`survey_user`) and the owner connection (`elicit_owner`), reads the latest applied Survey migration through the application connection, and counts the installed surveys.
 4. The system reports which brand directory resolved and, for each expected brand asset, whether it came from the mounted directory, the local directory or the embedded default.
-5. For every report service and post-survey action configured in the database, and for the telemetry collector when telemetry is enabled, the system probes the address from its own network position and reports it reachable or not. Report services and post-survey actions are only ever GET-probed; the real calls carry respondent data and are never made here.
+5. For every report service and post-survey action configured in the database, and for the telemetry collector when telemetry is enabled, the system probes the address from its own network position and reports it reachable or not. Report services and post-survey actions are only ever GET-probed; the real calls carry respondent data and are never made here. For each post-survey action the line also says whether the site configured a credential for it (UC-015 BR-003), and whether it sends the subject's External ID; an External-ID action at a plain `http` address is reported at WARN, because every call to it will be refused (UC-015 BR-002).
 6. The system lists the effective values of the deployment settings that matter (datasource addresses and users, auto-registration, the reporting ETL flag, the brand path, telemetry, the log level), reporting secrets only as present or absent.
 7. The system ends the report with a count of the warnings above it. Each line is logged on its own: findings the operator has to act on at WARN, everything else at INFO.
 
@@ -72,6 +72,7 @@
 - **BR-002:** The report never delays or fails startup and never takes the application down: it runs on a daemon thread after the delay, and any failure is caught and logged.
 - **BR-003:** Every probe is bounded by a 5 second timeout and is harmless to its target: a GET or a TCP connect, never the POST a respondent's finalize would make (NFR-009).
 - **BR-004:** The report is visible at the default container log level. Containers run at `LOG_LEVEL=WARN`; the `com.elicitsoftware.diagnostics` category is pinned to INFO so the whole report appears, and the lines that need action are at WARN so they appear even if that pin is removed.
+- **BR-005:** A post-survey action's credential is reported as configured or not, by kind (bearer token or OIDC client), never by value (BR-001, UC-015 BR-003).
 
 ## Notes / Known Gaps
 

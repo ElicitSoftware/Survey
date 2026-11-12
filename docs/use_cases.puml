@@ -24,6 +24,7 @@ rectangle "Elicit Survey" {
   usecase "UC-012\nRecord Respondent Progress" as UC012
   usecase "UC-013\nHold Report Marks" as UC013
   usecase "UC-014\nRender the Respondent Report" as UC014
+  usecase "UC-015\nDeliver Post-Survey Actions" as UC015
 }
 
 Respondent --> UC001
@@ -50,7 +51,8 @@ UC002 ..> UC002 : <<extend>>\n(branching shows/hides/repeats\ndownstream questio
 UC001 ..> UC012 : <<include>>\n(the first page render stamps\nthe rows it shows)
 UC002 ..> UC012 : <<include>>\n(every page render and save\nstamps rows and the respondent)
 
-UC004 --> PsaSvc : notifies (webhook POST)
+UC004 ..> UC015 : <<include>>\n(calls each post-survey action)
+UC015 --> PsaSvc : calls (method, address and\ncredential as configured; retried\nuntil delivered or the limit)
 UC005 --> ReportSvc : requests report data
 UC007 --> ReportSvc : probes reachability (GET)
 UC007 --> PsaSvc : probes reachability (GET)

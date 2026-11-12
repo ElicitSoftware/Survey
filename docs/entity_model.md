@@ -315,16 +315,19 @@ A configured report the respondent sees after finalizing — an external service
 
 ### POST_SURVEY_ACTION
 
-A configured webhook the system calls once the respondent finalizes — used to notify an external system (e.g., registration/EHR integration) that the respondent has completed the survey.
+A configured call the system makes once the respondent finalizes (UC-015) — used to notify an external system (e.g., registration/EHR integration) that the respondent has completed the survey. Its credential, if any, is site configuration keyed by `postSurveyActionKey`, never a column (UC-015 BR-003).
 
 | Attribute | Description | Data Type | Length/Precision | Validation Rules |
 |---|---|---|---|---|
 | id | Primary key. | Long | — | Primary Key, Sequence |
 | surveyId | The survey this action belongs to. | Long | — | Not Null, Foreign Key (SURVEY.id) |
 | name | Internal name of the action. | String | 255 | Not Null |
-| description | Description of the action's purpose. | String | 1000 | Optional |
-| url | The external webhook endpoint to POST to. | String | 500 | Not Null |
-| executionOrder | Order this action runs in among the survey's post-survey actions. | Integer | — | Not Null, Default: 1 |
+| postSurveyActionKey | Stable key; matches the action across sites and keys its site credential. | UUID | — | Not Null, Unique |
+| description | Description of the action's purpose. | String | 255 | Not Null |
+| url | The address called; may contain `{respondentId}` and, when `sendsExternalId`, `{externalId}`. | String | 255 | Optional in SQL; Author requires it |
+| executionOrder | Order this action runs in among the survey's post-survey actions. | Integer | — | Not Null |
+| method | The HTTP method of the call (UC-015 BR-001). | String | 10 | Not Null, Default: `POST`, One of `POST`, `GET`, `PUT` |
+| sendsExternalId | Whether the call carries the subject's External ID and department code; requires an `https` url (UC-015 BR-002). | Boolean | — | Not Null, Default: false |
 
 *Uniqueness note (from SQL): `(survey_id, name)` is unique.*
 
@@ -337,8 +340,8 @@ Tracks, per respondent and per configured POST_SURVEY_ACTION, the status of the 
 | id | Primary key. | Long | — | Primary Key, Sequence |
 | respondentId | The respondent this attempt belongs to. | Long | — | Not Null, Foreign Key (RESPONDENT.id) |
 | postSurveyActionId | The post-survey action this attempt is for. | Long | — | Not Null, Foreign Key (POST_SURVEY_ACTION.id) |
-| tries | Number of attempts made. | Long | — | Not Null, Default: 0 |
-| status | Current status string (observed values: PENDING, RESENDING, FAILED — no explicit success value is ever set). | String | 255 | Not Null |
+| tries | Number of attempts made: Survey's calls, and any a service counts on the same record. | Long | — | Not Null, Default: 0 |
+| status | Survey's states `PENDING`, `RESENDING`, `DELIVERED`, `CALL_FAILED`, `CALL_REFUSED` (UC-015 BR-004), or a state a service wrote itself (FHHS: `STARTED`, `COMPLETED`, `FAILED`), which Survey never overwrites. | String | 255 | Not Null |
 | errorMsg | The most recent error message, if any. | String | 255 | Optional |
 | createdDt | When this attempt record was first created. | DateTime | — | Not Null |
 | uploadedDt | When the notification was confirmed delivered, if tracked. | DateTime | — | Optional |
