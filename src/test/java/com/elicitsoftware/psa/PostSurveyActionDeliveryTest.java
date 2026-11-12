@@ -284,8 +284,16 @@ class PostSurveyActionDeliveryTest {
     void uc015_br003_noCredentialConfiguredMeansNoneAndNoHeader() throws Exception {
         java.util.UUID key = java.util.UUID.randomUUID();
         assertEquals("none", credentials.describe(key));
-        assertTrue(credentials.authorization(key, "Notify", java.time.Duration.ofSeconds(1)).isEmpty());
+        assertTrue(credentials.authorization(key).isEmpty());
         assertEquals("elicit.post-survey-action.\"" + key + "\".bearer-token",
                 PostSurveyActionCredentials.setting(key, "bearer-token"), "the setting is keyed by the action's key");
+    }
+
+    /** BR-003, UC-007 BR-005: a configured token is presented as issued and described only by kind. */
+    @Test
+    void uc015_br003_theIssuedBearerTokenIsSentAsIs() {
+        java.util.UUID key = java.util.UUID.fromString("00000000-0000-0000-0000-0000000000b3");
+        assertEquals("bearer token", credentials.describe(key));
+        assertEquals(java.util.Optional.of("Bearer test-issued-token"), credentials.authorization(key));
     }
 }

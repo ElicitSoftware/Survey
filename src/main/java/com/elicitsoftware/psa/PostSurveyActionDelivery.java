@@ -121,7 +121,7 @@ public class PostSurveyActionDelivery {
         try {
             caller.refuseUnsendable(psa);
             PostSurveyActionCaller.Identity identity = psa.sendsExternalId ? identity(respondentId) : PostSurveyActionCaller.Identity.NONE;
-            Optional<String> authorization = credentials.authorization(psa.postSurveyActionKey, psa.name, caller.timeout);
+            Optional<String> authorization = credentials.authorization(psa.postSurveyActionKey);
             caller.call(psa, respondentId, identity, authorization);
             record(rowId, DELIVERED, null, true);
             Log.debugf("Post survey action %s delivered for respondent %d", psa.name, respondentId);
