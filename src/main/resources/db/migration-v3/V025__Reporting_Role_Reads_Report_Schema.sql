@@ -1,0 +1,23 @@
+-- ***LICENSE_START***
+-- Elicit Survey
+-- %%
+-- Copyright (C) 2025 - 2026 The Regents of the University of Michigan - Rogel Cancer Center
+-- %%
+-- PolyForm Noncommercial License 1.0.0
+-- <https://polyformproject.org/licenses/noncommercial/1.0.0>
+-- ***LICENSE_END***
+--
+-- V025: the reporting role can find a survey's reporting schema (UC-008 BR-014, FR-036,
+-- issue #190, Elicit#90).
+--
+-- A report service connects as the reporting role and reads a survey's star schema, which the
+-- ETL grants that role (Sql.CREATE_SURVEY_SCHEMA_SQL). The schema's name is site-local and can
+-- be renamed (UC-010), so the service looks it up by the survey's key on every request, and
+-- for that it needs these two columns of survey.surveys and nothing else of the transactional
+-- schema. Column-level, so the role still cannot read a survey's other columns.
+--
+-- A GRANT that is already held changes nothing, so the migration is the same on the greenfield
+-- track and on the V2 upgrade track, and a site that granted this by hand, as the installation
+-- manual describes, is unaffected.
+--
+GRANT SELECT (survey_key, report_schema) ON survey.surveys TO ${surveyreport_user};

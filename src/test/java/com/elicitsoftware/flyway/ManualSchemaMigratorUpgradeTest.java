@@ -170,6 +170,37 @@ class ManualSchemaMigratorUpgradeTest {
         }
     }
 
+    /**
+     * UC-008 BR-014 (FR-036): the reporting role may read the two columns a report service needs
+     * to find a survey's reporting schema, on the greenfield track, and nothing else of
+     * {@code survey.surveys}.
+     */
+    @Test
+    void greenfieldTrack_reportingRole_readsOnlyTheSchemaColumns() throws SQLException {
+        flywayFor("classpath:db/migration", null).migrate();
+        assertReportingRoleFindsTheSchemaOnly();
+    }
+
+    /** UC-008 BR-014: the same grant reaches a V2 database through the upgrade track. */
+    @Test
+    void upgradeTrack_reportingRole_readsOnlyTheSchemaColumns() throws SQLException {
+        flywayFor("classpath:db/migration-v3", "9").migrate();
+        flywayFor("classpath:db/migration-v3", null).migrate();
+        assertReportingRoleFindsTheSchemaOnly();
+    }
+
+    private void assertReportingRoleFindsTheSchemaOnly() throws SQLException {
+        try (Connection conn = DriverManager.getConnection(container.getJdbcUrl(), "surveyreport_user", PASSWORD);
+             var st = conn.createStatement()) {
+            assertDoesNotThrow(() -> st.executeQuery("SELECT survey_key, report_schema FROM survey.surveys").close(),
+                    "The reporting role must be able to find a survey's reporting schema by its key");
+            SQLException denied = assertThrows(SQLException.class,
+                    () -> st.executeQuery("SELECT name FROM survey.surveys").close(),
+                    "The reporting role must read no other column of survey.surveys");
+            assertEquals("42501", denied.getSQLState(), "insufficient_privilege");
+        }
+    }
+
     private Flyway flywayFor(String location, String targetVersion) {
         Map<String, String> placeholders = Map.of(
                 "survey_user", "survey_user",
