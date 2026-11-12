@@ -18,19 +18,18 @@
 1. System marks the respondent as no longer active and records the finalize timestamp.
 2. System permanently discards any answers and dependency records that were soft-deleted during the survey (e.g., branches shown then later hidden by an answer change).
 3. System extracts the respondent's completed section path into the analytical ("fact") tables used for downstream reporting.
-4. For each post-survey action configured on the survey (in a fixed execution order), system sends a notification (webhook) to the configured external service, including the respondent's identifier.
+4. System delivers the survey's post-survey actions for the respondent (UC-015): each is called in execution order, as its author configured it and with the credential the site configured for it, and a failed call is retried on a schedule.
 5. Respondent is routed to the reports view (UC-005), which sends them straight to the survey's post-survey URL when the survey lists no reports (UC-005 BR-014).
 
 ## Alternative Flows
 
 **A1: A post-survey action's target service rejects or errors on the notification**
 - **Trigger:** The external service returns a non-success HTTP status or the call otherwise fails (network error, timeout, malformed URL).
-- System records the failure (including a human-readable error message — with special-cased detection for a licensing-related rejection from a known downstream cancer-risk-calculator service) against that specific action for the respondent, but does not block finalization or the other configured actions from proceeding.
-- Note: there is no automatic retry of a failed post-survey action from the Survey app itself; the failure is only recorded.
+- System records the failure (including a human-readable error message — with special-cased detection for a licensing-related rejection from a known downstream cancer-risk-calculator service) against that specific action for the respondent, but does not block finalization or the other configured actions from proceeding. The scheduled retry of UC-015 (A3) calls it again later.
 
 **A2: A previously-sent post-survey action is retried**
 - **Trigger:** Finalize runs again for a respondent who already has a recorded attempt for a given post-survey action (e.g., re-finalization).
-- System marks the retry attempt distinctly (resending) and clears the prior error before attempting the call again.
+- System marks the delivery as being resent and clears the prior error before calling again (UC-015 A5).
 - Note: there is no guard preventing `finalize` from running more than once for the same respondent — repeated finalize calls will unconditionally re-mark the respondent inactive and reset the finalize timestamp, unlike the (separate, unused-in-this-path) deactivate logic elsewhere in the code, which only sets the finalize timestamp once.
 
 ## Postconditions
@@ -44,9 +43,9 @@
 ## Business Rules
 
 - **BR-009:** Soft-deleted answers and dependency records are only permanently purged at finalize time, not when the branching change happens.
-- **BR-010:** Post-survey actions execute in the survey-configured execution order and are independent of each other — one failing does not prevent the others from running.
-- **BR-011:** There is no terminal "succeeded" status recorded for a post-survey action even when its call returns success; success is inferred only by the absence of a recorded failure.
+- **BR-010:** Post-survey actions execute in the survey-configured execution order and are independent of each other — one failing does not prevent the others from running (UC-015 BR-006).
+- **BR-011:** A post-survey action's delivery is recorded with Survey's own states, `DELIVERED` on success and `CALL_FAILED` on a failed call, and a failed call is retried on a schedule up to a limit; the rules are UC-015's (BR-004, BR-005). Until Elicit#95 no success status was recorded and `tries` was never incremented.
 
 ## Notes / Known Gaps
 
-- BR-011 and the retry-count field (`tries`) being declared but never incremented are both implementation gaps rather than intended behavior — a monitoring/reporting tool built against `respondent_psa.status` cannot currently distinguish "succeeded" from "attempted, not yet reconciled."
+- The former gaps of BR-011 (no success status, `tries` never incremented) are closed by UC-015.

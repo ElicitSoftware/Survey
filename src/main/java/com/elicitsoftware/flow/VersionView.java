@@ -417,7 +417,7 @@ public class VersionView extends VerticalLayout {
     // this pure date-formatting logic directly. The rest of this class's methods shell out to
     // `hostname`/`docker inspect` and aren't safely testable without those subprocesses; this
     // one method has no such dependency, so it's the one worth testing in isolation. Same
-    // visibility-for-testability precedent as QuestionService.CallPostSurveyAction.
+    // visibility-for-testability precedent as PostSurveyActionCaller.timeout.
     String formatImageCreationDate(String rawDate) {
         try {
             // Handle different date formats that might be returned

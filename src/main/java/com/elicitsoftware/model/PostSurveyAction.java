@@ -58,4 +58,16 @@ public class PostSurveyAction extends PanacheEntityBase {
     @Column(name = "execution_order")
     public Integer executionOrder;
 
+    /** Keys the site's credential for this action (UC-015 BR-003); written by Admin, never here. */
+    @Column(name = "post_survey_action_key", insertable = false, updatable = false)
+    public java.util.UUID postSurveyActionKey;
+
+    /** POST, GET or PUT (UC-015 BR-001). */
+    @Column(name = "method", insertable = false, updatable = false)
+    public String method = "POST";
+
+    /** Whether the call carries the subject's External ID and department code (UC-015 BR-001, BR-002). */
+    @Column(name = "sends_external_id", insertable = false, updatable = false)
+    public boolean sendsExternalId;
+
 }
