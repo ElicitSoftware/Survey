@@ -7,7 +7,7 @@
 **Primary Actor:** Survey (the system, on a respondent finishing, and on its retry schedule)  
 **Secondary Actors:** External Post-Survey-Action Service; Respondent (whose finishing starts it, UC-004)  
 **Goal:** Tell every post-survey action of a survey that a respondent has finished, calling each one as its author configured it and with the credential the site configured for it, and keep calling an action whose call failed until it is delivered or a limit is reached, without ever repeating a call that reached the service.  
-**Status:** Draft  
+**Status:** Implemented  
 **Requirements:** [FR-011, FR-037, FR-038](../requirements.md)
 
 ## Preconditions

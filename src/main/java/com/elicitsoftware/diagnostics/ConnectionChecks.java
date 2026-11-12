@@ -55,7 +55,12 @@ public class ConnectionChecks {
         /** Open a TCP connection to host:port. */
         TCP,
         /** A report built into Survey (a path, UC-005 BR-015): nothing to probe, always up. */
-        BUILT_IN
+        BUILT_IN,
+        /**
+         * A post-survey action that sends the External ID to an address that is not https: every
+         * call to it is refused (UC-015 BR-002), so it is reported down without a probe (UC-007).
+         */
+        REFUSED
     }
 
     /**
@@ -73,6 +78,9 @@ public class ConnectionChecks {
             .connectTimeout(TIMEOUT)
             .followRedirects(HttpClient.Redirect.NEVER)
             .build();
+
+    @jakarta.inject.Inject
+    com.elicitsoftware.psa.PostSurveyActionCredentials credentials;
 
     public ConnectionChecks() {
         // CDI managed bean
@@ -94,7 +102,12 @@ public class ConnectionChecks {
         for (PostSurveyAction action : PostSurveyAction.<PostSurveyAction>listAll()) {
             if (action.url != null && !action.url.isBlank()) {
                 String survey = action.survey != null ? action.survey.name : "?";
-                targets.add(new Target("Post-survey action", action.name + " (" + survey + ")", action.url, Kind.HTTP));
+                // UC-007 BR-005: the credential is named by kind, never by value.
+                String credential = credentials == null ? "none" : credentials.describe(action.postSurveyActionKey);
+                String name = action.name + " (" + survey + "; " + action.method + "; credential: " + credential
+                        + (action.sendsExternalId ? "; sends the External ID" : "") + ")";
+                boolean refused = action.sendsExternalId && !action.url.trim().regionMatches(true, 0, "https://", 0, 8);
+                targets.add(new Target("Post-survey action", name, action.url, refused ? Kind.REFUSED : Kind.HTTP));
             }
         }
 
@@ -116,6 +129,8 @@ public class ConnectionChecks {
                 case HTTP -> http(target, start);
                 case TCP -> tcp(target, start);
                 case BUILT_IN -> CheckResult.up(target.name(), "built into Survey", elapsed(start));
+                case REFUSED -> CheckResult.down(target.name(),
+                        "sends the External ID to an address that is not https; every call will be refused", elapsed(start));
             };
         } catch (HttpTimeoutException e) {
             return CheckResult.down(target.name(), "timed out after " + TIMEOUT.toSeconds() + " s", elapsed(start));

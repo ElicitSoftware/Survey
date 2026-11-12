@@ -14,9 +14,7 @@ package com.elicitsoftware;
 import com.elicitsoftware.etl.ETLRespondentService;
 import com.elicitsoftware.i18n.ContentTranslator;
 import com.elicitsoftware.model.Answer;
-import com.elicitsoftware.model.PostSurveyAction;
 import com.elicitsoftware.model.Respondent;
-import com.elicitsoftware.model.RespondentPSA;
 import com.elicitsoftware.response.NavResponse;
 import com.elicitsoftware.response.ReviewItem;
 import com.elicitsoftware.response.ReviewResponse;
@@ -58,19 +56,6 @@ import java.util.List;
 @NormalUIScoped
 public class QuestionService {
 
-    /** How long a post-survey action service may take to accept the connection. */
-    static final Duration POST_SURVEY_ACTION_CONNECT_TIMEOUT = Duration.ofSeconds(5);
-
-    /**
-     * How long a post-survey action may take to answer. The call runs at finalize, on the
-     * respondent's request, so a service that never answers must not hold it forever; a timeout
-     * is recorded against the action like any other failure (UC-004 A1). FHHS's generate action
-     * renders a pedigree and uploads over SFTP, hence the generous bound.
-     */
-    static final Duration POST_SURVEY_ACTION_TIMEOUT = Duration.ofSeconds(60);
-
-    // Package-private so QuestionServiceCallPostSurveyActionTest can shorten it.
-    Duration postSurveyActionTimeout = POST_SURVEY_ACTION_TIMEOUT;
 
     /**
      * SQL query used to retrieve and consolidate survey answers for a specific respondent.
@@ -134,6 +119,9 @@ public class QuestionService {
                 AND a1.section_question_id IS NULL) c
              order by c.display_key;
             """;
+
+    @Inject
+    com.elicitsoftware.psa.PostSurveyActionDelivery postSurveyActionDelivery;
 
     @Inject
     EntityManager entityManager;
@@ -354,169 +342,13 @@ public class QuestionService {
         return questionManager.navigate(a.respondentId, a.getDisplayKey());
     }
 
-    @Timed(value = "survey.post.actions", description = "Time to execute post-survey actions", histogram = true)
-    @Transactional(Transactional.TxType.REQUIRES_NEW)
-    public void PostSurveyActions(int respondentId) {
-        Respondent respondent = Respondent.findById(respondentId);
-        if (respondent != null) {
-            if (respondent.survey.postSurveyActions != null && !respondent.survey.postSurveyActions.isEmpty()) {
-                for (PostSurveyAction psa : respondent.survey.postSurveyActions) {
-                    RespondentPSA respondentPSA = RespondentPSA.find("respondentId=?1 and psaId = ?2", respondentId, psa.id).firstResult();
-                    final RespondentPSA finalRespondentPSA;
-                    if (respondentPSA == null) {
-                        finalRespondentPSA = new RespondentPSA();
-                        finalRespondentPSA.psaId = psa.id;
-                        finalRespondentPSA.respondentId = respondentId;
-                        finalRespondentPSA.status = "PENDING";
-                    } else {
-                        finalRespondentPSA = respondentPSA;
-                        finalRespondentPSA.status = "RESENDING";
-                        finalRespondentPSA.error = "";
-                        finalRespondentPSA.uploadedDt = null;
-                    }
-                    try {
-                        CallPostSurveyAction(psa, respondentId);
-                        DatabaseRetryUtil.executeWithRetry(
-                            () -> finalRespondentPSA.persist(),
-                            "saving successful post-survey action for respondent " + respondentId
-                        );
-                        Log.debug("Post survey action " + psa.name + " completed successfully for respondent " + respondentId);
-                    }
-                    catch (Exception e) {
-                        finalRespondentPSA.status = "FAILED";
-                        finalRespondentPSA.error = e.getMessage();
-                        DatabaseRetryUtil.executeWithRetry(
-                            () -> finalRespondentPSA.persist(),
-                            "saving failed post-survey action for respondent " + respondentId
-                        );
-                        Log.error("Post survey action " + psa.name + " failed for respondent " + respondentId + ": " + e.getMessage(), e);
-                    }
-                }
-            }
-        }
-    }
-
     /**
-     * Executes a post-survey action by calling the specified URL with the respondent ID.
-     * <p>
-     * This method performs an HTTP POST request to the post-survey action URL with a JSON payload
-     * containing the respondent ID. It includes comprehensive error handling to provide meaningful
-     * error messages for various failure scenarios.
-     * <p>
-     * Error handling includes:
-     * - URL validation to ensure the action URL is properly configured
-     * - HTTP status code validation with specific error messages
-     * - Network and communication error handling
-     * - Detailed error message extraction from response bodies
-     * - License validation error detection for service-specific failures
-     *
-     * @param psa the PostSurveyAction containing the URL and configuration
-     * @param respondentId the ID of the respondent for whom the action is being executed
-     * @return the response body from the post-survey action service
-     * @throws Exception if the action fails due to configuration, network, or service errors
+     * UC-004 step 4: delivers the survey's post-survey actions for the respondent (UC-015). Each
+     * write of the delivery commits on its own and no call runs inside a transaction, so this
+     * method opens none.
      */
-    // Package-private (not private) so QuestionServiceCallPostSurveyActionTest can exercise
-    // it directly against a local HttpServer fixture, without a full Respondent/Survey/DB
-    // round trip through PostSurveyActions(). Same visibility-for-testability precedent as
-    // PDFService.request.
-    String CallPostSurveyAction(PostSurveyAction psa, int respondentId) throws Exception {
-        if (psa.url == null || psa.url.trim().isEmpty()) {
-            throw new Exception("Post Survey Action '" + psa.name + "' Error: URL is null or empty - please check the action configuration");
-        }
-
-        if (respondentId <= 0) {
-            throw new Exception("Post Survey Action '" + psa.name + "' Error: Invalid respondent ID (" + respondentId + ") - ID must be a positive number");
-        }
-
-        try {
-            java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder()
-                    .connectTimeout(POST_SURVEY_ACTION_CONNECT_TIMEOUT)
-                    .build();
-            
-            // Create the JSON payload
-            String jsonPayload = "{\"id\":" + respondentId + "}";
-            
-            // Build the HTTP request
-            java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
-                    .uri(java.net.URI.create(psa.url))
-                    .header("Content-Type", "application/json")
-                    .timeout(postSurveyActionTimeout)
-                    .POST(java.net.http.HttpRequest.BodyPublishers.ofString(jsonPayload))
-                    .build();
-            
-            // Send the request and get response
-            java.net.http.HttpResponse<String> response = client.send(request, 
-                    java.net.http.HttpResponse.BodyHandlers.ofString());
-            
-            // Check if the response was successful (2xx status codes)
-            if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                return response.body();
-            } else {
-                // Handle different error status codes with appropriate messages
-                String errorMessage;
-                String responseBody = response.body();
-                
-                // Try to extract meaningful error message from response body
-                if (responseBody != null && !responseBody.trim().isEmpty()) {
-                    // Check for license-related errors
-                    if (response.statusCode() == 403 || responseBody.toLowerCase().contains("license")) {
-                        errorMessage = "Post Survey Action '" + psa.name + "' Error: License validation failed - " + responseBody;
-                        if (!errorMessage.toLowerCase().contains("premm5") && psa.url.toLowerCase().contains("premm5")) {
-                            errorMessage += " - Please ensure your PREMM5 license is valid and properly configured.";
-                        }
-                    } else {
-                        errorMessage = "Post Survey Action '" + psa.name + "' Error: HTTP " + response.statusCode() + " - " + responseBody;
-                    }
-                } else {
-                    // No response body, provide status-based error message
-                    switch (response.statusCode()) {
-                        case 400:
-                            errorMessage = "Post Survey Action '" + psa.name + "' Error: Bad Request (400) - Invalid request data for respondent ID " + respondentId;
-                            break;
-                        case 401:
-                            errorMessage = "Post Survey Action '" + psa.name + "' Error: Unauthorized (401) - Authentication required";
-                            break;
-                        case 403:
-                            errorMessage = "Post Survey Action '" + psa.name + "' Error: Forbidden (403) - License validation may have failed. Please check your license configuration.";
-                            break;
-                        case 404:
-                            errorMessage = "Post Survey Action '" + psa.name + "' Error: Not Found (404) - Service endpoint not available at " + psa.url;
-                            break;
-                        case 500:
-                            errorMessage = "Post Survey Action '" + psa.name + "' Error: Internal Server Error (500) - The service encountered an internal error";
-                            break;
-                        case 502:
-                            errorMessage = "Post Survey Action '" + psa.name + "' Error: Bad Gateway (502) - Service is temporarily unavailable";
-                            break;
-                        case 503:
-                            errorMessage = "Post Survey Action '" + psa.name + "' Error: Service Unavailable (503) - Service is temporarily down for maintenance";
-                            break;
-                        default:
-                            errorMessage = "Post Survey Action '" + psa.name + "' Error: HTTP " + response.statusCode() + " - Service returned an error status";
-                            break;
-                    }
-                }
-                
-                throw new Exception(errorMessage);
-            }
-            
-        } catch (java.net.URISyntaxException e) {
-            throw new Exception("Post Survey Action '" + psa.name + "' Error: Invalid URL format '" + psa.url + "' - " + e.getMessage(), e);
-        } catch (java.net.http.HttpTimeoutException e) {
-            throw new Exception("Post Survey Action '" + psa.name + "' Error: No answer from " + psa.url
-                    + " within " + postSurveyActionTimeout.toSeconds() + " seconds", e);
-        } catch (java.io.IOException e) {
-            throw new Exception("Post Survey Action '" + psa.name + "' Error: Network communication failed when calling " + psa.url + " - " + e.getMessage(), e);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt(); // Restore interrupted status
-            throw new Exception("Post Survey Action '" + psa.name + "' Error: Request was interrupted - " + e.getMessage(), e);
-        } catch (Exception e) {
-            // Re-throw our own exceptions, wrap others
-            if (e.getMessage() != null && e.getMessage().startsWith("Post Survey Action")) {
-                throw e;
-            } else {
-                throw new Exception("Post Survey Action '" + psa.name + "' Error: Unexpected error - " + e.getMessage(), e);
-            }
-        }
+    @Timed(value = "survey.post.actions", description = "Time to execute post-survey actions", histogram = true)
+    public void PostSurveyActions(int respondentId) {
+        postSurveyActionDelivery.deliverAll(respondentId);
     }
 }
