@@ -42,12 +42,9 @@ import java.util.UUID;
  * the response comes back when the build is done, which for a survey with many respondents
  * still missing fact rows can take a while. Concurrent calls are serialized.
  * <p>
- * Survey has no authentication on its REST endpoints (it authenticates respondents by access
- * code in the UI only). This endpoint is intended for the Admin application on the internal
- * network, next to the report and post-survey-action services Survey itself calls; it exposes
- * nothing about respondents and can do nothing a restart would not, but a deployment that
- * publishes Survey's {@code /api} paths to the internet should keep this one behind the same
- * boundary as the others.
+ * The request must carry the platform service token (UC-008 BR-004, UC-016); the endpoint is
+ * intended for the Admin application. It exposes nothing about respondents and can do nothing a
+ * restart would not.
  */
 @Path("/api/etl/build")
 public class ETLBuildResource {

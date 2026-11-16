@@ -40,7 +40,9 @@ import java.util.Optional;
  * Every probe gives up after {@link #TIMEOUT} (NFR-009).
  * <p>
  * Report services and post-survey actions are only ever GET-probed here; the real calls are
- * POSTs that carry respondent data and are never made by a diagnostic.
+ * POSTs that carry respondent data and are never made by a diagnostic. A probe carries no
+ * credential, whatever the real call would carry (UC-016 BR-008), so a service that requires
+ * one answers 401 or 503, which counts as reachable like any other answer.
  */
 @ApplicationScoped
 public class ConnectionChecks {
@@ -82,6 +84,9 @@ public class ConnectionChecks {
     @jakarta.inject.Inject
     com.elicitsoftware.psa.PostSurveyActionCredentials credentials;
 
+    @jakarta.inject.Inject
+    com.elicitsoftware.security.ServiceToken serviceToken;
+
     public ConnectionChecks() {
         // CDI managed bean
     }
@@ -95,15 +100,17 @@ public class ConnectionChecks {
         for (ReportDefinition report : ReportDefinition.<ReportDefinition>listAll()) {
             if (report.url != null && !report.url.isBlank()) {
                 String survey = report.survey != null ? report.survey.name : "?";
-                targets.add(new Target("Report service", report.name + " (" + survey + ")", report.url,
-                        com.elicitsoftware.report.builtin.BuiltInReports.isPath(report.url) ? Kind.BUILT_IN : Kind.HTTP));
+                boolean builtIn = com.elicitsoftware.report.builtin.BuiltInReports.isPath(report.url);
+                // UC-005 BR-020: which credential the real call carries, never its value.
+                String name = report.name + " (" + survey + (builtIn ? "" : "; credential: " + reportCredential(report.url)) + ")";
+                targets.add(new Target("Report service", name, report.url, builtIn ? Kind.BUILT_IN : Kind.HTTP));
             }
         }
         for (PostSurveyAction action : PostSurveyAction.<PostSurveyAction>listAll()) {
             if (action.url != null && !action.url.isBlank()) {
                 String survey = action.survey != null ? action.survey.name : "?";
                 // UC-007 BR-005: whether a credential is configured, never its value.
-                String credential = credentials == null ? "none" : credentials.describe(action.postSurveyActionKey);
+                String credential = credentials == null ? "none" : credentials.describe(action.postSurveyActionKey, action.url);
                 String name = action.name + " (" + survey + "; " + action.method + "; credential: " + credential
                         + (action.sendsExternalId ? "; sends the External ID" : "") + ")";
                 boolean refused = action.sendsExternalId && !action.url.trim().regionMatches(true, 0, "https://", 0, 8);
@@ -119,6 +126,12 @@ public class ConnectionChecks {
                             "quarkus.otel.exporter.otlp.endpoint", endpoint, Kind.TCP)));
         }
         return targets;
+    }
+
+    private String reportCredential(String address) {
+        boolean trusted = serviceToken != null && com.elicitsoftware.util.SafeUrls.httpUrl(address)
+                .map(serviceToken::trusts).orElse(false);
+        return trusted ? "service token" : "none";
     }
 
     /** Probes one target within {@link #TIMEOUT}. */

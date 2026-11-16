@@ -25,6 +25,7 @@ rectangle "Elicit Survey" {
   usecase "UC-013\nHold Report Marks" as UC013
   usecase "UC-014\nRender the Respondent Report" as UC014
   usecase "UC-015\nDeliver Post-Survey Actions" as UC015
+  usecase "UC-016\nAuthenticate a Platform Service Call" as UC016
 }
 
 Respondent --> UC001
@@ -50,6 +51,14 @@ UC009 ..> UC001 : <<extend>>\n(language applies to every page)
 UC002 ..> UC002 : <<extend>>\n(branching shows/hides/repeats\ndownstream questions)
 UC001 ..> UC012 : <<include>>\n(the first page render stamps\nthe rows it shows)
 UC002 ..> UC012 : <<include>>\n(every page render and save\nstamps rows and the respondent)
+
+UC008 ..> UC016 : <<include>>\n(the request carries the service token)
+UC010 ..> UC016 : <<include>>
+UC011 ..> UC016 : <<include>>
+UC014 ..> UC016 : <<include>>\n(over HTTP only)
+UC005 ..> UC016 : <<include>>\n(the token goes to a report service\nat a trusted origin only)
+UC015 ..> UC016 : <<include>>\n(the token goes to an action\nat a trusted origin only)
+Operator --> UC016 : supplies ELICIT_SERVICE_TOKEN and\nELICIT_SERVICE_TRUSTED_ORIGINS
 
 UC004 ..> UC015 : <<include>>\n(calls each post-survey action)
 UC015 --> PsaSvc : calls (method, address and\ncredential as configured; retried\nuntil delivered or the limit)

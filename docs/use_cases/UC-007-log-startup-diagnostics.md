@@ -20,8 +20,8 @@
 2. The system writes what is running: application name, version, build time, active profile, start time and uptime.
 3. The system probes the application connection (`survey_user`) and the owner connection (`elicit_owner`), reads the latest applied Survey migration through the application connection, and counts the installed surveys.
 4. The system reports which brand directory resolved and, for each expected brand asset, whether it came from the mounted directory, the local directory or the embedded default.
-5. For every report service and post-survey action configured in the database, and for the telemetry collector when telemetry is enabled, the system probes the address from its own network position and reports it reachable or not. Report services and post-survey actions are only ever GET-probed; the real calls carry respondent data and are never made here. For each post-survey action the line also says whether the site configured a credential for it (UC-015 BR-003), and whether it sends the subject's External ID; an External-ID action at a plain `http` address is reported at WARN, because every call to it will be refused (UC-015 BR-002).
-6. The system lists the effective values of the deployment settings that matter (datasource addresses and users, auto-registration, the reporting ETL flag, the brand path, proxy forwarding and the trusted proxy, telemetry, the log level), reporting secrets only as present or absent.
+5. For every report service and post-survey action configured in the database, and for the telemetry collector when telemetry is enabled, the system probes the address from its own network position and reports it reachable or not. Report services and post-survey actions are only ever GET-probed; the real calls carry respondent data and are never made here. Each report service's line names the credential a real call would carry (`service token` or `none`, UC-005 BR-020); the probe itself never carries one, and a `401` or `503` from a service that requires the token counts as reachable. For each post-survey action the line also says which credential a real call would carry (`bearer token`, `service token` or `none`, UC-015 BR-003, BR-010), and whether it sends the subject's External ID; an External-ID action at a plain `http` address is reported at WARN, because every call to it will be refused (UC-015 BR-002).
+6. The system lists the effective values of the deployment settings that matter (datasource addresses and users, auto-registration, the reporting ETL flag, the brand path, proxy forwarding and the trusted proxy, the platform service token and its trusted origins, telemetry, the log level), reporting secrets only as present or absent (the service token as set or not set).
 7. The system ends the report with a count of the warnings above it. Each line is logged on its own: findings the operator has to act on at WARN, everything else at INFO.
 
 ## Alternative Flows
@@ -62,6 +62,10 @@
 - **Trigger:** `quarkus.http.proxy.proxy-address-forwarding` is true and `quarkus.http.proxy.trusted-proxy` is unset in step 6.
 - System reports the trusted-proxy setting at WARN with the advice to name the proxy's address, or to turn forwarding off where there is no proxy (BR-006).
 
+**A10: The platform service token is missing or is the development one**
+- **Trigger:** `elicit.service.token` is not set, or equals the well-known development value, in step 6.
+- System reports the setting at WARN (BR-007).
+
 ## Postconditions
 
 **Success:**
@@ -78,6 +82,7 @@
 - **BR-004:** The report is visible at the default container log level. Containers run at `LOG_LEVEL=WARN`; the `com.elicitsoftware.diagnostics` category is pinned to INFO so the whole report appears, and the lines that need action are at WARN so they appear even if that pin is removed.
 - **BR-005:** A post-survey action's credential is reported as configured or not, never by value (BR-001, UC-015 BR-003).
 - **BR-006:** Forwarding switched on with no trusted proxy configured is reported at WARN: any client could then set the address, host and scheme Survey believes it is served under (NFR-018). A named proxy, or forwarding off, is reported at INFO.
+- **BR-007:** The platform service token is reported as set or not set, never by value. Not set is reported at WARN: the paths under `/api/` are closed, Survey reports not ready, and no call that would carry the token is made (UC-016 BR-003). The well-known development value is reported at WARN as a value a real site must replace.
 
 ## Notes / Known Gaps
 

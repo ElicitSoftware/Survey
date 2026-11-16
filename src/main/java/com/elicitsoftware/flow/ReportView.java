@@ -14,6 +14,7 @@ package com.elicitsoftware.flow;
 import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import org.eclipse.microprofile.rest.client.RestClientBuilder;
@@ -28,6 +29,7 @@ import com.elicitsoftware.report.ReportResponse;
 import com.elicitsoftware.report.ReportService;
 import com.elicitsoftware.report.builtin.BuiltInReports;
 import com.elicitsoftware.report.builtin.RespondentSummaryService;
+import com.elicitsoftware.security.ServiceToken;
 import com.elicitsoftware.util.SafeUrls;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
@@ -69,7 +71,9 @@ import jakarta.inject.Inject;
  * <p>
  * The post-survey address and every external report address come from the survey definition.
  * Each is used only when it is an absolute http or https address (UC-005 BR-017); a post-survey
- * address that is anything else is treated as if the survey had none.
+ * address that is anything else is treated as if the survey had none. A report service receives
+ * the platform service token only when the origin of its address is one the site trusts
+ * (UC-005 BR-020).
  */
 @Route(value = "report", layout = MainLayout.class)
 @NormalUIScoped
@@ -90,11 +94,22 @@ public class ReportView extends VerticalLayout implements BeforeEnterObserver {
      * the given read timeout. Package-private so ReportViewTest can exercise it with a short one.
      */
     static ReportService reportClient(URI address, Duration readTimeout) {
-        return RestClientBuilder.newBuilder()
+        return reportClient(address, readTimeout, Optional.empty());
+    }
+
+    /**
+     * The client for one external report service, with the {@code Authorization} header the call
+     * carries, if any (UC-005 BR-020). It never follows a redirect: the header was decided for
+     * this address and must not travel to another.
+     */
+    static ReportService reportClient(URI address, Duration readTimeout, Optional<String> authorization) {
+        RestClientBuilder builder = RestClientBuilder.newBuilder()
                 .baseUri(address)
+                .followRedirects(false)
                 .connectTimeout(REPORT_CONNECT_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)
-                .readTimeout(readTimeout.toMillis(), TimeUnit.MILLISECONDS)
-                .build(ReportService.class);
+                .readTimeout(readTimeout.toMillis(), TimeUnit.MILLISECONDS);
+        authorization.ifPresent(value -> builder.header("Authorization", value));
+        return builder.build(ReportService.class);
     }
 
     Respondent respondent;
@@ -110,6 +125,9 @@ public class ReportView extends VerticalLayout implements BeforeEnterObserver {
 
     @Inject
     BuiltInReports builtInReports;
+
+    @Inject
+    ServiceToken serviceToken;
 
     ArrayList<ReportResponse> reportResponses = new ArrayList<>();
 
@@ -286,7 +304,10 @@ public class ReportView extends VerticalLayout implements BeforeEnterObserver {
             if (address == null) {
                 throw new IllegalStateException("the address is not an absolute http(s) address"); // i18n:ignore
             }
-            ReportService reportService = reportClient(address, REPORT_READ_TIMEOUT);
+            // UC-005 BR-020: the service token goes to a trusted origin only. A trusted report is
+            // not called while Survey has no token; that throws here and becomes the error card.
+            Optional<String> authorization = serviceToken.authorizationFor(address);
+            ReportService reportService = reportClient(address, REPORT_READ_TIMEOUT, authorization);
             ReportResponse reportResponse = reportService.callReport(request);
             return reportResponse;
         } catch (jakarta.ws.rs.WebApplicationException e) {

@@ -189,4 +189,31 @@ class ConnectionChecksProbeTest {
         assertEquals("IOException", reason(new IOException("  ")));
         assertEquals("no route", reason(new IOException("no route")));
     }
+
+    /**
+     * UC-016 BR-008: a probe never carries a credential, even to an origin the site trusts, and a
+     * service that requires the platform service token answers 401 or 503, which is reachable.
+     */
+    @Test
+    void given_aServiceRequiringTheServiceToken_when_check_then_reachableAndNoCredentialWasSent() throws IOException {
+        for (int status : new int[]{401, 503}) {
+            java.util.List<String> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
+            server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+            server.createContext("/", exchange -> {
+                seen.add(String.valueOf(exchange.getRequestHeaders().getFirst("Authorization")));
+                exchange.sendResponseHeaders(status, -1);
+                exchange.close();
+            });
+            server.start();
+            String origin = "http://127.0.0.1:" + server.getAddress().getPort();
+            checks.serviceToken = com.elicitsoftware.security.ServiceToken.of("probe-test-service-token-0123456789abcdef", origin);
+
+            CheckResult result = checks.check(target(origin + "/proband/report", ConnectionChecks.Kind.HTTP));
+
+            assertEquals(CheckResult.Status.UP, result.status());
+            assertEquals("reachable, HTTP " + status, result.detail());
+            assertEquals(java.util.List.of("null"), seen, "the probe is a bare GET");
+            server.stop(0);
+        }
+    }
 }

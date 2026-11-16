@@ -28,9 +28,8 @@ import java.util.Optional;
  * reaches it through the path it resolves under its Survey address (Admin UC-005 BR-023). The
  * report page never calls this; it dispatches the path in process (UC-005 BR-015).
  * <p>
- * Like Survey's other {@code /api} paths this one carries no authentication and is meant for the
- * Admin module on the internal network; it returns one respondent's answers, so a deployment
- * that publishes Survey's {@code /api} paths must keep it behind the same boundary as the rest.
+ * Like Survey's other {@code /api} paths this one requires the platform service token (UC-014
+ * BR-009, UC-016). The caller, not Survey, decides whether its user may see the respondent.
  */
 @Path(RespondentSummaryService.PATH)
 public class RespondentSummaryResource {

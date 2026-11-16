@@ -122,4 +122,35 @@ class SettingsReportTest {
     void unsetValuesAreShownAsUnset() {
         assertEquals("(unset)", setting(settings(Map.of()), "brand.file.system.path").value());
     }
+
+    /** UC-007 BR-007: the platform service token is set or not set, never its value. */
+    @Test
+    void theServiceTokenIsReportedAsSetOrNotSet() {
+        String token = "a-site-service-token-0123456789abcdef0123";
+        List<SettingsReport.Setting> set = settings(Map.of(
+                "elicit.service.token", token,
+                "elicit.service.trusted-origins", "http://fhhs.internal:8080"));
+        List<SettingsReport.Setting> unset = settings(Map.of());
+
+        assertEquals("set", setting(set, "elicit.service.token").value());
+        assertNull(setting(set, "elicit.service.token").warning());
+        assertEquals("http://fhhs.internal:8080", setting(set, "elicit.service.trusted-origins").value());
+        assertTrue(set.stream().noneMatch(s -> s.value().contains(token) || (s.warning() != null && s.warning().contains(token))));
+
+        assertEquals("not set", setting(unset, "elicit.service.token").value());
+        assertTrue(setting(unset, "elicit.service.token").warning().contains("ELICIT_SERVICE_TOKEN is not set"));
+        assertEquals("(unset)", setting(unset, "elicit.service.trusted-origins").value());
+    }
+
+    /** UC-007 A10: the well-known development token is a warning, and still not printed. */
+    @Test
+    void theDevelopmentServiceTokenIsAWarning() {
+        String development = com.elicitsoftware.security.ServiceToken.DEVELOPMENT_TOKEN;
+        SettingsReport.Setting setting = setting(settings(Map.of("elicit.service.token", development)), "elicit.service.token");
+
+        assertEquals("set", setting.value());
+        assertNotNull(setting.warning());
+        assertTrue(setting.warning().contains("development"));
+        assertTrue(!setting.warning().contains(development));
+    }
 }

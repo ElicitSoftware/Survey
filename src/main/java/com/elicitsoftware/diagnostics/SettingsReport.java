@@ -11,6 +11,7 @@ package com.elicitsoftware.diagnostics;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.security.ServiceToken;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.eclipse.microprofile.config.Config;
 import org.eclipse.microprofile.config.ConfigProvider;
@@ -39,6 +40,8 @@ public class SettingsReport {
 
     static final String FORWARDING = "quarkus.http.proxy.proxy-address-forwarding";
     static final String TRUSTED_PROXY = "quarkus.http.proxy.trusted-proxy";
+    static final String SERVICE_TOKEN = "elicit.service.token";
+    static final String TRUSTED_ORIGINS = "elicit.service.trusted-origins";
 
     private static final Pattern URL_PASSWORD = Pattern.compile("(?i)(password=)[^&;]*");
 
@@ -83,6 +86,17 @@ public class SettingsReport {
                         + " and scheme; set " + TRUSTED_PROXY + " to the proxy's address, or turn " + FORWARDING
                         + " off if there is no proxy"
                         : null));
+
+        // UC-007 BR-007: the service token is reported as set or not set, never by value.
+        String serviceToken = value(config, SERVICE_TOKEN);
+        settings.add(new Setting(SERVICE_TOKEN, serviceToken == null ? "not set" : "set",
+                serviceToken == null
+                        ? ServiceToken.NOT_SET + ": every path under /api/ except the PDF download answers 503, this"
+                        + " instance reports not ready, and no call that needs the service token is made"
+                        : serviceToken.strip().equals(ServiceToken.DEVELOPMENT_TOKEN)
+                        ? "this is the well-known development value; a real site must replace it"
+                        : null));
+        settings.add(plain(config, TRUSTED_ORIGINS));
 
         boolean otel = config.getOptionalValue("quarkus.otel.enabled", Boolean.class).orElse(true);
         settings.add(new Setting("quarkus.otel.enabled", Boolean.toString(otel), otel

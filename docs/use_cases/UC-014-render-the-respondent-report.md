@@ -27,7 +27,7 @@
 ## Alternative Flows
 
 **A1: The Admin module prints the respondent's reports**
-- **Trigger:** Admin requests the report over HTTP at the path, resolved under its Survey address (Admin UC-005 BR-023).
+- **Trigger:** Admin requests the report over HTTP at the path, resolved under its Survey address (Admin UC-005 BR-023). The request carries the platform service token (BR-009).
 - The system runs steps 2 to 6 for the respondent the request names and answers with the same report as JSON; Admin merges the PDF part like any other report service's.
 
 **A2: Nothing is marked**
@@ -64,6 +64,7 @@
 - **BR-006:** **An unanswered item is left out.** A marked question with no saved value does not appear, so the report says what the respondent said and nothing about what they skipped. A checkbox is the exception of BR-005.
 - **BR-007:** **One content, two renderings.** The HTML card and the PDF part carry the same headings, labels and values, in the same order; the PDF part is a sequence of text blocks and two-column tables the existing merge understands (UC-005), under the report's name as its title. For a right-to-left language the card is marked `dir="rtl"`.
 - **BR-008:** **Every rendering is logged.** The report is a read of one respondent's answers, which may be PHI (C-010). Each rendering writes one log line naming the survey key, the respondent identifier, the language and the caller, in process or HTTP, and never an answer.
+- **BR-009:** **Over HTTP the report is served only to a caller holding the platform service token** (UC-016). The caller, not Survey, decides whether its user may see that respondent.
 
 ## Notes / Known Gaps
 

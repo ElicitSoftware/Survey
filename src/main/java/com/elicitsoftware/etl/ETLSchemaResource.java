@@ -33,9 +33,9 @@ import java.util.UUID;
  * {@code elicit.etl.drop.enabled=true}. Answers {@code 200 ok} (also when there was nothing to
  * drop), {@code 403 disabled}, {@code 404 unknown} or {@code 500 failed}.</li>
  * </ul>
- * Both take no body and answer the same hand-written JSON as {@link ETLBuildResource}. Both are
- * unauthenticated like every REST path Survey exposes (UC-008 BR-004); the drop is therefore
- * off unless a deployment turns it on (UC-011 BR-001).
+ * Both take no body and answer the same hand-written JSON as {@link ETLBuildResource}. Both
+ * require the platform service token (UC-016); the drop is in addition off unless a deployment
+ * turns it on (UC-011 BR-001).
  */
 @Path("/api/etl/schema/{surveyKey}")
 public class ETLSchemaResource {

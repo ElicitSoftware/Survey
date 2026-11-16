@@ -12,7 +12,7 @@
 ## Preconditions
 
 - `elicit.etl.drop.enabled=true` on this instance (BR-001). It is `false` by default; the Author stack's preview instance sets it.
-- The caller can reach Survey's HTTP port on the internal network. The endpoint carries no authentication (UC-008 BR-004).
+- The caller can reach Survey's HTTP port on the internal network and holds the platform service token (BR-001).
 
 ## Main Success Scenario
 
@@ -51,7 +51,7 @@
 
 ## Business Rules
 
-- **BR-001:** **The drop is off unless a deployment turns it on.** The endpoint exists on every Survey because the preview is the same image, and it is unauthenticated like every REST path Survey exposes. Unlike the build (UC-008 BR-004) it can do something a restart would not: the next build regenerates the schema, but with new surrogate ids, which breaks an extract keyed on them. `elicit.etl.drop.enabled` therefore defaults to `false`, and only a database that holds no reporting anyone depends on, Author's, turns it on.
+- **BR-001:** **The drop is off unless a deployment turns it on.** The endpoint exists on every Survey because the preview is the same image, and it requires the platform service token (UC-016). Unlike the build (UC-008 BR-004) it can do something a restart would not: the next build regenerates the schema, but with new surrogate ids, which breaks an extract keyed on them. `elicit.etl.drop.enabled` therefore defaults to `false`, and only a database that holds no reporting anyone depends on, Author's, turns it on.
 - **BR-002:** The drop and the clearing of `surveys.report_schema` are one transaction, and the drop runs under the rebuild lock, so no build creates the schema again while it is being dropped and no finalize-time load writes into a schema that is going.
 - **BR-003:** The drop goes before the delete, not after. Author's delete removes the row that holds the schema's only name; dropping first means a failure on either side leaves no schema that nothing names. A survey whose delete failed after its drop is simply an unbuilt survey.
 - **BR-004:** The drop does not depend on `elicit.etl.enabled`: a schema built while the ETL was on still has to go after it is turned off.

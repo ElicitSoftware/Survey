@@ -286,4 +286,82 @@ class ReportViewTest extends QuarkusBrowserlessTest {
             server.stop(0);
         }
     }
+
+    /** A report service stand-in that records the Authorization header of each call and answers with the given status. */
+    private static com.sun.net.httpserver.HttpServer reportService(java.util.List<String> seen, int status, String location)
+            throws java.io.IOException {
+        com.sun.net.httpserver.HttpServer server =
+                com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("localhost", 0), 0);
+        server.createContext("/", exchange -> {
+            String header = exchange.getRequestHeaders().getFirst("Authorization");
+            seen.add(header == null ? "(none)" : header);
+            if (location != null) {
+                exchange.getResponseHeaders().add("Location", location);
+            }
+            byte[] body = "{\"title\":\"T\",\"innerHTML\":\"<p>ok</p>\"}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(status, status == 200 ? body.length : -1);
+            if (status == 200) {
+                exchange.getResponseBody().write(body);
+            }
+            exchange.close();
+        });
+        server.start();
+        return server;
+    }
+
+    private static final String SERVICE_TOKEN = "report-call-service-token-0123456789abcdef";
+
+    @Test
+    // UC-005 BR-020 / UC-016 BR-007: a report service at a trusted origin is called with the
+    // platform service token; one anywhere else is called with no credential.
+    void reportClient_trustedOriginReceivesTheServiceToken_othersReceiveNothing() throws Exception {
+        java.util.List<String> trustedSeen = new java.util.concurrent.CopyOnWriteArrayList<>();
+        java.util.List<String> otherSeen = new java.util.concurrent.CopyOnWriteArrayList<>();
+        com.sun.net.httpserver.HttpServer trusted = reportService(trustedSeen, 200, null);
+        com.sun.net.httpserver.HttpServer other = reportService(otherSeen, 200, null);
+        try {
+            com.elicitsoftware.security.ServiceToken token = com.elicitsoftware.security.ServiceToken.of(
+                    SERVICE_TOKEN, "http://localhost:" + trusted.getAddress().getPort());
+            for (com.sun.net.httpserver.HttpServer server : List.of(trusted, other)) {
+                java.net.URI address = java.net.URI.create("http://localhost:" + server.getAddress().getPort() + "/proband/report");
+                ReportView.reportClient(address, java.time.Duration.ofSeconds(5), token.authorizationFor(address))
+                        .callReport(new com.elicitsoftware.report.ReportRequest(1, "en"));
+            }
+
+            org.junit.jupiter.api.Assertions.assertEquals(List.of("Bearer " + SERVICE_TOKEN), trustedSeen);
+            org.junit.jupiter.api.Assertions.assertEquals(List.of("(none)"), otherSeen);
+        } finally {
+            trusted.stop(0);
+            other.stop(0);
+        }
+    }
+
+    @Test
+    // UC-005 BR-020: a call that carries the token never follows a redirect, so a trusted
+    // service cannot pass the header on to another address.
+    void reportClient_aRedirectIsNotFollowed() throws Exception {
+        java.util.List<String> elsewhereSeen = new java.util.concurrent.CopyOnWriteArrayList<>();
+        java.util.List<String> trustedSeen = new java.util.concurrent.CopyOnWriteArrayList<>();
+        com.sun.net.httpserver.HttpServer elsewhere = reportService(elsewhereSeen, 200, null);
+        for (int status : new int[]{301, 302, 303, 307, 308}) {
+            com.sun.net.httpserver.HttpServer trusted = reportService(trustedSeen, status,
+                    "http://localhost:" + elsewhere.getAddress().getPort() + "/collect");
+            try {
+                java.net.URI address = java.net.URI.create("http://localhost:" + trusted.getAddress().getPort() + "/proband/report");
+                com.elicitsoftware.security.ServiceToken token = com.elicitsoftware.security.ServiceToken.of(
+                        SERVICE_TOKEN, "http://localhost:" + trusted.getAddress().getPort());
+
+                assertThrows(RuntimeException.class, () -> ReportView.reportClient(address, java.time.Duration.ofSeconds(5),
+                        token.authorizationFor(address)).callReport(new com.elicitsoftware.report.ReportRequest(1, "en")),
+                        "a " + status + " is a failed call, which becomes the error card");
+            } finally {
+                trusted.stop(0);
+            }
+        }
+        elsewhere.stop(0);
+
+        org.junit.jupiter.api.Assertions.assertEquals(5, trustedSeen.size());
+        assertTrue(elsewhereSeen.isEmpty(), "the redirect target was never called: " + elsewhereSeen);
+    }
 }

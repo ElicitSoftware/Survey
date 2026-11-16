@@ -12,7 +12,7 @@
 ## Preconditions
 
 - The survey exists and has been built at least once, so `surveys.report_schema` names an existing schema.
-- The caller can reach Survey's HTTP port on the internal network. The endpoint carries no authentication (UC-008 BR-004).
+- The caller can reach Survey's HTTP port on the internal network and holds the platform service token (BR-005).
 
 ## Main Success Scenario
 
@@ -62,6 +62,7 @@
 - **BR-002:** The rename is a rename, never a copy or a rebuild. PostgreSQL resolves the views, sequence defaults and foreign keys inside the schema by object id, so they keep working; the surrogate ids an extract may be keyed on are unchanged.
 - **BR-003:** Nothing in Elicit may hard-code a survey schema's name. Every module reads it from `surveys.report_schema` at the time it needs it, so a rename takes effect everywhere at once. What a rename does break is queries and BI connections outside Elicit that name the old schema; the Admin action says so before the administrator confirms.
 - **BR-004:** The new name obeys the same rule as a derived one (UC-008 BR-006), and uniqueness is checked against both the other surveys' names and the schemas actually present in the database.
+- **BR-005:** The rename requires the platform service token (UC-016).
 
 ## Notes / Known Gaps
 

@@ -77,6 +77,8 @@ class ReportViewReportCallTest extends PlainViewTestSupport {
     private StubBuiltInReports builtIns;
     private Survey survey;
     private Respondent respondent;
+    /** No token and no trusted origin unless a test says otherwise. */
+    private com.elicitsoftware.security.ServiceToken serviceToken = com.elicitsoftware.security.ServiceToken.of(null, null);
 
     @BeforeEach
     void stubs() {
@@ -95,6 +97,7 @@ class ReportViewReportCallTest extends PlainViewTestSupport {
         view.translator = translator;
         view.pdfService = pdf;
         view.builtInReports = builtIns;
+        view.serviceToken = serviceToken;
         return view;
     }
 
@@ -401,6 +404,34 @@ class ReportViewReportCallTest extends PlainViewTestSupport {
         assertUnavailableCard(response, "External");
         assertFalse(response.innerHTML.contains("bad host"), response.innerHTML);
         assertTrue(builtIns.looked.isEmpty(), "an absolute address is never looked up as built-in");
+    }
+
+    // UC-005 BR-020 / UC-016 BR-007: a report at a trusted origin is not called while Survey has
+    // no service token; the respondent sees the usual card and the operator's log says why.
+    @Test
+    void given_trustedReportAndNoServiceToken_when_init_then_unavailableCardWithoutACall() throws Exception {
+        java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+        com.sun.net.httpserver.HttpServer server =
+                com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("localhost", 0), 0);
+        server.createContext("/", exchange -> {
+            calls.incrementAndGet();
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
+        server.start();
+        String origin = "http://localhost:" + server.getAddress().getPort();
+        serviceToken = com.elicitsoftware.security.ServiceToken.of(null, origin);
+
+        try (LogCapture log = LogCapture.of(ReportView.class)) {
+            ReportResponse response = callReport(report("Family", origin + "/proband/report"));
+
+            assertUnavailableCard(response, "Family");
+            assertFalse(response.innerHTML.contains("service token"), "the reason is for the operator's log");
+            assertTrue(log.contains(LogCapture.WARN, "service token not configured"));
+            assertEquals(0, calls.get(), "no request was sent to see what happens");
+        } finally {
+            server.stop(0);
+        }
     }
 
     // UC-005 BR-017: a report address that is neither a built-in path nor absolute http(s) is not called.
