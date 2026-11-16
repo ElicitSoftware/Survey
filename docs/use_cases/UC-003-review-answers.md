@@ -41,6 +41,7 @@
 ## Business Rules
 
 - **BR-008:** The Review summary only reflects answers that are currently active (not soft-deleted by a branching change); anything removed by a changed upstream answer does not appear.
+- **BR-016:** The answer to a `PASSWORD` question is shown as a fixed mask of eight bullets, never as the value typed and never at the value's own length. The respondent changes it by returning to its section.
 
 ## Notes / Known Gaps
 

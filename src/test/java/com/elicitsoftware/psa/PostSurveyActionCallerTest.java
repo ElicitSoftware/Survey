@@ -189,10 +189,23 @@ class PostSurveyActionCallerTest {
     }
 
     @Test
-    void callPostSurveyAction_malformedUrl_wrappedAsUnexpectedError() {
-        Exception ex = assertThrows(Exception.class, () ->
+    void callPostSurveyAction_addressThatIsNotAUrl_isRefused() {
+        Exception ex = assertThrows(PostSurveyActionCaller.CallRefused.class, () ->
                 new PostSurveyActionCaller().call(psa("Notify", "not a url"), 42));
         assertTrue(ex.getMessage().contains("Post Survey Action 'Notify'"));
+    }
+
+    @Test
+    void uc015_br009_onlyAnHttpOrHttpsAddressIsCalled() throws Exception {
+        PostSurveyActionCaller caller = new PostSurveyActionCaller();
+        for (String address : new String[]{"ftp://svc.example/{respondentId}", "file:///tmp/{respondentId}",
+                "javascript:alert(1)", "svc.example/notify", "//svc.example/notify"}) {
+            PostSurveyActionCaller.CallRefused refused = assertThrows(PostSurveyActionCaller.CallRefused.class,
+                    () -> caller.refuseUnsendable(action(address, "POST", false)), address);
+            assertTrue(refused.getMessage().contains("not an http or https address"), refused.getMessage());
+        }
+        assertEquals("POST", caller.refuseUnsendable(action("http://svc.example/{respondentId}", "POST", false)));
+        assertEquals("GET", caller.refuseUnsendable(action(" HTTPS://svc.example/n", "get", false)));
     }
 
     @Test

@@ -38,7 +38,7 @@
 
 ### A2: The call is refused before it is made
 
-**Trigger:** The action sends the External ID to an address that is not `https`, or its address needs the External ID and the respondent's subject has none (step 3)  
+**Trigger:** The action sends the External ID to an address that is not `https`, or its address needs the External ID and the respondent's subject has none, or its address is neither `http` nor `https` (BR-009) (step 3)  
 **Flow:**
 
 1. The system does not call the action, and records the delivery as refused, with the reason; a refused delivery is never retried, because nothing a retry does can change the outcome.
@@ -113,3 +113,7 @@ Any 2xx status is success. The body of the answer is never read, except to word 
 ### BR-008: The call is bounded
 
 Survey waits 5 seconds to connect and 60 seconds for the answer, on the first call and on every retry.
+
+### BR-009: Only an http or https address is called
+
+An action's address comes from the survey definition. An address whose scheme is anything but `http` or `https` is refused before the call (A2) and recorded once as `CALL_REFUSED`; it is not attempted and so is never retried.

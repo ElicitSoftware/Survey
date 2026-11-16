@@ -11,6 +11,8 @@ package com.elicitsoftware.flow;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.AccessCodeService;
+import com.elicitsoftware.LogCapture;
 import com.elicitsoftware.flow.PlainViewTestSupport.StubAccessCodeService;
 import com.elicitsoftware.flow.PlainViewTestSupport.StubQuestionService;
 import com.elicitsoftware.flow.PlainViewTestSupport.StubSession;
@@ -25,6 +27,7 @@ import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Paragraph;
+import com.vaadin.flow.component.internal.PendingJavaScriptInvocation;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
@@ -33,6 +36,8 @@ import com.vaadin.flow.router.BeforeEnterEvent;
 import com.vaadin.flow.router.Location;
 import com.vaadin.flow.router.NavigationEvent;
 import com.vaadin.flow.router.NavigationTrigger;
+import io.micrometer.core.instrument.Metrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -55,7 +60,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * plain browserless UI, with hand-written stand-ins for the injected services. Covers the
  * access-code length rule (BR-001), the auto-registration notices (BR-002), the routing of an
  * active respondent to the section page and a finalized one to the report page (BR-003), the
- * survey picker and the session-restore shortcut.
+ * record of a failed attempt (BR-020), the address replaced after a link's access code is read
+ * (BR-021), the survey picker and the session-restore shortcut.
  */
 class MainViewLoginFlowTest extends PlainViewTestSupport {
 
@@ -428,6 +434,58 @@ class MainViewLoginFlowTest extends PlainViewTestSupport {
         assertEquals("", activePath());
     }
 
+    // UC-001 A1, BR-020: a failed attempt is logged at WARN and counted, without the code typed.
+    @Test
+    void given_unknownAccessCode_when_loginClicked_then_theFailureIsLoggedAndCountedWithoutTheCode() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        Metrics.addRegistry(registry);
+        try (LogCapture log = LogCapture.of(AccessCodeService.class)) {
+            MainView view = build();
+            accessCodeField(view).setValue("zq9secret");
+
+            test(loginButton(view)).click();
+            test(loginButton(view)).click();
+
+            assertEquals(List.of("7:1", "7:2"), accessCodes.failures);
+            List<String> warnings = log.messages(LogCapture.WARN);
+            assertEquals(2, warnings.size());
+            assertTrue(warnings.get(0).contains("survey 7"), warnings.get(0));
+            assertTrue(warnings.get(1).contains("2 on this page"), warnings.get(1));
+            assertTrue(warnings.stream().noneMatch(w -> w.contains("zq9secret")), "the typed code is never logged");
+            assertEquals(2.0, registry.get(AccessCodeService.FAILED_LOGIN_COUNTER).tag("survey", "7").counter().count());
+        } finally {
+            Metrics.removeRegistry(registry);
+        }
+    }
+
+    // UC-001 BR-020: a successful sign-in is neither logged as a failure nor counted.
+    @Test
+    void given_knownAccessCode_when_loginClicked_then_noFailureIsRecorded() {
+        accessCodes.loginAnswer = (s, c) -> respondent(3, survey, true);
+        questions.initAnswers.add(nav());
+        try (LogCapture log = LogCapture.of(AccessCodeService.class)) {
+            MainView view = build();
+            accessCodeField(view).setValue("abcdef");
+
+            test(loginButton(view)).click();
+
+            assertEquals(List.of(), accessCodes.failures);
+            assertEquals(List.of(), log.messages(LogCapture.WARN));
+        }
+    }
+
+    // UC-001 BR-020: a session restore that finds no respondent is not a sign-in attempt.
+    @Test
+    void given_restoredSessionWithoutRespondent_when_init_then_noFailureIsRecorded() {
+        StubSession stored = new StubSession();
+        stored.setSurveyId(7);
+        session.restorable = stored;
+
+        build();
+
+        assertEquals(List.of(), accessCodes.failures);
+    }
+
     @Test
     void given_activeRespondentsAccessCode_when_loginClicked_then_sessionSeededAndSectionShown() {
         Respondent respondent = respondent(3, survey, true);
@@ -470,6 +528,44 @@ class MainViewLoginFlowTest extends PlainViewTestSupport {
         assertEquals("abcdef", accessCodeField(view).getValue());
     }
 
+    // UC-001 A6, BR-021: once the code is in the field, the address is replaced with the plain
+    // login address, so the code is left neither in the address bar nor in the history.
+    @Test
+    void given_loginPathWithAccessCode_when_parameterSet_then_theAddressIsReplacedWithLogin() {
+        MainView view = build();
+        pendingJsText();
+
+        view.setParameter(event("login/abcdef"), "abcdef");
+
+        String js = pendingJsText();
+        assertTrue(js.contains("replaceState") || js.contains("replace"), js);
+        assertTrue(js.contains("login"), js);
+        assertFalse(js.contains("abcdef"), "the replaced address does not carry the code: " + js);
+    }
+
+    @Test
+    void given_loginPathWithAccessCodeAndLanguage_when_parameterSet_then_theLanguageSurvivesTheReplace() {
+        MainView view = build();
+        pendingJsText();
+
+        view.setParameter(event("login/abcdef?lang=es-419"), "abcdef");
+
+        String js = pendingJsText();
+        assertTrue(js.contains("login?lang=es-419"), js);
+        assertFalse(js.contains("abcdef"), js);
+    }
+
+    @Test
+    void given_loginPathWithoutAccessCode_when_parameterSet_then_theAddressIsLeftAlone() {
+        MainView view = build();
+        pendingJsText();
+
+        view.setParameter(event("login"), null);
+        view.setParameter(event("other/abcdef"), "abcdef");
+
+        assertEquals("", pendingJsText());
+    }
+
     @Test
     void given_rootPathWithAccessCode_when_parameterSet_then_fieldIsLeftEmpty() {
         MainView view = build();
@@ -495,6 +591,15 @@ class MainViewLoginFlowTest extends PlainViewTestSupport {
         view.setParameter(event("login"), null);
 
         assertEquals("", accessCodeField(view).getValue());
+    }
+
+    private static String pendingJsText() {
+        StringBuilder sb = new StringBuilder();
+        for (PendingJavaScriptInvocation invocation : UI.getCurrent().getInternals().dumpPendingJavaScriptInvocations()) {
+            sb.append(invocation.getInvocation().getExpression()).append(' ')
+                    .append(invocation.getInvocation().getParameters()).append('\n');
+        }
+        return sb.toString();
     }
 
     private static BeforeEnterEvent event(String path) {

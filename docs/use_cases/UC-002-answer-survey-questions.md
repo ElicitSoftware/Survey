@@ -85,6 +85,7 @@
 
 ## Notes / Known Gaps
 
+- A `PASSWORD` question masks what is typed, and the review page masks it again (UC-003 BR-016). The answer itself is stored and reported like any other text answer; the type is not a place for real secrets.
 - The `MODAL` question type is present in the type vocabulary (`GlobalStrings.QUESTION_TYPE_MODAL`) but its rendering is an unfinished placeholder (see A5). This is a code gap, not an intended limitation.
 - The branching engine's "less than" comparison for non-date numeric answers is implemented identically to "greater than" (both use `>=`), so a "less than" rule would not behave as its name implies if one were ever configured. Currently no "less than" operator is seeded in the reference data, so this defect is latent but present in the code.
 - `ElicitComboBox` (the wrapper behind a single-select combo-box question) never pre-fills a previously-saved answer when its component is constructed — every other selection-type wrapper (`ElicitRadioButtonGroup`, `ElicitCheckboxGroup`, `ElicitMultiSelectComboBox`) calls `setValue(answer)` in its constructor when a saved `textValue` exists, but `ElicitComboBox`'s constructor does not. A respondent revisiting a section they already answered sees that combo-box question rendered blank. Covered by `ElicitSelectionFieldsTest#comboBox_construction_doesNotPrefillValueFromAnswer`.

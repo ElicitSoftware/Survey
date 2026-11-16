@@ -122,14 +122,9 @@ Every row is one key in `translations.properties`. Return a file `translations_<
 | `reportView.btnGeneratePdf` | Generate PDF | Report page · button | 25 |  |
 | `reportView.btnNext` | Next | Report page · button leading to the post-survey site | 20 |  |
 | `reportView.complete` | Thank you. Your survey has been submitted. | Report page, shown only when the survey has no reports and no post-survey site · paragraph | 80 |  |
-| `reportView.error.pdf` | Failed to generate PDF: {0} | Report page · notification | 100 | params: {0} = technical error text |
-| `reportView.error.service` | Service error: {0} | Report page · error text | 100 | params: {0} = technical error text |
-| `reportView.error.forbidden` | Access forbidden - License validation may have failed. Please check your license configuration. | Report page · error text | 160 |  |
-| `reportView.error.serviceHttp` | Service error (HTTP {0}): {1} | Report page · error text | 100 | params: {0} = HTTP status number, {1} = technical error text |
-| `reportView.error.license` | License validation failed - {0} | Report page · error text | 100 | params: {0} = error text |
+| `reportView.error.pdf` | Failed to generate PDF. | Report page · notification | 100 |  |
 | `reportView.error.title` | Error - {0} | Report page · error card title | 60 | params: {0} = report name; may be identical |
-| `reportView.error.html` | <div style="color: red; padding: 20px; border: 1px solid red; background-color: #ffe6e6;"><h3>Report Generation Error</h3><p><strong>Service:</strong> {0}</p><p><strong>Error:</strong> {1}</p>{2}</div> | Report page · error card body | 400 | html params: {0} = report name, {1} = error text, {2} = optional hint paragraph; keep the style attribute |
-| `reportView.error.licenseHint` | <p><em>If this is a license error, please ensure your PREMM5 license is valid and properly configured.</em></p> | Report page · error card hint | 200 | html |
+| `reportView.error.unavailable` | <div style="color: red; padding: 20px; border: 1px solid red; background-color: #ffe6e6;"><h3>Report Unavailable</h3><p>The report {0} is not available right now. Please try again later.</p></div> | Report page, shown in place of a report that could not be loaded · error card body | 400 | html params: {0} = report name; keep the style attribute |
 | `aboutView.version` | Version: {0} | About page · build information | 40 | params: {0} = version number |
 | `aboutView.built` | Built: {0} | About page · build information | 40 | params: {0} = build timestamp |
 | `versionView.title` | Version Information | Version page (diagnostics) · heading | 40 |  |
@@ -156,8 +151,6 @@ Every row is one key in `translations.properties`. Return a file `translations_<
 | `respondentSummary.answer` | Answer | Respondent report · PDF table header | 15 |  |
 | `respondentSummary.yes` | Yes | Respondent report · value of a ticked checkbox | 10 |  |
 | `respondentSummary.no` | No | Respondent report · value of an unticked checkbox; identical in Spanish | 10 |  |
-| `reportView.error.noBuiltIn` | No report is built into Survey at {0} | Report page · error when a report address names no built-in report | 80 | params: {0} = the address |
-| `reportView.error.noRespondent` | The respondent no longer exists | Report page · error when the respondent cannot be found | 60 |  |
 
 ## English source file
 
@@ -208,14 +201,9 @@ reviewView.note=Note: After submission you will not be able to edit your answers
 reportView.btnGeneratePdf=Generate PDF
 reportView.btnNext=Next
 reportView.complete=Thank you. Your survey has been submitted.
-reportView.error.pdf=Failed to generate PDF: {0}
-reportView.error.service=Service error: {0}
-reportView.error.forbidden=Access forbidden - License validation may have failed. Please check your license configuration.
-reportView.error.serviceHttp=Service error (HTTP {0}): {1}
-reportView.error.license=License validation failed - {0}
+reportView.error.pdf=Failed to generate PDF.
 reportView.error.title=Error - {0}
-reportView.error.html=<div style="color: red; padding: 20px; border: 1px solid red; background-color: #ffe6e6;"><h3>Report Generation Error</h3><p><strong>Service:</strong> {0}</p><p><strong>Error:</strong> {1}</p>{2}</div>
-reportView.error.licenseHint=<p><em>If this is a license error, please ensure your PREMM5 license is valid and properly configured.</em></p>
+reportView.error.unavailable=<div style="color: red; padding: 20px; border: 1px solid red; background-color: #ffe6e6;"><h3>Report Unavailable</h3><p>The report {0} is not available right now. Please try again later.</p></div>
 aboutView.version=Version: {0}
 aboutView.built=Built: {0}
 versionView.title=Version Information
@@ -242,6 +230,4 @@ respondentSummary.question=Question
 respondentSummary.answer=Answer
 respondentSummary.yes=Yes
 respondentSummary.no=No
-reportView.error.noBuiltIn=No report is built into Survey at {0}
-reportView.error.noRespondent=The respondent no longer exists
 ```

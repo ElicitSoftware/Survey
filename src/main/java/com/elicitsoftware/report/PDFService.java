@@ -14,6 +14,7 @@ package com.elicitsoftware.report;
 import com.elicitsoftware.i18n.Translations;
 import java.time.format.FormatStyle;
 import java.util.Locale;
+import java.util.regex.Pattern;
 import com.elicitsoftware.report.pdf.Content;
 import com.elicitsoftware.report.pdfbox.Column;
 import com.elicitsoftware.report.pdfbox.Table;
@@ -246,7 +247,10 @@ public class PDFService {
                     Log.info("PDFService.generatePDF - PDF is null, rendering error block for: " + response.title);
                     String title = (response.title != null && !response.title.isEmpty()) ? response.title : Translations.get(locale, "pdf.error.title");
                     String errorText = (response.innerHTML != null && !response.innerHTML.isEmpty())
-                            ? response.innerHTML.replaceAll("[\\r\\n\\t]", " ").replaceAll("<[^>]+>", " ").replaceAll("&nbsp;", " ").trim()
+                            ? response.innerHTML.replaceAll("[\\r\\n\\t]", " ").replaceAll("<[^>]+>", " ").replaceAll("&nbsp;", " ")
+                                    // The error card escapes the report's name (UC-005 A1); print it as written.
+                                    .replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&amp;", "&")
+                                    .replaceAll(" {2,}", " ").trim()
                             : Translations.get(locale, "pdf.error.content");
                     Log.info("PDFService.generatePDF - Error text: " + errorText);
                     newPage(false);
@@ -387,9 +391,7 @@ public class PDFService {
         graphics2D.setFontTextDrawer(new PdfBoxGraphics2DFontTextDrawer());
 
         // Parse the SVG
-        String parser = XMLResourceDescriptor.getXMLParserClassName();
-        SAXSVGDocumentFactory factory = new SAXSVGDocumentFactory(parser);
-        SVGDocument svgDocument = factory.createSVGDocument(null, new StringReader(content.svg));
+        SVGDocument svgDocument = parseSvg(content.svg);
 
         // Build GVT
         GVTBuilder builder = new GVTBuilder();
@@ -430,6 +432,37 @@ public class PDFService {
         contentStream.setNonStrokingColor(0f, 0f, 0f);
 
         yPosition = top - (float) (expandedBounds.getHeight() * scale) - LEADING;
+    }
+
+    /** The longest drawing a report may carry, in characters (UC-005 BR-019). */
+    static final int MAX_SVG_LENGTH = 5_000_000;
+
+    /** A document type declaration that carries an internal subset, where entities are declared. */
+    private static final Pattern DOCTYPE_WITH_SUBSET = Pattern.compile("<!DOCTYPE[^>\\[]*\\[", Pattern.CASE_INSENSITIVE);
+
+    /** An entity declaration, wherever it stands. */
+    private static final Pattern ENTITY_DECLARATION = Pattern.compile("<!ENTITY", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * Parses a report's drawing (UC-005 BR-019). A drawing is plain SVG: one that declares
+     * entities, or whose document type carries an internal subset, or that is longer than
+     * {@link #MAX_SVG_LENGTH}, is not parsed at all. A document type that only names the SVG DTD
+     * is accepted, since drawing tools commonly write one.
+     *
+     * @param svg the drawing as the report service sent it
+     * @return the parsed document
+     * @throws IOException the drawing is refused, or is not well-formed SVG
+     */
+    static SVGDocument parseSvg(String svg) throws IOException {
+        if (svg.length() > MAX_SVG_LENGTH) {
+            throw new IOException("The report's drawing is longer than " + MAX_SVG_LENGTH + " characters");
+        }
+        if (ENTITY_DECLARATION.matcher(svg).find() || DOCTYPE_WITH_SUBSET.matcher(svg).find()) {
+            throw new IOException("The report's drawing declares entities, which a drawing may not");
+        }
+        String parser = XMLResourceDescriptor.getXMLParserClassName();
+        SAXSVGDocumentFactory factory = new SAXSVGDocumentFactory(parser);
+        return factory.createSVGDocument(null, new StringReader(svg));
     }
 
     /**

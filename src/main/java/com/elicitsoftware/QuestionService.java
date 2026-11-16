@@ -120,6 +120,25 @@ public class QuestionService {
              order by c.display_key;
             """;
 
+    /**
+     * What the review page shows for the answer to a {@code PASSWORD} question (UC-003 BR-016):
+     * a fixed number of bullets, so neither the value nor its length is displayed.
+     */
+    public static final String PASSWORD_MASK = "\u2022".repeat(8);
+
+    /**
+     * The value the review page shows for an answer (UC-003 BR-016): the answer itself, or the
+     * mask when the question is of type {@code PASSWORD}. A section row and an unanswered
+     * question have no value and keep none.
+     *
+     * @param questionType the question's type name, or null for a section row
+     * @param value        the stored answer, or the selected item's text
+     * @return the value to display
+     */
+    public static String reviewValue(String questionType, String value) {
+        return value != null && "PASSWORD".equals(questionType) ? PASSWORD_MASK : value;
+    }
+
     @Inject
     com.elicitsoftware.psa.PostSurveyActionDelivery postSurveyActionDelivery;
 
@@ -236,7 +255,7 @@ public class QuestionService {
             displayKey = (String) result[2];
             displayText = (String) result[3];
             shortDisplayText = (String) result[5];
-            displayValue = (String) result[6];
+            displayValue = reviewValue((String) result[7], (String) result[6]);
 
             if (displayValue == null) {
                 if (!sectionTitle.equals(displayText)) {

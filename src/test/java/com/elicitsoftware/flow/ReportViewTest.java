@@ -140,6 +140,67 @@ class ReportViewTest extends QuarkusBrowserlessTest {
     }
 
     @Test
+    // UC-005 step 5 / BR-017: an absolute http(s) post-survey address gives the "Next" button.
+    void surveyWithReports_withAbsoluteHttpPostSurveyUrl_showsNextButton() {
+        Respondent respondent = QuarkusTransaction.requiringNew().call(this::createFinishedRespondent);
+        try {
+            respondent.survey.postSurveyURL = "https://example.test/after-the-survey";
+            sessionDataService.setSurveyId(SURVEY_ID);
+            sessionDataService.setRespondent(respondent);
+
+            navigate(ReportView.class);
+
+            assertTrue(find(Button.class).withId("report-next-button").exists());
+        } finally {
+            cleanup(respondent.id);
+        }
+    }
+
+    @Test
+    // UC-005 BR-017: a post-survey address that is not absolute http(s) is treated as none, so
+    // no "Next" button is rendered.
+    void surveyWithReports_withUnusablePostSurveyUrl_hidesNextButton() {
+        Respondent respondent = QuarkusTransaction.requiringNew().call(this::createFinishedRespondent);
+        try {
+            respondent.survey.postSurveyURL = "javascript:alert(1)";
+            sessionDataService.setSurveyId(SURVEY_ID);
+            sessionDataService.setRespondent(respondent);
+
+            navigate(ReportView.class);
+
+            assertTrue(find(Button.class).withId("report-generate-pdf-button").exists());
+            assertFalse(find(Button.class).withId("report-next-button").exists());
+        } finally {
+            cleanup(respondent.id);
+        }
+    }
+
+    @Test
+    // UC-005 A2 / BR-017: with no reports and a post-survey address that is not absolute http(s),
+    // the browser is sent nowhere and the page shows the completion notice.
+    void surveyWithoutReports_withUnusablePostSurveyUrl_showsCompletionNoticeAndDoesNotRedirect() {
+        Respondent respondent = QuarkusTransaction.requiringNew().call(this::createFinishedRespondent);
+        try {
+            respondent.survey.reports = new HashSet<>();
+            respondent.survey.postSurveyURL = "javascript:document.title='x'";
+            sessionDataService.setSurveyId(SURVEY_ID);
+            sessionDataService.setRespondent(respondent);
+            UI.getCurrent().getInternals().dumpPendingJavaScriptInvocations();
+
+            navigate(ReportView.class);
+
+            assertTrue(find(Paragraph.class).withId("report-complete-notice").exists());
+            List<PendingJavaScriptInvocation> pending =
+                    UI.getCurrent().getInternals().dumpPendingJavaScriptInvocations();
+            assertFalse(pending.stream().anyMatch(p -> p.getInvocation().getParameters().toString()
+                            .contains("javascript:")),
+                    "expected no redirect, got " + pending);
+        } finally {
+            cleanup(respondent.id);
+        }
+    }
+
+    @Test
     // UC-005 BR-015 / UC-014 BR-001: a report whose address is a path is the built-in report,
     // rendered in process -- a card with the summary, not an error card and no HTTP call.
     void surveyWithAPathReport_reportView_rendersTheBuiltInReportInProcess() {
@@ -164,7 +225,7 @@ class ReportViewTest extends QuarkusBrowserlessTest {
                     .filter(java.util.Objects::nonNull)
                     .reduce("", String::concat);
             assertTrue(html.contains("respondent-summary"), "the built-in report's card, got: " + html);
-            assertFalse(html.contains("Report Generation Error"), html);
+            assertFalse(html.contains("Report Unavailable"), html);
             assertTrue(find(Button.class).id("report-generate-pdf-button").isEnabled());
         } finally {
             cleanup(respondent.id);
