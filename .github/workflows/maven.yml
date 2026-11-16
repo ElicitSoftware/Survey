@@ -82,14 +82,30 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # -Dquarkus.profile=docker is what buildDockerImage.sh builds with: the vaadin-dev-tools
+      # profile in pom.xml is active only when quarkus.profile is absent, so naming it keeps
+      # Vaadin's development tooling out of the image (C-007). The %docker profile sets
+      # quarkus.container-image.push=false for local builds; the push=true below is a system
+      # property and outranks it.
       - name: Build and Push Multi-Platform Image
         env:
           EXTRA_TAGS: ${{ steps.version.outputs.extra_tags }}
         run: |
           mvn -X package -Pproduction \
+            -Dquarkus.profile=docker \
             -Dquarkus.docker.buildx.platform=linux/amd64,linux/arm64 \
             -Dquarkus.container-image.build=true \
             -Dquarkus.container-image.push=true \
             -Dquarkus.container-image.tag=${{ steps.version.outputs.version }} \
             ${EXTRA_TAGS:+-Dquarkus.container-image.additional-tags=$EXTRA_TAGS} \
             -Dmaven.test.skip=true
+
+      # Check what was packaged rather than trust the flag, as buildDockerImage.sh does (C-007).
+      # The image is already pushed when this runs, so a failure here marks the release as one
+      # to withdraw.
+      - name: No Vaadin development tooling was packaged
+        run: |
+          if ls target/quarkus-app/lib/main | grep -i '^com\.vaadin\.vaadin-dev'; then
+            echo "::error::vaadin-dev is among the packaged libraries; the image was built without -Dquarkus.profile=docker."
+            exit 1
+          fi
