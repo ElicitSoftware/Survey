@@ -130,15 +130,15 @@ html {
 /* Application Animations */
 @keyframes flash {
     0% { background-color: var(--lumo-base-color, white); }
-    10% { background-color: var(--brand-interactive-light, rgba(22, 118, 243, 0.1)); }
-    20% { background-color: var(--brand-interactive-light, rgba(22, 118, 243, 0.15)); }
-    30% { background-color: var(--brand-interactive-light, rgba(22, 118, 243, 0.2)); }
-    40% { background-color: var(--brand-interactive-light, rgba(22, 118, 243, 0.25)); }
-    50% { background-color: var(--brand-interactive-light, rgba(22, 118, 243, 0.3)); }
-    60% { background-color: var(--brand-interactive-light, rgba(22, 118, 243, 0.25)); }
-    70% { background-color: var(--brand-interactive-light, rgba(22, 118, 243, 0.2)); }
-    80% { background-color: var(--brand-interactive-light, rgba(22, 118, 243, 0.15)); }
-    90% { background-color: var(--brand-interactive-light, rgba(22, 118, 243, 0.1)); }
+    10% { background-color: var(--brand-interactive-light, color-mix(in srgb, var(--brand-primary, #0A3D62) 10%, transparent)); }
+    20% { background-color: var(--brand-interactive-light, color-mix(in srgb, var(--brand-primary, #0A3D62) 15%, transparent)); }
+    30% { background-color: var(--brand-interactive-light, color-mix(in srgb, var(--brand-primary, #0A3D62) 20%, transparent)); }
+    40% { background-color: var(--brand-interactive-light, color-mix(in srgb, var(--brand-primary, #0A3D62) 25%, transparent)); }
+    50% { background-color: var(--brand-interactive-light, color-mix(in srgb, var(--brand-primary, #0A3D62) 30%, transparent)); }
+    60% { background-color: var(--brand-interactive-light, color-mix(in srgb, var(--brand-primary, #0A3D62) 25%, transparent)); }
+    70% { background-color: var(--brand-interactive-light, color-mix(in srgb, var(--brand-primary, #0A3D62) 20%, transparent)); }
+    80% { background-color: var(--brand-interactive-light, color-mix(in srgb, var(--brand-primary, #0A3D62) 15%, transparent)); }
+    90% { background-color: var(--brand-interactive-light, color-mix(in srgb, var(--brand-primary, #0A3D62) 10%, transparent)); }
     100% { background-color: var(--lumo-base-color, white); }
 }
 
