@@ -128,7 +128,7 @@ public class AppConfig implements AppShellConfigurator {
         // 1. Load brand colors first (defines CSS variables)
         String brandColorsContent = loadBrandCssContent("colors/brand-colors.css");
         if (brandColorsContent != null) {
-            settings.addInlineWithContents(brandColorsContent, Inline.Wrapping.STYLESHEET);
+            settings.addInlineWithContents(withBrandUrls(brandColorsContent, "colors/brand-colors.css"), Inline.Wrapping.STYLESHEET);
         } else if (Files.exists(Paths.get(getLocalBrandPath(), "colors/brand-colors.css"))) {
             settings.addLink("stylesheet", "/brand/colors/brand-colors.css");
         }
@@ -136,7 +136,7 @@ public class AppConfig implements AppShellConfigurator {
         // 2. Load brand typography second (may depend on color variables)
         String brandTypographyContent = loadBrandCssContent("typography/brand-typography.css");
         if (brandTypographyContent != null) {
-            settings.addInlineWithContents(brandTypographyContent, Inline.Wrapping.STYLESHEET);
+            settings.addInlineWithContents(withBrandUrls(brandTypographyContent, "typography/brand-typography.css"), Inline.Wrapping.STYLESHEET);
         } else if (Files.exists(Paths.get(getLocalBrandPath(), "typography/brand-typography.css"))) {
             settings.addLink("stylesheet", "/brand/typography/brand-typography.css");
         }
@@ -145,13 +145,83 @@ public class AppConfig implements AppShellConfigurator {
         // Use inline loading for theme as well to avoid any @import issues
         String brandThemeContent = loadBrandCssContent("theme.css");
         if (brandThemeContent != null) {
-            settings.addInlineWithContents(brandThemeContent, Inline.Wrapping.STYLESHEET);
+            settings.addInlineWithContents(withBrandUrls(withoutInlinedImports(brandThemeContent), "theme.css"), Inline.Wrapping.STYLESHEET);
         } else {
             if (Files.exists(Paths.get(getBrandPath(), "theme.css")) ||
                    Files.exists(Paths.get(getLocalBrandPath(), "theme.css"))) {
                 settings.addLink("stylesheet", "/brand/theme.css");
             }
         }
+    }
+
+    /**
+     * Strips the {@code @import} rules for the color and typography sheets from an inlined theme.
+     * Both sheets are inlined ahead of the theme already; left in, the browser would fetch and
+     * apply each of them a second time.
+     */
+    static String withoutInlinedImports(String themeCss) {
+        return themeCss.replaceAll(
+                "(?m)^[ \\t]*@import\\s+(?:url\\(\\s*)?['\"]?\\.?/?(?:colors/brand-colors|typography/brand-typography)\\.css['\"]?\\s*\\)?\\s*;[ \\t]*\\r?\\n?",
+                "");
+    }
+
+    /** Where BrandResourceHandler serves the brand's files. */
+    static final String BRAND_URL = "/brand/";
+
+    /** A CSS {@code url(...)} value, with or without quotes around its target. */
+    private static final java.util.regex.Pattern CSS_URL =
+            java.util.regex.Pattern.compile("url\\(\\s*(['\"]?)([^'\")]+)\\1\\s*\\)");
+
+    /**
+     * Resolves the relative {@code url(...)} values of a brand stylesheet against the brand
+     * (NFR-021, umbrella UC-014 BR-007). The stylesheet is inlined into the page, where a
+     * relative URL would resolve against the page's address and reach nothing; here it becomes the
+     * address the file has when
+     * BrandResourceHandler serves it, so {@code url("fonts/Face.woff2")} in
+     * {@code typography/brand-typography.css} is fetched from
+     * {@code /brand/typography/fonts/Face.woff2}. That is what lets a brand carry its own fonts.
+     * A URL that is absolute, rooted, a fragment or a {@code data:} value is left as written, and
+     * so is one that would climb out of the brand.
+     *
+     * @param css     the stylesheet's content
+     * @param cssPath the stylesheet's path within the brand, such as {@code typography/brand-typography.css}
+     * @return the content with its relative URLs resolved
+     */
+    static String withBrandUrls(String css, String cssPath) {
+        int slash = cssPath.lastIndexOf('/');
+        String directory = slash < 0 ? "" : cssPath.substring(0, slash + 1);
+        java.util.regex.Matcher matcher = CSS_URL.matcher(css);
+        StringBuilder resolved = new StringBuilder();
+        while (matcher.find()) {
+            String path = pathInBrand(directory, matcher.group(2).trim());
+            String url = path == null ? matcher.group() : "url(\"" + BRAND_URL + path + "\")";
+            matcher.appendReplacement(resolved, java.util.regex.Matcher.quoteReplacement(url));
+        }
+        matcher.appendTail(resolved);
+        return resolved.toString();
+    }
+
+    /** The brand-relative path a stylesheet's URL names, or null when the URL is not relative to the brand. */
+    private static String pathInBrand(String directory, String target) {
+        if (target.isEmpty() || target.startsWith("/") || target.startsWith("#")
+                || target.matches("^[a-zA-Z][a-zA-Z0-9+.-]*:.*")) {
+            return null;
+        }
+        java.util.ArrayDeque<String> segments = new java.util.ArrayDeque<>();
+        for (String segment : (directory + target).split("/")) {
+            if (segment.isEmpty() || segment.equals(".")) {
+                continue;
+            }
+            if (segment.equals("..")) {
+                if (segments.isEmpty()) {
+                    return null;
+                }
+                segments.removeLast();
+            } else {
+                segments.addLast(segment);
+            }
+        }
+        return String.join("/", segments);
     }
 
     /**
