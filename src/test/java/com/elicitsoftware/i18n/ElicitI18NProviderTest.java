@@ -80,7 +80,7 @@ class ElicitI18NProviderTest {
         ElicitI18NProvider p = curated();
 
         assertEquals("Survey: Elicit Demo", p.getTranslation("reviewView.surveyLabel", Locale.ENGLISH, "Elicit Demo"));
-        assertEquals("Failed to generate PDF: {0}", p.getTranslation("reportView.error.pdf", Locale.ENGLISH),
+        assertEquals("Survey: {0}", p.getTranslation("reviewView.surveyLabel", Locale.ENGLISH),
                 "no params given: the value is returned as-is, not run through MessageFormat");
     }
 

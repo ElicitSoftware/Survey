@@ -11,6 +11,7 @@ package com.elicitsoftware.common.health;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.LogCapture;
 import com.elicitsoftware.PostgresTestResource;
 import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.junit.QuarkusTest;
@@ -26,6 +27,7 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.util.logging.Logger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -50,15 +52,20 @@ class DatabaseHealthCheckTest {
         assertEquals(HealthCheckResponse.Status.UP, response.getStatus());
     }
 
+    /** NFR-014: a failed check answers a fixed text; the cause goes to the log, not the answer. */
     @Test
-    void call_connectionThrows_returnsDownWithExceptionMessage() {
+    void call_connectionThrows_returnsDownWithFixedTextAndLogsTheCause() {
         DatabaseHealthCheck check = new DatabaseHealthCheck();
         check.dataSource = new FailingDataSource();
 
-        HealthCheckResponse response = check.call();
+        try (LogCapture log = LogCapture.of(DatabaseHealthCheck.class)) {
+            HealthCheckResponse response = check.call();
 
-        assertEquals(HealthCheckResponse.Status.DOWN, response.getStatus());
-        assertTrue(response.getName().contains("simulated outage"));
+            assertEquals(HealthCheckResponse.Status.DOWN, response.getStatus());
+            assertEquals("Database connection failed", response.getName());
+            assertFalse(response.getName().contains("simulated outage"));
+            assertTrue(log.contains(LogCapture.WARN, "Database health check failed"));
+        }
     }
 
     /** Minimal DataSource whose only meaningfully-implemented method throws on getConnection(). */

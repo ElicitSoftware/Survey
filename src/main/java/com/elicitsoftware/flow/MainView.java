@@ -70,6 +70,9 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
     @Inject
     AccessCodeService accessCodeService;
 
+    /** How many sign-in attempts have failed on this page (UC-001 BR-020). */
+    private int failedAttempts;
+
     @Inject
     QuestionService questionService;
 
@@ -253,6 +256,8 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
                         ui.navigate("report");
                     }
                 } else {
+                    // UC-001 A1, BR-020: logged and counted, without the code that was typed.
+                    accessCodeService.loginFailed(sessionDataService.getSurveyId(), ++failedAttempts);
                     Notification.show(getTranslation("mainView.error.invalidAccessCode"));
                 }
             } else {
@@ -327,6 +332,12 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
         String location = event.getLocation().getPath();
         if (accessCode != null && !accessCode.trim().isEmpty() && location.startsWith("login")) {
             this.txtAccessCode.setValue(accessCode);
+            // UC-001 A6, BR-021: the field holds the code now, so the address is replaced with
+            // the plain login address (keeping ?lang= and the like) and the code is left neither
+            // in the address bar nor in the browser history.
+            String query = event.getLocation().getQueryParameters().getQueryString();
+            String address = query.isEmpty() ? "login" : "login?" + query; // i18n:ignore
+            event.getUI().getPage().getHistory().replaceState(null, address);
         }
     }
 

@@ -134,6 +134,114 @@ class PDFDownloadResourceTest {
         assertEquals(Response.Status.NOT_FOUND.getStatusCode(), secondLookup.getStatus());
     }
 
+    // ── BR-018: the cache is bounded ─────────────────────────────────────────
+
+    @Test
+    // UC-005 BR-018: generating again replaces the previous PDF; its link answers as expired.
+    void given_replacedKey_when_downloadPDF_then_404AndTheNewKeyDownloads() {
+        String first = PDFDownloadResource.cachePDF(new byte[]{1});
+        String second = PDFDownloadResource.cachePDF(new byte[]{2}, first);
+
+        assertEquals(Response.Status.NOT_FOUND.getStatusCode(), resource.downloadPDF(first).getStatus());
+        assertEquals(Response.Status.OK.getStatusCode(), resource.downloadPDF(second).getStatus());
+    }
+
+    @Test
+    // UC-005 BR-018: nothing to replace is the same as the one-argument call.
+    void given_noReplacedKey_when_cachePDF_then_nothingElseIsRemoved() {
+        String other = PDFDownloadResource.cachePDF(new byte[]{1});
+        String key = PDFDownloadResource.cachePDF(new byte[]{2}, null);
+
+        assertEquals(Response.Status.OK.getStatusCode(), resource.downloadPDF(other).getStatus());
+        assertEquals(Response.Status.OK.getStatusCode(), resource.downloadPDF(key).getStatus());
+    }
+
+    @Test
+    // UC-005 BR-018: an expired PDF is removed by the sweep, without anyone asking for it again.
+    void given_expiredEntry_when_sweep_then_removedWithoutBeingRequested() throws Exception {
+        String expired = PDFDownloadResource.cachePDF(new byte[]{7, 7});
+        String fresh = PDFDownloadResource.cachePDF(new byte[]{8});
+        backdateEntryPastExpiry(expired);
+        int before = PDFDownloadResource.cachedEntries();
+
+        int removed = PDFDownloadResource.sweep();
+
+        assertTrue(removed >= 1, "the expired entry is removed");
+        assertEquals(before - removed, PDFDownloadResource.cachedEntries());
+        assertFalse(cache().containsKey(expired));
+        assertTrue(cache().containsKey(fresh), "a PDF inside its window stays");
+        assertEquals(0, PDFDownloadResource.sweep(), "nothing left to remove");
+    }
+
+    @Test
+    // UC-005 BR-018: storing a PDF also removes the expired ones.
+    void given_expiredEntry_when_anotherPdfIsCached_then_theExpiredOneIsRemoved() throws Exception {
+        String expired = PDFDownloadResource.cachePDF(new byte[]{7});
+        backdateEntryPastExpiry(expired);
+
+        PDFDownloadResource.cachePDF(new byte[]{8});
+
+        assertFalse(cache().containsKey(expired));
+    }
+
+    @Test
+    // UC-005 BR-018: past the ceiling on entries, the oldest PDFs go first and the newest stays.
+    void given_moreEntriesThanTheCeiling_when_cachePDF_then_oldestAreDiscardedFirst() {
+        cache().clear();
+        String a = PDFDownloadResource.cachePDF(new byte[]{1}, null, 3, Long.MAX_VALUE);
+        String b = PDFDownloadResource.cachePDF(new byte[]{2}, null, 3, Long.MAX_VALUE);
+        String c = PDFDownloadResource.cachePDF(new byte[]{3}, null, 3, Long.MAX_VALUE);
+        assertEquals(3, PDFDownloadResource.cachedEntries());
+
+        String d = PDFDownloadResource.cachePDF(new byte[]{4}, null, 3, Long.MAX_VALUE);
+
+        assertEquals(3, PDFDownloadResource.cachedEntries());
+        assertFalse(cache().containsKey(a), "the oldest is discarded");
+        assertTrue(cache().containsKey(b));
+        assertTrue(cache().containsKey(c));
+        assertTrue(cache().containsKey(d), "the newest always stays");
+    }
+
+    @Test
+    // UC-005 BR-018: past the ceiling on bytes, the oldest PDFs go first; a single PDF larger
+    // than the ceiling is still kept, because its respondent is about to open it.
+    void given_moreBytesThanTheCeiling_when_cachePDF_then_oldestAreDiscardedFirst() {
+        cache().clear();
+        String a = PDFDownloadResource.cachePDF(new byte[40], null, 100, 100);
+        String b = PDFDownloadResource.cachePDF(new byte[40], null, 100, 100);
+        assertEquals(80, PDFDownloadResource.cachedBytes());
+
+        String c = PDFDownloadResource.cachePDF(new byte[40], null, 100, 100);
+
+        assertFalse(cache().containsKey(a));
+        assertTrue(cache().containsKey(b));
+        assertTrue(cache().containsKey(c));
+        assertEquals(80, PDFDownloadResource.cachedBytes());
+
+        String large = PDFDownloadResource.cachePDF(new byte[500], null, 100, 100);
+
+        assertEquals(1, PDFDownloadResource.cachedEntries());
+        assertTrue(cache().containsKey(large));
+    }
+
+    @Test
+    // UC-005 BR-018: the ceilings the instance runs with.
+    void theCeilingsAreFixed() {
+        assertEquals(200, PDFDownloadResource.MAX_ENTRIES);
+        assertEquals(256L * 1024 * 1024, PDFDownloadResource.MAX_BYTES);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> cache() {
+        try {
+            Field cacheField = PDFDownloadResource.class.getDeclaredField("PDF_CACHE");
+            cacheField.setAccessible(true);
+            return (Map<String, Object>) cacheField.get(null);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     /** Reflectively backdates the timestamp of a cached entry past PDFDownloadResource's private 10-minute TTL. */
     @SuppressWarnings("unchecked")
     private void backdateEntryPastExpiry(String key) throws Exception {

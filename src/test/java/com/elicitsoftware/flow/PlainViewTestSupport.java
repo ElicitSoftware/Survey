@@ -201,6 +201,14 @@ abstract class PlainViewTestSupport extends BrowserlessTest {
             logins.add(surveyId + ":" + accessCode);
             return loginAnswer.apply(surveyId, accessCode);
         }
+
+        final List<String> failures = new ArrayList<>();
+
+        @Override
+        public void loginFailed(int surveyId, int attemptOnPage) {
+            failures.add(surveyId + ":" + attemptOnPage);
+            super.loginFailed(surveyId, attemptOnPage);
+        }
     }
 
     /** A question service whose {@code init} answers from a queue and records each call. */

@@ -11,6 +11,7 @@ package com.elicitsoftware.flow;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.LogCapture;
 import com.elicitsoftware.flow.PlainViewTestSupport.StubSession;
 import com.elicitsoftware.flow.PlainViewTestSupport.StubTranslator;
 import com.elicitsoftware.model.ReportDefinition;
@@ -48,6 +49,7 @@ import static com.elicitsoftware.flow.PlainViewTestSupport.respondent;
 import static com.elicitsoftware.flow.PlainViewTestSupport.survey;
 import static com.elicitsoftware.flow.PlainViewTestSupport.t;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -56,7 +58,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * UC-005 (view reports and download a PDF): the report page built by {@link ReportView#init()} in a
  * plain browserless UI. Covers the page with no reports (BR-014), the built-in report call by path
- * (BR-015, UC-014 BR-001), the error card a failed report call turns into, and the PDF button.
+ * (BR-015, UC-014 BR-001), the error card a failed report call turns into (A1), which addresses from the definition are
+ * used (BR-017), and the PDF button (BR-018).
  * <p>
  * Each report's card is titled through {@code Respondent.snapshotAnchor}, a Panache lookup that
  * cannot run without Quarkus, so in these tests {@code init()} stops at the first card -- after the
@@ -267,135 +270,215 @@ class ReportViewReportCallTest extends PlainViewTestSupport {
         assertEquals("T", view.reportResponses.get(0).title);
     }
 
+    /** UC-005 A1: the card every failed report call turns into, for a report named "Summary". */
+    private static void assertUnavailableCard(ReportResponse response, String reportName) {
+        assertEquals(t("reportView.error.title", reportName), response.title);
+        assertEquals(t("reportView.error.unavailable", reportName), response.innerHTML);
+    }
+
     @Test
-    void given_pathWithNoBuiltInService_when_init_then_errorCardNamesThePath() {
+    void given_pathWithNoBuiltInService_when_init_then_unavailableCardAndTheAddressIsLogged() {
         builtIns.service = false;
 
-        ReportResponse response = callReport(report("Summary", "/no/such"));
+        try (LogCapture log = LogCapture.of(ReportView.class)) {
+            ReportResponse response = callReport(report("Summary", "/no/such"));
 
-        assertEquals(t("reportView.error.title", "Summary"), response.title);
-        assertEquals(t("reportView.error.html", "Summary", t("reportView.error.noBuiltIn", "/no/such"), ""),
-                response.innerHTML);
+            assertUnavailableCard(response, "Summary");
+            assertFalse(response.innerHTML.contains("/no/such"), "the address is for the operator's log");
+            assertTrue(log.contains(LogCapture.WARN, "/no/such"));
+        }
     }
 
     @Test
-    void given_builtInReportWithNoRespondent_when_init_then_errorCardSaysSo() {
+    void given_builtInReportWithNoRespondent_when_init_then_unavailableCard() {
         builtIns.render = r -> Optional.empty();
 
-        ReportResponse response = callReport(report("Summary", BUILT_IN));
-
-        assertEquals(t("reportView.error.title", "Summary"), response.title);
-        assertEquals(t("reportView.error.html", "Summary", t("reportView.error.noRespondent"), ""),
-                response.innerHTML);
+        assertUnavailableCard(callReport(report("Summary", BUILT_IN)), "Summary");
     }
 
     @Test
-    void given_serviceAnswers403WithoutBody_when_init_then_errorCardShowsLicenseMessage() {
+    void given_serviceAnswers403WithoutBody_when_init_then_unavailableCardAndStatusIsLogged() {
         builtIns.render = r -> {
             throw new WebApplicationException(Response.status(403).build());
         };
 
-        ReportResponse response = callReport(report("Summary", BUILT_IN));
-
-        assertEquals(t("reportView.error.title", "Summary"), response.title);
-        assertEquals(t("reportView.error.html", "Summary", t("reportView.error.forbidden"),
-                t("reportView.error.licenseHint")), response.innerHTML);
+        try (LogCapture log = LogCapture.of(ReportView.class)) {
+            assertUnavailableCard(callReport(report("Summary", BUILT_IN)), "Summary");
+            assertTrue(log.contains(LogCapture.WARN, "HTTP 403"));
+        }
     }
 
     @Test
-    void given_serviceAnswers500WithoutBody_when_init_then_errorCardShowsStatus() {
-        WebApplicationException failure = new WebApplicationException("boom", 500);
+    void given_serviceAnswers500WithoutBody_when_init_then_unavailableCardAndMessageIsLogged() {
         builtIns.render = r -> {
-            throw failure;
+            throw new WebApplicationException("boom", 500);
         };
 
-        ReportResponse response = callReport(report("Summary", BUILT_IN));
+        try (LogCapture log = LogCapture.of(ReportView.class)) {
+            ReportResponse response = callReport(report("Summary", BUILT_IN));
 
-        assertEquals(t("reportView.error.html", "Summary", t("reportView.error.serviceHttp", 500, "boom"),
-                t("reportView.error.licenseHint")), response.innerHTML);
+            assertUnavailableCard(response, "Summary");
+            assertFalse(response.innerHTML.contains("boom"));
+            assertTrue(log.contains(LogCapture.WARN, "HTTP 500"));
+            assertTrue(log.contains(LogCapture.WARN, "boom"));
+        }
     }
 
     @Test
-    void given_serviceFailureMentioningForbidden_when_init_then_messageIsMarkedAsLicenseFailure() {
+    void given_serviceFailureWithMarkupBody_when_init_then_theBodyIsLoggedAndNotShown() {
+        String body = "<img src=x onerror=alert(1)> license expired at http://reports.internal:8082";
         builtIns.render = r -> {
-            throw new WebApplicationException("Upstream Forbidden", 502);
+            throw new WebApplicationException("bad", Response.status(500).entity(body).build());
         };
 
-        ReportResponse response = callReport(report("Summary", BUILT_IN));
+        try (LogCapture log = LogCapture.of(ReportView.class)) {
+            ReportResponse response = callReport(report("Summary", BUILT_IN));
 
-        String status = t("reportView.error.serviceHttp", 502, "Upstream Forbidden");
-        assertEquals(t("reportView.error.html", "Summary", t("reportView.error.license", status),
-                t("reportView.error.licenseHint")), response.innerHTML);
+            assertUnavailableCard(response, "Summary");
+            assertFalse(response.innerHTML.contains("<img"), response.innerHTML);
+            assertFalse(response.innerHTML.contains("license expired"), response.innerHTML);
+            assertFalse(response.innerHTML.contains("reports.internal"), response.innerHTML);
+            assertTrue(log.contains(LogCapture.WARN, "HTTP 500"));
+            assertTrue(log.contains(LogCapture.WARN, "license expired"));
+        }
     }
 
     @Test
-    void given_403MentioningForbidden_when_init_then_licenseMessageIsNotWrappedTwice() {
-        builtIns.render = r -> {
-            throw new WebApplicationException("Forbidden", 403);
-        };
-
-        ReportResponse response = callReport(report("Summary", BUILT_IN));
-
-        assertEquals(t("reportView.error.html", "Summary", t("reportView.error.forbidden"),
-                t("reportView.error.licenseHint")), response.innerHTML);
-    }
-
-    @Test
-    void given_serviceFailureWithBody_when_init_then_errorCardShowsTheBody() {
-        builtIns.render = r -> {
-            throw new WebApplicationException("bad", Response.status(500).entity("license expired").build());
-        };
-
-        ReportResponse response = callReport(report("Summary", BUILT_IN));
-
-        assertEquals(t("reportView.error.html", "Summary", "license expired", t("reportView.error.licenseHint")),
-                response.innerHTML);
-    }
-
-    @Test
-    void given_serviceFailureWithBlankBody_when_init_then_errorCardShowsTheServiceMessage() {
+    void given_serviceFailureWithBlankBody_when_init_then_theServiceMessageIsLogged() {
         builtIns.render = r -> {
             throw new WebApplicationException("bad", Response.status(500).entity("   ").build());
         };
 
-        ReportResponse response = callReport(report("Summary", BUILT_IN));
-
-        assertEquals(t("reportView.error.html", "Summary", t("reportView.error.service", "bad"),
-                t("reportView.error.licenseHint")), response.innerHTML);
+        try (LogCapture log = LogCapture.of(ReportView.class)) {
+            assertUnavailableCard(callReport(report("Summary", BUILT_IN)), "Summary");
+            assertTrue(log.contains(LogCapture.WARN, "HTTP 500: bad"));
+        }
     }
 
     @Test
-    void given_403WithUnreadableBody_when_init_then_errorCardShowsLicenseMessage() {
+    void given_failureWithUnreadableBody_when_init_then_unavailableCard() {
         builtIns.render = r -> {
             throw new WebApplicationException("bad", Response.status(403).entity(new Object()).build());
         };
 
-        ReportResponse response = callReport(report("Summary", BUILT_IN));
-
-        assertEquals(t("reportView.error.html", "Summary", t("reportView.error.forbidden"),
-                t("reportView.error.licenseHint")), response.innerHTML);
+        try (LogCapture log = LogCapture.of(ReportView.class)) {
+            assertUnavailableCard(callReport(report("Summary", BUILT_IN)), "Summary");
+            assertTrue(log.contains(LogCapture.WARN, "HTTP 403: bad"));
+        }
     }
 
     @Test
-    void given_500WithUnreadableBody_when_init_then_errorCardShowsStatus() {
+    void given_reportNameWithMarkup_when_callFails_then_theNameIsEscapedInTheCard() {
+        builtIns.service = false;
+
+        ReportResponse response = callReport(report("<b>Risk</b> & \"more\"", "/no/such"));
+
+        assertEquals(t("reportView.error.unavailable", "&lt;b&gt;Risk&lt;/b&gt; &amp; &quot;more&quot;"), response.innerHTML);
+        assertFalse(response.innerHTML.contains("<b>"), response.innerHTML);
+    }
+
+    @Test
+    void given_longServiceAnswer_when_callFails_then_theLogLineIsBoundedAndOnOneLine() {
+        String body = "line one\nline two " + "x".repeat(1000);
         builtIns.render = r -> {
-            throw new WebApplicationException("bad", Response.status(500).entity(new Object()).build());
+            throw new WebApplicationException("bad", Response.status(500).entity(body).build());
         };
 
-        ReportResponse response = callReport(report("Summary", BUILT_IN));
+        try (LogCapture log = LogCapture.of(ReportView.class)) {
+            callReport(report("Summary", BUILT_IN));
 
-        assertEquals(t("reportView.error.html", "Summary", t("reportView.error.serviceHttp", 500, "bad"),
-                t("reportView.error.licenseHint")), response.innerHTML);
+            assertTrue(log.contains(LogCapture.WARN, "line one line two"));
+            assertFalse(log.contains(LogCapture.WARN, "x".repeat(ReportView.LOGGED_DETAIL_LIMIT + 1)));
+        }
+        assertEquals("", ReportView.loggable(null));
+        assertEquals("a b", ReportView.loggable(" a\r\n\tb "));
     }
 
     @Test
-    void given_unparsableExternalAddress_when_init_then_errorCardWithoutLicenseHint() {
+    void given_unparsableExternalAddress_when_init_then_unavailableCardWithoutACall() {
         ReportResponse response = callReport(report("External", "http://bad host/"));
 
-        assertEquals(t("reportView.error.title", "External"), response.title);
-        assertTrue(response.innerHTML.startsWith(t("reportView.error.html", "External", "", "").substring(0, 120)));
-        assertTrue(response.innerHTML.endsWith("</p></div>"), "no license hint for a non-HTTP failure");
+        assertUnavailableCard(response, "External");
+        assertFalse(response.innerHTML.contains("bad host"), response.innerHTML);
         assertTrue(builtIns.looked.isEmpty(), "an absolute address is never looked up as built-in");
+    }
+
+    // UC-005 BR-017: a report address that is neither a built-in path nor absolute http(s) is not called.
+    @Test
+    void given_reportAddressThatIsNotHttp_when_init_then_unavailableCardAndNoCall() {
+        for (String address : List.of("file:///etc/hosts", "ftp://reports.example/r", "javascript:alert(1)",
+                "reports.example/r", "https://user:secret@reports.example/r")) {
+            try (LogCapture log = LogCapture.of(ReportView.class)) {
+                ReportResponse response = callReport(report("External", address));
+
+                assertUnavailableCard(response, "External");
+                assertTrue(log.contains(LogCapture.WARN, "not an absolute http(s) address"), address);
+            }
+        }
+        assertTrue(builtIns.looked.isEmpty());
+    }
+
+    // UC-005 BR-017: a post-survey address that is not absolute http(s) is treated as none.
+    @Test
+    void given_noReportsAndUnusablePostSurveyUrl_when_init_then_completeNoticeAndNoRedirect() {
+        for (String address : List.of("javascript:document.title='x'", "data:text/html,x", "/thanks",
+                "//example.org/after", "https://user@example.org/after")) {
+            survey.reports = new HashSet<>();
+            survey.postSurveyURL = address;
+            ReportView view = build();
+            pendingJs();
+
+            view.beforeEnter(beforeEnter());
+
+            assertNotNull(byId(view, "report-complete-notice", Paragraph.class), address);
+            assertEquals("", pendingJsText(), address);
+            UI.getCurrent().remove(view);
+        }
+    }
+
+    @Test
+    void given_noReportsAndHttpPostSurveyUrl_when_beforeEnter_then_browserIsSentThere() {
+        survey.reports = new HashSet<>();
+        survey.postSurveyURL = " http://example.org/after ";
+        ReportView view = build();
+        pendingJs();
+
+        view.beforeEnter(beforeEnter());
+
+        assertTrue(pendingJsText().contains("http://example.org/after"), pendingJsText());
+    }
+
+    @Test
+    void given_unusablePostSurveyUrl_when_init_then_itIsLoggedOnce() {
+        survey.reports = new HashSet<>();
+        survey.postSurveyURL = "javascript:alert(1)";
+
+        try (LogCapture log = LogCapture.of(ReportView.class)) {
+            ReportView view = build();
+            view.beforeEnter(beforeEnter());
+
+            assertEquals(1, log.messages(LogCapture.WARN).size());
+        }
+    }
+
+    // UC-005 BR-018: generating again replaces the PDF this page generated before.
+    @Test
+    void given_pdfGeneratedTwice_when_pdfClicked_then_theFirstLinkNoLongerDownloads() {
+        builtIns.render = r -> Optional.of(new ReportResponse("T", "<p/>", null));
+        ReportView view = buildWithReport(report("Summary", BUILT_IN));
+        Button button = byId(view, "report-generate-pdf-button", Button.class);
+
+        test(button).click();
+        String first = view.lastPdfKey;
+        test(button).click();
+        String second = view.lastPdfKey;
+
+        assertNotNull(first);
+        assertNotNull(second);
+        assertFalse(first.equals(second));
+        com.elicitsoftware.report.PDFDownloadResource download = new com.elicitsoftware.report.PDFDownloadResource();
+        assertEquals(404, download.downloadPDF(first).getStatus());
+        assertEquals(200, download.downloadPDF(second).getStatus());
     }
 
     @Test
@@ -433,7 +516,8 @@ class ReportViewReportCallTest extends PlainViewTestSupport {
 
         List<Notification> notifications = $(Notification.class).all();
         assertEquals(1, notifications.size());
-        assertEquals(t("reportView.error.pdf", "disk full"), test(notifications.get(0)).getText());
+        assertEquals(t("reportView.error.pdf"), test(notifications.get(0)).getText());
+        assertFalse(test(notifications.get(0)).getText().contains("disk full"), "the cause is logged, not shown");
     }
 
     /** Records the PDF request instead of building a document. */

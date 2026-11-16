@@ -12,6 +12,7 @@ package com.elicitsoftware.survey;
  */
 
 import com.elicitsoftware.QuestionManager;
+import com.elicitsoftware.QuestionService;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Respondent;
 import com.elicitsoftware.model.Survey;
@@ -121,7 +122,7 @@ public class QuestionServiceReviewTest {
             String displayKey = (String) result[2];
             String displayText = (String) result[3];
             String shortDisplayText = (String) result[5];
-            String displayValue = (String) result[6];
+            String displayValue = QuestionService.reviewValue((String) result[7], (String) result[6]);
 
             if (displayValue == null) {
                 if (!sectionTitle.equals(displayText)) {
@@ -207,6 +208,46 @@ public class QuestionServiceReviewTest {
                 .flatMap(s -> s.getItems().stream())
                 .anyMatch(i -> i.value() == null);
         assertFalse(anyNullValueItem, "Unanswered questions (null text_value) must not produce review items");
+    }
+
+    @Test
+    // UC-003 BR-016: the answer to a PASSWORD question is shown as a fixed mask, other answers as given
+    @TestTransaction
+    void given_passwordAnswer_when_review_then_shownAsMask() {
+        Respondent r = createFreshRespondent();
+        questionManager.init(r.id.intValue(), WELCOME_SECTION);
+
+        Answer terms = Answer.findByDisplayKeyActive(r.id.intValue(), "0001-0001-0000-0001-0000-0002-0000");
+        assertNotNull(terms, "Terms answer must exist after init()");
+        terms.setTextValue("hunter2-secret");
+        terms.persist();
+        em.flush();
+
+        List<String> asGiven = review(r.id.intValue()).getSections().stream()
+                .flatMap(s -> s.getItems().stream()).map(ReviewItem::value).toList();
+        assertTrue(asGiven.contains("hunter2-secret"), "Any other question type shows the answer as given");
+
+        // The fixture has no PASSWORD question; make this one a PASSWORD question for the test.
+        em.createNativeQuery("UPDATE survey.questions SET type_id = "
+                        + "(SELECT id FROM survey.question_types WHERE name = 'PASSWORD') WHERE id = :id")
+                .setParameter("id", terms.question.id)
+                .executeUpdate();
+
+        List<String> masked = review(r.id.intValue()).getSections().stream()
+                .flatMap(s -> s.getItems().stream()).map(ReviewItem::value).toList();
+        assertFalse(masked.contains("hunter2-secret"), "A PASSWORD answer must not be shown (BR-016)");
+        assertTrue(masked.contains(QuestionService.PASSWORD_MASK), "A PASSWORD answer is shown as the mask");
+        assertEquals(asGiven.size(), masked.size(), "Masking neither adds nor removes an item");
+    }
+
+    @Test
+    // UC-003 BR-016: the mask has one length whatever the answer, and nothing unanswered is masked
+    void reviewValue_masksOnlyAnsweredPasswordQuestions() {
+        assertEquals(QuestionService.PASSWORD_MASK, QuestionService.reviewValue("PASSWORD", "a"));
+        assertEquals(QuestionService.PASSWORD_MASK, QuestionService.reviewValue("PASSWORD", "a much longer answer"));
+        assertNull(QuestionService.reviewValue("PASSWORD", null));
+        assertEquals("Tess", QuestionService.reviewValue("TEXT", "Tess"));
+        assertEquals("Tess", QuestionService.reviewValue(null, "Tess"));
     }
 
     private Respondent createFreshRespondent() {

@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Settings are reported by value except secrets, which are present or absent, and the
  * test-only ones carry a warning.
  *
- * <p>Traceability: UC-007 step 6, A3, BR-001, NFR-008.</p>
+ * <p>Traceability: UC-007 step 6, A3, BR-001, BR-006, NFR-008, NFR-018.</p>
  */
 class SettingsReportTest {
 
@@ -84,6 +84,37 @@ class SettingsReportTest {
         assertNotNull(setting(settings, "elicit.etl.enabled").warning());
         assertNotNull(setting(settings, "quarkus.otel.enabled").warning());
         assertNull(setting(settings(Map.of()), "elicit.etl.enabled").warning());
+    }
+
+    /** UC-007 BR-006: forwarding on with no trusted proxy named is a warning. */
+    @Test
+    void forwardingWithoutATrustedProxyIsAWarning() {
+        List<SettingsReport.Setting> settings = settings(Map.of(SettingsReport.FORWARDING, "true"));
+
+        assertEquals("true", setting(settings, SettingsReport.FORWARDING).value());
+        assertNull(setting(settings, SettingsReport.FORWARDING).warning());
+        assertEquals("(unset)", setting(settings, SettingsReport.TRUSTED_PROXY).value());
+        String warning = setting(settings, SettingsReport.TRUSTED_PROXY).warning();
+        assertNotNull(warning);
+        assertTrue(warning.contains(SettingsReport.TRUSTED_PROXY), warning);
+    }
+
+    /** UC-007 BR-006: a named proxy, or forwarding off, needs no attention. */
+    @Test
+    void forwardingWithATrustedProxyOrForwardingOffIsNotAWarning() {
+        List<SettingsReport.Setting> named = settings(Map.of(
+                SettingsReport.FORWARDING, "true",
+                SettingsReport.TRUSTED_PROXY, "10.0.0.5"));
+        assertEquals("10.0.0.5", setting(named, SettingsReport.TRUSTED_PROXY).value());
+        assertNull(setting(named, SettingsReport.TRUSTED_PROXY).warning());
+
+        List<SettingsReport.Setting> off = settings(Map.of(SettingsReport.FORWARDING, "false"));
+        assertEquals("false", setting(off, SettingsReport.FORWARDING).value());
+        assertNull(setting(off, SettingsReport.TRUSTED_PROXY).warning());
+
+        List<SettingsReport.Setting> unset = settings(Map.of());
+        assertEquals("false", setting(unset, SettingsReport.FORWARDING).value());
+        assertNull(setting(unset, SettingsReport.TRUSTED_PROXY).warning());
     }
 
     /** UC-007 step 6: an unset value says so instead of failing. */

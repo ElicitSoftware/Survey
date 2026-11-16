@@ -16,6 +16,7 @@ import com.elicitsoftware.model.Survey;
 import com.elicitsoftware.response.AddResponse;
 import com.elicitsoftware.util.DatabaseRetryUtil;
 import io.micrometer.core.annotation.Timed;
+import io.micrometer.core.instrument.Metrics;
 import io.quarkus.logging.Log;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.transaction.Transactional;
@@ -227,6 +228,22 @@ public class AccessCodeService {
         } finally {
             Log.info("Access code login took: " + (System.currentTimeMillis() - start) + "ms");
         }
+    }
+
+    /** Counts failed sign-in attempts, by survey (UC-001 BR-020). */
+    public static final String FAILED_LOGIN_COUNTER = "survey.login.failed";
+
+    /**
+     * Records that an access code typed on the login page matched no respondent (UC-001 A1,
+     * BR-020): one WARN line and one count on {@link #FAILED_LOGIN_COUNTER}. The code that was
+     * typed is not part of either. A restored session never comes here; it is not an attempt.
+     *
+     * @param surveyId      the survey the respondent chose
+     * @param attemptOnPage how many attempts have failed on this page so far, this one included
+     */
+    public void loginFailed(int surveyId, int attemptOnPage) {
+        Metrics.counter(FAILED_LOGIN_COUNTER, "survey", String.valueOf(surveyId)).increment();
+        Log.warn("Failed access code attempt for survey " + surveyId + " (" + attemptOnPage + " on this page)");
     }
 
     public boolean isAutoRegister() {

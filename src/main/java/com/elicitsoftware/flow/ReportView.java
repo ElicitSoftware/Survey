@@ -27,6 +27,8 @@ import com.elicitsoftware.report.ReportRequest;
 import com.elicitsoftware.report.ReportResponse;
 import com.elicitsoftware.report.ReportService;
 import com.elicitsoftware.report.builtin.BuiltInReports;
+import com.elicitsoftware.report.builtin.RespondentSummaryService;
+import com.elicitsoftware.util.SafeUrls;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.html.Paragraph;
@@ -64,6 +66,10 @@ import jakarta.inject.Inject;
  * straight to the survey's post-survey URL when it has one. Doing that here rather than at each
  * caller covers every path to {@code /report}: Finish, a returning respondent's sign-in and a
  * restored session.
+ * <p>
+ * The post-survey address and every external report address come from the survey definition.
+ * Each is used only when it is an absolute http or https address (UC-005 BR-017); a post-survey
+ * address that is anything else is treated as if the survey had none.
  */
 @Route(value = "report", layout = MainLayout.class)
 @NormalUIScoped
@@ -106,6 +112,12 @@ public class ReportView extends VerticalLayout implements BeforeEnterObserver {
     BuiltInReports builtInReports;
 
     ArrayList<ReportResponse> reportResponses = new ArrayList<>();
+
+    /** How much of a report service's own words one log line holds (UC-005 A1). */
+    static final int LOGGED_DETAIL_LIMIT = 300;
+
+    /** The key of the PDF this page generated last, which the next one replaces (UC-005 BR-018). */
+    String lastPdfKey;
 
     public ReportView() {
         super();
@@ -154,8 +166,10 @@ public class ReportView extends VerticalLayout implements BeforeEnterObserver {
                 // Generate the PDF using the pdfService
                 byte[] pdfContent = pdfService.generatePDF(this.reportResponses, this.respondent.survey.title, getLocale());
 
-                // Cache the PDF and get a key
-                String pdfKey = com.elicitsoftware.report.PDFDownloadResource.cachePDF(pdfContent);
+                // Cache the PDF and get a key; it replaces the one this page generated before
+                // (UC-005 BR-018).
+                String pdfKey = com.elicitsoftware.report.PDFDownloadResource.cachePDF(pdfContent, lastPdfKey);
+                lastPdfKey = pdfKey;
 
                 // Create URL for the PDF download endpoint
                 String pdfUrl = "/api/pdf/download?key=" + pdfKey;
@@ -164,7 +178,7 @@ public class ReportView extends VerticalLayout implements BeforeEnterObserver {
                 UI.getCurrent().getPage().executeJs("window.open($0, '_blank')", pdfUrl);
             } catch (Exception e) {
                 Log.error("Failed to generate PDF", e);
-                Notification.show(getTranslation("reportView.error.pdf", e.getMessage()), 3000, Notification.Position.MIDDLE);
+                Notification.show(getTranslation("reportView.error.pdf"), 3000, Notification.Position.MIDDLE);
             }
         });
 
@@ -183,9 +197,10 @@ public class ReportView extends VerticalLayout implements BeforeEnterObserver {
         }
 
 
-        if (this.respondent.survey.postSurveyURL != null) {
+        String postSurveyUrl = postSurveyUrl();
+        if (postSurveyUrl != null) {
             Button btnNext = new Button(getTranslation("reportView.btnNext"), event -> {
-                getUI().ifPresent(ui -> ui.getPage().open(this.respondent.survey.postSurveyURL, "_self"));
+                getUI().ifPresent(ui -> ui.getPage().open(postSurveyUrl, "_self"));
             });
             btnNext.setId("report-next-button");
             this.add(btnNext);
@@ -207,10 +222,26 @@ public class ReportView extends VerticalLayout implements BeforeEnterObserver {
         return respondent.survey.reports != null && !respondent.survey.reports.isEmpty();
     }
 
+    /**
+     * UC-005 BR-017: the survey's post-survey address when the browser may be sent to it, an
+     * absolute http or https address; null when the survey has none or has one that is not.
+     */
     private String postSurveyUrl() {
         String url = respondent.survey.postSurveyURL;
-        return url == null || url.isBlank() ? null : url;
+        if (url == null || url.isBlank()) {
+            return null;
+        }
+        String usable = SafeUrls.httpUrl(url).map(URI::toString).orElse(null);
+        if (usable == null && !postSurveyUrlReported) {
+            postSurveyUrlReported = true;
+            Log.warn("The post-survey address of survey " + respondent.survey.id
+                    + " is not an absolute http(s) address and is ignored");
+        }
+        return usable;
     }
+
+    /** Whether this page has already logged that the post-survey address is ignored. */
+    private boolean postSurveyUrlReported;
 
     private ArrayList<ReportCard> getCards() {
         ArrayList<ReportCard> cards = new ArrayList<>();
@@ -227,18 +258,14 @@ public class ReportView extends VerticalLayout implements BeforeEnterObserver {
      * Calls the report generation service using the provided report definition and returns the result.
      * <p>
      * This method sends a POST request to the report service with the respondent ID and retrieves
-     * the generated report content. It includes comprehensive error handling to provide meaningful
-     * feedback when service calls fail.
-     * <p>
-     * Error handling includes:
-     * - WebApplicationException handling for service-specific errors
-     * - Detailed error message extraction and formatting
-     * - Fallback error responses for all exception types
-     * - License validation error detection and user guidance
+     * the generated report content. A call that fails for any reason becomes an error card
+     * (UC-005 A1): the respondent is told that the report is unavailable, in their language, and
+     * the status, the service's answer and the address are logged for the operator. Nothing the
+     * service or the failure said is shown on the page.
      *
      * @param rpt the {@link ReportDefinition} containing the details of the report,
      *            including the URL for the report service.
-     * @return the ReportResponse containing report data if successful, or error information if failed
+     * @return the ReportResponse containing report data if successful, or the error card if failed
      */
     private ReportResponse callReport(ReportDefinition rpt) {
         try {
@@ -249,61 +276,62 @@ public class ReportView extends VerticalLayout implements BeforeEnterObserver {
             if (BuiltInReports.isPath(rpt.url)) {
                 BuiltInReports.Service builtIn = builtInReports.find(rpt.url).orElse(null);
                 if (builtIn == null) {
-                    throw new IllegalStateException(getTranslation("reportView.error.noBuiltIn", rpt.url));
+                    throw new IllegalStateException("no report is built into Survey at this address"); // i18n:ignore
                 }
                 return builtIn.render(request, "report page") // i18n:ignore
-                        .orElseThrow(() -> new IllegalStateException(getTranslation("reportView.error.noRespondent")));
+                        .orElseThrow(() -> new IllegalStateException("the respondent no longer exists")); // i18n:ignore
             }
-            ReportService reportService = reportClient(new URI(rpt.url), REPORT_READ_TIMEOUT);
+            // UC-005 BR-017: any other address is called only when it is absolute http(s).
+            URI address = SafeUrls.httpUrl(rpt.url).orElse(null);
+            if (address == null) {
+                throw new IllegalStateException("the address is not an absolute http(s) address"); // i18n:ignore
+            }
+            ReportService reportService = reportClient(address, REPORT_READ_TIMEOUT);
             ReportResponse reportResponse = reportService.callReport(request);
             return reportResponse;
         } catch (jakarta.ws.rs.WebApplicationException e) {
-            // Handle license validation errors and other HTTP errors specifically
-            String errorMessage = getTranslation("reportView.error.service", e.getMessage());
-            
-            // Try to extract more detailed error information
+            String detail = e.getMessage();
+            int status = 0;
             if (e.getResponse() != null) {
-                int status = e.getResponse().getStatus();
-                
-                // Try to read the response entity if it exists and hasn't been consumed
+                status = e.getResponse().getStatus();
+                // The service's own answer says most; it may already have been consumed.
                 if (e.getResponse().hasEntity()) {
                     try {
                         String responseBody = e.getResponse().readEntity(String.class);
                         if (responseBody != null && !responseBody.trim().isEmpty()) {
-                            errorMessage = responseBody;
+                            detail = responseBody;
                         }
                     } catch (Exception readException) {
-                        // Response may have already been consumed, fall back to status-based message
-                        errorMessage = status == 403
-                                ? getTranslation("reportView.error.forbidden")
-                                : getTranslation("reportView.error.serviceHttp", status, e.getMessage());
+                        // Keep the exception's message.
                     }
-                } else {
-                    // No response entity, provide status-based error message
-                    errorMessage = status == 403
-                            ? getTranslation("reportView.error.forbidden")
-                            : getTranslation("reportView.error.serviceHttp", status, e.getMessage());
                 }
             }
-            
-            // Check if the exception message contains clues about license validation
-            if (e.getMessage() != null && e.getMessage().toLowerCase().contains("forbidden")) {
-                if (!errorMessage.toLowerCase().contains("license")) {
-                    errorMessage = getTranslation("reportView.error.license", errorMessage);
-                }
-            }
-            
-            ReportResponse reportResponse = new ReportResponse();
-            reportResponse.title = getTranslation("reportView.error.title", rpt.name);
-            reportResponse.innerHTML = getTranslation("reportView.error.html", rpt.name, errorMessage,
-                    getTranslation("reportView.error.licenseHint"));
-            return reportResponse;
+            Log.warn("Report '" + loggable(rpt.name) + "' at " + loggable(rpt.url) + " failed with HTTP " + status + ": " + loggable(detail));
+            return unavailable(rpt);
         } catch (Exception e) {
             // Handle other exceptions (network issues, URI parsing, etc.)
-            ReportResponse reportResponse = new ReportResponse();
-            reportResponse.title = getTranslation("reportView.error.title", rpt.name);
-            reportResponse.innerHTML = getTranslation("reportView.error.html", rpt.name, e.getMessage(), "");
-            return reportResponse;
+            Log.warn("Report '" + loggable(rpt.name) + "' at " + loggable(rpt.url) + " failed: " + loggable(e.getMessage()));
+            return unavailable(rpt);
         }
+    }
+
+    /**
+     * UC-005 A1: the card for a report that could not be shown. It names the report, which is
+     * survey content and therefore escaped, and says nothing else about the failure.
+     */
+    private ReportResponse unavailable(ReportDefinition rpt) {
+        ReportResponse reportResponse = new ReportResponse();
+        reportResponse.title = getTranslation("reportView.error.title", rpt.name);
+        reportResponse.innerHTML = getTranslation("reportView.error.unavailable", RespondentSummaryService.escape(rpt.name));
+        return reportResponse;
+    }
+
+    /** One line of bounded length for the log: no line breaks, at most {@link #LOGGED_DETAIL_LIMIT} characters. */
+    static String loggable(String text) {
+        if (text == null) {
+            return "";
+        }
+        String oneLine = text.replaceAll("\\s+", " ").strip();
+        return oneLine.length() <= LOGGED_DETAIL_LIMIT ? oneLine : oneLine.substring(0, LOGGED_DETAIL_LIMIT) + "...";
     }
 }

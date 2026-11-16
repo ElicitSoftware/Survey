@@ -12,6 +12,7 @@ package com.elicitsoftware.psa;
  */
 
 import com.elicitsoftware.model.PostSurveyAction;
+import com.elicitsoftware.util.SafeUrls;
 import jakarta.json.Json;
 import jakarta.json.JsonObjectBuilder;
 
@@ -167,8 +168,9 @@ public class PostSurveyActionCaller {
     }
 
     /**
-     * UC-015 A2: the refusals that need nothing but the action itself, an unsupported method or an
-     * External-ID action whose address is not https. Checked before anything is looked up for the
+     * UC-015 A2: the refusals that need nothing but the action itself, an unsupported method, an
+     * External-ID action whose address is not https, or an address that is neither http nor https
+     * (BR-009). Checked before anything is looked up for the
      * call, so a refusal is never mistaken for a failure. Returns the method to call with.
      */
     public String refuseUnsendable(PostSurveyAction psa) throws CallRefused {
@@ -178,6 +180,11 @@ public class PostSurveyActionCaller {
         }
         if (psa.sendsExternalId && (psa.url == null || !psa.url.trim().regionMatches(true, 0, "https://", 0, 8))) {
             throw new CallRefused(prefix(psa) + "Refused: the action sends the External ID, so its address must be https");
+        }
+        // UC-015 BR-009: only an http or https address is called. Refused, not failed, so it is
+        // recorded once and never retried. A missing address is reported by the caller.
+        if (psa.url != null && !psa.url.isBlank() && !SafeUrls.hasHttpScheme(psa.url)) {
+            throw new CallRefused(prefix(psa) + "Refused: the address is not an http or https address");
         }
         return method;
     }

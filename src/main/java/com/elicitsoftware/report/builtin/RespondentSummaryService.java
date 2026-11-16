@@ -413,7 +413,13 @@ public class RespondentSummaryService implements BuiltInReports.Service {
         return new ReportResponse(s.reportName(), html.toString(), pdf);
     }
 
-    static String escape(String text) {
+    /**
+     * Text made safe to place in HTML element content or a quoted attribute; null becomes empty.
+     *
+     * @param text the text as stored
+     * @return the text with its markup characters escaped
+     */
+    public static String escape(String text) {
         if (text == null) {
             return "";
         }

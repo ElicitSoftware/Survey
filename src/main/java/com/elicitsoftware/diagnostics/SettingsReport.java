@@ -37,6 +37,9 @@ public class SettingsReport {
     public record Setting(String property, String value, String warning) {
     }
 
+    static final String FORWARDING = "quarkus.http.proxy.proxy-address-forwarding";
+    static final String TRUSTED_PROXY = "quarkus.http.proxy.trusted-proxy";
+
     private static final Pattern URL_PASSWORD = Pattern.compile("(?i)(password=)[^&;]*");
 
     public SettingsReport() {
@@ -68,6 +71,18 @@ public class SettingsReport {
                 : "the reporting ETL is off: this instance does not build or update the reporting schema"));
 
         settings.add(plain(config, "brand.file.system.path"));
+
+        // UC-007 BR-006: forwarded headers are honored from whoever sends them unless the site
+        // names its proxy.
+        boolean forwarding = Boolean.parseBoolean(value(config, FORWARDING));
+        String trustedProxy = value(config, TRUSTED_PROXY);
+        settings.add(new Setting(FORWARDING, Boolean.toString(forwarding), null));
+        settings.add(new Setting(TRUSTED_PROXY, trustedProxy == null ? "(unset)" : trustedProxy,
+                forwarding && trustedProxy == null
+                        ? "forwarded headers are honored from any client, which can then set its own address, host"
+                        + " and scheme; set " + TRUSTED_PROXY + " to the proxy's address, or turn " + FORWARDING
+                        + " off if there is no proxy"
+                        : null));
 
         boolean otel = config.getOptionalValue("quarkus.otel.enabled", Boolean.class).orElse(true);
         settings.add(new Setting("quarkus.otel.enabled", Boolean.toString(otel), otel

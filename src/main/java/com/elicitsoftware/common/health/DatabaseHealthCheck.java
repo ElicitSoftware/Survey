@@ -11,6 +11,7 @@ package com.elicitsoftware.common.health;
  * ***LICENSE_END***
  */
 
+import io.quarkus.logging.Log;
 import org.eclipse.microprofile.health.HealthCheck;
 import org.eclipse.microprofile.health.HealthCheckResponse;
 import org.eclipse.microprofile.health.Readiness;
@@ -24,6 +25,9 @@ import java.sql.Connection;
 @ApplicationScoped
 public class DatabaseHealthCheck implements HealthCheck {
 
+    /** What a failed check answers, whatever the cause (NFR-014). */
+    static final String DOWN = "Database connection failed";
+
     @Inject
     DataSource dataSource;
 
@@ -36,7 +40,9 @@ public class DatabaseHealthCheck implements HealthCheck {
             
             return HealthCheckResponse.up("Database connection healthy");
         } catch (Exception e) {
-            return HealthCheckResponse.down("Database connection failed: " + e.getMessage());
+            // NFR-014: the answer is a status and a fixed text; the cause is for the operator's log.
+            Log.warn("Database health check failed", e);
+            return HealthCheckResponse.down(DOWN);
         }
     }
 }
