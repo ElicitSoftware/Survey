@@ -41,6 +41,8 @@ class RespondentSummaryResourceTest {
                 .POST(HttpRequest.BodyPublishers.ofString(body))
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
+                // UC-014 BR-009: the platform service token.
+                .header("Authorization", com.elicitsoftware.security.TestServiceToken.AUTHORIZATION)
                 .timeout(Duration.ofSeconds(60))
                 .build();
         return client.send(request, HttpResponse.BodyHandlers.ofString());

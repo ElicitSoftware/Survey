@@ -28,7 +28,9 @@ import java.util.Optional;
 
 /**
  * Makes one post-survey action call (UC-015 steps 3-5): the action's method, its address with the
- * placeholders filled, the JSON body for a method that carries one, and the site's credential.
+ * placeholders filled, the JSON body for a method that carries one, and the credential the call
+ * carries (UC-015 BR-003, BR-010). A redirect is never followed, so a credential reaches only the
+ * address it was chosen for.
  * It holds no state and touches no database; {@link PostSurveyActionDelivery} records the outcome.
  */
 public class PostSurveyActionCaller {
@@ -89,6 +91,27 @@ public class PostSurveyActionCaller {
      * @throws Exception   the call failed (UC-015 A1); the message says how
      */
     public String call(PostSurveyAction psa, int respondentId, Identity identity, Optional<String> authorization) throws Exception {
+        return call(psa, respondentId, identity, address -> authorization);
+    }
+
+    /** Chooses the {@code Authorization} header once the address the call goes to is known. */
+    @FunctionalInterface
+    public interface Authorization {
+        /**
+         * @param address the action's address with its placeholders filled
+         * @return the header value, or empty for a call with no credential
+         * @throws RuntimeException the call must not be made; it is recorded as failed (UC-015 BR-010)
+         */
+        Optional<String> forAddress(URI address);
+    }
+
+    /**
+     * Makes the call with the credential chosen for the filled address (UC-015 BR-010).
+     *
+     * @throws CallRefused the call was refused before it was made (UC-015 A2)
+     * @throws Exception   the call failed (UC-015 A1); the message says how
+     */
+    public String call(PostSurveyAction psa, int respondentId, Identity identity, Authorization credential) throws Exception {
         if (psa.url == null || psa.url.trim().isEmpty()) {
             throw new CallRefused(prefix(psa) + "URL is null or empty - please check the action configuration");
         }
@@ -96,8 +119,17 @@ public class PostSurveyActionCaller {
             throw new CallRefused(prefix(psa) + "Invalid respondent ID (" + respondentId + ") - ID must be a positive number");
         }
         Built built = build(psa, respondentId, identity);
+        Optional<String> authorization;
         try {
-            HttpClient client = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build();
+            authorization = credential.forAddress(built.uri());
+        } catch (RuntimeException e) {
+            throw new Exception(prefix(psa) + e.getMessage(), e);
+        }
+        try {
+            HttpClient client = HttpClient.newBuilder()
+                    .connectTimeout(CONNECT_TIMEOUT)
+                    .followRedirects(HttpClient.Redirect.NEVER)
+                    .build();
             HttpRequest.Builder request = HttpRequest.newBuilder().uri(built.uri()).timeout(timeout);
             authorization.ifPresent(value -> request.header("Authorization", value));
             if (built.body() == null) {

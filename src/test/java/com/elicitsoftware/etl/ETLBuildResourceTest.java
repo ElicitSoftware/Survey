@@ -43,6 +43,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@code elicit.etl.enabled=false} at boot and is covered without a database in
  * {@link ETLBuildResourceUnitTest}.
  * <p>
+ * Every request carries the platform service token (BR-004); what happens without it is covered
+ * by {@code ServiceTokenFilterTest}.
+ * <p>
  * No {@code @TestTransaction}: the request runs on the HTTP worker, on its own connection,
  * so fixture rows have to be committed for it to see them and are removed again in
  * {@code finally}.
@@ -72,6 +75,7 @@ class ETLBuildResourceTest {
         HttpRequest request = HttpRequest.newBuilder(java.net.URI.create(buildUrl.toString() + query))
                 .POST(HttpRequest.BodyPublishers.noBody())
                 .header("Accept", "application/json")
+                .header("Authorization", com.elicitsoftware.security.TestServiceToken.AUTHORIZATION)
                 .timeout(Duration.ofSeconds(60))
                 .build();
         return client.send(request, HttpResponse.BodyHandlers.ofString());

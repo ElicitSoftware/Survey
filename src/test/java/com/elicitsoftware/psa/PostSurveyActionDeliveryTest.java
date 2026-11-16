@@ -276,6 +276,53 @@ class PostSurveyActionDeliveryTest {
         }
     }
 
+    /** The origin {@code %test.elicit.service.trusted-origins} lists. */
+    private static final int TRUSTED_PORT = 18097;
+
+    /** BR-010: an action at a trusted origin, with no credential of its own, is called with the service token. */
+    @Test
+    void uc015_br010_anActionAtATrustedOriginIsCalledWithTheServiceToken() throws IOException {
+        List<String> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress("localhost", TRUSTED_PORT), 0);
+        server.createContext("/", exchange -> {
+            String header = exchange.getRequestHeaders().getFirst("Authorization");
+            seen.add(header == null ? "(none)" : header);
+            exchange.sendResponseHeaders(204, -1);
+            exchange.close();
+        });
+        server.start();
+        servers.add(server);
+        int r = respondent();
+        int a = action("trusted", "http://localhost:" + TRUSTED_PORT + "/familyhistory/generate/{respondentId}");
+
+        finish(r);
+
+        assertEquals(PostSurveyActionDelivery.DELIVERED, row(r, a).status);
+        assertEquals(List.of(com.elicitsoftware.security.TestServiceToken.AUTHORIZATION), seen);
+    }
+
+    /** BR-010: an action anywhere else is called with no credential. */
+    @Test
+    void uc015_br010_anActionAtAnyOtherOriginIsCalledWithoutACredential() throws IOException {
+        List<String> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+        server.createContext("/", exchange -> {
+            String header = exchange.getRequestHeaders().getFirst("Authorization");
+            seen.add(header == null ? "(none)" : header);
+            exchange.sendResponseHeaders(204, -1);
+            exchange.close();
+        });
+        server.start();
+        servers.add(server);
+        int r = respondent();
+        int a = action("elsewhere", "http://localhost:" + server.getAddress().getPort() + "/notify");
+
+        finish(r);
+
+        assertEquals(PostSurveyActionDelivery.DELIVERED, row(r, a).status);
+        assertEquals(List.of("(none)"), seen);
+    }
+
     @Inject
     PostSurveyActionCredentials credentials;
 

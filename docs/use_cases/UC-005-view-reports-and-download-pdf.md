@@ -26,7 +26,7 @@
 
 **A1: A report's external service call fails**
 - **Trigger:** The configured report service returns an error status, is unreachable, or times out.
-- System renders that report's card with the report's name and one fixed message, in the respondent's language, that the report is not available right now. Nothing the service answered, no status and no address is shown. The same card is shown for a report address that is not called at all (BR-017).
+- System renders that report's card with the report's name and one fixed message, in the respondent's language, that the report is not available right now. Nothing the service answered, no status and no address is shown. The same card is shown for a report address that is not called at all (BR-017, BR-020).
 - System logs the report's name, its address, the HTTP status and the service's answer or the failure's message (one line, at most 300 characters of it) at WARN for the operator, and continues rendering any other configured reports normally.
 - In the PDF, that report's section carries the same message as text.
 
@@ -57,6 +57,7 @@
 - **BR-017:** An address that comes from the survey definition is used only when it is an absolute `http` or `https` address that names a server and carries no user information. A post-survey URL that is anything else (a relative address, another scheme) is treated as if the survey had none: no redirect, no "Next" button, the completion notice where BR-014 calls for it, and one WARN in the log naming the survey. A report address that is neither a built-in path (BR-015) nor such an address is not called; its card is the one of A1.
 - **BR-018:** The PDF cache is bounded. Generating a PDF again replaces the one the page generated before. Expired PDFs are removed every five minutes and whenever a PDF is stored, not only when their link is asked for. The instance keeps at most 200 PDFs and 256 MB of them; past either ceiling the oldest are discarded first, never the one just generated. A link to a replaced, expired or discarded PDF answers as expired.
 - **BR-019:** A report's drawing is plain SVG. A drawing that declares entities, whose document type carries an internal subset, or that is longer than 5,000,000 characters is not parsed; PDF generation then fails as it does for a drawing that is not well-formed SVG, and the respondent sees the PDF error notification. A document type that only names the SVG DTD is accepted.
+- **BR-020:** An external report service is called with the platform service token only when the origin of its address is one of `elicit.service.trusted-origins` (UC-016 BR-007); any other report service is called with no credential. A report at a trusted origin is not called at all while Survey has no service token configured: its card is the one of A1 and the log line says `service token not configured`. The call never follows a redirect.
 - **BR-013:** The PDF download endpoint is intentionally unauthenticated (publicly reachable given a valid, time-limited cache key) — it relies on the cache key's unguessability and short lifetime rather than a login check.
 
 ## Notes / Known Gaps

@@ -22,7 +22,6 @@ import jakarta.persistence.EntityManager;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.util.List;
-import java.util.Optional;
 
 /**
  * Delivers a survey's post-survey actions for a respondent who has finished, and retries the calls
@@ -121,8 +120,9 @@ public class PostSurveyActionDelivery {
         try {
             caller.refuseUnsendable(psa);
             PostSurveyActionCaller.Identity identity = psa.sendsExternalId ? identity(respondentId) : PostSurveyActionCaller.Identity.NONE;
-            Optional<String> authorization = credentials.authorization(psa.postSurveyActionKey);
-            caller.call(psa, respondentId, identity, authorization);
+            // BR-010: the credential is chosen for the address the call really goes to.
+            caller.call(psa, respondentId, identity,
+                    address -> credentials.authorizationFor(psa.postSurveyActionKey, address));
             record(rowId, DELIVERED, null, true);
             Log.debugf("Post survey action %s delivered for respondent %d", psa.name, respondentId);
         } catch (PostSurveyActionCaller.CallRefused refused) {

@@ -22,6 +22,7 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -395,5 +396,77 @@ class PostSurveyActionCallerTest {
         assertEquals("GET", seenMethod.get());
         new PostSurveyActionCaller().call(action(url, "POST", false), 5);
         assertEquals(null, seen.get(), "no credential configured, no header");
+    }
+
+    /** A stand-in that records each call's Authorization header and answers with the status. */
+    private HttpServer recording(java.util.List<String> seen, int status, String location) throws IOException {
+        HttpServer recorder = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+        recorder.createContext("/", exchange -> {
+            String header = exchange.getRequestHeaders().getFirst("Authorization");
+            seen.add(header == null ? "(none)" : header);
+            if (location != null) {
+                exchange.getResponseHeaders().add("Location", location);
+            }
+            exchange.sendResponseHeaders(status, -1);
+            exchange.close();
+        });
+        recorder.start();
+        return recorder;
+    }
+
+    @Test
+    void uc015_br010_theCredentialIsChosenForTheFilledAddress() throws Exception {
+        java.util.List<String> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
+        java.util.concurrent.atomic.AtomicReference<java.net.URI> asked = new java.util.concurrent.atomic.AtomicReference<>();
+        server = recording(seen, 204, null);
+        String url = "http://localhost:" + server.getAddress().getPort() + "/n/{respondentId}";
+
+        new PostSurveyActionCaller().call(action(url, "POST", false), 5, PostSurveyActionCaller.Identity.NONE, address -> {
+            asked.set(address);
+            return java.util.Optional.of("Bearer chosen-for-the-address");
+        });
+
+        assertEquals("/n/5", asked.get().getPath(), "the address with its placeholders filled");
+        assertEquals(java.util.List.of("Bearer chosen-for-the-address"), seen, "one header, the chosen one");
+    }
+
+    @Test
+    void uc015_br010_aCallThatMustNotBeMadeIsAFailureAndSendsNothing() throws Exception {
+        java.util.List<String> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
+        server = recording(seen, 204, null);
+        String url = "http://localhost:" + server.getAddress().getPort() + "/n/{respondentId}";
+
+        Exception failure = assertThrows(Exception.class, () -> new PostSurveyActionCaller().call(action(url, "POST", false), 5,
+                PostSurveyActionCaller.Identity.NONE, address -> {
+                    throw new com.elicitsoftware.security.ServiceToken.NotConfigured();
+                }));
+
+        assertFalse(failure instanceof PostSurveyActionCaller.CallRefused, "a failure, so the schedule retries it");
+        assertTrue(failure.getMessage().contains("service token not configured"), failure.getMessage());
+        assertTrue(seen.isEmpty(), "nothing was sent");
+    }
+
+    @Test
+    void uc015_br010_aRedirectIsNotFollowed() throws Exception {
+        java.util.List<String> elsewhereSeen = new java.util.concurrent.CopyOnWriteArrayList<>();
+        HttpServer elsewhere = recording(elsewhereSeen, 204, null);
+        try {
+            for (int status : new int[]{301, 302, 303, 307, 308}) {
+                java.util.List<String> seen = new java.util.concurrent.CopyOnWriteArrayList<>();
+                HttpServer redirecting = recording(seen, status, "http://localhost:" + elsewhere.getAddress().getPort() + "/collect");
+                try {
+                    String url = "http://localhost:" + redirecting.getAddress().getPort() + "/generate";
+
+                    assertThrows(Exception.class, () -> new PostSurveyActionCaller().call(action(url, "POST", false), 5,
+                            PostSurveyActionCaller.Identity.NONE, java.util.Optional.of("Bearer s3cret")), "a " + status + " is a failed call");
+                    assertEquals(java.util.List.of("Bearer s3cret"), seen);
+                } finally {
+                    redirecting.stop(0);
+                }
+            }
+            assertTrue(elsewhereSeen.isEmpty(), "the credential never left for the redirect target: " + elsewhereSeen);
+        } finally {
+            elsewhere.stop(0);
+        }
     }
 }

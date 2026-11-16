@@ -60,6 +60,8 @@ class ETLSchemaResourceTest {
         HttpRequest request = HttpRequest.newBuilder(URI.create(etlUrl.toString() + path))
                 .method(method, HttpRequest.BodyPublishers.noBody())
                 .header("Accept", "application/json")
+                // UC-010 BR-005, UC-011 BR-001: the platform service token.
+                .header("Authorization", com.elicitsoftware.security.TestServiceToken.AUTHORIZATION)
                 .timeout(Duration.ofSeconds(60))
                 .build();
         return client.send(request, HttpResponse.BodyHandlers.ofString());

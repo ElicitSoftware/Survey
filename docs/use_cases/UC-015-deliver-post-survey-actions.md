@@ -20,7 +20,7 @@
 1. The system takes the survey's actions in execution order.
 2. For each action, the system records the delivery as pending for this respondent, and makes that record visible before calling, so that a service which records its own progress on the same delivery finds it.
 3. The system builds the call: the action's method; its address with the respondent's id, and the subject's External ID where the action sends it, filled into the address's placeholders; for a method that carries a body, the respondent's id, and the External ID with the department's code where the action sends them.
-4. The system adds the credential the site configured for this action, if any (BR-003).
+4. The system adds the credential the site configured for this action, if any (BR-003), or the platform service token when the action has none and its address is at an origin the site trusts (BR-010).
 5. The system calls the action and waits a bounded time for the answer.
 6. The service answers with success, and the system records the delivery as delivered, unless the service has already recorded progress of its own on it, which the system then leaves as it is.
 7. The system moves on to the next action; one action's outcome never affects another's.
@@ -117,3 +117,7 @@ Survey waits 5 seconds to connect and 60 seconds for the answer, on the first ca
 ### BR-009: Only an http or https address is called
 
 An action's address comes from the survey definition. An address whose scheme is anything but `http` or `https` is refused before the call (A2) and recorded once as `CALL_REFUSED`; it is not attempted and so is never retried.
+
+### BR-010: The platform service token goes only to a trusted origin
+
+One `Authorization` header at most is sent. An action with a credential of its own (BR-003) is called with that credential and never with the platform service token, whatever its address. An action without one, whose address after its placeholders are filled is at an origin listed in `elicit.service.trusted-origins`, is called with the platform service token (UC-016 BR-007); that is how a platform service such as FHHS is reached. Any other action is called with no credential. While Survey has no service token configured, an action that would carry it is not called: the delivery is recorded as `CALL_FAILED` with `service token not configured` and is retried on the schedule (BR-005). The call never follows a redirect.
