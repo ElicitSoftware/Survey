@@ -25,7 +25,7 @@
   /* Accent - Verdigris family (the mark's selected row). Darkened from the
      original #2FA084 -- white button/badge text on that fill was 3.24:1,
      below WCAG AA's 4.5:1 for normal text. Same hue/saturation, just deeper;
-     white text on this base is ~5.46:1. */
+     white text on this base is ~5.43:1. */
   --elicit-verdigris: #22775D;
   --elicit-verdigris-dark: #1C5F4B;
   --elicit-verdigris-light: #5CBBA4;
@@ -81,7 +81,10 @@
   --brand-text-disabled: #93A0AB;
   --brand-text-on-primary: var(--elicit-paper);
   --brand-text-on-secondary: var(--elicit-white);
-  --brand-text-on-accent: var(--elicit-ink);
+  /* Author's rule glyphs draw on the accent. White, as on the secondary
+     color (the same Verdigris), holds ~5.43:1, above WCAG AA's 4.5:1 for
+     text; Ink on Verdigris is ~2.1:1, under the 3:1 even an icon needs. */
+  --brand-text-on-accent: var(--elicit-white);
 
   /* Interactive states */
   --brand-hover: rgba(34, 119, 93, 0.1);
