@@ -169,7 +169,8 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
 
         this.setAlignItems(Alignment.CENTER);
 
-        //Add instruction for auto register testing.
+        //Tell the respondent what a self-chosen access code must be (UC-001 A2, BR-001). Auto-registration is a
+        //site's choice, so there is no warning (UC-001 BR-002).
         if (accessCodeService.isAutoRegister()) {
             Div autoRegisterInstructions = new Div();
             autoRegisterInstructions.getElement().setProperty("innerHTML", getTranslation("mainView.autoRegister.instructions"));
@@ -297,13 +298,6 @@ public class MainView extends VerticalLayout implements HasDynamicTitle , HasUrl
         loginLayout.add(txtAccessCode, btnLogin);
 
         this.add(loginLayout);
-
-        //Add the auto register WARNING
-        if (accessCodeService.isAutoRegister()) {
-            Div autoRegisterWarning = new Div();
-            autoRegisterWarning.getElement().setProperty("innerHTML", getTranslation("mainView.autoRegister.warning"));
-            this.add(autoRegisterWarning);
-        }
     }
 
     /**

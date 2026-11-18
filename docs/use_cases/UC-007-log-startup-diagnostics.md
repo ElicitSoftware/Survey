@@ -34,9 +34,8 @@
 - **Trigger:** The read in step 3 as `survey_user` is denied because the schema predates the V017 grant.
 - System reads the history through the owner connection instead and reports the version at WARN, naming the application user's failure, because the Author module's System page reads the same table as the same user.
 
-**A3: A test-only setting is on**
-- **Trigger:** `accessCode.autoRegister` is true in step 6.
-- System reports the setting at WARN with the reminder that any access code a visitor types creates a respondent and the setting must be removed for production.
+**A3: Retired**
+- `accessCode.autoRegister` used to be reported at WARN as a test-only setting. Auto-registration is a site's choice (UC-001 BR-002, Admin #96), so step 6 lists its value like any other setting. The identifier is kept so the later flows keep theirs.
 
 **A4: The build information was not recorded**
 - **Trigger:** The version or build timestamp was not filtered into the packaged configuration (step 2).

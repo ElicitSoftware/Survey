@@ -284,9 +284,9 @@ class StartupDiagnosticsReportLinesTest {
 
     @Test
     void given_aSettingWithAWarning_when_lines_then_aWarningWithTheAdvice() {
-        settings = List.of(new SettingsReport.Setting("accessCode.autoRegister", "true", "anyone can register"));
+        settings = List.of(new SettingsReport.Setting("elicit.etl.enabled", "false", "the reporting ETL is off"));
 
-        assertEquals(List.of("setting accessCode.autoRegister=true: anyone can register", "report complete: 1 warning above"),
+        assertEquals(List.of("setting elicit.etl.enabled=false: the reporting ETL is off", "report complete: 1 warning above"),
                 warnings(report().lines()));
     }
 

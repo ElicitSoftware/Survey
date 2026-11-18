@@ -235,19 +235,16 @@ class MainViewLoginFlowTest extends PlainViewTestSupport {
     }
 
     @Test
-    void given_autoRegisterEnabled_when_init_then_instructionsPrecedeAndWarningFollowsLoginLayout() {
+    void given_autoRegisterEnabled_when_init_then_instructionsPrecedeTheLoginLayoutAndNoWarningFollows() {
         accessCodes.autoRegisterFlag = true;
 
         MainView view = build();
 
-        assertEquals(3, view.getComponentCount());
+        assertEquals(2, view.getComponentCount(), "UC-001 A2: a site's choice, so no warning (BR-002)");
         Component first = view.getComponentAt(0);
-        Component last = view.getComponentAt(2);
         assertTrue(first instanceof Div);
         assertTrue(view.getComponentAt(1) instanceof VerticalLayout);
-        assertTrue(last instanceof Div);
         assertEquals(t("mainView.autoRegister.instructions"), first.getElement().getProperty("innerHTML"));
-        assertEquals(t("mainView.autoRegister.warning"), last.getElement().getProperty("innerHTML"));
     }
 
     @Test
