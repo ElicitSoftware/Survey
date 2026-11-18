@@ -11,6 +11,7 @@ package com.elicitsoftware;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.flow.GlobalStrings;
 import com.elicitsoftware.i18n.ContentTranslator;
 import com.elicitsoftware.model.*;
 import com.elicitsoftware.response.NavResponse;
@@ -99,7 +100,8 @@ public class QuestionManager {
      * over a whole segment of the text, which could not tell the token {@code NAME} from the word
      * "name" in ordinary prose and would rewrite the prose instead of the placeholder.</p>
      */
-    private static String fillPhrase(String phrase, TreeMap<String, String> values, java.util.Set<String> authored) {
+    private static String fillPhrase(String phrase, TreeMap<String, String> values, java.util.Set<String> authored,
+                                     boolean html) {
         Matcher ref = TOKEN_REF.matcher(phrase);
         StringBuilder filled = new StringBuilder();
         boolean any = false;
@@ -109,12 +111,14 @@ public class QuestionManager {
             if (value == null) {
                 return null;
             }
-            // The respondent's own words are attacker-controllable and are escaped. A value the
-            // author wrote is not: it has already had its own placeholders resolved, and escaping it
-            // here would double-escape the respondent text spliced into it -- and would destroy the
-            // <TOKEN> brackets it carries before they could be read at all.
+            // The respondent's own words are attacker-controllable, so in a text rendered as HTML
+            // they are escaped. Everywhere else the label is set as plain text, which an entity
+            // would only corrupt (O'Brien shown as O&#39;Brien, #149), so they go in as typed. A
+            // value the author wrote is never escaped: it has already had its own placeholders
+            // resolved, and escaping it here would double-escape the respondent text spliced into
+            // it -- and would destroy the <TOKEN> brackets it carries before they could be read.
             boolean fromAuthor = authored.stream().anyMatch(t -> t.equalsIgnoreCase(ref.group(1)));
-            ref.appendReplacement(filled, Matcher.quoteReplacement(fromAuthor ? value : escapeHtml(value)));
+            ref.appendReplacement(filled, Matcher.quoteReplacement(fromAuthor || !html ? value : escapeHtml(value)));
         }
         ref.appendTail(filled);
         return any ? filled.toString() : null;
@@ -145,7 +149,8 @@ public class QuestionManager {
      * once and never rescanned, so free text that happens to contain braces is never taken for a
      * placeholder.</p>
      */
-    private static TreeMap<String, String> resolveAuthoredValues(TreeMap<String, String> values, java.util.Set<String> authored) {
+    private static TreeMap<String, String> resolveAuthoredValues(TreeMap<String, String> values, java.util.Set<String> authored,
+                                                                 boolean html) {
         if (authored.isEmpty()) {
             return values;
         }
@@ -157,7 +162,7 @@ public class QuestionManager {
                 if (value == null || value.indexOf('{') < 0) {
                     continue;
                 }
-                String next = substituteOnce(value, ready, authored);
+                String next = substituteOnce(value, ready, authored, html);
                 if (!next.equals(value)) {
                     ready.put(token, next);
                     changed = true;
@@ -171,7 +176,8 @@ public class QuestionManager {
     }
 
     /** One pass over a template: every placeholder filled, or left as its default. */
-    private static String substituteOnce(String text, TreeMap<String, String> values, java.util.Set<String> authored) {
+    private static String substituteOnce(String text, TreeMap<String, String> values, java.util.Set<String> authored,
+                                         boolean html) {
         Matcher placeholder = PLACEHOLDER.matcher(text);
         StringBuilder out = new StringBuilder();
         while (placeholder.find()) {
@@ -185,7 +191,7 @@ public class QuestionManager {
                 if (!TOKEN_REF.matcher(phrase).find()) {
                     warnUndelimited(phrase, values);
                 }
-                String filled = fillPhrase(phrase, values, authored);
+                String filled = fillPhrase(phrase, values, authored, html);
                 replacement = filled != null ? filled : (defaultText == null ? phrase : defaultText);
             }
             placeholder.appendReplacement(out, Matcher.quoteReplacement(replacement));
@@ -220,6 +226,11 @@ public class QuestionManager {
         return replaceTokens(text, values, java.util.Set.of());
     }
 
+    /** A text with its placeholders filled, for a label set as plain text. */
+    static String replaceTokens(String text, TreeMap<String, String> values, java.util.Set<String> authored) {
+        return replaceTokens(text, values, authored, false);
+    }
+
     /**
      * A text with its placeholders filled.
      *
@@ -232,12 +243,16 @@ public class QuestionManager {
      * @param authored the tokens whose value is prose the author wrote, rather than an answer the
      *                 respondent gave: those values may be placeholders in their own right and are
      *                 resolved first, and they are spliced in without HTML-escaping
+     * @param html     whether the text is rendered as HTML ({@code ElicitHtml}, {@code ElicitModal}):
+     *                 then the respondent's values are HTML-escaped; otherwise they go in as typed,
+     *                 since every other consumer sets the text as plain text (#149)
      */
-    static String replaceTokens(String text, TreeMap<String, String> values, java.util.Set<String> authored) {
+    static String replaceTokens(String text, TreeMap<String, String> values, java.util.Set<String> authored,
+                                boolean html) {
         if (text == null) {
             return null;
         }
-        text = substituteOnce(text, resolveAuthoredValues(values, authored), authored);
+        text = substituteOnce(text, resolveAuthoredValues(values, authored, html), authored, html);
 
         // English possessive tidying, applied unconditionally to every rendered text.
         //
@@ -259,8 +274,10 @@ public class QuestionManager {
         // they are applied to translated text too. That is harmless for the languages shipped today
         // rather than by design: "her's"/"his's"/"Your's" are English word forms, and "s's" needs a
         // literal ASCII s-apostrophe-s, which neither es-419 nor ar writes. A respondent's own words
-        // cannot smuggle one in either -- fillPhrase HTML-escapes them first, turning ' into &#39;.
-        // A target language that does write s-apostrophe-s would be corrupted here silently.
+        // are tidied too in a plain-text label, where they go in unescaped (#149): a name typed as
+        // "Bess's Cafe" reads "Bess' Cafe". In an HTML text they are escaped first, ' to &#39;, so
+        // they are not. A target language that does write s-apostrophe-s would be corrupted here
+        // silently.
         //
         // Author's PreviewFields.substituteTokens holds an independent copy of these four
         // replacements so the designer preview matches the runtime. Change one, change both.
@@ -274,11 +291,11 @@ public class QuestionManager {
 
     /**
      * Escapes HTML-significant characters in a string so it is safe to splice into
-     * HTML markup that will later be rendered via {@code innerHTML} (e.g. by
-     * {@code ElicitHtml}). This is used to escape individual token substitution
-     * values (attacker-controllable free-text survey answers) before they are
-     * spliced into display text templates, without altering any legitimate literal
-     * HTML that may already be present in the template text itself.
+     * HTML markup that will later be rendered via {@code innerHTML} (by
+     * {@code ElicitHtml} or {@code ElicitModal}). This is used to escape individual token
+     * substitution values (attacker-controllable free-text survey answers) before they are
+     * spliced into the display text of an HTML question, without altering any legitimate
+     * literal HTML that may already be present in the template text itself.
      *
      * @param input the raw value to escape; {@code null} is treated as an empty string
      * @return the HTML-escaped value, safe to insert into HTML markup
@@ -1593,7 +1610,8 @@ public class QuestionManager {
         // sources() names the tokens whose value the author wrote on a rule, which are the ones that
         // may be placeholders themselves and that must not be HTML-escaped (BR-011).
         java.util.Set<String> authored = tokens.sources().keySet();
-        answer.displayText = replaceTokens(text, tokens.base(), authored);
+        boolean html = rendersAsHtml(answer);
+        answer.displayText = replaceTokens(text, tokens.base(), authored, html);
 
         if (localTemplate == null) {
             answer.displayTextLocal = null;
@@ -1602,9 +1620,23 @@ public class QuestionManager {
             String local = localTemplate
                     .replaceAll("\\{Q#\\}", answer.getKey().getQuestionInstance() + "")
                     .replaceAll("\\{S#\\}", answer.getKey().getStepInstance() + "");
-            answer.displayTextLocal = replaceTokens(local, tokens.localized(survey, translator, asOf), authored);
+            answer.displayTextLocal = replaceTokens(local, tokens.localized(survey, translator, asOf), authored, html);
             answer.displayLanguage = language;
         }
+    }
+
+    /**
+     * Whether an answer's label is rendered as HTML: an HTML or MODAL question, which
+     * {@code SectionView} shows through {@code ElicitHtml} or {@code ElicitModal} and their
+     * {@code innerHTML}. Every other label -- input components, section and step titles, the review
+     * page, the respondent summary and Admin's export -- is plain text (#149).
+     */
+    static boolean rendersAsHtml(Answer answer) {
+        if (answer.question == null || answer.question.questionType == null) {
+            return false;
+        }
+        String type = answer.question.questionType.name;
+        return GlobalStrings.QUESTION_TYPE_HTML.equals(type) || GlobalStrings.QUESTION_TYPE_MODAL.equals(type);
     }
 
     /**
