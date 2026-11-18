@@ -31,10 +31,10 @@
 - System logs the failure at WARN, naming the survey and how many attempts have failed on this page, and counts it on the `survey.login.failed` metric (BR-020). The code that was typed is in neither.
 - Note: the code contains commented/documented fallback rules (search by access code across all active surveys; fall back to the lowest survey id) that are described in a Javadoc comment on `AccessCodeService.getUser` but are not actually implemented — only an exact survey + access code match is performed. This is a gap between documented intent and behavior, not a supported flow.
 
-**A2: Auto-registration enabled (non-production/test deployments only)**
-- **Trigger:** No respondent record matches the access code, and the `accessCode.autoRegister` configuration property is `true` (enabled by default only in dev/test profiles).
+**A2: Auto-registration enabled**
+- **Trigger:** No respondent record matches the access code, and the `accessCode.autoRegister` configuration property is `true` (off by default; on in the dev and test profiles).
 - System automatically creates and activates a new respondent for the entered access code and proceeds to the survey-answering flow.
-- The login page displays an on-screen warning that auto-registration is enabled and is for testing only.
+- The login page tells the respondent to enter an access code of 5 to 12 characters (BR-001). It shows no warning: auto-registration is a site's choice (BR-002).
 
 **A3: Access code fails client-side validation**
 - **Trigger:** The entered access code is empty, or shorter than 5 characters, or longer than 12 characters.
@@ -65,7 +65,7 @@
 ## Business Rules
 
 - **BR-001:** An access code must be between 5 and 12 characters, inclusive, and is case-sensitive.
-- **BR-002:** Auto-registration of a respondent from an unrecognized access code is only permitted when `accessCode.autoRegister` is enabled; it defaults to disabled and must not be enabled in production.
+- **BR-002:** Auto-registration of a respondent from an unrecognized access code is only permitted when `accessCode.autoRegister` is enabled; it defaults to disabled, and a site may enable it to let people start a survey without being registered beforehand. An auto-registered respondent has no subject row: no name, contact details, External ID or department. Admin lists it as "Auto-registered" for every console user (Admin UC-002 BR-181), and a post-survey action receives no subject identity for it. Anyone who can reach the login page can start the survey, so no access code is ever a failed attempt (BR-020) and the code a respondent picks is the only thing that brings them back to their answers.
 - **BR-003:** A respondent whose survey is still active (not finalized) is routed to the survey-answering flow on login; a respondent who has finalized the survey is routed to the reports flow instead.
 - **BR-020:** An access code that matches no respondent is a failed attempt: it is logged at WARN and counted by survey on the `survey.login.failed` metric. The code that was typed is never logged. Restoring a session after a reconnect is not an attempt, whatever its outcome, and with auto-registration on (BR-002) no attempt fails.
 - **BR-021:** Once the login page has read an access code from its address, it replaces the address with the plain login address. The access log does not record the request that carried the code (NFR-015).

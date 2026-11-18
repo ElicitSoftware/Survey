@@ -64,9 +64,8 @@ public class SettingsReport {
         settings.add(secret(config, "quarkus.datasource.owner.password"));
 
         boolean autoRegister = config.getOptionalValue("accessCode.autoRegister", Boolean.class).orElse(false);
-        settings.add(new Setting("accessCode.autoRegister", Boolean.toString(autoRegister), autoRegister
-                ? "any access code a visitor types creates a respondent; remove this setting for production"
-                : null));
+        // A site's choice, not a test-only switch (UC-001 BR-002, UC-007 A3 retired)
+        settings.add(new Setting("accessCode.autoRegister", Boolean.toString(autoRegister), null));
 
         boolean etl = config.getOptionalValue("elicit.etl.enabled", Boolean.class).orElse(true);
         settings.add(new Setting("elicit.etl.enabled", Boolean.toString(etl), etl

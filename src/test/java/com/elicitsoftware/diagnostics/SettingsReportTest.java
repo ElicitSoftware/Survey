@@ -66,10 +66,12 @@ class SettingsReportTest {
         assertEquals("jdbc:postgresql://db:5432/survey?user=u&password=***&ssl=true", value);
     }
 
-    /** UC-007 A3: auto-registration on is a warning; off is not. */
+    /** UC-001 BR-002, UC-007 A3 retired: auto-registration is a site's choice, listed without a warning either way. */
     @Test
-    void autoRegisterOnIsAWarning() {
-        assertNotNull(setting(settings(Map.of("accessCode.autoRegister", "true")), "accessCode.autoRegister").warning());
+    void autoRegisterIsListedWithoutAWarning() {
+        SettingsReport.Setting on = setting(settings(Map.of("accessCode.autoRegister", "true")), "accessCode.autoRegister");
+        assertEquals("true", on.value());
+        assertNull(on.warning());
         assertNull(setting(settings(Map.of("accessCode.autoRegister", "false")), "accessCode.autoRegister").warning());
         assertNull(setting(settings(Map.of()), "accessCode.autoRegister").warning());
     }

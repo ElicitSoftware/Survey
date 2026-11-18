@@ -80,13 +80,13 @@ class StartupDiagnosticsReportTest {
         }
     }
 
-    /** UC-007 step 6 / A3: a test-only setting is a warning an operator can act on. */
+    /** UC-007 step 6, UC-001 BR-002: auto-registration is listed, and is not a warning. */
     @Test
-    void autoRegisterIsWarnedAbout() {
+    void autoRegisterIsListedWithoutAWarning() {
         List<StartupDiagnosticsReport.Line> lines = report.lines();
 
-        assertTrue(lines.stream().anyMatch(l -> l.isWarning()
-                && l.text().startsWith("setting accessCode.autoRegister=true")), text(lines));
+        assertTrue(lines.stream().anyMatch(l -> !l.isWarning()
+                && l.text().equals("setting accessCode.autoRegister=true")), text(lines));
     }
 
     /** UC-007 step 7: the last line counts the warnings above it. */
