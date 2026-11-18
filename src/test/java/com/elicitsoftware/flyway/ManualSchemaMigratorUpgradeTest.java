@@ -50,8 +50,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * validate against {@code db/migration} (must fail, since its V001 now has Kimball baked in
  * and therefore a different checksum), migrate via {@code db/migration-v3} (applies V010 and
  * V011), repair against {@code db/migration}, then validate against {@code db/migration} again
- * (must now succeed, proving every future boot converges there directly). A second test method
- * covers the case of a database that already upgraded before V011 existed.
+ * (must now succeed, proving every future boot converges there directly).
  */
 class ManualSchemaMigratorUpgradeTest {
 
@@ -106,36 +105,6 @@ class ManualSchemaMigratorUpgradeTest {
 
         // A database that upgrades AFTER V011 exists in db/migration-v3 must get the correct
         // constraint in the very same boot -- no second reboot needed.
-        assertMetadataElementCheckReferencesDurableColumns();
-    }
-
-    /**
-     * Reproduces the exact bug found in db/migration-v3's original V010: a database that
-     * upgraded BEFORE V011 existed (i.e. ran only V001-V010, then got repaired onto
-     * db/migration) ends up with {@code metadata_element_ck} enforcing against the renamed-
-     * away {@code *_surrogate} columns instead of the new durable columns. Confirms
-     * ManualSchemaMigrator's ordinary next-boot path -- plain {@code migrate()} against
-     * db/migration, no special-cased repair logic -- picks up the now-pending V011 and fixes
-     * the constraint in place.
-     */
-    @Test
-    void upgradeTrack_appliedBeforeV011Existed_convergesOnNextPlainMigrate() throws SQLException {
-        // Simulate a database that upgraded when db/migration-v3's latest version was still
-        // V010 (i.e. before this fix shipped): apply only through V010, then repair -- exactly
-        // what a real already-upgraded database's history looks like today.
-        flywayFor("classpath:db/migration-v3", "10").migrate();
-        flywayFor("classpath:db/migration", "10").repair();
-
-        assertMetadataElementCheckDefinition(
-                "CHECK ((((step_section_id_surrogate + question_id_surrogate) + section_question_id_surrogate) > 0))",
-                "A database upgraded via the old (pre-fix) V010 must reproduce the bug: the "
-                        + "constraint still enforces against the renamed-away surrogate columns");
-
-        // The next ordinary boot: ManualSchemaMigrator.validatesCleanly() passes (V001-V010
-        // checksums already match db/migration after the repair above), so it takes the plain
-        // migrate() branch -- which now finds V011 pending and applies it.
-        flywayFor("classpath:db/migration", null).migrate();
-
         assertMetadataElementCheckReferencesDurableColumns();
     }
 
@@ -249,6 +218,7 @@ class ManualSchemaMigratorUpgradeTest {
                     "downstream_step_id", "downstream_ss_id", "downstream_sq_id");
             assertHasColumns(conn, "answers", "question_version");
             assertAccessCodeSchema(conn);
+            assertMetadataSurrogateColumnsDropped(conn);
 
             // V021: the single site-wide star is dropped (the next startup regenerates one
             // schema per survey, UC-008 BR-006); the conformed dimensions stay; the triggers go.
@@ -296,6 +266,27 @@ class ManualSchemaMigratorUpgradeTest {
                         "SELECT COUNT(*) FROM pg_indexes WHERE schemaname = 'survey' AND tablename = 'respondents' "
                                 + "AND indexname LIKE '%token%'"),
                 "no respondents index may still be named after token");
+    }
+
+    /**
+     * Issue #111: V010 drops metadata's three surrogate FK columns and the indexes V001 created on
+     * them, leaving metadata as db/migration's V001 creates it on a fresh database.
+     */
+    private void assertMetadataSurrogateColumnsDropped(Connection conn) throws SQLException {
+        for (String column : new String[]{"question_id_surrogate", "section_question_id_surrogate",
+                "step_section_id_surrogate"}) {
+            assertLacksColumn(conn, "metadata", column);
+        }
+        assertEquals(0, countRows(conn,
+                        "SELECT COUNT(*) FROM pg_indexes WHERE schemaname = 'survey' AND indexname IN "
+                                + "('metadata_question_index', 'metadata_section_question_index', 'metadata_step_section_index')"),
+                "the indexes on the *_surrogate columns must be dropped with them");
+        for (String index : new String[]{"metadata_question_id_index", "metadata_sections_question_id_idx",
+                "metadata_steps_sections_id_idx"}) {
+            assertEquals(1, countRows(conn,
+                            "SELECT COUNT(*) FROM pg_indexes WHERE schemaname = 'survey' AND indexname = '" + index + "'"),
+                    "the durable-column index " + index + " must remain");
+        }
     }
 
     private long countRows(Connection conn, String sql) throws SQLException {
