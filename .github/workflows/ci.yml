@@ -19,6 +19,9 @@ on:
     branches:
       - main
       - V3
+    tags:
+      - 'v*'
+      - 'V*'
   pull_request:
     branches:
       - main
@@ -27,6 +30,10 @@ on:
 jobs:
   test:
     name: Build and Test with Maven
+    # Runs only for a release tag. Pull requests and branch pushes still trigger the workflow so
+    # that the ruleset's required check reports, but the job is skipped there, and a skipped job
+    # satisfies a required check. Actions minutes are spent once per release, not on every change.
+    if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     # The suite boots Quarkus many times over a container database. A hung run would
     # otherwise hold a runner for the default six hours.
@@ -48,12 +55,13 @@ jobs:
         # The image carries English only; the language tests read the other languages from
         # ../elicit-i18n, exactly as the dev and test profiles do in a local umbrella checkout.
         # Prefer the umbrella branch with the same name as this one, so a cross-repo change can be
-        # tested before merge; otherwise the umbrella's default branch.
+        # tested before merge, or the umbrella tag with the same name as the release tag;
+        # otherwise the umbrella's default branch.
         run: |
           UMBRELLA=https://github.com/ElicitSoftware/Elicit.git
           BRANCH="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
           REF=()
-          if git ls-remote --exit-code --heads "$UMBRELLA" "$BRANCH" >/dev/null 2>&1; then
+          if git ls-remote --exit-code "$UMBRELLA" "refs/heads/$BRANCH" "refs/tags/$BRANCH" >/dev/null 2>&1; then
             REF=(--branch "$BRANCH")
           fi
           git clone --depth 1 --filter=blob:none --sparse "${REF[@]}" "$UMBRELLA" "$RUNNER_TEMP/elicit"
