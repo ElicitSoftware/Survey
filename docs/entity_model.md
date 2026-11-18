@@ -379,13 +379,14 @@ Attaches an ONTOLOGY tag's value to exactly one of a step/section mapping, a que
 |---|---|---|---|---|
 | id | Primary key. | Long | — | Primary Key, Sequence |
 | surveyId | The survey this metadata belongs to. | Long | — | Not Null, Foreign Key (SURVEY.id) |
-| stepSectionId | The step/section mapping being tagged, if applicable. | Long | — | Optional, Foreign Key (STEPS_SECTIONS.id) |
-| questionId | The question being tagged, if applicable. | Long | — | Optional, Foreign Key (QUESTION.id) |
-| sectionQuestionId | The section-question placement being tagged, if applicable. | Long | — | Optional, Foreign Key (SECTIONS_QUESTION.id) |
+| metadataKey | Stable key; matches the tag across sites. | UUID | — | Not Null, Unique |
+| stepsSectionsId | The step/section mapping tagged, by durable id (`steps_sections.steps_sections_id`), if applicable; one row covers every version. | Integer | — | Optional, no FK (durable id) |
+| questionId | The question tagged, by durable id (`questions.question_id`), if applicable. | Integer | — | Optional, no FK (durable id) |
+| sectionsQuestionId | The question placement tagged, by durable id (`sections_questions.sections_question_id`), if applicable. | Integer | — | Optional, no FK (durable id) |
 | ontologyId | The ontology tag being applied. | Long | — | Not Null, Foreign Key (ONTOLOGY.id) |
 | value | The tag's value for this specific element. | String | 255 | Optional |
 
-*Validation note (from SQL): a check constraint requires exactly one of `stepSectionId`/`questionId`/`sectionQuestionId` to be set (enforced as `(a+b+c) > 0`, which also technically permits more than one being set simultaneously — a loose approximation of "exactly one," not a strict XOR).*
+*Validation note (from SQL): a check constraint requires exactly one of `stepsSectionsId`/`questionId`/`sectionsQuestionId` to be set (enforced as `(a+b+c) > 0`, which also technically permits more than one being set simultaneously — a loose approximation of "exactly one," not a strict XOR). The upgrade track drops metadata's pre-Kimball surrogate columns (`step_section_id`, `question_id`, `section_question_id`) in V010, so both tracks end with these columns only.*
 
 ### REPORT_ITEM *(Survey V023; mapped read-only by `ReportItem`)*
 
