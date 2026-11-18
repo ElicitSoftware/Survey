@@ -49,6 +49,13 @@ can be dropped — a separate, later effort, not part of this fix), and physical
 on the ALTER-based tables (confirmed harmless — no `SELECT *` or positional column access
 anywhere in the codebase).
 
+**Superseded (issue #111).** No V2 database had been upgraded and V3 had not been released, so
+`V010` itself was changed: it now carries the values over to the durable columns and drops the
+three surrogate columns and their indexes instead of renaming them, and recreates
+`metadata_element_ck` and `metadata_un` against the durable columns. The first difference above
+is gone, and on the upgrade track `V011` is now an idempotent re-assertion like its greenfield
+twin. The staging gate was dropped with it: there was no upgraded database to verify against.
+
 ### Finding #2 — `survey.dimensions_seq` `USAGE` grant: brownfield-only gap, not greenfield
 
 Originally reported as a gap on *both* tracks. On re-verification via `git log -S` against
