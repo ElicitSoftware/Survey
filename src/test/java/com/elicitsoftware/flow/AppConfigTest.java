@@ -11,11 +11,13 @@ package com.elicitsoftware.flow;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.util.BrandUtil;
 import com.vaadin.flow.server.AppShellSettings;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -41,8 +43,23 @@ class AppConfigTest {
         AppConfig config = new AppConfig();
         config.brandFileSystemPath = externalDir.toString();
         config.brandLocalPath = localDir.toString();
+        config.brandUtil = brandUtilFor(externalDir);
         config.init();
         return config;
+    }
+
+    // The favicon comes from the real BrandUtil (umbrella UC-014 BR-008), pointed at the same mount;
+    // its path field is package-private in another package, so it is set reflectively.
+    private static BrandUtil brandUtilFor(Path externalDir) {
+        BrandUtil util = new BrandUtil();
+        try {
+            Field field = BrandUtil.class.getDeclaredField("brandFileSystemPath");
+            field.setAccessible(true);
+            field.set(util, externalDir.toString());
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
+        return util;
     }
 
     private static void write(Path dir, String relativePath, String content) throws IOException {

@@ -122,6 +122,16 @@ class MainLayoutHeaderNavTest extends PlainViewTestSupport {
         assertTrue(logo.hasClassName("logo"));
     }
 
+
+    /** Umbrella UC-014 BR-008: the header shows the icon the brand configuration names. */
+    @Test
+    void given_aBrandNamingItsIcon_when_init_then_headerShowsThatIcon() {
+        brands.info = new BrandUtil.BrandInfo("acme", "Acme Health", "logo.png", "brand-acme");
+        brands.iconFile = "mark.svg";
+
+        assertEquals("brand/images/mark.svg", logo(build()).getSrc());
+    }
+
     @Test
     void given_customBrand_when_init_then_headerCarriesBrandClassAndName() {
         brands.info = new BrandUtil.BrandInfo("acme", "Acme Health", "logo.png", "brand-acme");
@@ -223,6 +233,13 @@ class MainLayoutHeaderNavTest extends PlainViewTestSupport {
     static class StubBrandUtil extends BrandUtil {
         BrandInfo info;
         boolean iconFailure;
+        /** The file logos.icon resolves to; the default brand's unless a test names another. */
+        String iconFile = "icon-white.png";
+
+        @Override
+        public LogoFile getLogoFile(Logo logo) {
+            return logo == Logo.ICON ? new LogoFile(iconFile, false) : new LogoFile("unused.png", false);
+        }
 
         @Override
         public BrandInfo detectCurrentBrand() {

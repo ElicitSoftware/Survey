@@ -75,8 +75,12 @@ class StartupDiagnosticsReportTest {
         String text = text(report.lines());
 
         assertTrue(text.contains("brand: "), text);
-        for (var expected : BrandDiagnostics.EXPECTED) {
+        for (var expected : BrandDiagnostics.STYLESHEETS) {
             assertTrue(text.contains("brand asset " + expected.path()), expected.path());
+        }
+        // BR-008: the logos are listed under the names the brand configuration gives them
+        for (String role : List.of("horizontal logo", "header icon", "favicon")) {
+            assertTrue(text.matches("(?s).*brand asset images/\\S+ \\(" + role + "\\).*"), role);
         }
     }
 
