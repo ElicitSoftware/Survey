@@ -48,6 +48,7 @@ class StartupDiagnosticsReportLinesTest {
     private long surveys = 2;
     private List<BrandDiagnostics.AssetReport> assets = List.of(
             new BrandDiagnostics.AssetReport("theme.css", "theme stylesheet", BrandDiagnostics.Source.EXTERNAL, "/opt/brand/theme.css"));
+    private List<String> brandWarnings = List.of();
     private List<ConnectionChecks.Target> targets = List.of(
             new ConnectionChecks.Target("Report service", "Pedigree (FHHS)", "http://pedigree:8080/svg", ConnectionChecks.Kind.HTTP));
     private CheckResult targetResult = CheckResult.up("Pedigree (FHHS)", "reachable, HTTP 200", 12);
@@ -150,7 +151,7 @@ class StartupDiagnosticsReportLinesTest {
         report.brand = new BrandDiagnostics() {
             @Override
             public BrandReport report() {
-                return new BrandReport("/opt/brand", "brand", true, false, "Elicit", assets);
+                return new BrandReport("/opt/brand", "brand", true, false, "Elicit", assets, brandWarnings);
             }
         };
         report.connections = new ConnectionChecks() {
@@ -262,6 +263,22 @@ class StartupDiagnosticsReportLinesTest {
                 "brand asset logo.svg (logo): UNREADABLE denied",
                 "report complete: 2 warnings above"), warnings(lines));
         assertTrue(texts(lines).contains("brand asset favicon.ico (icon): EMBEDDED classpath"));
+    }
+
+    /** UC-007 A11, BR-008: what the brand gets wrong about its logos is logged at WARN after the assets. */
+    @Test
+    void given_logoWarnings_when_lines_then_eachIsAWarningAfterTheAssets() {
+        brandWarnings = List.of("brand-config.json names images/mark.svg, which the mounted brand does not hold;"
+                + " the file of the default brand is shown instead");
+
+        List<StartupDiagnosticsReport.Line> lines = report().lines();
+
+        assertEquals(List.of("brand logos: brand-config.json names images/mark.svg, which the mounted brand does not hold;"
+                        + " the file of the default brand is shown instead",
+                "report complete: 1 warning above"), warnings(lines));
+        List<String> texts = texts(lines);
+        assertEquals(texts.indexOf("brand asset theme.css (theme stylesheet): EXTERNAL /opt/brand/theme.css") + 1,
+                texts.indexOf(warnings(lines).get(0)));
     }
 
     @Test

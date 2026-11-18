@@ -25,7 +25,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Reports which brand directory resolved and where each brand asset came from (UC-007 step 4).
+ * Reports which brand directory resolved and where each brand asset came from (UC-007 step 4),
+ * with the logos looked for under the names the brand configuration gives them (UC-007 BR-008).
  * <p>
  * Mirrors the three-tier resolution {@code AppConfig} and {@code BrandResourceHandler} perform
  * when the pages render: the mounted directory ({@code brand.file.system.path}), then the
@@ -70,9 +71,16 @@ public class BrandDiagnostics {
      * @param localExists    whether the local directory exists
      * @param brandName      the display name of the brand the application resolved
      * @param assets         every expected asset and its source
+     * @param warnings       what the brand gets wrong about its logos (BR-008; umbrella UC-014 BR-008, BR-009)
      */
     public record BrandReport(String configuredPath, String localPath, boolean externalExists, boolean localExists,
-                              String brandName, List<AssetReport> assets) {
+                              String brandName, List<AssetReport> assets, List<String> warnings) {
+
+        /** A report with no logo warnings. */
+        public BrandReport(String configuredPath, String localPath, boolean externalExists, boolean localExists,
+                           String brandName, List<AssetReport> assets) {
+            this(configuredPath, localPath, externalExists, localExists, brandName, assets, List.of());
+        }
 
         /** A one-line summary. */
         public String summary() {
@@ -85,22 +93,55 @@ public class BrandDiagnostics {
             return "embedded default brand; no brand directory at " + configuredPath;
         }
 
-        /** Whether any asset is missing or unreadable. */
+        /** Whether any asset is missing or unreadable, or the brand gets its logos wrong. */
         public boolean hasProblem() {
-            return assets.stream().anyMatch(a -> a.source() == Source.ABSENT || a.source() == Source.UNREADABLE);
+            return !warnings.isEmpty()
+                    || assets.stream().anyMatch(a -> a.source() == Source.ABSENT || a.source() == Source.UNREADABLE);
         }
     }
 
     record Expected(String path, String role) {
     }
 
-    static final List<Expected> EXPECTED = List.of(
+    static final List<Expected> STYLESHEETS = List.of(
             new Expected("colors/brand-colors.css", "color stylesheet"),
             new Expected("typography/brand-typography.css", "typography stylesheet"),
-            new Expected("theme.css", "theme stylesheet"),
-            new Expected("images/HorizontalLogo.png", "horizontal logo"),
-            new Expected("images/icon-white.png", "header icon"),
-            new Expected("images/favicon.ico", "favicon"));
+            new Expected("theme.css", "theme stylesheet"));
+
+    /**
+     * Every expected asset: the stylesheets, then the three logo files under the names the brand
+     * configuration gives them (BR-008; umbrella UC-014 BR-008).
+     */
+    List<Expected> expected() {
+        List<Expected> expected = new ArrayList<>(STYLESHEETS);
+        expected.add(new Expected(logoPath(BrandUtil.Logo.HORIZONTAL), "horizontal logo"));
+        expected.add(new Expected(logoPath(BrandUtil.Logo.ICON), "header icon"));
+        expected.add(new Expected(logoPath(BrandUtil.Logo.FAVICON), "favicon"));
+        return expected;
+    }
+
+    private String logoPath(BrandUtil.Logo logo) {
+        return "images/" + brandUtil.getLogoFile(logo).file();
+    }
+
+    /**
+     * What the brand gets wrong about its logos (BR-008): a named file the mount lacks (umbrella
+     * UC-014 BR-008), and a favicon of its own with no icon of its own (umbrella UC-014 BR-009).
+     * In English, like the rest of the log.
+     */
+    List<String> warnings() {
+        List<String> warnings = new ArrayList<>();
+        for (String missing : brandUtil.getMissingLogoFiles()) {
+            warnings.add("brand-config.json names " + missing + ", which the mounted brand does not hold;"
+                    + " the file of the default brand is shown instead");
+        }
+        if (brandUtil.isIconMissingBesideFavicon()) {
+            warnings.add("the brand supplies its own favicon but no header icon (logos.icon in brand-config.json),"
+                    + " so the header shows the Elicit mark beside the favicon of the site; put the mark of the brand"
+                    + " under images/ and name it as logos.icon");
+        }
+        return warnings;
+    }
 
     @ConfigProperty(name = "brand.file.system.path", defaultValue = "/brand")
     String brandFileSystemPath;
@@ -122,11 +163,12 @@ public class BrandDiagnostics {
         boolean localExists = Files.isDirectory(local);
 
         List<AssetReport> assets = new ArrayList<>();
-        for (Expected expected : EXPECTED) {
+        for (Expected expected : expected()) {
             assets.add(resolve(expected, external, local));
         }
-        String brandName = brandUtil != null ? brandUtil.detectCurrentBrand().getDisplayName() : null;
-        return new BrandReport(brandFileSystemPath, brandLocalPath, externalExists, localExists, brandName, assets);
+        String brandName = brandUtil.detectCurrentBrand().getDisplayName();
+        return new BrandReport(brandFileSystemPath, brandLocalPath, externalExists, localExists, brandName, assets,
+                warnings());
     }
 
     private AssetReport resolve(Expected expected, Path external, Path local) {

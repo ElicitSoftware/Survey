@@ -102,10 +102,13 @@ with the files as `typography/fonts/LICENSE.txt`.
 
 ## The Logo Files
 
-The applications read three fixed names from `images/`: `HorizontalLogo.png`
-(the lockup, shown on the System > Branding pages and in the manuals),
-`icon-white.png` (the mark, shown in the header on the primary color) and the
-favicon named in `brand-config.json`. They are rendered from the SVG masters
+`brand-config.json` names the three logo files under `images/`, and the
+applications read those names: `logos.horizontal` (the lockup, shown on the
+System > Branding pages and in the manuals; `HorizontalLogo.png` here),
+`logos.icon` (the mark alone, shown in the header on the primary color;
+`icon-white.png` here) and `favicon` (`favicon.ico` here). The icon and the
+favicon are the same mark at two sizes, so a brand that brings its own favicon
+names its own icon too. This brand's files are rendered from the SVG masters
 in `images/source/`, whose lettering is IBM Plex Sans converted to outlines.
 `docs/brand-proposals/build-brand-assets.py` in the umbrella repository draws
 the masters.

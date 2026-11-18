@@ -154,6 +154,9 @@ public class StartupDiagnosticsReport {
                     || asset.source() == BrandDiagnostics.Source.UNREADABLE;
             lines.add(problem ? warn(text) : info(text));
         }
+        for (String warning : brandReport.warnings()) {
+            lines.add(warn("brand logos: " + warning));
+        }
 
         List<ConnectionChecks.Target> targets = connections.targets();
         if (targets.isEmpty()) {
