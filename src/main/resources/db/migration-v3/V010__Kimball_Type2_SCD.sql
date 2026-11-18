@@ -24,8 +24,8 @@
 -- CREATE TABLE, with no ALTERs. Both tracks must converge on the same schema — see the
 -- scd/** spec suite (src/test/java/com/elicitsoftware/scd/) for the shared acceptance test.
 --
--- Old surrogate FK columns are intentionally NOT dropped here — see the doc's Open Question 1;
--- that drop is a separate, later migration gated behind a staging verification checklist.
+-- metadata's old surrogate FK columns are dropped once their values are carried over to the
+-- durable columns (step 12, issue #111), so metadata ends as the greenfield track creates it.
 -- ================================================================================================
 
 --------------------------------
@@ -708,15 +708,8 @@ ALTER TABLE survey.answers ALTER COLUMN step TYPE NUMERIC;
 ALTER TABLE survey.answers ALTER COLUMN section TYPE NUMERIC;
 
 --------------------------------
--- 12. metadata — durable-key retarget (rename surrogate columns, add durable columns)
+-- 12. metadata — durable-key retarget (replace the surrogate columns with durable ones)
 --------------------------------
-ALTER TABLE survey.metadata
-    RENAME COLUMN question_id TO question_id_surrogate;
-ALTER TABLE survey.metadata
-    RENAME COLUMN section_question_id TO section_question_id_surrogate;
-ALTER TABLE survey.metadata
-    RENAME COLUMN step_section_id TO step_section_id_surrogate;
-
 ALTER TABLE survey.metadata
     ADD COLUMN question_durable_id  integer,
     ADD COLUMN sections_question_id integer,
@@ -725,40 +718,47 @@ ALTER TABLE survey.metadata
 UPDATE survey.metadata m
    SET question_durable_id = q.question_id
   FROM survey.questions q
- WHERE q.id = m.question_id_surrogate
-   AND m.question_id_surrogate IS NOT NULL;
+ WHERE q.id = m.question_id
+   AND m.question_id IS NOT NULL;
 
 UPDATE survey.metadata m
    SET sections_question_id = sq.sections_question_id
   FROM survey.sections_questions sq
- WHERE sq.id = m.section_question_id_surrogate
-   AND m.section_question_id_surrogate IS NOT NULL;
+ WHERE sq.id = m.section_question_id
+   AND m.section_question_id IS NOT NULL;
 
 UPDATE survey.metadata m
    SET steps_sections_id = ss.steps_sections_id
   FROM survey.steps_sections ss
- WHERE ss.id = m.step_section_id_surrogate
-   AND m.step_section_id_surrogate IS NOT NULL;
+ WHERE ss.id = m.step_section_id
+   AND m.step_section_id IS NOT NULL;
 
+-- The surrogate columns go once their values are carried over (issue #111): nothing reads them,
+-- and the greenfield track never has them. Their constraints and the three indexes V001 created
+-- on them (metadata_question_index, metadata_section_question_index, metadata_step_section_index)
+-- are dropped by name first, so a name that does not match fails here instead of leaving a
+-- constraint behind.
 ALTER TABLE survey.metadata
     DROP CONSTRAINT metadata_un,
-    ADD CONSTRAINT metadata_un UNIQUE (steps_sections_id, question_durable_id, sections_question_id, ontology_id, value);
-
--- metadata_element_ck is deliberately left untouched HERE: yes, Postgres transparently
--- rewrites a CHECK constraint's column references when the underlying column is renamed
--- (the three RENAME COLUMN statements above already did this) — but that means the
--- constraint keeps enforcing "at least one element column is set" against the now-dead
--- *_surrogate columns forever, never against the durable columns rows actually get
--- populated with. That's a real enforcement gap, not the intended behavior — see
--- V011__Fix_Metadata_Element_Check.sql, which drops and recreates this constraint
--- against the durable columns, matching db/migration's V001 directly.
-
-ALTER TABLE survey.metadata
+    DROP CONSTRAINT metadata_element_ck,
     DROP CONSTRAINT metadata_question_fk,
     DROP CONSTRAINT metadata_sect_quest_fk,
     DROP CONSTRAINT metadata_section_fk;
 
+DROP INDEX survey.metadata_question_index;
+DROP INDEX survey.metadata_section_question_index;
+DROP INDEX survey.metadata_step_section_index;
+
+ALTER TABLE survey.metadata
+    DROP COLUMN question_id,
+    DROP COLUMN section_question_id,
+    DROP COLUMN step_section_id;
+
 ALTER TABLE survey.metadata RENAME COLUMN question_durable_id TO question_id;
+
+ALTER TABLE survey.metadata
+    ADD CONSTRAINT metadata_un UNIQUE (steps_sections_id, question_id, sections_question_id, ontology_id, value),
+    ADD CONSTRAINT metadata_element_ck CHECK ((steps_sections_id + question_id + sections_question_id) > 0);
 
 CREATE INDEX metadata_question_id_index        ON survey.metadata (question_id);
 CREATE INDEX metadata_sections_question_id_idx  ON survey.metadata (sections_question_id);
