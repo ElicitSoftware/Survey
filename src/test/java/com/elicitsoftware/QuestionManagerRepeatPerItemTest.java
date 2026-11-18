@@ -121,15 +121,16 @@ class QuestionManagerRepeatPerItemTest {
 
     @Test
     @TestTransaction
-    void anItemsTextIsEscapedLikeAnAnswer() {
+    void anItemsTextGoesInAsTypedLikeAnAnswer() {
         int surveyId = buildSurvey();
         int rid = createFreshRespondent(surveyId).id.intValue();
         questionManager.init(rid, key(surveyId, "0001-0000-0001-0000-0000-0000"));
 
         saveAnswer(active(rid, key(surveyId, "0001-0000-0001-0000-0001-0000")), "G03");
 
-        // BR-013: spliced in as an answer is, so the label renders the ampersand rather than reading it as markup.
-        assertEquals("Michigan vs. Texas A&amp;M", active(rid, game(surveyId, 3, 0)).displayText);
+        // BR-013, BR-011 (#149): spliced in as an answer is. A section title is plain text, so the
+        // ampersand goes in as written rather than as an entity the title would show literally.
+        assertEquals("Michigan vs. Texas A&M", active(rid, game(surveyId, 3, 0)).displayText);
     }
 
     @Test

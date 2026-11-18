@@ -11,12 +11,16 @@ package com.elicitsoftware;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.model.Answer;
+import com.elicitsoftware.model.Question;
+import com.elicitsoftware.model.QuestionType;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.TreeMap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -87,10 +91,62 @@ class ReplaceTokensTest {
                 QuestionManager.replaceTokens("Person {Q#} in step {S#}", values("NAME", "Alice")));
     }
 
+    // ---- UC-002 BR-011 (#149): respondent text is escaped only where the label is HTML --------
+
     @Test
-    void aSubstitutedValueIsHtmlEscaped() {
+    void aSubstitutedValueIsHtmlEscapedInAnHtmlText() {
         assertEquals("Hello &lt;script&gt;",
-                QuestionManager.replaceTokens("Hello {<NAME>|friend}", values("NAME", "<script>")));
+                QuestionManager.replaceTokens("Hello {<NAME>|friend}", values("NAME", "<script>"), authored(), true));
+    }
+
+    /** The reported case: a plain-text label shows the name as typed, not as entities. */
+    @Test
+    void aSubstitutedValueGoesInAsTypedInAPlainTextLabel() {
+        assertEquals("What is Mary O'Brien & Co's current age?",
+                QuestionManager.replaceTokens("What is {<G1>'s|your} current age?",
+                        values("G1", "Mary O'Brien & Co"), authored()));
+        assertEquals("Mary O'Brien & Co's mother's side of the family",
+                QuestionManager.replaceTokens("{<G1>'s|Your} mother's side of the family",
+                        values("G1", "Mary O'Brien & Co"), authored()));
+    }
+
+    @Test
+    void theSameNameIsEscapedOnceInAnHtmlText() {
+        assertEquals("<p>Mary O&#39;Brien &amp; Co's family</p>",
+                QuestionManager.replaceTokens("<p>{<G1>'s|Your} family</p>",
+                        values("G1", "Mary O'Brien & Co"), authored(), true));
+    }
+
+    /** Only the two types SectionView renders through innerHTML get escaped values. */
+    @Test
+    void onlyHtmlAndModalQuestionsRenderAsHtml() {
+        assertTrue(QuestionManager.rendersAsHtml(answerOfType("HTML")));
+        assertTrue(QuestionManager.rendersAsHtml(answerOfType("MODAL")));
+        assertFalse(QuestionManager.rendersAsHtml(answerOfType("TEXT")));
+        assertFalse(QuestionManager.rendersAsHtml(answerOfType("RADIO")));
+        // A section or step title carries no question and is shown as plain text.
+        assertFalse(QuestionManager.rendersAsHtml(new Answer()));
+    }
+
+    private static Answer answerOfType(String typeName) {
+        QuestionType type = new QuestionType();
+        type.name = typeName;
+        Question question = new Question();
+        question.questionType = type;
+        Answer answer = new Answer();
+        answer.question = question;
+        return answer;
+    }
+
+    /** Through an authored value, the Family History Survey's S1 shape, in both renderings. */
+    @Test
+    void aNameInsideAnAuthoredValueFollowsTheRenderingToo() {
+        assertEquals("Is Mary O'Brien's mother still living?",
+                QuestionManager.replaceTokens("Is {<S1>|your mother} still living?",
+                        values("S1", "{<G1>'s|your} mother", "G1", "Mary O'Brien"), authored("S1")));
+        assertEquals("Is Mary O&#39;Brien's mother still living?",
+                QuestionManager.replaceTokens("Is {<S1>|your mother} still living?",
+                        values("S1", "{<G1>'s|your} mother", "G1", "Mary O'Brien"), authored("S1"), true));
     }
     // ---- UC-002 BR-011: an authored value may be a placeholder in its own right ---------------
 
@@ -138,11 +194,11 @@ class ReplaceTokensTest {
     @Test
     void respondentTextIsStillEscapedButAnAuthoredValueIsNot() {
         assertEquals("Hello &lt;b&gt;Bob&lt;/b&gt;",
-                QuestionManager.replaceTokens("Hello {<NAME>|friend}", values("NAME", "<b>Bob</b>"), authored()));
+                QuestionManager.replaceTokens("Hello {<NAME>|friend}", values("NAME", "<b>Bob</b>"), authored(), true));
         // An authored value has already had its own substitutions escaped; escaping it again would
         // double-escape them, and would destroy the <TOKEN> brackets before they could be read.
         assertEquals("Hello <b>your mother</b>",
-                QuestionManager.replaceTokens("Hello {<S1>|friend}", values("S1", "<b>your mother</b>"), authored("S1")));
+                QuestionManager.replaceTokens("Hello {<S1>|friend}", values("S1", "<b>your mother</b>"), authored("S1"), true));
     }
 
     @Test
@@ -152,7 +208,7 @@ class ReplaceTokensTest {
         // what this is checking.
         assertEquals("Ask &lt;b&gt;Dennis&lt;/b&gt;'s mother.",
                 QuestionManager.replaceTokens("Ask {<S1>|them}.",
-                        values("S1", "{<G1>'s|your} mother", "G1", "<b>Dennis</b>"), authored("S1")));
+                        values("S1", "{<G1>'s|your} mother", "G1", "<b>Dennis</b>"), authored("S1"), true));
         assertEquals("Ask Dennis' mother.",
                 QuestionManager.replaceTokens("Ask {<S1>|them}.",
                         values("S1", "{<G1>'s|your} mother", "G1", "Dennis"), authored("S1")));
