@@ -83,7 +83,7 @@
 
 ## Notes / Known Gaps
 
-- `fact_sections_view` and `fact_respondents_view` swallow their own failures (they log and return a message rather than throwing, because a dependent view an operator created by hand can block the drop); such a failure appears inside the 200 summary rather than as a 500.
+- `fact_sections_view` and `fact_respondents_view` swallow their own failures (they log a warning and return a message carrying the database's cause rather than throwing, because a dependent view an operator created by hand can block the drop); such a failure appears inside the 200 summary rather than as a 500.
 - A survey's schema is created when the survey is first built, not when it is imported; between the import and the first build (which Admin triggers at once) the survey has no schema and UC-004's load skips it with a log line. The next build's back-fill picks those respondents up.
 - A schema name is derived from the survey's name at the site, so two sites that install the same definition may hold its star under different names. Nothing in Elicit hard-codes a survey schema's name: FHHS resolves it from `surveys.report_schema` by its survey key at query time.
 - The database created before this use case holds the single site-wide star in `surveyreport`. The upgrade migration drops those objects and the next startup regenerates every survey's schema from `survey.answers`; surrogate ids differ from before, so an extract keyed on them must be pulled again. The procedure is in the umbrella's `DeploymentScript.md`.
