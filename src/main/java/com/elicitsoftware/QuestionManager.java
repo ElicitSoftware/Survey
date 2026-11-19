@@ -910,9 +910,8 @@ public class QuestionManager {
                                 buildRepeatedSections(upstreamAnswer, Section.findAsOf(downstreamSection.sectionId, asOf),
                                         relationship.id, dependents);
                             } else if (relationship.downstreamStepId != null) {
-                                // Repeat a step
-                                buildRepeatedStep(upstreamAnswer, Step.findAsOf(relationship.downstreamStepId, asOf), relationship.id,
-                                        dependents);
+                                // UC-002 A3b: a Repeat rule on a step builds nothing
+                                warnStepRepeatIgnored(relationship.id, relationship.downstreamStepId);
                             }
 
                             break;
@@ -1546,18 +1545,16 @@ public class QuestionManager {
     }
 
     /**
-     * Builds a repeated step by associating an upstream answer with a downstream step
-     * based on the specified relationship ID and updates the dependents map as needed.
+     * UC-002 A3b: a Repeat rule whose target is a step builds nothing. Author refuses such a rule,
+     * so one only arrives in an older {@code .elicit} file; the warning names it so the site can
+     * see that the step is never repeated, rather than the rule silently doing nothing.
      *
-     * @param upstreamAnswer the answer object from the upstream which will be linked to the step
-     * @param downstreamStep the step object in the downstream to be built or updated
-     * @param relationshipId the identifier representing the relationship between the answer and step
-     * @param dependents     a map of dependent objects indexed by their unique identifiers to be updated
+     * @param relationshipId   the Repeat rule
+     * @param downstreamStepId the step it names
      */
-    private void buildRepeatedStep(Answer upstreamAnswer, Step downstreamStep, Integer relationshipId,
-                                   HashMap<Integer, Dependent> dependents) {
-        // TODO
-        Log.info("buildRepeatedStep not yet implemented");
+    private static void warnStepRepeatIgnored(Integer relationshipId, Integer downstreamStepId) {
+        Log.warnf("Repeat rule %d targets step %d; a Repeat rule on a step builds nothing (UC-002 A3b)."
+                + " Repeat the step's sections instead, or change the rule to Show.", relationshipId, downstreamStepId);
     }
 
     /**

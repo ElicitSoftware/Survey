@@ -195,14 +195,11 @@ class QuestionManagerBranchCoverageTest {
         assertNull(stepOnlyAnswer.sectionId, "A step-only answer must have a null sectionId, not a literal 0");
     }
 
-    // ── REPEAT, downstreamStep-only branch — buildRepeatedStep is currently a stub ──
+    // ── REPEAT, downstreamStep-only branch — UC-002 A3b: a Repeat rule on a step builds nothing ──
 
     @Test
     @TestTransaction
-    void repeatStepOnlyBranch_isCurrentlyANoOp() {
-        // Pins buildRepeatedStep's current "// TODO ... not yet implemented" behavior
-        // deliberately: implementing it later is an intentional, visible test change,
-        // not silent drift.
+    void repeatStepOnlyBranch_buildsNothing() {
         Integer surveyId = surveyId();
         Respondent r = createFreshRespondent(surveyId);
         questionManager.init(r.id.intValue(), initialDisplayKey(surveyId));
@@ -215,7 +212,7 @@ class QuestionManagerBranchCoverageTest {
                 "respondentId = ?1 and displayKey like ?2 and deleted = false",
                 r.id, stepThreeSectionKey(surveyId) + "%");
         assertEquals(0, stepThreeAnswers,
-                "buildRepeatedStep is currently an unimplemented stub — no StepThree answers must be created");
+                "UC-002 A3b: a Repeat rule on a step builds nothing — no StepThree answers must be created");
     }
 
     // ── REPEAT, question-only rule (downstream_step_id and downstream_ss_id both NULL) ──
