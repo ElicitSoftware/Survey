@@ -11,8 +11,12 @@ package com.elicitsoftware.model;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.LogCapture;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -208,11 +212,32 @@ class RelationshipTest {
         assertFalse(r.evaluateOperator(answerWithText("x")));
     }
 
-    // UC-002: a type-conversion failure (non-numeric text on a numeric question) is
-    // swallowed by the outer catch and returns the default false rather than throwing
+    // UC-002: a type-conversion failure (non-numeric text on a numeric question) returns false
+    // rather than throwing, and is logged at WARN naming the rule but not the respondent's text
     @Test
-    void evaluateOperator_numericParseFailure_isSwallowedAndReturnsFalse() {
+    void evaluateOperator_numericParseFailure_isLoggedAndReturnsFalse() {
         Relationship r = relationship("LESS THAN", "10");
-        assertFalse(r.evaluateOperator(answerWithText("not-a-number")));
+        r.relationshipId = 41;
+        r.surveyId = 3;
+        try (LogCapture log = LogCapture.of(Relationship.class)) {
+            assertFalse(r.evaluateOperator(answerWithText("not-a-number")));
+
+            List<String> warnings = log.messages(LogCapture.WARN);
+            assertEquals(1, warnings.size());
+            assertTrue(warnings.get(0).contains("Rule 41 of survey 3 could not be evaluated (LESS THAN 10): NumberFormatException"));
+            assertFalse(warnings.get(0).contains("not-a-number"), "the respondent's answer text is not logged");
+        }
+    }
+
+    // UC-002: an unanswered question satisfies no comparison, and that is not an error to log
+    @Test
+    void evaluateOperator_unansweredQuestion_returnsFalseWithoutAWarning() {
+        try (LogCapture log = LogCapture.of(Relationship.class)) {
+            for (String operator : List.of("LESS THAN", "GREATER THAN", "EQUAL", "NOT_EQUAL", "CONTAINS", "BOOLEAN")) {
+                assertFalse(relationship(operator, "1").evaluateOperator(answerWithText(null)), operator);
+            }
+            assertEquals(List.of(), log.messages(LogCapture.WARN));
+        }
+        assertTrue(relationship("FIELD_EXIST", null).evaluateOperator(answerWithText(null)));
     }
 }

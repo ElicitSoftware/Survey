@@ -250,7 +250,8 @@ class ETLServiceStubbedDatabaseTest {
 
         String result = service().buildFactSectionView(SCHEMA, 3);
 
-        assertEquals("There may be a dependency that can't be worked arround. You may have to delete and recreate the dependency.", result);
+        assertEquals("There may be a dependency that can't be worked around. You may have to delete and recreate"
+                + " the dependency. Cause: cannot drop view because other objects depend on it", result);
         assertEquals(1, db.sqls().size(), "nothing after the failed drop runs");
     }
 

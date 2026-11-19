@@ -12,6 +12,7 @@ package com.elicitsoftware.model;
  */
 
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
+import io.quarkus.logging.Log;
 import jakarta.persistence.*;
 
 import java.text.SimpleDateFormat;
@@ -283,6 +284,10 @@ public class Relationship extends PanacheEntityBase {
 
         // Catch any errors from trying to transform data types.
         try {
+            // An unanswered question satisfies only FIELD_EXIST; every other operator is false.
+            if (answer != null && answer.getTextValue() == null && !"FIELD_EXIST".equals(operatorType.name)) {
+                return false;
+            }
             switch (operatorType.name) {
                 case "BOOLEAN":
                     returnValue = Boolean.parseBoolean(answer.getTextValue());
@@ -362,8 +367,11 @@ public class Relationship extends PanacheEntityBase {
                     break;
             }
         } catch (Exception e) {
-            // TODO log exception
-            // return default value
+            // The rule does not hold. The answer text is left out: it is the respondent's.
+            Log.warnf("Rule %s of survey %s could not be evaluated (%s %s): %s; it is treated as not holding.",
+                    relationshipId, surveyId, operatorType == null ? null : operatorType.name, referenceValue,
+                    e.getClass().getSimpleName());
+            return false;
         }
         return returnValue;
     }
