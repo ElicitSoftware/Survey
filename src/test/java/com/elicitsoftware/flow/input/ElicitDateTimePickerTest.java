@@ -20,7 +20,6 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.List;
 import java.util.Set;
 
@@ -32,26 +31,19 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * UC-002: Answer Survey Questions — {@link ElicitDateTimePicker} restores the stored ISO
- * date-time, carries the date overlay's words in the respondent's language (NFR-011), and reads
- * min/max as HHMM times of day (BR-004), rejecting a value that is not a time of day.
+ * date-time, carries the date overlay's words in the respondent's language (NFR-011), reads
+ * min/max as epoch days on the answer's date, and checks them on the server whether or not the
+ * question is required (BR-016).
  */
 class ElicitDateTimePickerTest {
 
     private static DateTimePicker bounded(Integer min, Integer max) {
         return new ElicitDateTimePicker(answer(question(false, min, max, null, null), null),
                 ContentTexts.base()).component;
-    }
-
-    private static void assertTimeToday(LocalTime expected, LocalDate before, LocalDateTime actual) {
-        assertEquals(expected, actual.toLocalTime());
-        LocalDate after = LocalDate.now();
-        assertTrue(!actual.toLocalDate().isBefore(before) && !actual.toLocalDate().isAfter(after),
-                "the bound is anchored on the current date");
     }
 
     @Test
@@ -84,35 +76,55 @@ class ElicitDateTimePickerTest {
     }
 
     @Test
-    void given_hhmmBounds_when_constructed_then_minAndMaxAreThoseTimesToday() {
-        LocalDate before = LocalDate.now();
+    void given_epochDayBounds_when_constructed_then_theyAreWholeDays() {
+        DateTimePicker picker = bounded(0, 365);
 
-        DateTimePicker picker = bounded(830, 1745);
-
-        assertTimeToday(LocalTime.of(8, 30), before, picker.getMin());
-        assertTimeToday(LocalTime.of(17, 45), before, picker.getMax());
+        // BR-016: from the start of the minimum day to the end of the maximum day, whatever
+        // day the question is answered on.
+        assertEquals(LocalDateTime.of(1970, 1, 1, 0, 0), picker.getMin());
+        assertEquals(LocalDateTime.of(1971, 1, 1, 23, 59, 59), picker.getMax());
     }
 
     @Test
-    void given_edgeTimesOfDay_when_constructed_then_theyAreAccepted() {
-        LocalDate before = LocalDate.now();
-
-        DateTimePicker picker = bounded(0, 2359);
-        assertTimeToday(LocalTime.MIDNIGHT, before, picker.getMin());
-        assertTimeToday(LocalTime.of(23, 59), before, picker.getMax());
-
-        assertTimeToday(LocalTime.of(11, 59), before, bounded(1159, null).getMin());
-        assertNull(bounded(1159, null).getMax());
-        assertNull(bounded(null, 1159).getMin());
+    void given_oneBound_when_constructed_then_theOtherIsUnset() {
+        assertNull(bounded(10, null).getMax());
+        assertNull(bounded(null, 10).getMin());
     }
 
     @Test
-    void given_valueOutsideTheDay_when_constructed_then_rejected() {
-        assertThrows(IllegalArgumentException.class, () -> bounded(-1, null));
-        assertThrows(IllegalArgumentException.class, () -> bounded(null, 2360));
-        assertThrows(IllegalArgumentException.class, () -> bounded(2400, null));
-        assertThrows(IllegalArgumentException.class, () -> bounded(1160, null));
-        assertThrows(IllegalArgumentException.class, () -> bounded(null, 1199));
+    void given_optionalBoundedQuestion_when_validated_then_onlyAnAnswerOutsideTheDaysFails() {
+        LocalDate first = LocalDate.ofEpochDay(20_000);
+        LocalDate last = LocalDate.ofEpochDay(20_010);
+        ElicitDateTimePicker wrapper = new ElicitDateTimePicker(
+                answer(question(false, 20_000, 20_010, null, null), null), ContentTexts.base());
+
+        // BR-016: an empty optional answer passes; a bounded one is checked on the server.
+        assertTrue(wrapper.getBinder().validate().isOk());
+
+        wrapper.component.setValue(last.atTime(23, 30));
+        assertTrue(wrapper.getBinder().validate().isOk(), "late on the maximum day is inside");
+
+        wrapper.component.setValue(first.atStartOfDay());
+        assertTrue(wrapper.getBinder().validate().isOk(), "the start of the minimum day is inside");
+
+        wrapper.component.setValue(last.plusDays(1).atStartOfDay());
+        assertEquals(List.of(Translations.get("validation.dateMax", PickerTexts.formatDate(last))),
+                errors(wrapper.getBinder()));
+
+        wrapper.component.setValue(first.minusDays(1).atTime(23, 59));
+        assertEquals(List.of(Translations.get("validation.dateMin", PickerTexts.formatDate(first))),
+                errors(wrapper.getBinder()));
+    }
+
+    @Test
+    void given_authoredValidationText_when_outOfBounds_then_itIsTheMessage() {
+        ElicitDateTimePicker wrapper = new ElicitDateTimePicker(
+                answer(question(false, 20_000, 20_010, null, "Pick a day in the study window."), null),
+                ContentTexts.base());
+
+        wrapper.component.setValue(LocalDate.ofEpochDay(20_011).atTime(9, 0));
+
+        assertEquals(List.of("Pick a day in the study window."), errors(wrapper.getBinder()));
     }
 
     @Test
