@@ -37,6 +37,7 @@ public class ElicitIntegerField extends ElicitComponent<IntegerField> {
      *
      * @param answer The Answer object containing the display text and value for the integer field.
      *               If the text value of the answer is not null or empty, it initializes the field with that value.
+     * @param texts  the content language of this page draw; null means the survey's base text
      */
     public ElicitIntegerField(Answer answer, ContentTexts texts) {
         super(new IntegerField(answer.label()), answer, texts);

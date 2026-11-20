@@ -57,17 +57,6 @@ public class QuestionManager {
     @Inject
     ContentTranslator translator;
 
-    /**
-     * Replaces tokens in the given text with corresponding values from the provided map.
-     * The tokens are identified by keys enclosed in curly braces and replaced with their associated values.
-     * Any unmatched tokens are removed, leaving default text.
-     * Additionally, certain specific text replacements and formatting adjustments are applied to the final result.
-     *
-     * @param text   the input string containing tokens to be replaced
-     * @param values a {@code TreeMap} containing key-value pairs, where keys correspond to tokens in the text,
-     *               and values are the replacements for those tokens
-     * @return the resulting string after replacing all specified tokens and applying formatting adjustments
-     */
     /** Group 1 is the phrase, group 2 the default text (null when the placeholder has none). */
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{([^{}|]+)(?:\\|([^{}]*))?}");
 
@@ -222,11 +211,28 @@ public class QuestionManager {
         }
     }
 
+    /**
+     * A text with its placeholders filled, for a label set as plain text, where every value is an
+     * answer the respondent gave. A placeholder whose tokens have no value shows its default text,
+     * and the English possessive tidying of {@link #replaceTokens(String, TreeMap, java.util.Set, boolean)}
+     * is applied.
+     *
+     * @param text   the base or translated template; {@code null} gives {@code null}
+     * @param values token to the value that fills it
+     * @return the text with its placeholders filled
+     */
     static String replaceTokens(String text, TreeMap<String, String> values) {
         return replaceTokens(text, values, java.util.Set.of());
     }
 
-    /** A text with its placeholders filled, for a label set as plain text. */
+    /**
+     * A text with its placeholders filled, for a label set as plain text.
+     *
+     * @param text     the base or translated template; {@code null} gives {@code null}
+     * @param values   token to the value that fills it
+     * @param authored the tokens whose value is prose the author wrote rather than an answer
+     * @return the text with its placeholders filled
+     */
     static String replaceTokens(String text, TreeMap<String, String> values, java.util.Set<String> authored) {
         return replaceTokens(text, values, authored, false);
     }
@@ -246,6 +252,7 @@ public class QuestionManager {
      * @param html     whether the text is rendered as HTML ({@code ElicitHtml}, {@code ElicitModal}):
      *                 then the respondent's values are HTML-escaped; otherwise they go in as typed,
      *                 since every other consumer sets the text as plain text (#149)
+     * @return the text with its placeholders filled; {@code null} when {@code text} is {@code null}
      */
     static String replaceTokens(String text, TreeMap<String, String> values, java.util.Set<String> authored,
                                 boolean html) {
@@ -696,7 +703,6 @@ public class QuestionManager {
                 + "order by S.DISPLAY_ORDER";
 
 
-        //entityManager.joinTransaction();
         Query q = entityManager.createNativeQuery(sql);
         q.setParameter("surveyId", key.getSurvey());
         q.setParameter("respondentId", respondentId);
@@ -910,9 +916,8 @@ public class QuestionManager {
                                 buildRepeatedSections(upstreamAnswer, Section.findAsOf(downstreamSection.sectionId, asOf),
                                         relationship.id, dependents);
                             } else if (relationship.downstreamStepId != null) {
-                                // Repeat a step
-                                buildRepeatedStep(upstreamAnswer, Step.findAsOf(relationship.downstreamStepId, asOf), relationship.id,
-                                        dependents);
+                                // UC-002 A3b: a Repeat rule on a step builds nothing
+                                warnStepRepeatIgnored(relationship.id, relationship.downstreamStepId);
                             }
 
                             break;
@@ -1007,7 +1012,6 @@ public class QuestionManager {
                 + " AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf"
                 + " ORDER BY A.DISPLAY_KEY";
 
-        //entityManager.joinTransaction();
         Query q = entityManager.createNativeQuery(sql);
         q.setParameter("surveyId", relationship.surveyId);
         q.setParameter("respondentId", respondentId);
@@ -1048,7 +1052,6 @@ public class QuestionManager {
         String questionSQL = "SELECT A.ID,  A.SECTION, A.SECTION_QUESTION_ID FROM survey.RELATIONSHIPS R JOIN survey.SECTIONS_QUESTIONS SQ ON R.DOWNSTREAM_SQ_ID = SQ.SECTIONS_QUESTION_ID JOIN survey.ANSWERS A ON SQ.ID = A.SECTION_QUESTION_ID WHERE A.DELETED = false AND R.ID = :rid AND A.RESPONDENT_ID = :respondentId AND SQ.EFFECTIVE_FROM <= :asOf AND SQ.EFFECTIVE_TO > :asOf AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf ORDER BY A.DISPLAY_KEY";
 
         Query q;
-        //entityManager.joinTransaction();
         if (relationship.downstreamSqId != null) {
             q = entityManager.createNativeQuery(questionSQL);
 
@@ -1233,7 +1236,6 @@ public class QuestionManager {
                 + "SELECT ss.STEP_ID FROM survey.STEPS_SECTIONS ss WHERE ss.SURVEY_ID = r.SURVEY_ID "
                 + "and ss.STEP_DISPLAY_ORDER = :stepDisplayOrder and ss.EFFECTIVE_FROM <= :asOf and ss.EFFECTIVE_TO > :asOf)) "
                 + "and r.EFFECTIVE_FROM <= :asOf and r.EFFECTIVE_TO > :asOf order by r.ID";
-        // entityManager.joinTransaction();
         Query q = entityManager.createNativeQuery(sql);
         q.setParameter("surveyId", upstreamAnswer.surveyId);
         q.setParameter("upstream_sq_id", upstreamAnswer.section_question_id);
@@ -1546,18 +1548,16 @@ public class QuestionManager {
     }
 
     /**
-     * Builds a repeated step by associating an upstream answer with a downstream step
-     * based on the specified relationship ID and updates the dependents map as needed.
+     * UC-002 A3b: a Repeat rule whose target is a step builds nothing. Author refuses such a rule,
+     * so one only arrives in an older {@code .elicit} file; the warning names it so the site can
+     * see that the step is never repeated, rather than the rule silently doing nothing.
      *
-     * @param upstreamAnswer the answer object from the upstream which will be linked to the step
-     * @param downstreamStep the step object in the downstream to be built or updated
-     * @param relationshipId the identifier representing the relationship between the answer and step
-     * @param dependents     a map of dependent objects indexed by their unique identifiers to be updated
+     * @param relationshipId   the Repeat rule
+     * @param downstreamStepId the step it names
      */
-    private void buildRepeatedStep(Answer upstreamAnswer, Step downstreamStep, Integer relationshipId,
-                                   HashMap<Integer, Dependent> dependents) {
-        // TODO
-        Log.info("buildRepeatedStep not yet implemented");
+    private static void warnStepRepeatIgnored(Integer relationshipId, Integer downstreamStepId) {
+        Log.warnf("Repeat rule %d targets step %d; a Repeat rule on a step builds nothing (UC-002 A3b)."
+                + " Repeat the step's sections instead, or change the rule to Show.", relationshipId, downstreamStepId);
     }
 
     /**
@@ -2166,7 +2166,6 @@ public class QuestionManager {
             List<Relationship> relationships = stepId == null ? List.of()
                     : Relationship.findByDownstream_Step_ID(relationship.surveyId, relationship.downstreamStepId, stepId, resolveAsOf(answer.respondentId));
             for (Relationship r : relationships) {
-                // Answer upstreamAnswer = getUpstreamAnswer(r, answer);
                 if (!r.evaluateOperator(answer)) {
                     Log.info("relationships " + r.id + " not satisfied.");
                     return false;
@@ -2174,7 +2173,7 @@ public class QuestionManager {
                 dependents.put(r.id, new Dependent(answer.respondentId, answer, null, r));
             }
         }
-        Log.info("All relationships satisfide = true");
+        Log.info("All relationships satisfied = true");
         return true;
     }
 
@@ -2208,16 +2207,15 @@ public class QuestionManager {
         // the resolution to this respondent's firstAccessDt.
         String sql = "SELECT a.ID FROM survey.RELATIONSHIPS r join survey.SECTIONS_QUESTIONS sq on r.UPSTREAM_SQ_ID = sq.SECTIONS_QUESTION_ID "
                 + "join survey.QUESTIONS q on sq.QUESTION_ID = q.QUESTION_ID left join survey.ANSWERS a on q.ID = a.QUESTION_ID  "
-                + "WHERE a.deleted = false and a.RESPONDENT_ID = :respondentId and r.id = :relationshioId "
+                + "WHERE a.deleted = false and a.RESPONDENT_ID = :respondentId and r.id = :relationshipId "
                 + "and a.step = :stepId and a.STEP_INSTANCE = :stepInstance and a.section = :sectionId "
                 + "and a.SECTION_INSTANCE = :sectionInstance "
                 + "and sq.EFFECTIVE_FROM <= :asOf and sq.EFFECTIVE_TO > :asOf "
                 + "and q.EFFECTIVE_FROM <= :asOf and q.EFFECTIVE_TO > :asOf "
                 + "and r.EFFECTIVE_FROM <= :asOf and r.EFFECTIVE_TO > :asOf "
                 + "order by a.display_key";
-        //entityManager.joinTransaction();
         Query q = entityManager.createNativeQuery(sql);
-        q.setParameter("relationshioId", r.id);
+        q.setParameter("relationshipId", r.id);
         q.setParameter("respondentId", a.respondentId);
         q.setParameter("stepId", a.stepId);
         q.setParameter("stepInstance", a.stepInstance);
@@ -2401,7 +2399,6 @@ public class QuestionManager {
 
         ArrayList<NavigationItem> paths = new ArrayList<>();
 
-        //entityManager.joinTransaction();
         Query q = entityManager.createNativeQuery(pathSQL);
         q.setParameter("respondentId", respondentId);
         q.setParameter("language", currentContentLanguage(respondentId));

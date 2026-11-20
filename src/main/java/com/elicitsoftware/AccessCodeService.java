@@ -20,7 +20,6 @@ import io.micrometer.core.instrument.Metrics;
 import io.quarkus.logging.Log;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.transaction.Transactional;
-import jakarta.ws.rs.QueryParam;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.security.SecureRandom;
@@ -45,6 +44,9 @@ public class AccessCodeService {
 
     private final RandomStringGenerator randomStringGenerator;
 
+    /** The access code alphabet, the same as Admin's (Admin UC-015 BR-050). */
+    static final String ACCESS_CODE_ALPHABET = "BCDFGHJKLMNPQRSTVWXZbcdfghjkmnpqrstvwxz2456789";
+
     @ConfigProperty(name = "accessCode.autoRegister", defaultValue = "false")
     boolean autoRegister;
 
@@ -52,17 +54,17 @@ public class AccessCodeService {
      * Constructs a new instance of the AccessCodeService class.
      * <p>
      * This constructor initializes the AccessCodeService with a specialized RandomStringGenerator
-     * that generates random strings of length 9, designed to use a combination of digits,
-     * uppercase consonant characters, and a subset of lowercase letters. The random string
-     * generator is seeded with a cryptographically secure random number generator.
+     * that generates random strings of length 9, seeded with a cryptographically secure random
+     * number generator.
      * <p>
-     * The character set used for random string generation excludes ambiguous characters
-     * to ensure clarity and usability in generated access codes.
+     * The character set is the one Admin issues access codes from (Admin UC-015 BR-050): the 20
+     * upper-case consonants, the 19 lower-case consonants without {@code l}, and the digits
+     * {@code 2 4 5 6 7 8 9}, 46 characters each appearing once. It leaves out characters that are
+     * easily misread, such as {@code 0}/{@code O} and {@code 1}/{@code l}/{@code I}.
      */
     public AccessCodeService() {
         super();
-        String easy = RandomStringGenerator.digits + "BCDFGHJKLMNPQRSTVWXZbcdfghjkmnpqrstvwxz2456789";
-        randomStringGenerator = new RandomStringGenerator(9, new SecureRandom(), easy);
+        randomStringGenerator = new RandomStringGenerator(9, new SecureRandom(), ACCESS_CODE_ALPHABET);
     }
 
     /**
@@ -84,7 +86,7 @@ public class AccessCodeService {
      * @return The {@code Survey} object corresponding to the provided identifier,
      * or {@code null} if no survey is found with the given ID.
      */
-    public Survey getSurvey(@QueryParam(value = "id") int id) {
+    public Survey getSurvey(int id) {
         return Survey.findById(id);
     }
 
@@ -246,6 +248,12 @@ public class AccessCodeService {
         Log.warn("Failed access code attempt for survey " + surveyId + " (" + attemptOnPage + " on this page)");
     }
 
+    /**
+     * Whether an access code that matches no respondent registers a new one at login
+     * ({@code accessCode.autoRegister}, UC-001 A2).
+     *
+     * @return {@code true} if auto-registration is on
+     */
     public boolean isAutoRegister() {
         return autoRegister;
     }

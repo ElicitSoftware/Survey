@@ -52,7 +52,12 @@ public class PostSurveyActionCredentials {
                 .filter(v -> !v.isEmpty());
     }
 
-    /** UC-007 BR-005: whether a credential is configured for the action, never its value. */
+    /**
+     * UC-007 BR-005: whether a credential is configured for the action, never its value.
+     *
+     * @param actionKey the action's key; {@code null} has no credential
+     * @return {@code bearer token} or {@code none}
+     */
     public String describe(UUID actionKey) {
         return value(actionKey, "bearer-token").isPresent() ? "bearer token" : "none";
     }
@@ -60,6 +65,7 @@ public class PostSurveyActionCredentials {
     /**
      * UC-007 BR-005: which credential a call to the action carries, never its value.
      *
+     * @param actionKey the action's key; {@code null} has no credential of its own
      * @param address the action's address as the definition holds it; placeholders may be unfilled
      * @return {@code bearer token}, {@code service token} or {@code none}
      */
@@ -88,7 +94,9 @@ public class PostSurveyActionCredentials {
      * action's own credential when the site configured one, whatever the address; otherwise the
      * platform service token when the address's origin is trusted; otherwise none.
      *
+     * @param actionKey the action's key; {@code null} has no credential of its own
      * @param address the action's address with its placeholders filled
+     * @return the header value, or empty when the call carries no credential
      * @throws ServiceToken.NotConfigured the call would carry the service token and Survey has none
      */
     public Optional<String> authorizationFor(UUID actionKey, URI address) {
@@ -102,6 +110,9 @@ public class PostSurveyActionCredentials {
     /**
      * The {@code Authorization} header value for the action's call, if the site configured a
      * credential for it.
+     *
+     * @param actionKey the action's key; {@code null} has no credential
+     * @return {@code Bearer <token>}, or empty when no credential is configured
      */
     public Optional<String> authorization(UUID actionKey) {
         return value(actionKey, "bearer-token").map(token -> "Bearer " + token);

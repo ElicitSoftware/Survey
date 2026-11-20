@@ -45,7 +45,7 @@ class SqlDimensionResolutionTest {
 
     @SuppressWarnings("unchecked")
     private List<Object[]> findDimensionValuesForTess() {
-        Query q = em.createNativeQuery(Sql.FIND_DIMENSTION_VALUES_SQL);
+        Query q = em.createNativeQuery(Sql.FIND_DIMENSION_VALUES_SQL);
         q.setParameter("respondentId", TESS_RESPONDENT_ID);
         return q.getResultList();
     }
@@ -54,7 +54,7 @@ class SqlDimensionResolutionTest {
         return rows.stream().anyMatch(r -> dim.equals(r[0]) && val.equals(r[1]));
     }
 
-    // ── FIND_DIMENSTION_VALUES_SQL — all three join paths ───────────────────
+    // ── FIND_DIMENSION_VALUES_SQL — all three join paths ───────────────────
 
     @Test
     void given_tess_when_findDimensionValues_then_sectionQuestionIdPathResolvesConstant() {
@@ -86,7 +86,7 @@ class SqlDimensionResolutionTest {
 
     @Test
     void given_unfinalizedOrUnknownRespondent_when_findDimensionValues_then_empty() {
-        Query q = em.createNativeQuery(Sql.FIND_DIMENSTION_VALUES_SQL);
+        Query q = em.createNativeQuery(Sql.FIND_DIMENSION_VALUES_SQL);
         q.setParameter("respondentId", -1);
         @SuppressWarnings("unchecked")
         List<Object[]> rows = q.getResultList();

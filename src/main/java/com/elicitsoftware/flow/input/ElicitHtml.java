@@ -28,6 +28,8 @@ public class ElicitHtml extends Div {
      * uses the answer's display key as its HTML ID.
      *
      * @param answer the answer object containing the HTML content to display
+     * @param texts  the content language of this page draw; not used, the content comes from
+     *               {@code answer.label()}
      */
     public ElicitHtml(Answer answer, ContentTexts texts) {
         super();

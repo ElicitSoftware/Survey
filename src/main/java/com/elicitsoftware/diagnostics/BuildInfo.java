@@ -46,6 +46,7 @@ public class BuildInfo {
 
     private Instant startedAt;
 
+    /** Creates the bean; CDI instantiates it at startup. */
     public BuildInfo() {
         // CDI managed bean
     }
@@ -55,28 +56,56 @@ public class BuildInfo {
         startedAt = Instant.now();
     }
 
+    /**
+     * The application name.
+     *
+     * @return {@code quarkus.application.name}, or "elicit-survey" when it is not set
+     */
     public String applicationName() {
         return applicationName;
     }
 
-    /** The Maven project version, or "unknown" when the build did not record it. */
+    /**
+     * The Maven project version.
+     *
+     * @return the version, or "unknown" when it is unset, blank or an unfiltered placeholder
+     */
     public String version() {
         return version.filter(v -> !v.isBlank() && !v.startsWith("@")).orElse(UNKNOWN);
     }
 
-    /** The Maven build timestamp, or "unknown" when the build did not record it. */
+    /**
+     * The Maven build timestamp.
+     *
+     * @return the timestamp, or "unknown" when it is unset, blank or an unfiltered placeholder
+     */
     public String buildTimestamp() {
         return buildTimestamp.filter(v -> !v.isBlank() && !v.startsWith("@")).orElse(UNKNOWN);
     }
 
+    /**
+     * The active configuration profiles.
+     *
+     * @return the profiles Quarkus is running with
+     */
     public List<String> profiles() {
         return ConfigUtils.getProfiles();
     }
 
+    /**
+     * When this bean was initialized, which stands for the application's start.
+     *
+     * @return the start instant
+     */
     public Instant startedAt() {
         return startedAt;
     }
 
+    /**
+     * How long the application has been running.
+     *
+     * @return the time from {@link #startedAt()} to now
+     */
     public Duration uptime() {
         return Duration.between(startedAt, Instant.now());
     }

@@ -31,10 +31,18 @@ public class ReportResponse {
     public String innerHTML;
     public PDFDocument pdf;
 
+    /** Creates an empty response, for JSON deserialization. */
     public ReportResponse() {
         super();
     }
 
+    /**
+     * Creates a response with all of its parts.
+     *
+     * @param title     the name of the report
+     * @param innerHTML the report's HTML content
+     * @param pdf       the report as a PDF, or {@code null} if there is none
+     */
     public ReportResponse(String title, String innerHTML, PDFDocument pdf) {
         super();
         this.title = title;

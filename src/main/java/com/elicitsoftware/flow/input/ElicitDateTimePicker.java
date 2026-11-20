@@ -37,6 +37,7 @@ public class ElicitDateTimePicker extends ElicitComponent<DateTimePicker> {
      * Constructs a new ElicitDateTimePicker for the given answer.
      *
      * @param answer the answer object to bind to this date-time picker
+     * @param texts  the content language of this page draw; null means the survey's base text
      */
     public ElicitDateTimePicker(Answer answer, ContentTexts texts) {
         super(new DateTimePicker(answer.label()), answer, texts);
@@ -80,11 +81,9 @@ public class ElicitDateTimePicker extends ElicitComponent<DateTimePicker> {
                     .asRequired(requiredMessage(answer))
                     .bind(Answer::getLocalDateTime, Answer::setLocalDateTime);
         }
-        //TODO a validator is still needed, for the required and the optional case alike.
-
-        //TODO Min and Max are integers.
-        // we will assume these are 24 hour click in the form of hour minute.
-        // e.g. 830 would be 8:30 AM
+        // A question's minimum and maximum are integers; for a date-time they are a 24-hour time as
+        // HHMM (830 is 08:30), applied to today's date. Only the component checks them, in the
+        // browser: an optional answer is not bound, so nothing checks it on the server (#226).
 
         if (answer.question.minValue != null) {
             component.setMin(createLocalDateTimeFromHHMM(answer.question.minValue));

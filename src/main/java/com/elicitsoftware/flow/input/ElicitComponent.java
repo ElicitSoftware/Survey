@@ -88,6 +88,15 @@ public abstract class ElicitComponent<T extends Component> {
             this(component, answer, ContentTexts.base());
         }
 
+        /**
+         * Constructs the component in the given content language: binds it to the answer, gives it
+         * the answer's display key as its id, and applies the question's variants, tooltip,
+         * validation message and placeholder in that language.
+         *
+         * @param component the UI component to wrap
+         * @param answer    the answer the component edits
+         * @param texts     the content language of this page draw; null means the survey's base text
+         */
         public ElicitComponent(T component, Answer answer, ContentTexts texts) {
             this.texts = texts == null ? ContentTexts.base() : texts;
             super();

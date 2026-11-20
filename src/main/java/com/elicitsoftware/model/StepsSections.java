@@ -124,10 +124,24 @@ public class StepsSections extends PanacheEntityBase {
     @Transient
     private DisplayKey key;
 
+    /**
+     * Looks up a placement by its exact display key, in every version; the snapshot-anchored
+     * lookup is {@link #findByDisplayKeyAsOf}.
+     *
+     * @param key the display key to search for
+     * @return the first matching row in display-key order, or {@code null} if there is none
+     */
     public static StepsSections findByDisplayKey(DisplayKey key) {
         return find("#StepsSections.findByDisplayKey", Map.of("displaykey", key.getValue())).firstResult();
     }
 
+    /**
+     * Lists a survey's placements in every version; the snapshot-anchored listing is
+     * {@link #findBySurveyIdAsOf}.
+     *
+     * @param surveyId the ID of the survey
+     * @return the survey's rows in display-key order
+     */
     public static List<StepsSections> findBySurveyId(int surveyId) {
         return find("#StepsSections.findBySurveyId", Map.of("surveyId", surveyId)).list();
     }
@@ -136,12 +150,23 @@ public class StepsSections extends PanacheEntityBase {
      * Snapshot-anchored ({@link Respondent#snapshotAnchor}) variant of findByDisplayKeyQuery:
      * resolves only the steps_sections row whose effective window covers {@code asOf}
      * (the respondent's firstAccessDt, or NOW() for a brand-new respondent).
+     *
+     * @param key  a {@code like} pattern on the display key
+     * @param asOf the snapshot instant to resolve structural rows as of
+     * @return the matching placements in effect at {@code asOf}, in display-key order
      */
     public static List<StepsSections> findByDisplayKeyQueryAsOf(String key, OffsetDateTime asOf) {
         return find("displaykey like ?1 and effectiveFrom <= ?2 and effectiveTo > ?2 order by displaykey",
                 key, asOf).list();
     }
 
+    /**
+     * The first placement, in display-key order, that {@link #findByDisplayKeyQueryAsOf} would list.
+     *
+     * @param key  a {@code like} pattern on the display key
+     * @param asOf the snapshot instant to resolve structural rows as of
+     * @return the first matching placement in effect at {@code asOf}, or {@code null} if there is none
+     */
     public static StepsSections findFirstByDisplayKeyQueryAsOf(String key, OffsetDateTime asOf) {
         return find("displaykey like ?1 and effectiveFrom <= ?2 and effectiveTo > ?2 order by displaykey",
                 key, asOf).firstResult();
@@ -195,6 +220,11 @@ public class StepsSections extends PanacheEntityBase {
                 .singleResultOptional().orElse(null);
     }
 
+    /**
+     * Returns the display key in its normalized, zero-padded form.
+     *
+     * @return the display key, parsed from {@link #displaykey} on first use
+     */
     public String getDisplaykey() {
         if (this.key == null) {
             this.key = new DisplayKey(this.displaykey);
@@ -202,11 +232,21 @@ public class StepsSections extends PanacheEntityBase {
         return key.getValue();
     }
 
+    /**
+     * Sets the display key and parses it into the {@link DisplayKey} that {@link #getKey()} returns.
+     *
+     * @param displaykey the display key; it must parse as a {@link DisplayKey}
+     */
     public void setDisplaykey(String displaykey) {
         this.displaykey = displaykey;
         this.key = new DisplayKey(displaykey);
     }
 
+    /**
+     * Returns the display key as a {@link DisplayKey}.
+     *
+     * @return the parsed display key, parsed from {@link #displaykey} on first use
+     */
     @Transient
     public DisplayKey getKey() {
         if (this.key == null) {

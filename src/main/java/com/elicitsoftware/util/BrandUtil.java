@@ -67,7 +67,11 @@ public class BrandUtil {
             this.defaultFile = defaultFile;
         }
 
-        /** The configuration key, as the documentation writes it. */
+        /**
+         * The configuration key, as the documentation writes it.
+         *
+         * @return {@code favicon}, or {@code logos.} followed by the logo's field
+         */
         public String configKey() {
             return logosField == null ? "favicon" : "logos." + logosField;
         }
@@ -107,10 +111,28 @@ public class BrandUtil {
         /** Display name per language tag (lower-case), from the brand's {@code localized} block. */
         private final Map<String, String> localizedNames;
         
+        /**
+         * A brand with no localized display names.
+         *
+         * @param brandKey    the brand's key, {@value #DEFAULT_BRAND_KEY} for the default brand
+         * @param displayName the brand's display name
+         * @param logoPath    the path of the brand's logo
+         * @param cssClass    the CSS class name added to the header for this brand
+         */
         public BrandInfo(String brandKey, String displayName, String logoPath, String cssClass) {
             this(brandKey, displayName, logoPath, cssClass, Collections.emptyMap());
         }
 
+        /**
+         * A brand with display names per language.
+         *
+         * @param brandKey       the brand's key, {@value #DEFAULT_BRAND_KEY} for the default brand
+         * @param displayName    the brand's base display name
+         * @param logoPath       the path of the brand's logo
+         * @param cssClass       the CSS class name added to the header for this brand
+         * @param localizedNames display name per lower-case language tag; copied, and
+         *                       {@code null} is taken as none
+         */
         public BrandInfo(String brandKey, String displayName, String logoPath, String cssClass,
                          Map<String, String> localizedNames) {
             this.brandKey = brandKey;
@@ -120,15 +142,44 @@ public class BrandUtil {
             this.localizedNames = localizedNames == null ? Collections.emptyMap() : Map.copyOf(localizedNames);
         }
         
+        /**
+         * Returns the brand's key.
+         *
+         * @return the brand key
+         */
         public String getBrandKey() { return brandKey; }
+        /**
+         * Returns the brand's base display name, untranslated.
+         *
+         * @return the base display name
+         */
         public String getDisplayName() { return displayName; }
+        /**
+         * Returns the path of the brand's logo.
+         *
+         * @return the logo path
+         */
         public String getLogoPath() { return logoPath; }
+        /**
+         * Returns the CSS class name added to the header for this brand.
+         *
+         * @return the CSS class name
+         */
         public String getCssClass() { return cssClass; }
+        /**
+         * Whether this is the default brand.
+         *
+         * @return {@code true} when the brand key is {@value #DEFAULT_BRAND_KEY}
+         */
         public boolean isDefaultBrand() { return DEFAULT_BRAND_KEY.equals(brandKey); }
 
         /**
          * The display name for a locale (UC-009 BR-006): the brand's variant for the exact
-         * language tag, then for the language alone, then the base name.
+         * language tag, then for the language alone, then for any regional variant of the
+         * language, then the base name.
+         *
+         * @param locale the locale, or {@code null} for the base name
+         * @return the display name to show
          */
         public String getDisplayName(Locale locale) {
             if (locale == null || localizedNames.isEmpty()) {

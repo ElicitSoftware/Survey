@@ -41,29 +41,60 @@ public class ReportRequest {
         super();
     }
 
+    /**
+     * A request for the given respondent's report in the survey's base language.
+     *
+     * @param id the respondent's id
+     */
     public ReportRequest(int id) {
         super();
         this.id = id;
     }
 
+    /**
+     * A request for the given respondent's report in the language they were reading.
+     *
+     * @param id       the respondent's id
+     * @param language the BCP-47 tag, or {@code null} for the survey's base language
+     */
     public ReportRequest(int id, String language) {
         super();
         this.id = id;
         this.language = language;
     }
 
+    /**
+     * Returns the language the respondent was reading.
+     *
+     * @return the BCP-47 tag, or {@code null} for the survey's base language
+     */
     public String getLanguage() {
         return language;
     }
 
+    /**
+     * Sets the language the respondent was reading.
+     *
+     * @param language the BCP-47 tag, or {@code null} for the survey's base language
+     */
     public void setLanguage(String language) {
         this.language = language;
     }
 
+    /**
+     * Returns the id of the respondent the report is for.
+     *
+     * @return the respondent's id
+     */
     public int getId() {
         return id;
     }
 
+    /**
+     * Sets the id of the respondent the report is for.
+     *
+     * @param id the respondent's id
+     */
     public void setId(int id) {
         this.id = id;
     }

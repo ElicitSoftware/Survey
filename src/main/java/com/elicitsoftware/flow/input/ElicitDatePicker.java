@@ -47,6 +47,7 @@ public class ElicitDatePicker extends ElicitComponent<DatePicker> {
      * and if the answer has a text value, it's parsed and set as the initial value.
      *
      * @param answer the answer object containing the data for this date picker
+     * @param texts  the content language of this page draw; null means the survey's base text
      */
     public ElicitDatePicker(Answer answer, ContentTexts texts) {
         super(new DatePicker(answer.label()), answer, texts);
@@ -100,9 +101,7 @@ public class ElicitDatePicker extends ElicitComponent<DatePicker> {
                     .bind(Answer::getLocalDate, Answer::setLocalDate);
         }
 
-        //TODO Min and Max are integers.
-        // We need a way to put in other values like dates
-        // for now we will use the epoch time.
+        // A question's minimum and maximum are integers; for a date they are days since 1970-01-01.
         if (answer.question.minValue != null) {
             component.setMin(LocalDate.ofEpochDay(answer.question.minValue));
         }

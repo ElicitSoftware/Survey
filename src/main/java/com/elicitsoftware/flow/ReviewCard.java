@@ -40,6 +40,15 @@ public class ReviewCard extends Div {
     private final QuestionService service;
     private final UISessionDataService sessionDataService;
 
+    /**
+     * Builds the card: the section's title, its edit icon, and one line per item with its label
+     * and value. The icon re-initializes the survey at the section's display key and navigates to
+     * the section view.
+     *
+     * @param section            the section to show
+     * @param service            the question service the edit icon initializes the section with
+     * @param sessionDataService the UI session the edit icon stores the new navigation state in
+     */
     public ReviewCard(ReviewSection section, QuestionService service, UISessionDataService sessionDataService) {
         super();
         this.service = service;

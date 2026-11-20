@@ -145,6 +145,11 @@ public class Translation extends PanacheEntityBase {
                 .singleResultOptional().orElse(null);
     }
 
+    /**
+     * Whether this is the current version of its string.
+     *
+     * @return {@code true} when {@code effective_to} is {@link #SENTINEL}
+     */
     public boolean isCurrent() {
         return SENTINEL.equals(effectiveTo);
     }

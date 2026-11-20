@@ -83,16 +83,25 @@ public class DatabaseDiagnostics {
     @ConfigProperty(name = "quarkus.flyway.owner.table", defaultValue = "flyway_history")
     String historyTable;
 
+    /** Creates the bean; CDI injects the two datasources and the configuration. */
     public DatabaseDiagnostics() {
         // CDI managed bean
     }
 
-    /** The application connection, which serves respondents. */
+    /**
+     * The application connection, which serves respondents.
+     *
+     * @return the probe of the default datasource; a failure is reported as down, never thrown
+     */
     public ConnectionReport checkApplicationConnection() {
         return probe("application", appUser, appDataSource);
     }
 
-    /** The owner connection, which runs the migrations. */
+    /**
+     * The owner connection, which runs the migrations.
+     *
+     * @return the probe of the {@code owner} datasource; a failure is reported as down, never thrown
+     */
     public ConnectionReport checkOwnerConnection() {
         return probe("owner", ownerUser, ownerDataSource);
     }
@@ -117,6 +126,9 @@ public class DatabaseDiagnostics {
      * V017's grant is in place: the Author module's System page reads this table as the same
      * user. A schema that predates the grant is read through the owner connection instead, and
      * the application user's failure is reported alongside (UC-007 A2).
+     *
+     * @return the latest versioned migration, or a report whose {@code error} says why neither
+     *         connection could read it or that the history holds no versioned migration
      */
     public MigrationReport latestMigration() {
         String sql = "SELECT version, installed_on::text, success FROM " + quote(historySchema) + "." + quote(historyTable)
@@ -147,7 +159,11 @@ public class DatabaseDiagnostics {
         }
     }
 
-    /** How many surveys are installed; zero means the reporting ETL has nothing to build (UC-007 A4). */
+    /**
+     * How many surveys are installed; zero means the reporting ETL has nothing to build (UC-007 A4).
+     *
+     * @return the number of rows in {@code survey.surveys}
+     */
     @ActivateRequestContext
     public long surveyCount() {
         return Survey.count();

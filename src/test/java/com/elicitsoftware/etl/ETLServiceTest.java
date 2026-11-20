@@ -450,7 +450,7 @@ class ETLServiceTest {
     void given_allDimensionTablesAlreadyBuilt_when_buildDimensionTables_then_noNewTablesFound() {
         // @Startup already ran buildDimensionTables() once for the whole test JVM.
         String result = etlService.buildDimensionTables(SCHEMA, SURVEY_ID);
-        assertEquals("new Dimesions tables = []", result,
+        assertEquals("new dimension tables = []", result,
                 "Second call must find zero new dimension tables — the discovery query is idempotent");
     }
 
@@ -585,7 +585,7 @@ class ETLServiceTest {
     @Test
     void given_stepSectionIdPathFixture_when_populateFactSectionTable_then_welcomeReachedKeyResolves() {
         // V9005.6 fixture: step_section_id-path metadata row with a constant value —
-        // exercises the previously-uncovered steps_sections join in FIND_DIMENSTION_VALUES_SQL
+        // exercises the previously-uncovered steps_sections join in FIND_DIMENSION_VALUES_SQL
         // / FIND_MISSING_FACT_SECTION_DIMENSIONS_SQL.
         etlService.populateFactSectionTable(TESS_RESPONDENT_ID);
 

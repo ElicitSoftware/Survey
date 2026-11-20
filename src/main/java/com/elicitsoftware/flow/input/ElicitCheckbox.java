@@ -51,6 +51,7 @@ public class ElicitCheckbox extends ElicitComponent<Checkbox> {
      * based on the boolean value parsed from the answer's text value.
      *
      * @param answer the answer object containing the data for this checkbox
+     * @param texts  the content language of this page draw; null means the survey's base text
      */
     public ElicitCheckbox(Answer answer, ContentTexts texts) {
         super(new Checkbox(answer.label(), Boolean.parseBoolean(answer.getTextValue())), answer, texts);

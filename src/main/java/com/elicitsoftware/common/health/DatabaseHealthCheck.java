@@ -21,6 +21,10 @@ import jakarta.inject.Inject;
 import javax.sql.DataSource;
 import java.sql.Connection;
 
+/**
+ * Readiness check that the application's datasource answers {@code SELECT 1}. A failure is
+ * reported down with a fixed text and the cause is logged at WARN only (NFR-014).
+ */
 @Readiness
 @ApplicationScoped
 public class DatabaseHealthCheck implements HealthCheck {

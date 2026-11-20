@@ -36,7 +36,7 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
  * - The report content is displayed below the header in a vertical layout.
  * <p>
  * Constructor:
- * - Accepts a String title for the header and a String html for the report content.
+ * - Accepts a String title for the header and the ReportResponse whose innerHTML is the report content.
  * <p>
  * Extends:
  * - com.vaadin.flow.component.html.Div
@@ -46,6 +46,13 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
  */
 public class ReportCard extends Div {
 
+    /**
+     * Builds the card. A report whose HTML contains an SVG has the SVG centered and scaled to
+     * the card's width.
+     *
+     * @param title  the heading shown above the report
+     * @param report the report whose {@code innerHTML} fills the card; it must not be null
+     */
     public ReportCard(String title, ReportResponse report) {
         super();
         this.setClassName("reviewCard");

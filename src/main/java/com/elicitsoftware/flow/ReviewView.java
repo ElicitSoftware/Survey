@@ -53,6 +53,7 @@ public class ReviewView extends VerticalLayout {
     NavResponse navResponse;
     Respondent respondent;
 
+    /** Creates the view; its content is built in {@link #init()} once the services are injected. */
     public ReviewView() {
         super();
     }

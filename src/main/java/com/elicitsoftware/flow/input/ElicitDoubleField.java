@@ -52,6 +52,7 @@ public class ElicitDoubleField extends ElicitComponent<NumberField> {
      * @param answer The {@link Answer} object containing the display text and initial value
      *               for the double field. If the text value of the answer is not null or empty,
      *               it will be used to set the initial value of the field.
+     * @param texts  the content language of this page draw; null means the survey's base text
      */
     public ElicitDoubleField(Answer answer, ContentTexts texts) {
         super(new NumberField(answer.label()), answer, texts);

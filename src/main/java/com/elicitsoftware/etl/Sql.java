@@ -38,6 +38,11 @@ public final class Sql {
      * Validates a value that will be spliced directly into a native SQL string as a
      * table or column identifier (JDBC bind parameters can't stand in for identifiers).
      * Throws if the value doesn't look like a plain lowercase/underscore identifier.
+     *
+     * @param name the identifier to check
+     * @return {@code name}, unchanged
+     * @throws IllegalArgumentException when the name is null or not lower-case letters, digits
+     *                                  and underscores
      */
     public static String requireValidIdentifier(String name) {
         if (name == null || !SQL_IDENTIFIER_PATTERN.matcher(name).matches()) {
@@ -61,6 +66,8 @@ public final class Sql {
     /**
      * Validates a value that will be spliced into native SQL as a schema name.
      *
+     * @param schema the schema name to check
+     * @return {@code schema}, unchanged
      * @throws IllegalArgumentException when the name is not an acceptable schema name (UC-008 BR-006)
      */
     public static String requireValidSchema(String schema) {
@@ -314,7 +321,7 @@ public final class Sql {
 
     // ── dimension values (per respondent; reads survey only) ─────────────────────────────────
 
-    public static final String FIND_DIMENSTION_VALUES_SQL = """
+    public static final String FIND_DIMENSION_VALUES_SQL = """
                     select DISTINCT x.dim, x.val, x.respondent_id from (
                      --Question Tags from Dimension table
                              SELECT DISTINCT 'dim_' || LOWER(d1.name) as dim,

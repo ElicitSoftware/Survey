@@ -65,6 +65,8 @@ public class ElicitRadioButtonGroup extends ElicitComponent<RadioButtonGroup<Sel
      *                 <li>Configures the item label generator to display the text of each {@link SelectItem}.</li>
      *                 <li>Pre-selects a value if the {@link Answer} already has a non-empty text value.</li>
      *               </ul>
+     * @param texts  the content language of this page draw, which also labels the options;
+     *               must not be null
      */
     public ElicitRadioButtonGroup(Answer answer, ContentTexts texts) {
         super(new RadioButtonGroup<SelectItem>(answer.label()), answer, texts);

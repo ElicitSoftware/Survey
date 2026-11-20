@@ -30,6 +30,7 @@ public class ElicitPasswordField extends ElicitComponent<PasswordField> {
      *
      * @param answer The {@link Answer} object containing the display text
      *               to be used for the password field.
+     * @param texts  the content language of this page draw; null means the survey's base text
      */
     public ElicitPasswordField(Answer answer, ContentTexts texts) {
         super(new PasswordField(answer.label()), answer, texts);

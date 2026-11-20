@@ -47,6 +47,7 @@ public class ContainerInfo {
     private boolean resolved;
     private String imageCreationDate;
 
+    /** Runs the commands as real processes, each with {@link #COMMAND_TIMEOUT}. */
     public ContainerInfo() {
         this(command -> run(COMMAND_TIMEOUT, command));
     }

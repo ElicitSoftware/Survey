@@ -49,6 +49,8 @@ public class ElicitMultiSelectComboBox extends ElicitComponent<MultiSelectComboB
      *                 <li>Sets a label generator for the items to display their `displayText` property.</li>
      *                 <li>Pre-selects the value if the `Answer` object contains a non-empty text value.</li>
      *               </ul>
+     * @param texts  the content language of this page draw, which also labels the options;
+     *               must not be null
      */
     public ElicitMultiSelectComboBox(Answer answer, ContentTexts texts) {
         super(new MultiSelectComboBox<SelectItem>(answer.label()), answer, texts);

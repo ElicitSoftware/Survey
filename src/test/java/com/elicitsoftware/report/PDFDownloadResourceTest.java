@@ -79,7 +79,7 @@ class PDFDownloadResourceTest {
         assertArrayEquals(originalBytes, (byte[]) response.getEntity(),
                 "Downloaded PDF bytes must be identical to what was cached");
         assertEquals("application/pdf", response.getHeaderString("Content-Type"));
-        assertTrue(response.getHeaderString("Content-Disposition").contains("family_history_report.pdf"));
+        assertEquals("inline; filename=\"report.pdf\"", response.getHeaderString("Content-Disposition"));
         assertEquals("no-cache, no-store, must-revalidate", response.getHeaderString("Cache-Control"));
     }
 
@@ -256,5 +256,25 @@ class PDFDownloadResourceTest {
         timestampField.setAccessible(true);
         // 11 minutes in the past -- one minute past the 10-minute TTL.
         timestampField.set(entry, System.currentTimeMillis() - (11 * 60 * 1000));
+    }
+
+    /** UC-005 BR-022: the PDF is offered under the survey's name. */
+    @Test
+    void given_aPdfOfASurvey_when_downloaded_then_itIsNamedAfterTheSurvey() {
+        String key = PDFDownloadResource.cachePDF(new byte[]{'%', 'P'}, null, "Family History Survey");
+
+        assertEquals("inline; filename=\"family-history-survey-report.pdf\"",
+                resource.downloadPDF(key).getHeaderString("Content-Disposition"));
+    }
+
+    /** UC-005 BR-022: only a-z and digits are kept, as one hyphen per run of anything else. */
+    @Test
+    void given_surveyNames_when_namingThePdf_then_onlyLettersAndDigitsAreKept() {
+        assertEquals("family-history-survey-report.pdf", PDFDownloadResource.fileName("Family History Survey"));
+        assertEquals("premm5-v2-report.pdf", PDFDownloadResource.fileName("  PREMM5 (v2) "));
+        assertEquals("caf-r-sum-report.pdf", PDFDownloadResource.fileName("Café \"résumé\""));
+        assertEquals("report.pdf", PDFDownloadResource.fileName("استبيان"));
+        assertEquals("report.pdf", PDFDownloadResource.fileName(""));
+        assertEquals("report.pdf", PDFDownloadResource.fileName(null));
     }
 }

@@ -324,7 +324,7 @@ class RespondentSummaryServiceRenderingTest {
 
     private String renderOptions(String type, String value) throws Exception {
         RespondentSummaryService.Row row = new RespondentSummaryService.Row("0001", BigDecimal.ONE, BigDecimal.ONE, 0, 0,
-                "Colour?", value, 10, 20, type, 30);
+                "Color?", value, 10, 20, type, 30);
         Map<String, List<SelectItem>> options = new HashMap<>();
         // The option list as of the anchor, already read for this group, as the cache holds it.
         options.put("30@" + ANCHOR, List.of(option("R", "Red", MARK_KEY), option("G", "Green", null)));

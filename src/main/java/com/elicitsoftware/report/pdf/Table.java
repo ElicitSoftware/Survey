@@ -2,7 +2,7 @@ package com.elicitsoftware.report.pdf;
 
 /*-
  * ***LICENSE_START***
- * Elicit FHHS
+ * Elicit Survey
  * %%
  * Copyright (C) 2025 The Regents of the University of Michigan - Rogel Cancer Center
  * %%
@@ -11,6 +11,11 @@ package com.elicitsoftware.report.pdf;
  * ***LICENSE_END***
  */
 
+/**
+ * A table in a PDF request ({@link Content#table}): its header row, its column widths and
+ * its body rows. {@code PDFService} sizes the first column to its content and takes the
+ * other columns' widths from {@link #widths}.
+ */
 public class Table {
     public String[] headers;
     public float[] widths;

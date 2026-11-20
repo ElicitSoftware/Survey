@@ -43,6 +43,7 @@ public class ElicitTextArea extends ElicitComponent<TextArea> {
      *
      * @param answer The Answer object containing the display text to be shown in the text area.
      *               This is used to initialize the TextArea component with the provided display text.
+     * @param texts  the content language of this page draw; null means the survey's base text
      */
     public ElicitTextArea(Answer answer, ContentTexts texts) {
         super(new TextArea(answer.label()), answer, texts);

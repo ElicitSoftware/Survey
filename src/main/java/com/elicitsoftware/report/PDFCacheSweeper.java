@@ -22,6 +22,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 @ApplicationScoped
 public class PDFCacheSweeper {
 
+    /** Creates the bean; CDI instantiates it. */
     public PDFCacheSweeper() {
         // CDI managed bean
     }

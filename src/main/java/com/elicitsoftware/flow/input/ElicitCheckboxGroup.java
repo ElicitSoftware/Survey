@@ -65,6 +65,8 @@ public class ElicitCheckboxGroup extends ElicitComponent<CheckboxGroup<SelectIte
      * </ul>
      *
      * @param answer The {@link Answer} object containing the data to initialize the checkbox group.
+     * @param texts  the content language of this page draw, which also labels the options;
+     *               must not be null
      */
     public ElicitCheckboxGroup(Answer answer, ContentTexts texts) {
         super(new CheckboxGroup<SelectItem>(answer.label()), answer, texts);

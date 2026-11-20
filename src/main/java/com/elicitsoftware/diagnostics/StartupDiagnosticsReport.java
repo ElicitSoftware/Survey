@@ -58,6 +58,11 @@ public class StartupDiagnosticsReport {
      * @param text  what it says, without the prefix
      */
     public record Line(Level level, String text) {
+        /**
+         * Whether the line is logged at WARN.
+         *
+         * @return true for a {@link Level#WARN} line
+         */
         public boolean isWarning() {
             return level == Level.WARN;
         }
@@ -84,6 +89,7 @@ public class StartupDiagnosticsReport {
     @Inject
     SettingsReport settings;
 
+    /** Creates the bean; CDI instantiates it. */
     public StartupDiagnosticsReport() {
         // CDI managed bean
     }
@@ -109,7 +115,11 @@ public class StartupDiagnosticsReport {
         });
     }
 
-    /** Builds the report. Every probe is bounded (NFR-009) and no secret is ever included (NFR-008). */
+    /**
+     * Builds the report. Every probe is bounded (NFR-009) and no secret is ever included (NFR-008).
+     *
+     * @return the report's lines, in the order they are logged
+     */
     public List<Line> lines() {
         List<Line> lines = new ArrayList<>();
 

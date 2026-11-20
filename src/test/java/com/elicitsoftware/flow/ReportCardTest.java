@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * UC-005: View Reports and Download PDF — a {@link ReportCard} shows one report's title over
- * its rendered body, and centres the body when the report service returned an SVG drawing.
+ * its rendered body, and centers the body when the report service returned an SVG drawing.
  */
 class ReportCardTest {
 

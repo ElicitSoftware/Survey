@@ -179,13 +179,23 @@ public class QuestionService {
         return self.renderPage(respondentId, displaykey);
     }
 
-    /** Records the respondent's activity in the caller's transaction, or one of its own. */
+    /**
+     * Records the respondent's activity in the caller's transaction, or one of its own.
+     *
+     * @param respondentId the respondent who is active
+     */
     @Transactional
     public void recordActivity(int respondentId) {
         questionManager.recordActivity(respondentId);
     }
 
-    /** Builds the respondent's missing rows and renders the page, in a transaction of its own. */
+    /**
+     * Builds the respondent's missing rows and renders the page, in a transaction of its own.
+     *
+     * @param respondentId the respondent whose page is rendered
+     * @param displaykey   the display key of the section to render
+     * @return the step, navigation items and answers for that section
+     */
     @Transactional(Transactional.TxType.REQUIRES_NEW)
     public NavResponse renderPage(int respondentId, String displaykey) {
         questionManager.init(respondentId, displaykey);
@@ -204,13 +214,7 @@ public class QuestionService {
         Respondent respondent = sessionDataService.getRespondent();
         return init(respondent.id, displaykey);
     }
-    /**
-     * Generates a review response containing sections and items based on the respondent's data.
-     * Each section represents a logical grouping of items, and items include display labels and values.
-     *
-     * @param respondent_id the unique identifier of the respondent for whom the review response is generated
-     * @return an instance of {@code ReviewResponse} containing a list of sections with their associated items
-     */
+
     /**
      * Re-renders a respondent's in-progress answer labels in the language now in force
      * (UC-009 BR-005). Called from {@code LocaleSelection.apply} when a respondent switches
@@ -223,6 +227,13 @@ public class QuestionService {
         questionManager.relocalize(respondentId);
     }
 
+    /**
+     * Generates a review response containing sections and items based on the respondent's data.
+     * Each section represents a logical grouping of items, and items include display labels and values.
+     *
+     * @param respondent_id the unique identifier of the respondent for whom the review response is generated
+     * @return an instance of {@code ReviewResponse} containing a list of sections with their associated items
+     */
     @Timed(value = "survey.review", description = "Time to generate review response", histogram = true)
     @Transactional
     public ReviewResponse review(int respondent_id) {
@@ -365,6 +376,8 @@ public class QuestionService {
      * UC-004 step 4: delivers the survey's post-survey actions for the respondent (UC-015). Each
      * write of the delivery commits on its own and no call runs inside a transaction, so this
      * method opens none.
+     *
+     * @param respondentId the respondent who finished the survey
      */
     @Timed(value = "survey.post.actions", description = "Time to execute post-survey actions", histogram = true)
     public void PostSurveyActions(int respondentId) {
