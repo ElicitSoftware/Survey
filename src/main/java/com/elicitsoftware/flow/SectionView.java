@@ -39,6 +39,7 @@ import jakarta.inject.Inject;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 
 
 /**
@@ -196,7 +197,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                         case GlobalStrings.QUESTION_TYPE_CHECKBOX:
                             ElicitCheckbox checkbox = new ElicitCheckbox(answer, texts);
                             checkbox.component.addValueChangeListener(e -> {
-                                saveAnswer(answer, e.getValue().toString());
+                                saveAnswer(answer, answerText(e.getValue()));
                             });
                             displayMap.put(answer.getDisplayKey(), checkbox.component);
                             if (!binders.containsKey(answer.getDisplayKey())) {
@@ -207,7 +208,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                         case GlobalStrings.QUESTION_TYPE_DATE_PICKER:
                             ElicitDatePicker datePicker = new ElicitDatePicker(answer, texts);
                             datePicker.component.addValueChangeListener(e -> {
-                                saveAnswer(answer, e.getValue().toString());
+                                saveAnswer(answer, answerText(e.getValue()));
                             });
                             displayMap.put(answer.getDisplayKey(), datePicker.component);
                             if (!binders.containsKey(answer.getDisplayKey())) {
@@ -236,8 +237,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             integerField.component.setValueChangeMode(ValueChangeMode.LAZY);
                             integerField.component.setValueChangeTimeout(300);
                             integerField.component.addValueChangeListener(e -> {
-                                Integer newValue = e.getValue();
-                                saveAnswer(answer, String.valueOf(newValue));
+                                saveAnswer(answer, answerText(e.getValue()));
                             });
                             displayMap.put(answer.getDisplayKey(), integerField.component);
                             if (!binders.containsKey(answer.getDisplayKey())) {
@@ -252,7 +252,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             numberField.component.setValueChangeMode(ValueChangeMode.LAZY);
                             numberField.component.setValueChangeTimeout(300);
                             numberField.component.addValueChangeListener(e -> {
-                                saveAnswer(answer, e.getValue().toString());
+                                saveAnswer(answer, answerText(e.getValue()));
                             });
                             displayMap.put(answer.getDisplayKey(), numberField.component);
                             if (!binders.containsKey(answer.getDisplayKey())) {
@@ -262,7 +262,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                         case GlobalStrings.QUESTION_TYPE_RADIO:
                             ElicitRadioButtonGroup radio = new ElicitRadioButtonGroup(answer, texts);
                             radio.component.addValueChangeListener(e -> {
-                                saveAnswer(answer, e.getValue().codedValue);
+                                saveAnswer(answer, e.getValue() == null ? null : e.getValue().codedValue);
                             });
                             displayMap.put(answer.getDisplayKey(), radio.component);
                             if (!binders.containsKey(answer.getDisplayKey())) {
@@ -317,7 +317,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                         case GlobalStrings.QUESTIION_TYPE_DATE_TIME_PICKER:
                             ElicitDateTimePicker dateTimePicker = new ElicitDateTimePicker(answer, texts);
                             dateTimePicker.component.addValueChangeListener(e -> {
-                                saveAnswer(answer, e.getValue().toString());
+                                saveAnswer(answer, answerText(e.getValue()));
                             });
                             displayMap.put(answer.getDisplayKey(), dateTimePicker.component);
                             if (!binders.containsKey(answer.getDisplayKey())) {
@@ -361,7 +361,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                         case GlobalStrings.QUESTIION_TYPE_TIME_PICKER:
                             ElicitTimePicker timePicker = new ElicitTimePicker(answer, texts);
                             timePicker.component.addValueChangeListener(e -> {
-                                saveAnswer(answer, e.getValue().toString());
+                                saveAnswer(answer, answerText(e.getValue()));
                             });
                             displayMap.put(answer.getDisplayKey(), timePicker.component);
                             if (!binders.containsKey(answer.getDisplayKey())) {
@@ -545,6 +545,41 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
     }
 
     /**
+     * The text a field's value is saved as (UC-002 BR-017): {@code null} for a cleared field,
+     * whose value is {@code null}, and the value's own text otherwise.
+     *
+     * @param value the field's new value, {@code null} when the respondent cleared it
+     * @return the value's text, or {@code null}
+     */
+    static String answerText(Object value) {
+        return value == null ? null : value.toString();
+    }
+
+    /**
+     * The value an answer is stored with (UC-002 BR-017): an empty text, which an emptied text
+     * field or an emptied multi-select gives, is unanswered and stored as {@code null}, like a
+     * question that was never answered.
+     *
+     * @param value the text from the field, possibly {@code null} or empty
+     * @return {@code null} for no answer, otherwise the text unchanged
+     */
+    static String storedValue(String value) {
+        return value == null || value.isEmpty() ? null : value;
+    }
+
+    /**
+     * Whether a field's value changes the stored answer and must be saved (UC-002 BR-017): a clear
+     * of an answered question does, a clear of an unanswered one does not.
+     *
+     * @param stored the answer's stored text, {@code null} when unanswered
+     * @param value  the text from the field, possibly {@code null} or empty
+     * @return {@code true} when the stored answer differs from what the field now holds
+     */
+    static boolean changesAnswer(String stored, String value) {
+        return !Objects.equals(storedValue(value), stored);
+    }
+
+    /**
      * Saves the provided answer and updates the UI components.
      * <p>
      * This method attempts to save the given answer using the service layer. If the save
@@ -556,11 +591,10 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
      */
     private void saveAnswer(Answer answer, String value) {
         flash = true;
-        //check if this is the first time and textValue is null
-        // Or if it has changed.
-        if ((value != null && answer.getTextValue() == null) ||
-                (value != null && !answer.getTextValue().equals(value))) {
-            answer.setTextValue(value);
+        // UC-002 BR-017: an emptied field is unanswered (null), never "", and a clear is a change
+        // to save like any other; saving the value already stored does nothing.
+        if (changesAnswer(answer.getTextValue(), value)) {
+            answer.setTextValue(storedValue(value));
             
             // Increment pending operations counter
             pendingSaveOperations++;
