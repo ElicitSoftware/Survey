@@ -100,9 +100,7 @@ public class ElicitDatePicker extends ElicitComponent<DatePicker> {
                     .bind(Answer::getLocalDate, Answer::setLocalDate);
         }
 
-        //TODO Min and Max are integers.
-        // We need a way to put in other values like dates
-        // for now we will use the epoch time.
+        // A question's minimum and maximum are integers; for a date they are days since 1970-01-01.
         if (answer.question.minValue != null) {
             component.setMin(LocalDate.ofEpochDay(answer.question.minValue));
         }

@@ -96,7 +96,7 @@ Every row is one key in `translations.properties`. Return a file `translations_<
 | `mainView.btnLogin` | Login | Login page · primary button | 20 |  |
 | `mainView.error.invalidAccessCode` | Invalid access code. Please check your access code and try again. | Login page · notification | 100 |  |
 | `mainView.error.fixErrors` | Please correct the errors before logging in. | Login page · notification | 80 |  |
-| `mainView.surveys.isEmpty` | There are no surveys to login | Login page · paragraph shown when no survey exists | 60 |  |
+| `mainView.surveys.isEmpty` | There are no surveys to log in to | Login page · paragraph shown when no survey exists | 60 |  |
 | `mainView.comboBox` | Surveys | Login page · survey selector label | 20 |  |
 | `mainView.autoRegister.instructions` | Enter an access code of 5 to 12 characters.<br/>Access codes are case sensitive. | Login page, where the site auto-registers new access codes · paragraph | 160 | html |
 | `sectionView.btnPrevious` | Previous | Survey section page · button | 20 |  |
@@ -174,7 +174,7 @@ mainView.accessCode.tooLong=Access code must be at most 12 characters
 mainView.btnLogin=Login
 mainView.error.invalidAccessCode=Invalid access code. Please check your access code and try again.
 mainView.error.fixErrors=Please correct the errors before logging in.
-mainView.surveys.isEmpty=There are no surveys to login
+mainView.surveys.isEmpty=There are no surveys to log in to
 mainView.comboBox=Surveys
 mainView.autoRegister.instructions=Enter an access code of 5 to 12 characters.<br/>Access codes are case sensitive.
 sectionView.btnPrevious=Previous

@@ -366,7 +366,7 @@ public class PDFService {
 
     /**
      * Draws an SVG (the pedigree) on the current page, below what is already there: scaled to fit
-     * between the cursor and the room kept for the report's text that follows it, centred across
+     * between the cursor and the room kept for the report's text that follows it, centered across
      * the page and aligned to the top, and the cursor is moved to just below it. When too little
      * of the page is left for a legible drawing it starts a page of the same orientation first.
      * The drawing is added to the open content stream, so the report's title above it and its
@@ -416,7 +416,7 @@ public class PDFService {
         double scale = Math.min(boxWidth / expandedBounds.getWidth(), boxHeight / expandedBounds.getHeight());
         graphics2D.scale(scale, scale);
 
-        // Centre across the box and align to its top (Graphics2D's y runs down from the top)
+        // Center across the box and align to its top (Graphics2D's y runs down from the top)
         double translateX = (boxWidth / scale - expandedBounds.getWidth()) / 2.0;
         graphics2D.translate(translateX - expandedBounds.getX(), -expandedBounds.getY());
 

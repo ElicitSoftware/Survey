@@ -42,7 +42,7 @@
 
 **A4: No surveys configured**
 - **Trigger:** The system has zero surveys defined.
-- The login page displays "There are no surveys to login" and no access code field is usable.
+- The login page displays "There are no surveys to log in to" and no access code field is usable.
 
 **A5: Returning respondent with an existing browser session**
 - **Trigger:** The respondent already has an active browser session with survey/respondent state.

@@ -39,18 +39,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * UC-003: Review Answers — a {@link ReviewCard} shows one reviewed section: its title, one
  * "label: value" row per active answer (BR-008 is applied upstream, by the review query), and an
- * edit icon that re-initialises navigation at that section and goes back to the section page.
+ * edit icon that re-initializes navigation at that section and goes back to the section page.
  */
 class ReviewCardTest {
 
     /** Records what the edit icon asks of the question service. */
     private static final class RecordingQuestionService extends QuestionService {
-        final List<String> initialised = new ArrayList<>();
+        final List<String> initialized = new ArrayList<>();
         final NavResponse response = new NavResponse(null, null, List.of(), new NavigationItem[0]);
 
         @Override
         public NavResponse init(String displaykey) {
-            initialised.add(displaykey);
+            initialized.add(displaykey);
             return response;
         }
     }
@@ -142,7 +142,7 @@ class ReviewCardTest {
 
         ComponentUtil.fireEvent(edit, new com.vaadin.flow.component.ClickEvent<>(edit));
 
-        assertEquals(List.of("1.2.0.0.0.0.0"), service.initialised);
+        assertEquals(List.of("1.2.0.0.0.0.0"), service.initialized);
         assertSame(service.response, session.stored);
         assertEquals(List.of("section"), ui.navigations);
     }

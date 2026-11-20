@@ -483,7 +483,7 @@ public class ETLService {
      * UC-008 step 5: creates a {@code dim_<name>} table in the survey's schema for every
      * dimension its metadata names that has no table yet.
      *
-     * @return "new Dimesions tables = [dimension1, dimension2, ...]"
+     * @return "new dimension tables = [dimension1, dimension2, ...]"
      */
     @Transactional
     public String buildDimensionTables(String schema, int surveyId) {
@@ -495,7 +495,7 @@ public class ETLService {
         for (String dimension : results) {
             buildDimension(schema, dimension);
         }
-        return "new Dimesions tables = " + results;
+        return "new dimension tables = " + results;
     }
 
     private int buildDimension(String schema, String dimensionName) {
@@ -567,7 +567,7 @@ public class ETLService {
     @Transactional
     public String populateDimensionTables(String schema, Integer respondentId) {
         return DatabaseRetryUtil.executeWithRetry(() -> {
-            Query query = entityManager.createNativeQuery(Sql.FIND_DIMENSTION_VALUES_SQL);
+            Query query = entityManager.createNativeQuery(Sql.FIND_DIMENSION_VALUES_SQL);
             query.setParameter("respondentId", respondentId);
             @SuppressWarnings("unchecked")
             List<Object[]> results = query.getResultList();
@@ -576,7 +576,7 @@ public class ETLService {
                 String value = (String) result[1];
                 insertDimensionValue(schema, dimension, value);
             }
-            return "Populated Dimesions tables = " + results.size();
+            return "Populated dimension tables = " + results.size();
         }, "populating dimension tables for respondent " + respondentId);
     }
 
@@ -660,7 +660,7 @@ public class ETLService {
      * UC-008 step 5: adds a {@code <tag>_key} column to the survey's {@code fact_sections} for
      * every dimension of the survey that has none yet.
      *
-     * @return the columns added, one per line
+     * @return "new fact_sections columns = " followed by the columns added, one per line
      */
     @Transactional
     public String buildFactSectionTable(String schema, int surveyId) {
@@ -676,7 +676,7 @@ public class ETLService {
             returnValue.append(column).append('\n');
             addDimensionColumnsToFactSectionTable(schema, column, dimension);
         }
-        return "new Dimesions tables = " + returnValue;
+        return "new fact_sections columns = " + returnValue;
     }
 
     private int addDimensionColumnsToFactSectionTable(String schema, String column, String dimension) {
