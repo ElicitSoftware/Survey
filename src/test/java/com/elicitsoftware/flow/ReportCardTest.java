@@ -85,4 +85,15 @@ class ReportCardTest {
         assertNull(body.getStyle().get("text-align"));
         assertEquals(2, rows(new ReportCard("Nothing", new ReportResponse())).size());
     }
+
+    /** UC-005 BR-021: what a report service sends is cleaned before it is set on the page. */
+    @Test
+    void given_aReportCarryingScript_when_constructed_then_onlyTheCleanedBodyIsSet() {
+        Div body = body(new ReportCard("Hostile", new ReportResponse("h",
+                "<p onclick=\"steal()\">Low</p><script>steal()</script><svg onload=\"steal()\"><rect width=\"1\"/></svg>", null)));
+
+        String html = body.getElement().getProperty("innerHTML");
+        assertEquals("<p>Low</p><svg><rect width=\"1\" /></svg>", html);
+        assertEquals("center", body.getStyle().get("text-align"));
+    }
 }
