@@ -42,7 +42,7 @@
 
 **A5: A database upgraded from an earlier release**
 - **Trigger:** The migration that adds the two columns runs on a database with respondents in it.
-- For every finished respondent, each answer row's `presented_dt` is set from its `created_dt`, because finishing proves every surviving row was shown; in-progress and not-started respondents' rows are left unstamped, since nothing on record says which pages they reached. `last_activity_dt` is set to the respondent's `finalized_dt`, else the latest `saved_dt` among their answers, else their `first_access_dt`. Existing `saved_dt` values are left as they are: the database cannot tell a default that was accepted from one that was retyped.
+- For every finished respondent, each answer row's `presented_dt` is set from its `created_dt`, because finishing proves every surviving row was shown. For every respondent in progress, each answer row with a `saved_dt` later than its `created_dt` gets that `saved_dt` as its `presented_dt`, because a saved answer was on a page they were shown; their other rows — a default stamped when the row was built, an unanswered question, a page not reached — are left unstamped, and so are not-started respondents' rows. A respondent in progress is therefore placed at the step of their last saved answer, and one who opened a new page without saving anything on it is placed at the step before. `last_activity_dt` is set to the respondent's `finalized_dt`, else the latest `saved_dt` among their answers, else their `first_access_dt`. Existing `saved_dt` values are left as they are: the database cannot tell a default that was accepted from one that was retyped.
 
 ## Postconditions
 
