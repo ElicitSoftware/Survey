@@ -47,6 +47,7 @@ public class ElicitTimePicker extends ElicitComponent<TimePicker> {
      *
      * @param answer The {@link Answer} object containing the display text
      *               and initial value for the time picker.
+     * @param texts  the content language of this page draw; null means the survey's base text
      */
     public ElicitTimePicker(Answer answer, ContentTexts texts) {
         super(new TimePicker(answer.label()), answer, texts);

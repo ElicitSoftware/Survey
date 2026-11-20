@@ -88,6 +88,13 @@ public class LocaleConfig {
     record Entry(Boolean rightToLeft, Double fontScale) {
     }
 
+    /**
+     * Whether text in this locale runs right to left: an {@code i18n.direction.<tag>} property
+     * first, then the manifests, then the language's script.
+     *
+     * @param locale the locale, or {@code null}
+     * @return {@code true} for a right-to-left locale; {@code false} for {@code null}
+     */
     public boolean isRightToLeft(Locale locale) {
         if (locale == null) {
             return false;
@@ -104,6 +111,12 @@ public class LocaleConfig {
      * unless the manifest declares another. A script whose apparent x-height is smaller than
      * Latin's -- Arabic is the case this exists for -- reads at the same size as English only when
      * it is set a little larger.
+     * <p>
+     * An {@code i18n.font-scale.<tag>} property wins over the manifests; one that is not a number
+     * or lies outside {@value #MIN_FONT_SCALE}..{@value #MAX_FONT_SCALE} is logged and ignored.
+     *
+     * @param locale the locale, or {@code null} for the default
+     * @return the font scale
      */
     public double fontScale(Locale locale) {
         if (locale == null) {
@@ -173,6 +186,7 @@ public class LocaleConfig {
         }
     }
 
+    /** Forgets the loaded manifests, so the next lookup reads them again. */
     public void clearCache() {
         entries = null;
     }

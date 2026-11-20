@@ -64,6 +64,7 @@ public class ServiceToken {
      * is not made; the message is {@link #NOT_CONFIGURED}.
      */
     public static class NotConfigured extends IllegalStateException {
+        /** Creates the exception with the message {@link #NOT_CONFIGURED}. */
         public NotConfigured() {
             super(NOT_CONFIGURED);
         }
@@ -82,6 +83,9 @@ public class ServiceToken {
          * The origin of an address about to be called, or empty for an address that is never
          * trusted: one with user information, no host, or a scheme other than http and https.
          * Nothing is resolved and nothing is normalized beyond case and the default port.
+         *
+         * @param address the address about to be called; may be null
+         * @return the address's origin, or empty for null or an address that is never trusted
          */
         public static Optional<Origin> of(URI address) {
             if (address == null || address.getScheme() == null || address.getRawUserInfo() != null) {
@@ -149,6 +153,7 @@ public class ServiceToken {
 
     private Set<Origin> trustedOrigins = Set.of();
 
+    /** Creates an unconfigured instance; CDI configures it through {@link #init()}. */
     public ServiceToken() {
         // CDI managed bean
     }
@@ -158,6 +163,7 @@ public class ServiceToken {
      *
      * @param token          the token, or null or blank for none
      * @param trustedOrigins the comma-separated origins, or null or blank for none
+     * @return the configured instance
      * @throws IllegalStateException as {@link #init()}
      */
     public static ServiceToken of(String token, String trustedOrigins) {
@@ -207,17 +213,30 @@ public class ServiceToken {
         }
     }
 
-    /** Whether a token is configured. */
+    /**
+     * Whether a token is configured.
+     *
+     * @return true when a non-blank token was configured
+     */
     public boolean configured() {
         return digest != null;
     }
 
-    /** UC-016 A5: whether the configured token is the well-known development value. */
+    /**
+     * UC-016 A5: whether the configured token is the well-known development value.
+     *
+     * @return true when the token equals {@link #DEVELOPMENT_TOKEN}; false when it differs or none
+     *         is configured
+     */
     public boolean developmentToken() {
         return developmentToken;
     }
 
-    /** The trusted origins, for the diagnostics report. */
+    /**
+     * The trusted origins, for the diagnostics report.
+     *
+     * @return the configured origins, unmodifiable; empty when none are configured
+     */
     public Set<Origin> trustedOrigins() {
         return trustedOrigins;
     }
@@ -236,7 +255,12 @@ public class ServiceToken {
         return MessageDigest.isEqual(digest, sha256(presented));
     }
 
-    /** UC-016 BR-007: whether the address's origin equals a trusted one. */
+    /**
+     * UC-016 BR-007: whether the address's origin equals a trusted one.
+     *
+     * @param address the address about to be called; may be null
+     * @return true when its origin is trusted; false for null or an address with no usable origin
+     */
     public boolean trusts(URI address) {
         return Origin.of(address).map(trustedOrigins::contains).orElse(false);
     }

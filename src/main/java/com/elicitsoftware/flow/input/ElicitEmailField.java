@@ -44,6 +44,7 @@ public class ElicitEmailField extends ElicitComponent<EmailField> {
      *
      * @param answer The {@link Answer} object containing the display text and
      *               initial value for the email field.
+     * @param texts  the content language of this page draw; null means the survey's base text
      */
     public ElicitEmailField(Answer answer, ContentTexts texts) {
         super(new EmailField(answer.label()), answer, texts);

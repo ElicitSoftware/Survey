@@ -102,7 +102,11 @@ public class ContentTranslator {
 
     private final Map<Integer, Snapshot> cache = new ConcurrentHashMap<>();
 
-    /** {@code effective_to} of a current row, as the schema writes it. */
+    /**
+     * {@code effective_to} of a current row, as the schema writes it.
+     *
+     * @return the sentinel instant, {@link com.elicitsoftware.model.Translation#SENTINEL}
+     */
     public static OffsetDateTime sentinel() {
         return com.elicitsoftware.model.Translation.SENTINEL;
     }
@@ -182,7 +186,21 @@ public class ContentTranslator {
         return get(survey, language, targetKey, field, baseText, asOf);
     }
 
-    /** As {@link #get}, with the language already resolved -- the bulk path through a page draw. */
+    /**
+     * As {@link #get(Survey, UUID, String, String, OffsetDateTime)}, with the language already
+     * resolved -- the bulk path through a page draw. Reads the survey's cached snapshot, reloading
+     * it when older than the TTL, and returns the row in force at {@code asOf}; a row whose source
+     * hash no longer matches {@code baseText} is not served unless stale translations are allowed.
+     *
+     * @param survey    the survey being answered; must not be {@code null}
+     * @param language  the BCP-47 content language, or {@code null} for the base language
+     * @param targetKey the element key of the element being translated
+     * @param field     the base column's name
+     * @param baseText  the element's base text, against which staleness is decided
+     * @param asOf      the respondent's snapshot anchor
+     * @return the translation to show, or empty when any argument but {@code survey} and
+     *         {@code baseText} is {@code null}, no row is in force, or the row is stale
+     */
     public Optional<String> get(Survey survey, String language, UUID targetKey, String field,
                                 String baseText, OffsetDateTime asOf) {
         if (language == null || targetKey == null || field == null || asOf == null) {
@@ -204,7 +222,11 @@ public class ContentTranslator {
         return Optional.empty();
     }
 
-    /** Drops a survey's cached translations, so the next read reloads them. */
+    /**
+     * Drops a survey's cached translations, so the next read reloads them.
+     *
+     * @param surveyId the id of the survey whose translations to drop
+     */
     public void invalidate(Integer surveyId) {
         cache.remove(surveyId);
     }
@@ -234,58 +256,152 @@ public class ContentTranslator {
     // caller never has to ask whether a translation existed.
     // ---------------------------------------------------------------------
 
+    /**
+     * A question's text in the session's content language, or the base text when no translation applies.
+     *
+     * @param survey the survey being answered
+     * @param question the question, or {@code null}
+     * @param asOf   the respondent's snapshot anchor
+     * @return the translated or base text; {@code null} when {@code question} is {@code null}
+     */
     public String text(Survey survey, Question question, OffsetDateTime asOf) {
         return question == null ? null
                 : or(get(survey, question.questionKey, "text", question.text, asOf), question.text);
     }
 
+    /**
+     * A question's short text in the session's content language, or the base text when no translation applies.
+     *
+     * @param survey the survey being answered
+     * @param question the question, or {@code null}
+     * @param asOf   the respondent's snapshot anchor
+     * @return the translated or base text; {@code null} when {@code question} is {@code null}
+     */
     public String shortText(Survey survey, Question question, OffsetDateTime asOf) {
         return question == null ? null
                 : or(get(survey, question.questionKey, "short_text", question.shortText, asOf), question.shortText);
     }
 
+    /**
+     * A question's tooltip in the session's content language, or the base text when no translation applies.
+     *
+     * @param survey the survey being answered
+     * @param question the question, or {@code null}
+     * @param asOf   the respondent's snapshot anchor
+     * @return the translated or base text; {@code null} when {@code question} is {@code null}
+     */
     public String toolTip(Survey survey, Question question, OffsetDateTime asOf) {
         return question == null ? null
                 : or(get(survey, question.questionKey, "tool_tip", question.toolTip, asOf), question.toolTip);
     }
 
+    /**
+     * A question's placeholder in the session's content language, or the base text when no translation applies.
+     *
+     * @param survey the survey being answered
+     * @param question the question, or {@code null}
+     * @param asOf   the respondent's snapshot anchor
+     * @return the translated or base text; {@code null} when {@code question} is {@code null}
+     */
     public String placeholder(Survey survey, Question question, OffsetDateTime asOf) {
         return question == null ? null
                 : or(get(survey, question.questionKey, "placeholder", question.placeholder, asOf), question.placeholder);
     }
 
+    /**
+     * A question's validation message in the session's content language, or the base text when no translation applies.
+     *
+     * @param survey the survey being answered
+     * @param question the question, or {@code null}
+     * @param asOf   the respondent's snapshot anchor
+     * @return the translated or base text; {@code null} when {@code question} is {@code null}
+     */
     public String validationText(Survey survey, Question question, OffsetDateTime asOf) {
         return question == null ? null
                 : or(get(survey, question.questionKey, "validation_text", question.validationText, asOf),
                         question.validationText);
     }
 
+    /**
+     * A select item's display text in the session's content language, or the base text when no translation applies.
+     *
+     * @param survey the survey being answered
+     * @param item the option, or {@code null}
+     * @param asOf   the respondent's snapshot anchor
+     * @return the translated or base text; {@code null} when {@code item} is {@code null}
+     */
     public String displayText(Survey survey, SelectItem item, OffsetDateTime asOf) {
         return item == null ? null
                 : or(get(survey, item.selectItemKey, "display_text", item.displayText, asOf), item.displayText);
     }
 
+    /**
+     * A step's name in the session's content language, or the base text when no translation applies.
+     *
+     * @param survey the survey being answered
+     * @param step the step, or {@code null}
+     * @param asOf   the respondent's snapshot anchor
+     * @return the translated or base text; {@code null} when {@code step} is {@code null}
+     */
     public String name(Survey survey, Step step, OffsetDateTime asOf) {
         return step == null ? null : or(get(survey, step.stepKey, "name", step.name, asOf), step.name);
     }
 
+    /**
+     * A section's name in the session's content language, or the base text when no translation applies.
+     *
+     * @param survey the survey being answered
+     * @param section the section, or {@code null}
+     * @param asOf   the respondent's snapshot anchor
+     * @return the translated or base text; {@code null} when {@code section} is {@code null}
+     */
     public String name(Survey survey, Section section, OffsetDateTime asOf) {
         return section == null ? null : or(get(survey, section.sectionKey, "name", section.name, asOf), section.name);
     }
 
+    /**
+     * The survey's title in the session's content language, or the base text when no translation applies.
+     *
+     * @param survey the survey, or {@code null}
+     * @param asOf   the respondent's snapshot anchor
+     * @return the translated or base text; {@code null} when {@code survey} is {@code null}
+     */
     public String title(Survey survey, OffsetDateTime asOf) {
         return survey == null ? null : or(get(survey, survey.surveyKey, "title", survey.title, asOf), survey.title);
     }
 
+    /**
+     * The survey's description in the session's content language, or the base text when no translation applies.
+     *
+     * @param survey the survey, or {@code null}
+     * @param asOf   the respondent's snapshot anchor
+     * @return the translated or base text; {@code null} when {@code survey} is {@code null}
+     */
     public String description(Survey survey, OffsetDateTime asOf) {
         return survey == null ? null
                 : or(get(survey, survey.surveyKey, "description", survey.description, asOf), survey.description);
     }
 
+    /**
+     * A report's name in the session's content language, or the base text when no translation applies.
+     *
+     * @param survey the survey being answered
+     * @param report the report definition, or {@code null}
+     * @param asOf   the respondent's snapshot anchor
+     * @return the translated or base text; {@code null} when {@code report} is {@code null}
+     */
     public String name(Survey survey, ReportDefinition report, OffsetDateTime asOf) {
         return report == null ? null : or(get(survey, report.reportKey, "name", report.name, asOf), report.name);
     }
 
+    /**
+     * A relationship's default upstream value in the session's content language, or the base text when no translation applies.
+     *
+     * @param survey the survey being answered
+     * @param relationship the relationship, or {@code null}
+     * @param asOf   the respondent's snapshot anchor
+     * @return the translated or base text; {@code null} when {@code relationship} is {@code null}
+     */
     public String defaultUpstreamValue(Survey survey, Relationship relationship, OffsetDateTime asOf) {
         return relationship == null ? null
                 : or(get(survey, relationship.relationshipKey, "default_upstream_value",

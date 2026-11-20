@@ -2,7 +2,7 @@ package com.elicitsoftware.flow;
 
 /*-
  * ***LICENSE_START***
- * Elicit Admin
+ * Elicit Survey
  * %%
  * Copyright (C) 2025 The Regents of the University of Michigan - Rogel Cancer Center
  * %%

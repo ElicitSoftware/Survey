@@ -104,7 +104,18 @@ public class RespondentSummaryService implements BuiltInReports.Service {
     record Group(String heading, List<Item> items) {
     }
 
-    /** What a rendering produced, for tests and the two renderings (BR-007). */
+    /**
+     * What a rendering produced, for tests and the two renderings (BR-007).
+     *
+     * @param reportName  the report's name in the language, or the bundle's default title when the
+     *                    survey defines no report at {@link #PATH}
+     * @param surveyTitle the survey's title in the language
+     * @param completed   the date the respondent finalized, formatted for the language, or
+     *                    {@code null} while the survey is in progress
+     * @param language    the language tag the report is rendered in
+     * @param rightToLeft whether that language is written right to left
+     * @param groups      the marked answers, one group per section the respondent met
+     */
     public record Summary(String reportName, String surveyTitle, String completed, String language, boolean rightToLeft,
                           List<Group> groups) {
     }
@@ -129,7 +140,15 @@ public class RespondentSummaryService implements BuiltInReports.Service {
         return summary(request.getId(), request.getLanguage(), caller).map(this::toResponse);
     }
 
-    /** The report's content before rendering; empty when the respondent does not exist. */
+    /**
+     * The report's content before rendering. Logs the rendering with the caller (UC-014 BR-008).
+     *
+     * @param respondentId      the respondent to report on
+     * @param requestedLanguage the language asked for, or {@code null} or blank for the
+     *                          respondent's latest language, then the survey's base language
+     * @param caller            who asked for the report, for the log
+     * @return the content, or empty when the respondent does not exist or has no survey
+     */
     @Transactional
     public Optional<Summary> summary(int respondentId, String requestedLanguage, String caller) {
         Respondent respondent = Respondent.findById(respondentId);

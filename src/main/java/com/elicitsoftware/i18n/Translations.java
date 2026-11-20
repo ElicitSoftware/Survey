@@ -34,15 +34,34 @@ public final class Translations {
     private Translations() {
     }
 
-    /** Translates for the current UI's locale (or the session's, or English). */
+    /**
+     * Translates for the current UI's locale (or the session's, or English).
+     *
+     * @param key    the translation key
+     * @param params the values for the text's {@code MessageFormat} placeholders, if any
+     * @return the translated text, or {@code !key!} when no bundle has the key
+     */
     public static String get(String key, Object... params) {
         return get(currentLocale(), key, params);
     }
 
+    /**
+     * Translates for the given locale.
+     *
+     * @param locale the locale; null means English
+     * @param key    the translation key
+     * @param params the values for the text's {@code MessageFormat} placeholders, if any
+     * @return the translated text, or {@code !key!} when no bundle has the key
+     */
     public static String get(Locale locale, String key, Object... params) {
         return provider().getTranslation(key, locale == null ? ElicitI18NProvider.DEFAULT_LOCALE : locale, params);
     }
 
+    /**
+     * The locale of the current UI, else of the current session, else English.
+     *
+     * @return the locale to translate for; never null when a UI or session supplies one
+     */
     public static Locale currentLocale() {
         UI ui = UI.getCurrent();
         if (ui != null) {

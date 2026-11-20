@@ -38,10 +38,12 @@ public class VersionView extends VerticalLayout {
     @Inject
     ContainerInfo containerInfo;
     
+    /** Creates the view; its content is built in {@link #init()} once {@link ContainerInfo} is injected. */
     public VersionView() {
         super();
     }
     
+    /** Builds the page: its title and the container section. */
     @PostConstruct
     public void init() {
         setSpacing(true);
@@ -51,17 +53,18 @@ public class VersionView extends VerticalLayout {
         H2 title = new H2(getTranslation("versionView.title"));
         add(title);
         
-        // Add Docker container ID section
-        Div containerSection = createContainerIdSection();
+        // Add the container section: its current time and the image's creation date
+        Div containerSection = createContainerSection();
         add(containerSection);
     }
     
     /**
-     * Creates a section displaying the Docker image creation date.
+     * Creates the container section: the container's current time, and the image's creation date,
+     * or a note that it is unavailable.
      * 
-     * @return Div containing the image creation date information
+     * @return Div containing the container time and the image creation date
      */
-    private Div createContainerIdSection() {
+    private Div createContainerSection() {
         Div section = new Div();
         
         H2 sectionTitle = new H2(getTranslation("versionView.container"));
@@ -135,7 +138,10 @@ public class VersionView extends VerticalLayout {
     }
     
     /**
-     * Formats the image creation date into raw format using container timezone
+     * Formats the image creation date in the container's time zone.
+     *
+     * @param rawDate the date as {@link ContainerInfo} found it
+     * @return the formatted date, or {@code rawDate} unchanged when it is in no format this method knows
      */
     // Package-private (not private) so VersionViewFormatImageCreationDateTest can exercise
     // this pure date-formatting logic directly. Same visibility-for-testability precedent as

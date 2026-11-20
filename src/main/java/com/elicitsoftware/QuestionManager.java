@@ -57,17 +57,6 @@ public class QuestionManager {
     @Inject
     ContentTranslator translator;
 
-    /**
-     * Replaces tokens in the given text with corresponding values from the provided map.
-     * The tokens are identified by keys enclosed in curly braces and replaced with their associated values.
-     * Any unmatched tokens are removed, leaving default text.
-     * Additionally, certain specific text replacements and formatting adjustments are applied to the final result.
-     *
-     * @param text   the input string containing tokens to be replaced
-     * @param values a {@code TreeMap} containing key-value pairs, where keys correspond to tokens in the text,
-     *               and values are the replacements for those tokens
-     * @return the resulting string after replacing all specified tokens and applying formatting adjustments
-     */
     /** Group 1 is the phrase, group 2 the default text (null when the placeholder has none). */
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{([^{}|]+)(?:\\|([^{}]*))?}");
 
@@ -222,11 +211,28 @@ public class QuestionManager {
         }
     }
 
+    /**
+     * A text with its placeholders filled, for a label set as plain text, where every value is an
+     * answer the respondent gave. A placeholder whose tokens have no value shows its default text,
+     * and the English possessive tidying of {@link #replaceTokens(String, TreeMap, java.util.Set, boolean)}
+     * is applied.
+     *
+     * @param text   the base or translated template; {@code null} gives {@code null}
+     * @param values token to the value that fills it
+     * @return the text with its placeholders filled
+     */
     static String replaceTokens(String text, TreeMap<String, String> values) {
         return replaceTokens(text, values, java.util.Set.of());
     }
 
-    /** A text with its placeholders filled, for a label set as plain text. */
+    /**
+     * A text with its placeholders filled, for a label set as plain text.
+     *
+     * @param text     the base or translated template; {@code null} gives {@code null}
+     * @param values   token to the value that fills it
+     * @param authored the tokens whose value is prose the author wrote rather than an answer
+     * @return the text with its placeholders filled
+     */
     static String replaceTokens(String text, TreeMap<String, String> values, java.util.Set<String> authored) {
         return replaceTokens(text, values, authored, false);
     }
@@ -246,6 +252,7 @@ public class QuestionManager {
      * @param html     whether the text is rendered as HTML ({@code ElicitHtml}, {@code ElicitModal}):
      *                 then the respondent's values are HTML-escaped; otherwise they go in as typed,
      *                 since every other consumer sets the text as plain text (#149)
+     * @return the text with its placeholders filled; {@code null} when {@code text} is {@code null}
      */
     static String replaceTokens(String text, TreeMap<String, String> values, java.util.Set<String> authored,
                                 boolean html) {

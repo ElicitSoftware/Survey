@@ -74,7 +74,10 @@ public class PDFDownloadResource {
     }
 
     /**
-     * Store PDF content in the cache
+     * Stores a PDF that replaces none, evicting the oldest PDFs when the ceilings are exceeded.
+     *
+     * @param pdfContent the PDF
+     * @return the key the new PDF is downloaded with
      */
     public static String cachePDF(byte[] pdfContent) {
         return cachePDF(pdfContent, null);
@@ -172,11 +175,26 @@ public class PDFDownloadResource {
         return bytes;
     }
 
-    /** Downloads with English error texts; kept for callers that have no request headers. */
+    /**
+     * Downloads with English error texts; kept for callers that have no request headers.
+     *
+     * @param key the key the PDF was cached under
+     * @return the response, as {@link #downloadPDF(String, HttpHeaders)} gives it
+     */
     public Response downloadPDF(String key) {
         return downloadPDF(key, null);
     }
 
+    /**
+     * Serves a cached PDF inline with no-cache headers. The entry stays cached for retries until
+     * it expires. Error texts are in the first language of {@code Accept-Language}, English
+     * when there is none.
+     *
+     * @param key     the key the PDF was cached under
+     * @param headers the request headers, or {@code null} for English error texts
+     * @return 200 with the PDF; 400 when the key is missing or empty; 404 when no PDF is cached
+     *         under it or it has expired, in which case the entry is removed
+     */
     @GET
     @Produces("application/pdf")
     public Response downloadPDF(@QueryParam("key") String key, @Context HttpHeaders headers) {

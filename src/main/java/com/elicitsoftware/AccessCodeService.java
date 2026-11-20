@@ -248,6 +248,12 @@ public class AccessCodeService {
         Log.warn("Failed access code attempt for survey " + surveyId + " (" + attemptOnPage + " on this page)");
     }
 
+    /**
+     * Whether an access code that matches no respondent registers a new one at login
+     * ({@code accessCode.autoRegister}, UC-001 A2).
+     *
+     * @return {@code true} if auto-registration is on
+     */
     public boolean isAutoRegister() {
         return autoRegister;
     }

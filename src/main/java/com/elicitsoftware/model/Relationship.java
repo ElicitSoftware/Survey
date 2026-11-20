@@ -210,6 +210,7 @@ public class Relationship extends PanacheEntityBase {
      * @param surveyId         the identifier of the survey in which the relationships are searched
      * @param downstreamStepId the DURABLE {@code steps.step_id} of the downstream step (what the
      *                         relationship row stores), not a surrogate id or a display order
+     * @param asOf             the respondent's snapshot anchor
      * @return a list of {@link Relationship} entities that match the given survey ID and downstream step ID
      */
     public static List<Relationship> findRepeatByDownstreamStep(int surveyId, int downstreamStepId, OffsetDateTime asOf) {
@@ -225,6 +226,7 @@ public class Relationship extends PanacheEntityBase {
      * @param surveyId         the identifier of the survey in which the relationships are searched
      * @param downstream_sq_id the DURABLE {@code sections_questions.sections_question_id} of the
      *                         downstream question (what the relationship row stores), not a surrogate id
+     * @param asOf             the respondent's snapshot anchor
      * @return a list of {@link Relationship} entities that match the given survey ID and downstream question ID
      */
     public static List<Relationship> findByDownstream_SQ_ID(int surveyId, int downstream_sq_id, OffsetDateTime asOf) {
@@ -241,6 +243,7 @@ public class Relationship extends PanacheEntityBase {
      * @param downstream_ss_id the DURABLE {@code steps_sections.steps_sections_id} of the downstream
      *                         section (what the relationship row stores), not a surrogate id
      * @param stepId          the DURABLE {@code steps.step_id} of the upstream step, never a display order
+     * @param asOf            the respondent's snapshot anchor
      * @return a list of {@link Relationship} entities that match the given survey ID, downstream section ID, and step ID
      */
     public static List<Relationship> findByDownstream_SS_ID(int surveyId, int downstream_ss_id, int stepId, OffsetDateTime asOf) {
@@ -258,6 +261,7 @@ public class Relationship extends PanacheEntityBase {
      * @param downstream_step_id the DURABLE {@code steps.step_id} of the downstream step (what the
      *                           relationship row stores), not a surrogate id
      * @param stepId             the DURABLE {@code steps.step_id} of the upstream step, never a display order
+     * @param asOf               the respondent's snapshot anchor
      * @return a list of {@link Relationship} entities that match the given survey ID, downstream step ID, and step ID
      */
     public static List<Relationship> findByDownstream_Step_ID(int surveyId, int downstream_step_id, int stepId, OffsetDateTime asOf) {

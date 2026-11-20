@@ -57,6 +57,10 @@ public class PostSurveyActionCaller {
     /**
      * Who the call is about, beyond the respondent's id: the subject's External ID and the
      * department's code, read only for an action that sends them (UC-015 BR-001).
+     *
+     * @param externalId     the subject's External ID, or {@code null} if it is not sent or the
+     *                       subject has none
+     * @param departmentCode the department's code, or {@code null} if it is not sent
      */
     public record Identity(String externalId, String departmentCode) {
         public static final Identity NONE = new Identity(null, null);
@@ -67,16 +71,35 @@ public class PostSurveyActionCaller {
      * so the delivery is recorded as refused and never retried.
      */
     public static class CallRefused extends Exception {
+        /**
+         * Creates the refusal.
+         *
+         * @param message why the call was refused, as it is recorded on the delivery
+         */
         public CallRefused(String message) {
             super(message);
         }
     }
 
-    /** The call as it was made, for a test to inspect. */
+    /**
+     * The call as it was made, for a test to inspect.
+     *
+     * @param method the HTTP method: {@code POST}, {@code GET} or {@code PUT}
+     * @param uri    the address with its placeholders filled
+     * @param body   the JSON body, or {@code null} for a {@code GET}
+     */
     public record Built(String method, URI uri, String body) {
     }
 
-    /** Calls an action with no External ID and no credential: today's call, kept for the tests. */
+    /**
+     * Calls an action with no External ID and no credential: today's call, kept for the tests.
+     *
+     * @param psa          the action to call
+     * @param respondentId the respondent the call is about
+     * @return the body of the answer
+     * @throws CallRefused the call was refused before it was made (UC-015 A2)
+     * @throws Exception   the call failed (UC-015 A1); the message says how
+     */
     public String call(PostSurveyAction psa, int respondentId) throws Exception {
         return call(psa, respondentId, Identity.NONE, Optional.empty());
     }
@@ -85,8 +108,13 @@ public class PostSurveyActionCaller {
      * Makes the call and returns the answer's body (which nothing reads beyond the error message,
      * UC-015 BR-007).
      *
+     * @param psa           the action to call
+     * @param respondentId  the respondent the call is about
+     * @param identity      the subject's External ID and the department's code, or
+     *                      {@link Identity#NONE}
      * @param authorization the value of the {@code Authorization} header, if the site configured a
      *                      credential for the action (UC-015 BR-003)
+     * @return the body of the answer
      * @throws CallRefused the call was refused before it was made (UC-015 A2)
      * @throws Exception   the call failed (UC-015 A1); the message says how
      */
@@ -98,6 +126,8 @@ public class PostSurveyActionCaller {
     @FunctionalInterface
     public interface Authorization {
         /**
+         * Returns the {@code Authorization} header for the call to the given address.
+         *
          * @param address the action's address with its placeholders filled
          * @return the header value, or empty for a call with no credential
          * @throws RuntimeException the call must not be made; it is recorded as failed (UC-015 BR-010)
@@ -106,8 +136,17 @@ public class PostSurveyActionCaller {
     }
 
     /**
-     * Makes the call with the credential chosen for the filled address (UC-015 BR-010).
+     * Makes the call with the credential chosen for the filled address (UC-015 BR-010). A missing
+     * address or a respondent id that is not positive is refused. A redirect is not followed, and
+     * any answer outside 2xx fails the call.
      *
+     * @param psa          the action to call
+     * @param respondentId the respondent the call is about
+     * @param identity     the subject's External ID and the department's code, or
+     *                     {@link Identity#NONE}
+     * @param credential   chooses the {@code Authorization} header once the filled address is
+     *                     known; a {@code RuntimeException} from it fails the call
+     * @return the body of the answer
      * @throws CallRefused the call was refused before it was made (UC-015 A2)
      * @throws Exception   the call failed (UC-015 A1); the message says how
      */
@@ -160,10 +199,19 @@ public class PostSurveyActionCaller {
 
     /**
      * UC-015 BR-001, BR-002: the method, the address with its placeholders filled and the body.
+     * Nothing is sent. The body, for a method other than {@code GET}, holds the respondent's
+     * {@code id}, plus {@code externalId} and {@code departmentCode} (either may be null) on an
+     * action that sends the External ID.
      *
-     * @throws CallRefused an External-ID action at an address that is not https, an address that
+     * @param psa          the action, whose address must not be null
+     * @param respondentId the respondent's id, filled into {@value #RESPONDENT_ID}
+     * @param identity     the subject's External ID, filled into {@value #EXTERNAL_ID}, and the
+     *                     department's code
+     * @return the call as it would be made
+     * @throws CallRefused an unsupported method or an address that is not http or https (see
+     *                     {@link #refuseUnsendable}), an External-ID action at an address that is not https, an address that
      *                     needs an External ID the subject does not have, or a placeholder the
-     *                     action may not use
+     *                     action may not use, or an address that is not a valid URI
      */
     public Built build(PostSurveyAction psa, int respondentId, Identity identity) throws CallRefused {
         String method = refuseUnsendable(psa);
@@ -203,7 +251,13 @@ public class PostSurveyActionCaller {
      * UC-015 A2: the refusals that need nothing but the action itself, an unsupported method, an
      * External-ID action whose address is not https, or an address that is neither http nor https
      * (BR-009). Checked before anything is looked up for the
-     * call, so a refusal is never mistaken for a failure. Returns the method to call with.
+     * call, so a refusal is never mistaken for a failure. A missing address passes here; the
+     * caller reports it.
+     *
+     * @param psa the action to check
+     * @return the method to call with, upper case; {@code POST} when the action names none
+     * @throws CallRefused the method is not POST, GET or PUT, an External-ID action's address is
+     *                     not https, or the address is neither http nor https
      */
     public String refuseUnsendable(PostSurveyAction psa) throws CallRefused {
         String method = psa.method == null || psa.method.isBlank() ? "POST" : psa.method.trim().toUpperCase();

@@ -38,35 +38,75 @@ public record ContentTexts(ContentTranslator translator, Survey survey, OffsetDa
 
     private static final ContentTexts BASE = new ContentTexts(null, null, null);
 
-    /** A holder that always answers with the base text. */
+    /**
+     * A holder that always answers with the base text.
+     *
+     * @return the shared base-text holder
+     */
     public static ContentTexts base() {
         return BASE;
     }
 
+    /**
+     * The question's text in this draw's content language, or the base text.
+     *
+     * @param question the question, or {@code null}
+     * @return the text to show; {@code null} when {@code question} is {@code null}
+     */
     public String text(Question question) {
         return translator == null ? textOf(question) : translator.text(survey, question, asOf);
     }
 
+    /**
+     * The question's short text in this draw's content language, or the base text.
+     *
+     * @param question the question, or {@code null}
+     * @return the text to show; {@code null} when {@code question} is {@code null}
+     */
     public String shortText(Question question) {
         return translator == null ? (question == null ? null : question.shortText)
                 : translator.shortText(survey, question, asOf);
     }
 
+    /**
+     * The question's tooltip in this draw's content language, or the base text.
+     *
+     * @param question the question, or {@code null}
+     * @return the text to show; {@code null} when {@code question} is {@code null}
+     */
     public String toolTip(Question question) {
         return translator == null ? (question == null ? null : question.toolTip)
                 : translator.toolTip(survey, question, asOf);
     }
 
+    /**
+     * The question's placeholder in this draw's content language, or the base text.
+     *
+     * @param question the question, or {@code null}
+     * @return the text to show; {@code null} when {@code question} is {@code null}
+     */
     public String placeholder(Question question) {
         return translator == null ? (question == null ? null : question.placeholder)
                 : translator.placeholder(survey, question, asOf);
     }
 
+    /**
+     * The question's validation message in this draw's content language, or the base text.
+     *
+     * @param question the question, or {@code null}
+     * @return the text to show; {@code null} when {@code question} is {@code null}
+     */
     public String validationText(Question question) {
         return translator == null ? (question == null ? null : question.validationText)
                 : translator.validationText(survey, question, asOf);
     }
 
+    /**
+     * An option's display text in this draw's content language, or the base text.
+     *
+     * @param item the option, or {@code null}
+     * @return the text to show; {@code null} when {@code item} is {@code null}
+     */
     public String option(SelectItem item) {
         return translator == null ? (item == null ? null : item.displayText)
                 : translator.displayText(survey, item, asOf);

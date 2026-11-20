@@ -51,7 +51,13 @@ public class LocaleSelection {
     @Inject
     Instance<QuestionService> questions;
 
-    /** Resolves a language tag to a provided locale: exact match first, then same language. */
+    /**
+     * Resolves a language tag to a provided locale: exact match first, then same language.
+     *
+     * @param languageTag a BCP 47 language tag, such as {@code es-419}; may be null
+     * @return the provided locale, or empty when the tag is null, blank, has no language, or
+     *         matches no provided locale
+     */
     public Optional<Locale> resolve(String languageTag) {
         if (languageTag == null || languageTag.isBlank()) {
             return Optional.empty();
@@ -67,7 +73,14 @@ public class LocaleSelection {
         return provided.stream().filter(l -> l.getLanguage().equals(wanted.getLanguage())).findFirst();
     }
 
-    /** Remembers the locale for the session and applies it (texts and layout) to the UI. */
+    /**
+     * Remembers the locale for the session and applies it (texts and layout) to the UI. When the
+     * locale differs from the UI's previous one, the respondent's in-progress answer labels are
+     * re-rendered in it.
+     *
+     * @param ui     the UI to switch
+     * @param locale the locale to apply; must not be null
+     */
     public void apply(UI ui, Locale locale) {
         Locale previous = ui.getLocale();
         VaadinSession session = ui.getSession();
@@ -107,7 +120,12 @@ public class LocaleSelection {
         }
     }
 
-    /** The locale remembered for the session, if the respondent chose one. */
+    /**
+     * The locale remembered for the session, if the respondent chose one.
+     *
+     * @param session the Vaadin session; may be null
+     * @return the stored locale, or empty when the session is null or holds none
+     */
     public Optional<Locale> stored(VaadinSession session) {
         if (session == null) {
             return Optional.empty();

@@ -190,20 +190,42 @@ public class SessionPersistenceService {
         private final Respondent respondent;
         private final NavResponse navResponse;
         
+        /**
+         * Holds the restored state.
+         *
+         * @param surveyId    the survey ID
+         * @param respondent  the respondent, verified against the stored access code
+         * @param navResponse the navigation response to resume at
+         */
         public SessionData(Integer surveyId, Respondent respondent, NavResponse navResponse) {
             this.surveyId = surveyId;
             this.respondent = respondent;
             this.navResponse = navResponse;
         }
         
+        /**
+         * Returns the survey ID.
+         *
+         * @return the survey ID
+         */
         public Integer getSurveyId() {
             return surveyId;
         }
         
+        /**
+         * Returns the respondent.
+         *
+         * @return the respondent
+         */
         public Respondent getRespondent() {
             return respondent;
         }
         
+        /**
+         * Returns the navigation response to resume at.
+         *
+         * @return the navigation response
+         */
         public NavResponse getNavResponse() {
             return navResponse;
         }

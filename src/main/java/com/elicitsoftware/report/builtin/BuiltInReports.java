@@ -29,7 +29,11 @@ public class BuiltInReports {
 
     /** One built-in report service. */
     public interface Service {
-        /** The path the service answers at, as a {@code survey.reports.url} names it. */
+        /**
+         * The path the service answers at, as a {@code survey.reports.url} names it.
+         *
+         * @return the path, starting with {@code /}
+         */
         String path();
 
         /**
@@ -37,6 +41,7 @@ public class BuiltInReports {
          *
          * @param request the respondent and language
          * @param caller  who asked, for the log line (UC-014 BR-008)
+         * @return the rendered report, or empty when there is no such respondent
          */
         Optional<ReportResponse> render(ReportRequest request, String caller);
     }
@@ -46,11 +51,23 @@ public class BuiltInReports {
 
     private Map<String, Service> byPath;
 
-    /** True when a report address names a built-in service rather than an external one. */
+    /**
+     * True when a report address names a built-in service rather than an external one.
+     *
+     * @param url the report's address; may be null
+     * @return true for an address starting with a single {@code /}; false for null, an absolute
+     *         address or a protocol-relative one ({@code //})
+     */
     public static boolean isPath(String url) {
         return url != null && url.startsWith("/") && !url.startsWith("//");
     }
 
+    /**
+     * Finds the built-in service a report address names, ignoring its query and trailing slashes.
+     *
+     * @param url the report's address; may be null
+     * @return the service, or empty when the address is not a path or no service answers at it
+     */
     public Optional<Service> find(String url) {
         if (!isPath(url)) {
             return Optional.empty();

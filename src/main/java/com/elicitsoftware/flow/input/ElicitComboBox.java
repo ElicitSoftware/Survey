@@ -58,6 +58,8 @@ public class ElicitComboBox extends ElicitComponent<ComboBox<SelectItem>> {
      * @param answer The {@link Answer} object containing the display text and selectable items
      *               for the combo box. The selectable items are retrieved from the associated
      *               question's select group.
+     * @param texts  the content language of this page draw, which also labels the options;
+     *               must not be null
      */
     public ElicitComboBox(Answer answer, ContentTexts texts) {
         super(new ComboBox<SelectItem>(answer.label()), answer, texts);

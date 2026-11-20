@@ -186,7 +186,13 @@ public class ElicitI18NProvider implements I18NProvider {
         reportedMissing.clear();
     }
 
-    /** True when this site offers the locale, or its language. */
+    /**
+     * Whether this site offers the locale. The match is exact: a locale with a region is not
+     * offered because its language alone is.
+     *
+     * @param locale the locale to check
+     * @return {@code true} if {@link #getProvidedLocales()} contains the locale
+     */
     public boolean isProvided(Locale locale) {
         return getProvidedLocales().contains(locale);
     }

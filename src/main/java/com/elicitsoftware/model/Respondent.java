@@ -99,11 +99,25 @@ public class Respondent extends PanacheEntityBase {
     @Column(name = "access_code")
     public String accessCode;
 
+    /**
+     * Looks up a respondent by survey and access code, with the survey and its reports fetched.
+     * It does not check whether the respondent is active.
+     *
+     * @param survey_id  the survey's ID
+     * @param accessCode the respondent's access code
+     * @return the respondent, or {@code null} if the survey has no respondent with that access code
+     */
     @Transient
     public static Respondent findBySurveyAndAccessCode(Integer survey_id, String accessCode) {
         return Respondent.find("SELECT r FROM Respondent r JOIN FETCH r.survey s LEFT JOIN FETCH s.reports WHERE s.id = :survey_id and r.accessCode = :accessCode", Map.of("survey_id", survey_id, "accessCode", accessCode)).firstResult();
     }
 
+    /**
+     * Returns the time from the respondent's first access to finalization.
+     *
+     * @return the elapsed time as {@code HH:mm:ss}, or {@code "Not calculated"} if either
+     *         timestamp is missing
+     */
     @Transient
     public String getElapsedTime() {
         if (firstAccessDt != null && finalizedDt != null) {

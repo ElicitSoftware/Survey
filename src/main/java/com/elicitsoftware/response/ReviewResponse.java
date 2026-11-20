@@ -29,11 +29,21 @@ import java.util.List;
 public class ReviewResponse {
     private final List<ReviewSection> sections;
 
+    /**
+     * A response holding the given sections.
+     *
+     * @param sections the review sections, kept as given
+     */
     public ReviewResponse(List<ReviewSection> sections) {
         super();
         this.sections = sections;
     }
 
+    /**
+     * Returns the review sections.
+     *
+     * @return the sections, as given to the constructor
+     */
     public List<ReviewSection> getSections() {
         return sections;
     }

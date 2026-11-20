@@ -34,6 +34,7 @@ public class ElicitTextField extends ElicitComponent<TextField> {
      * @param answer The Answer object containing the display text and value for the text field.
      *               The display text is used to set the width of the component, and if the
      *               text value is not null or empty, it initializes the field with the given value.
+     * @param texts  the content language of this page draw; null means the survey's base text
      */
     public ElicitTextField(Answer answer, ContentTexts texts) {
         super(new TextField(answer.label()), answer, texts);

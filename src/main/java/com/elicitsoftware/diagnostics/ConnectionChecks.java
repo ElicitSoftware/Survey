@@ -87,11 +87,18 @@ public class ConnectionChecks {
     @jakarta.inject.Inject
     com.elicitsoftware.security.ServiceToken serviceToken;
 
+    /** Creates the bean; CDI injects its dependencies. */
     public ConnectionChecks() {
         // CDI managed bean
     }
 
-    /** Every target this deployment knows, in report order. */
+    /**
+     * Every target this deployment knows, in report order: the report services, the post-survey
+     * actions (each with a non-blank address), then the telemetry collector when telemetry is
+     * enabled and an endpoint is configured.
+     *
+     * @return the targets; empty when nothing is configured
+     */
     @ActivateRequestContext
     public List<Target> targets() {
         Config config = ConfigProvider.getConfig();
@@ -134,7 +141,13 @@ public class ConnectionChecks {
         return trusted ? "service token" : "none";
     }
 
-    /** Probes one target within {@link #TIMEOUT}. */
+    /**
+     * Probes one target within {@link #TIMEOUT}. Any HTTP answer counts as up; a failure is
+     * reported as down with its reason rather than thrown.
+     *
+     * @param target the target to probe
+     * @return the outcome and how long the probe took
+     */
     public CheckResult check(Target target) {
         long start = System.nanoTime();
         try {
