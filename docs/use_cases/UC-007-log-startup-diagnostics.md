@@ -58,8 +58,8 @@
 - System writes nothing.
 
 **A9: Forwarded headers are honored from any client**
-- **Trigger:** `quarkus.http.proxy.proxy-address-forwarding` is true and `quarkus.http.proxy.trusted-proxy` is unset in step 6.
-- System reports the trusted-proxy setting at WARN with the advice to name the proxy's address, or to turn forwarding off where there is no proxy (BR-006).
+- **Trigger:** `quarkus.http.proxy.proxy-address-forwarding` is true and `quarkus.http.proxy.trusted-proxies` is empty in step 6.
+- System reports the trusted-proxies setting at WARN with the advice to name the proxy's address, or to turn forwarding off where there is no proxy (BR-006).
 
 **A10: The platform service token is missing or is the development one**
 - **Trigger:** `elicit.service.token` is not set, or equals the well-known development value, in step 6.
@@ -84,7 +84,7 @@
 - **BR-003:** Every probe is bounded by a 5 second timeout and is harmless to its target: a GET or a TCP connect, never the POST a respondent's finalize would make (NFR-009).
 - **BR-004:** The report is visible at the default container log level. Containers run at `LOG_LEVEL=WARN`; the `com.elicitsoftware.diagnostics` category is pinned to INFO so the whole report appears, and the lines that need action are at WARN so they appear even if that pin is removed.
 - **BR-005:** A post-survey action's credential is reported as configured or not, never by value (BR-001, UC-015 BR-003).
-- **BR-006:** Forwarding switched on with no trusted proxy configured is reported at WARN: any client could then set the address, host and scheme Survey believes it is served under (NFR-018). A named proxy, or forwarding off, is reported at INFO.
+- **BR-006:** The trusted proxies are read from `quarkus.http.proxy.trusted-proxies`, the setting Quarkus applies, and reported under that name. Forwarding switched on with that list empty is reported at WARN: any client could then set the address, host and scheme Survey believes it is served under (NFR-018). A list of proxies, the shipped default included, or forwarding off, is reported at INFO.
 - **BR-007:** The platform service token is reported as set or not set, never by value. Not set is reported at WARN: the paths under `/api/` are closed, Survey reports not ready, and no call that would carry the token is made (UC-016 BR-003). The well-known development value is reported at WARN as a value a real site must replace.
 - **BR-008:** The horizontal logo, the header icon and the favicon are looked for under the names the mounted `brand-config.json` gives them (`logos.horizontal`, `logos.icon`, `favicon`; umbrella UC-014 BR-008), and each falls back on its own to the default brand's file, which is also the file the header and the browser tab then show. A named file the mount lacks is reported at WARN, and so is a mounted favicon with no mounted header icon (umbrella UC-014 BR-009), because the header would show the Elicit mark beside the site's favicon. Survey has no Branding screen, so this log is where both are reported; like the rest of the report, they are in English.
 
