@@ -19,9 +19,12 @@
 -- when the respondent changes a value, never at row creation for a default (BR-002).
 --
 -- Back-fill (A5). A finished respondent passed every page, so each surviving answer row was shown:
--- its created_dt is the best instant on record. In-progress and not-started respondents are left
--- unstamped, since nothing says which pages they reached. last_activity_dt is the latest instant
--- on record for anyone who has logged in. On a greenfield database both updates touch no row.
+-- its created_dt is the best instant on record. A respondent in progress was shown the page of
+-- every answer they saved, so such a row gets its saved_dt; a row whose saved_dt equals its
+-- created_dt is a default stamped when the row was built, which proves nothing, and stays
+-- unstamped like every other row of theirs. Not-started respondents are left unstamped.
+-- last_activity_dt is the latest instant on record for anyone who has logged in. On a greenfield
+-- database the updates touch no row.
 --
 ALTER TABLE survey.answers
     ADD COLUMN presented_dt timestamp with time zone;
@@ -41,6 +44,15 @@ UPDATE survey.answers a
  WHERE r.id = a.respondent_id
    AND r.finalized_dt IS NOT NULL
    AND a.presented_dt IS NULL;
+
+UPDATE survey.answers a
+   SET presented_dt = a.saved_dt
+  FROM survey.respondents r
+ WHERE r.id = a.respondent_id
+   AND r.first_access_dt IS NOT NULL
+   AND r.finalized_dt IS NULL
+   AND a.presented_dt IS NULL
+   AND a.saved_dt > a.created_dt;
 
 UPDATE survey.respondents r
    SET last_activity_dt = COALESCE(r.finalized_dt,
