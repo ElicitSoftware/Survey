@@ -564,6 +564,9 @@
                              This covers brand-config.json, brand-info.json, typography.json,
                              i18n-config.json and anything added later. -->
                         <exclude>**/*.json</exclude>
+                        <!-- An SVG under src/ is a drawing from elsewhere, such as Pedigree's
+                             output in test/resources/report, not Survey's own source. -->
+                        <exclude>**/*.svg</exclude>
                     </excludes>
                     <licenseResolver>${project.baseUri}src/license</licenseResolver>
                     <processStartTag>***LICENSE_START***</processStartTag>
