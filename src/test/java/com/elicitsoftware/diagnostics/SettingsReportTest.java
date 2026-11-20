@@ -88,17 +88,39 @@ class SettingsReportTest {
         assertNull(setting(settings(Map.of()), "elicit.etl.enabled").warning());
     }
 
-    /** UC-007 BR-006: forwarding on with no trusted proxy named is a warning. */
+    /**
+     * UC-007 BR-006: the report reads the key Quarkus applies. It once read
+     * {@code quarkus.http.proxy.trusted-proxy}, which Quarkus ignores, so following its advice
+     * silenced the warning without trusting anyone less.
+     */
+    @Test
+    void theTrustedProxiesAreReadUnderTheKeyQuarkusApplies() {
+        assertEquals("quarkus.http.proxy.trusted-proxies", SettingsReport.TRUSTED_PROXIES);
+    }
+
+    /** UC-007 BR-006: the shipped list of loopback and the private ranges needs no attention. */
+    @Test
+    void theShippedListIsNotAWarning() {
+        String shipped = "127.0.0.1,0:0:0:0:0:0:0:1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7";
+        List<SettingsReport.Setting> settings = settings(Map.of(
+                SettingsReport.FORWARDING, "true",
+                SettingsReport.TRUSTED_PROXIES, shipped));
+
+        assertEquals(shipped, setting(settings, SettingsReport.TRUSTED_PROXIES).value());
+        assertNull(setting(settings, SettingsReport.TRUSTED_PROXIES).warning());
+    }
+
+    /** UC-007 BR-006: forwarding on with an empty list of trusted proxies is a warning. */
     @Test
     void forwardingWithoutATrustedProxyIsAWarning() {
         List<SettingsReport.Setting> settings = settings(Map.of(SettingsReport.FORWARDING, "true"));
 
         assertEquals("true", setting(settings, SettingsReport.FORWARDING).value());
         assertNull(setting(settings, SettingsReport.FORWARDING).warning());
-        assertEquals("(unset)", setting(settings, SettingsReport.TRUSTED_PROXY).value());
-        String warning = setting(settings, SettingsReport.TRUSTED_PROXY).warning();
+        assertEquals("(unset)", setting(settings, SettingsReport.TRUSTED_PROXIES).value());
+        String warning = setting(settings, SettingsReport.TRUSTED_PROXIES).warning();
         assertNotNull(warning);
-        assertTrue(warning.contains(SettingsReport.TRUSTED_PROXY), warning);
+        assertTrue(warning.contains(SettingsReport.TRUSTED_PROXIES), warning);
     }
 
     /** UC-007 BR-006: a named proxy, or forwarding off, needs no attention. */
@@ -106,17 +128,17 @@ class SettingsReportTest {
     void forwardingWithATrustedProxyOrForwardingOffIsNotAWarning() {
         List<SettingsReport.Setting> named = settings(Map.of(
                 SettingsReport.FORWARDING, "true",
-                SettingsReport.TRUSTED_PROXY, "10.0.0.5"));
-        assertEquals("10.0.0.5", setting(named, SettingsReport.TRUSTED_PROXY).value());
-        assertNull(setting(named, SettingsReport.TRUSTED_PROXY).warning());
+                SettingsReport.TRUSTED_PROXIES, "10.0.0.5"));
+        assertEquals("10.0.0.5", setting(named, SettingsReport.TRUSTED_PROXIES).value());
+        assertNull(setting(named, SettingsReport.TRUSTED_PROXIES).warning());
 
         List<SettingsReport.Setting> off = settings(Map.of(SettingsReport.FORWARDING, "false"));
         assertEquals("false", setting(off, SettingsReport.FORWARDING).value());
-        assertNull(setting(off, SettingsReport.TRUSTED_PROXY).warning());
+        assertNull(setting(off, SettingsReport.TRUSTED_PROXIES).warning());
 
         List<SettingsReport.Setting> unset = settings(Map.of());
         assertEquals("false", setting(unset, SettingsReport.FORWARDING).value());
-        assertNull(setting(unset, SettingsReport.TRUSTED_PROXY).warning());
+        assertNull(setting(unset, SettingsReport.TRUSTED_PROXIES).warning());
     }
 
     /** UC-007 step 6: an unset value says so instead of failing. */

@@ -39,7 +39,7 @@ public class SettingsReport {
     }
 
     static final String FORWARDING = "quarkus.http.proxy.proxy-address-forwarding";
-    static final String TRUSTED_PROXY = "quarkus.http.proxy.trusted-proxy";
+    static final String TRUSTED_PROXIES = "quarkus.http.proxy.trusted-proxies";
     static final String SERVICE_TOKEN = "elicit.service.token";
     static final String TRUSTED_ORIGINS = "elicit.service.trusted-origins";
 
@@ -81,16 +81,16 @@ public class SettingsReport {
 
         settings.add(plain(config, "brand.file.system.path"));
 
-        // UC-007 BR-006: forwarded headers are honored from whoever sends them unless the site
-        // names its proxy.
+        // UC-007 BR-006: forwarded headers are honored from whoever sends them when the list of
+        // trusted proxies is empty.
         boolean forwarding = Boolean.parseBoolean(value(config, FORWARDING));
-        String trustedProxy = value(config, TRUSTED_PROXY);
+        String trustedProxies = value(config, TRUSTED_PROXIES);
         settings.add(new Setting(FORWARDING, Boolean.toString(forwarding), null));
-        settings.add(new Setting(TRUSTED_PROXY, trustedProxy == null ? "(unset)" : trustedProxy,
-                forwarding && trustedProxy == null
+        settings.add(new Setting(TRUSTED_PROXIES, trustedProxies == null ? "(unset)" : trustedProxies,
+                forwarding && trustedProxies == null
                         ? "forwarded headers are honored from any client, which can then set its own address, host"
-                        + " and scheme; set " + TRUSTED_PROXY + " to the proxy's address, or turn " + FORWARDING
-                        + " off if there is no proxy"
+                        + " and scheme; set " + TRUSTED_PROXIES + " (ELICIT_TRUSTED_PROXIES) to the proxy's address,"
+                        + " or turn " + FORWARDING + " off if there is no proxy"
                         : null));
 
         // UC-007 BR-007: the service token is reported as set or not set, never by value.
