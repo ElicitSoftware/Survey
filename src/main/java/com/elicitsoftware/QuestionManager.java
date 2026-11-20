@@ -1992,22 +1992,19 @@ public class QuestionManager {
                             if (!wanted.contains(instance)) {
                                 deleteAnswers(dependent.downstream, rootAnswerId);
                             }
-                        } else if (dependent.relationship.downstreamSqId != null
-                                && !dependent.upstream.getTextValue().isBlank()) {
-                            if (Integer.parseInt(dependent.upstream.getTextValue()) < dependent.downstream.question_instance) {
+                        } else if (dependent.relationship.downstreamSqId != null) {
+                            // UC-002 BR-017: a cleared count is zero, so every instance goes.
+                            if (repeatCount(dependent.upstream) < dependent.downstream.question_instance) {
                                 deleteAnswers(dependent.downstream, rootAnswerId);
                             }
                         } else {
-                            // Section-based REPEAT: use sectionInstance comparison, not question_instance
-                            if (!upstreamAnswer.getTextValue().isBlank()) {
-                                // The rule names the placement by durable id; its key comes from
-                                // the version in effect for this respondent.
-                                StepsSections downstreamSection = StepsSections.findAsOf(
-                                        dependent.relationship.downstreamSsId, resolveAsOf(respondentId));
-                                deleteSomeDownstreamSectionAnswers(respondentId, "",
-                                        Integer.valueOf(upstreamAnswer.getTextValue()),
-                                        downstreamSection.getKey(), rootAnswerId);
-                            }
+                            // Section-based REPEAT: use sectionInstance comparison, not question_instance.
+                            // The rule names the placement by durable id; its key comes from
+                            // the version in effect for this respondent.
+                            StepsSections downstreamSection = StepsSections.findAsOf(
+                                    dependent.relationship.downstreamSsId, resolveAsOf(respondentId));
+                            deleteSomeDownstreamSectionAnswers(respondentId, "",
+                                    repeatCount(upstreamAnswer), downstreamSection.getKey(), rootAnswerId);
                         }
                     } else {
                         // If it is not the root answer it is being deleted upstream
@@ -2021,6 +2018,18 @@ public class QuestionManager {
                     break;
             }
         }
+    }
+
+    /**
+     * The repeat count an answer gives when the rules are recalculated after it changed (UC-002
+     * A3, BR-017): its number, or zero when it is unanswered, as after the respondent cleared it.
+     *
+     * @param upstream the answer holding the count
+     * @return the count, zero for no answer
+     */
+    static int repeatCount(Answer upstream) {
+        String text = upstream.getTextValue();
+        return text == null || text.isBlank() ? 0 : Integer.parseInt(text.trim());
     }
 
     /**
