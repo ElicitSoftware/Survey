@@ -39,8 +39,8 @@ public class RandomStringGenerator {
      * @param length  the length of the random string to be generated. Must be greater than or equal to 1.
      * @param random  the Random instance to use for generating random numbers. Cannot be null.
      * @param symbols the set of characters to draw from when constructing the random string.
-     *                Must contain at least 2 distinct characters.
-     * @throws IllegalArgumentException if the length is less than 1 or if the symbols string contains fewer than 2 distinct characters.
+     *                Must contain at least 2 characters; repeating a character weights it.
+     * @throws IllegalArgumentException if the length is less than 1 or if the symbols string is shorter than 2 characters.
      * @throws NullPointerException     if the random parameter is null.
      */
     public RandomStringGenerator(int length, Random random, String symbols) {

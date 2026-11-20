@@ -10,15 +10,112 @@
  */
 
 /* Brand Typography */
-/* Elicit default brand typography: system font stack -- no custom fonts to
-   load, no external network dependency. Brands that want a custom face can
-   override --brand-font-* and add their own @font-face rules. */
+/* Elicit default brand typography: IBM Plex Sans and Mono, served from this
+   brand's own typography/fonts/ directory -- no external network dependency.
+   The url() values are relative to this file; the applications resolve them
+   against the brand when they inline this stylesheet. The system font stack
+   follows as the fallback while a font loads or when one is missing.
+   IBM Plex is licensed under the SIL Open Font License (fonts/LICENSE.txt). */
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/IBMPlexSans-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/IBMPlexSans-Italic.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/IBMPlexSans-Medium.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/IBMPlexSans-SemiBold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/IBMPlexSans-Bold.woff2") format("woff2");
+}
+
+/* Arabic. The unicode-range keeps these files from being fetched by a page
+   that shows no Arabic text. */
+@font-face {
+  font-family: "IBM Plex Sans Arabic";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/IBMPlexSansArabic-Regular.woff2") format("woff2");
+  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF;
+}
+
+@font-face {
+  font-family: "IBM Plex Sans Arabic";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/IBMPlexSansArabic-Medium.woff2") format("woff2");
+  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF;
+}
+
+@font-face {
+  font-family: "IBM Plex Sans Arabic";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/IBMPlexSansArabic-SemiBold.woff2") format("woff2");
+  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF;
+}
+
+@font-face {
+  font-family: "IBM Plex Sans Arabic";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/IBMPlexSansArabic-Bold.woff2") format("woff2");
+  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/IBMPlexMono-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/IBMPlexMono-SemiBold.woff2") format("woff2");
+}
 
 :root {
   /* Font Family Variables */
-  --elicit-font-primary: -apple-system, BlinkMacSystemFont, "Roboto", "Segoe UI", Helvetica, Arial, sans-serif;
-  --elicit-font-heading: -apple-system, BlinkMacSystemFont, "Roboto", "Segoe UI", Helvetica, Arial, sans-serif;
-  --elicit-font-mono: "SF Mono", "Monaco", "Inconsolata", "Roboto Mono", "Consolas", "Courier New", monospace;
+  --elicit-font-primary: "IBM Plex Sans", "IBM Plex Sans Arabic", -apple-system, BlinkMacSystemFont, "Roboto", "Segoe UI", Helvetica, Arial, sans-serif;
+  --elicit-font-heading: "IBM Plex Sans", "IBM Plex Sans Arabic", -apple-system, BlinkMacSystemFont, "Roboto", "Segoe UI", Helvetica, Arial, sans-serif;
+  --elicit-font-mono: "IBM Plex Mono", "SF Mono", "Monaco", "Inconsolata", "Roboto Mono", "Consolas", "Courier New", monospace;
 
   /* Generic brand typography mappings */
   --brand-font-primary: var(--elicit-font-primary);
@@ -35,7 +132,7 @@
   --brand-font-weight-bold: 700;
 
   /* Font Sizes */
-  --brand-font-size-xs: 0.75rem;    /* 12px - token pills, captions */
+  --brand-font-size-xs: 0.75rem;    /* 12px - access-code pills, captions */
   --brand-font-size-sm: 0.875rem;   /* 14px */
   --brand-font-size-base: 1rem;     /* 16px */
   --brand-font-size-lg: 1.125rem;   /* 18px */
@@ -114,7 +211,7 @@ code, pre {
   letter-spacing: 0.02em;
 }
 
-/* Token / identifier text -- specimen-label style, used for survey tokens,
+/* Identifier text -- specimen-label style, used for access codes,
    department codes, and other structured identifiers throughout the grid */
 .elicit-mono {
   font-family: var(--brand-font-monospace);

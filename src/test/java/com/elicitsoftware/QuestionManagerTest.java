@@ -12,6 +12,7 @@ package com.elicitsoftware;
  */
 
 import com.elicitsoftware.model.Answer;
+import com.elicitsoftware.model.Dependent;
 import com.elicitsoftware.model.Respondent;
 import com.elicitsoftware.model.Survey;
 import com.elicitsoftware.response.NavResponse;
@@ -22,7 +23,10 @@ import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 
+import java.util.Date;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -41,11 +45,11 @@ class QuestionManagerTest {
     @Inject
     EntityManager em;
 
-    // V005.5 Tess Tester — completed respondent, all active paths walked
+    // V9005.5 Tess Tester — completed respondent, all active paths walked
     static final int TESS_RESPONDENT_ID = 1;
     static final int SURVEY_ID = 1;
 
-    // Display key constants derived from V005/V005.5 fixture
+    // Display key constants derived from V9005/V9005.5 fixture
     static final String WELCOME_SECTION      = "0001-0001-0000-0001-0000-0000-0000";
     static final String PATRON_SECTION       = "0001-0002-0000-0002-0000-0000-0000";
     static final String DIGITAL_SECTION      = "0001-0002-0000-0003-0000-0000-0000";
@@ -82,7 +86,7 @@ class QuestionManagerTest {
     Respondent createFreshRespondent() {
         Respondent r = new Respondent();
         r.survey = Survey.findById(SURVEY_ID);
-        r.token = "test_" + System.nanoTime();
+        r.accessCode = "test_" + System.nanoTime();
         r.active = true;
         r.logins = 0;
         r.persist();
@@ -116,6 +120,82 @@ class QuestionManagerTest {
         long countAfterSecond = Answer.count("respondentId = ?1 and deleted = false", r.id);
 
         assertEquals(countAfterFirst, countAfterSecond, "Second init() must not create duplicate answers");
+    }
+
+    // ── UC-012 Record Respondent Progress ───────────────────────────────────
+
+    @Test
+    @TestTransaction
+    void given_unstampedRows_when_navigate_then_onlyTheRenderedPagesRowsArePresented() {
+        // UC-012 BR-001: the page render stamps presented_dt on exactly the rows it returns.
+        // Tess (V9005.5) has rows on every active page, none stamped: the fixture is inserted
+        // after V022's back-fill. The transaction rolls back, so the fixture stays unstamped.
+        List<Answer> built = Answer.find("respondentId = ?1 and deleted = false", TESS_RESPONDENT_ID).list();
+        assertTrue(built.stream().allMatch(a -> a.presentedDt == null), "fixture rows carry no stamp");
+
+        NavResponse response = questionManager.navigate(TESS_RESPONDENT_ID, WELCOME_SECTION);
+        em.flush();
+
+        assertFalse(response.getAnswers().isEmpty(), "the welcome page has rows");
+        assertTrue(response.getAnswers().stream().allMatch(a -> a.presentedDt != null),
+                "every row of the rendered page is stamped");
+        List<Answer> elsewhere = Answer.find(
+                "respondentId = ?1 and deleted = false and displayKey not like '0001-0001-0000-0001-0000-%'",
+                TESS_RESPONDENT_ID).list();
+        assertFalse(elsewhere.isEmpty(), "rows for other pages exist");
+        assertTrue(elsewhere.stream().allMatch(a -> a.presentedDt == null),
+                "rows of pages not rendered stay unstamped");
+    }
+
+    @Test
+    @TestTransaction
+    void given_freshRespondent_when_init_then_nothingIsPresented() {
+        // UC-012 BR-001 / A3: login builds rows ahead of the respondent and stamps none of them.
+        Respondent r = createFreshRespondent();
+        questionManager.init(r.id.intValue(), WELCOME_SECTION);
+
+        List<Answer> built = Answer.find("respondentId = ?1 and deleted = false", r.id).list();
+        assertFalse(built.isEmpty());
+        assertTrue(built.stream().allMatch(a -> a.presentedDt == null), "init() must not stamp presented_dt");
+    }
+
+    @Test
+    @TestTransaction
+    void given_renderedPage_when_navigateAgain_then_presentedDtIsKept() {
+        // UC-012 BR-001: the stamp records the first render; a re-render (every save causes one)
+        // leaves it alone.
+        Respondent r = createFreshRespondent();
+        questionManager.init(r.id.intValue(), WELCOME_SECTION);
+        NavResponse first = questionManager.navigate(r.id.intValue(), WELCOME_SECTION);
+        Map<String, Date> stamps = first.getAnswers().stream()
+                .collect(Collectors.toMap(Answer::getDisplayKey, a -> a.presentedDt));
+
+        NavResponse second = questionManager.navigate(r.id.intValue(), WELCOME_SECTION);
+
+        for (Answer a : second.getAnswers()) {
+            assertEquals(stamps.get(a.getDisplayKey()), a.presentedDt, "stamp kept for " + a.getDisplayKey());
+        }
+    }
+
+    @Test
+    @TestTransaction
+    void given_freshRespondent_when_recordActivity_then_lastActivityDtIsSet() {
+        // UC-012 BR-004: QuestionService calls this with every page render and every save.
+        Respondent r = createFreshRespondent();
+        assertNull(r.lastActivityDt, "a respondent who has opened no page has no activity");
+
+        questionManager.recordActivity(r.id.intValue());
+        em.flush();
+
+        assertNotNull(Respondent.<Respondent>findById(r.id).lastActivityDt,
+                "recordActivity() must stamp the respondent");
+    }
+
+    @Test
+    void given_noTransaction_when_recordActivity_then_nothingThrows() {
+        // UC-012 BR-004: outside a transaction the stamp is simply not persisted, as the
+        // presented stamps are not; nothing may fail.
+        assertDoesNotThrow(() -> questionManager.recordActivity(TESS_RESPONDENT_ID));
     }
 
     // ── US-2 Navigate ───────────────────────────────────────────────────────
@@ -396,6 +476,82 @@ class QuestionManagerTest {
         assertEquals(0, instance2, "Checkout instance 2 must be deleted when qty decreases to 1");
     }
 
+    static final String CHECKOUT_INSTANCE_PREFIX = "0001-0004-0000-0006-";
+
+    /** The active section marker (the row navigation is built from) of checkout instance n. */
+    Answer checkoutMarker(Respondent r, int instance) {
+        return Answer.find("respondentId = ?1 and displayKey = ?2 and deleted = false",
+                r.id, CHECKOUT_INSTANCE_PREFIX + String.format("%04d", instance) + "-0000-0000").firstResult();
+    }
+
+    /** A respondent with the checkout quantity answered; returns the quantity answer. */
+    Answer checkoutQuantity(Respondent r, String quantity) {
+        questionManager.init(r.id.intValue(), WELCOME_SECTION);
+        saveAnswer(Answer.findByDisplayKeyActive(r.id.intValue(), TERMS_DK), "TRUE");
+        questionManager.navigate(r.id.intValue(), COLLPREFS_SECTION);
+        Answer qty = Answer.findByDisplayKeyActive(r.id.intValue(), CHECKOUT_QTY_DK);
+        saveAnswer(qty, quantity);
+        return qty;
+    }
+
+    @Test
+    @TestTransaction
+    void given_threeCheckoutInstances_when_qtyLoweredTo2_then_instance2AndItsRuleLinkKept() {
+        // UC-002 BR-007, BR-012: a count gives instances 1..N, so lowering 3 to 2 removes
+        // instance 3 only. Removing instance 2 as well soft-deletes its link from the quantity
+        // answer, and re-saving the section afterwards brings the section back without it (#157).
+        Respondent r = createFreshRespondent();
+        Answer qty = checkoutQuantity(r, "3");
+        Answer second = checkoutMarker(r, 2);
+        assertNotNull(second, "Checkout instance 2 must exist after qty = 3");
+
+        saveAnswer(Answer.findByDisplayKeyActive(r.id.intValue(), CHECKOUT_QTY_DK), "2");
+
+        assertNotNull(checkoutMarker(r, 2), "Checkout instance 2 must be kept when qty is lowered to 2");
+        assertNull(checkoutMarker(r, 3), "Checkout instance 3 must be deleted when qty is lowered to 2");
+        long links = Dependent.count("respondentId = ?1 and upstream.id = ?2 and downstream.id = ?3 and deleted = false",
+                r.id.intValue(), qty.id, second.id);
+        assertEquals(1, links, "Instance 2 must still depend on the quantity answer");
+    }
+
+    @Test
+    @TestTransaction
+    void given_twoCheckoutInstances_when_qtyRaisedTo3_then_onlyInstance3Built() {
+        // UC-002 BR-012: raising a count builds the instances above those already built and
+        // leaves the built ones alone. Instance 1 is probed by soft-deleting one of its initial
+        // answers: rebuilding the instance would save that answer again (#156).
+        Respondent r = createFreshRespondent();
+        checkoutQuantity(r, "2");
+        Answer probe = Answer.find("respondentId = ?1 and displayKey like ?2 and question is not null and deleted = false "
+                        + "order by displayKey", r.id.intValue(), CHECKOUT_INSTANCE_PREFIX + "0001-%").firstResult();
+        assertNotNull(probe, "Checkout instance 1 must have an initial answer");
+        probe.deleted = true;
+        em.flush();
+
+        saveAnswer(Answer.findByDisplayKeyActive(r.id.intValue(), CHECKOUT_QTY_DK), "3");
+
+        assertNotNull(checkoutMarker(r, 3), "Checkout instance 3 must be built when qty is raised to 3");
+        assertTrue(Answer.<Answer>findById(probe.id).deleted, "Checkout instance 1 must not be rebuilt when qty is raised");
+    }
+
+    @Test
+    @TestTransaction
+    void given_qtyLoweredFrom3To2_when_raisedTo3Again_then_instance3Restored() {
+        // UC-002 BR-012: a removed instance is soft-deleted, so it is not among the built ones
+        // and raising the count again restores the same row rather than adding a second one.
+        Respondent r = createFreshRespondent();
+        checkoutQuantity(r, "3");
+        Answer third = checkoutMarker(r, 3);
+        saveAnswer(Answer.findByDisplayKeyActive(r.id.intValue(), CHECKOUT_QTY_DK), "2");
+        assertNull(checkoutMarker(r, 3), "Checkout instance 3 must be deleted when qty is lowered to 2");
+
+        saveAnswer(Answer.findByDisplayKeyActive(r.id.intValue(), CHECKOUT_QTY_DK), "3");
+
+        Answer restored = checkoutMarker(r, 3);
+        assertNotNull(restored, "Checkout instance 3 must be back when qty is raised to 3 again");
+        assertEquals(third.id, restored.id, "Instance 3 must be the restored row, not a new one");
+    }
+
     // ── US-8 FIELD_EXIST + 3-level nested chain ─────────────────────────────
 
     @Test
@@ -523,6 +679,35 @@ class QuestionManagerTest {
             "Digital section answer count must match after restore — no duplicates");
     }
 
+    @Test
+    @TestTransaction
+    void given_softDeletedAnswer_when_conditionBecomesTrue_then_itsRuleLinksRestored() {
+        // UC-002 BR-007: deleting an answer soft-deletes the links that make it depend on its
+        // upstream answer, and restoring the answer restores them; without them a later change
+        // to the upstream answer would not find it to delete (#155).
+        Respondent r = createFreshRespondent();
+        questionManager.init(r.id.intValue(), WELCOME_SECTION);
+        saveAnswer(Answer.findByDisplayKeyActive(r.id.intValue(), TERMS_DK), "TRUE");
+
+        Answer digitalAnswer = Answer.findByDisplayKeyActive(r.id.intValue(), DIGITAL_ACCESS_DK);
+        saveAnswer(digitalAnswer, "TRUE");
+        String activeLinks = "respondentId = ?1 and upstream.id = ?2 and deleted = false";
+        long linksAfterFirstTrue = Dependent.count(activeLinks, r.id.intValue(), digitalAnswer.id);
+        assertTrue(linksAfterFirstTrue > 0, "Answering TRUE must link the Digital section answers to it");
+
+        saveAnswer(Answer.findByDisplayKeyActive(r.id.intValue(), DIGITAL_ACCESS_DK), "FALSE");
+        assertEquals(0, Dependent.count(activeLinks, r.id.intValue(), digitalAnswer.id),
+            "Answering FALSE must soft-delete the links with the answers");
+
+        saveAnswer(Answer.findByDisplayKeyActive(r.id.intValue(), DIGITAL_ACCESS_DK), "TRUE");
+
+        assertEquals(linksAfterFirstTrue, Dependent.count(activeLinks, r.id.intValue(), digitalAnswer.id),
+            "Restoring the answers must restore their links to the upstream answer");
+        assertEquals(linksAfterFirstTrue, Dependent.count("respondentId = ?1 and upstream.id = ?2",
+                r.id.intValue(), digitalAnswer.id),
+            "Restoring must reuse the links rather than add new ones");
+    }
+
     // ── Additional coverage: TEXT FIELD_EXIST + CONTAINS→FIELD_EXIST chain ─
 
     @Test
@@ -621,7 +806,7 @@ class QuestionManagerTest {
     @Test
     @TestTransaction
     void given_freshRespondent_when_answerInDisplayKeyOrder_then_matchesTessGoldenMaster() {
-        // Create fresh respondent and initialise
+        // Create fresh respondent and initialize
         Respondent r = createFreshRespondent();
         questionManager.init(r.id.intValue(), WELCOME_SECTION);
 

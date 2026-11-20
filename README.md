@@ -75,7 +75,19 @@ For local development, run the shared `../docker-compose.yml` stack (database, a
 
 <!-- USAGE EXAMPLES -->
 ## Usage
-To use the Elicit System, download the Authoring tool (work in progress), create a new survey, and publish it to the database. The Admin application is used to register subjects and generate unique tokens that are sent in an invitation email. Subjects will follow the link in the email and enter their tokens in the Elicit Survey to complete the questionnaire.
+To use the Elicit System, download the Authoring tool (work in progress), create a new survey, and publish it to the database. The Admin application is used to register subjects and generate unique access codes that are sent in an invitation email. Subjects will follow the link in the email and enter their access codes in the Elicit Survey to complete the questionnaire.
+
+### Startup Diagnostics
+
+Survey has no administrator login, so about ten seconds after it starts it writes a diagnostics report to its log: the running version, both database connections and the latest migration, the brand that resolved, whether every configured report service and post-survey action is reachable from the container, and the settings that need attention (for example `accessCode.autoRegister` left on). Lines that need action are logged at `WARN`, the rest at `INFO` under the `com.elicitsoftware.diagnostics` category, which is pinned to `INFO` so the report appears at the default `LOG_LEVEL=WARN`. Look for lines starting with `Survey diagnostics:`; the last one counts the warnings. Set `elicit.diagnostics.startup.enabled=false` to turn it off or `elicit.diagnostics.startup.delay` to change the delay. See `docs/use_cases/UC-007-log-startup-diagnostics.md`.
+
+### Reporting Schema Rebuild
+
+The reporting star schema (`surveyreport`) is built at startup from the survey definitions installed at that moment. When the Admin application installs or updates a survey definition afterwards, it calls `POST /api/etl/build` on Survey, which runs the same build again for the whole site and answers `200 {"status":"ok"}`, `409 {"status":"disabled"}` when `elicit.etl.enabled=false`, or `500 {"status":"failed","message":...}` when a step fails (the known case is two surveys sharing a step or section dimension name). The call is idempotent and synchronous, and like every path under `/api/` except the PDF download it must carry the platform service token (`Authorization: Bearer <token>`, see below); it is meant for the Admin application on the internal network. See `docs/use_cases/UC-008-rebuild-reporting-schema.md`.
+
+### Service Token
+
+The modules of one deployment authenticate each other with one shared token, supplied to each as `ELICIT_SERVICE_TOKEN` (generate it with `openssl rand -hex 32`; at least 32 characters, or Survey does not start). Survey requires it as `Authorization: Bearer <token>` on every path under `/api/` except `/api/pdf/download`: `401` without it, `503` when Survey itself has none, in which case `/q/health/ready` also reports the `service-token` check down. Survey sends the token to a report service or a post-survey action only when the origin of the address is listed in `ELICIT_SERVICE_TRUSTED_ORIGINS` (comma-separated, for example `http://fhhs.internal:8080`); a post-survey action with a `bearer-token` of its own is sent that instead. Dev mode uses a fixed development value. See `docs/use_cases/UC-016-authenticate-a-platform-service-call.md`.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -119,7 +131,7 @@ Don't forget to give the project a star! Thanks again!
 <!-- LICENSE -->
 ## License
 
-Distributed under the PolyForm Noncommercial License 1.0.0. See `LICENSE.md` for more information.
+Distributed under the PolyForm Noncommercial License 1.0.0. See [`LICENSE.MD`](LICENSE.MD) for more information.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -160,7 +172,7 @@ Project Link: [https://github.com/ElicitSoftware/Survey](https://github.com/Elic
 [issues-shield]: https://img.shields.io/github/issues/ElicitSoftware/Survey.svg?style=for-the-badge
 [issues-url]: https://github.com/ElicitSoftware/Survey/issues
 [license-shield]: https://img.shields.io/github/license/ElicitSoftware/Survey.svg?style=for-the-badge
-[license-url]: https://github.com/ElicitSoftware/Survey/blob/master/LICENSE.txt
+[license-url]: LICENSE.MD
 [linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=for-the-badge&logo=linkedin&colorB=555
 [linkedin-url]: https://linkedin.com/in/linkedin_username
 [product-screenshot]: images/screenshot.png

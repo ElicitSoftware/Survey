@@ -12,12 +12,12 @@ package com.elicitsoftware.model;
  */
 
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
-import io.quarkus.panache.common.Parameters;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -27,29 +27,29 @@ import java.util.concurrent.TimeUnit;
  * <p>
  * The Respondent entity is mapped to the "respondents" table within the "survey" schema
  * and is managed through JPA. It supports named queries for retrieving specific respondent
- * data based on survey and token criteria.
+ * data based on survey and access code criteria.
  * <p>
  * Key features of this class include:
  * - Tracking of creation, first access, and finalization timestamps.
  * - Management of an active status to indicate if the respondent is currently participating.
- * - Storage of a unique token to identify individual respondents securely.
+ * - Storage of a unique access code the respondent enters to reach the survey.
  * - Reference to the associated survey.
  * <p>
  * Named Queries:
- * - "Respondent.findBySurveyAndToken": Finds a respondent by the given survey ID and token.
- * - "Respondent.findActiveByToken": Retrieves active respondents associated with a specific token,
+ * - "Respondent.findBySurveyAndAccessCode": Finds a respondent by the given survey ID and access code.
+ * - "Respondent.findActiveByAccessCode": Retrieves active respondents associated with a specific access code,
  * ordered by survey ID.
  * <p>
  * The entity includes utility methods such as:
- * - `findBySurveyAndToken`: Static method to retrieve a respondent based on survey ID and token.
+ * - `findBySurveyAndAccessCode`: Static method to retrieve a respondent based on survey ID and access code.
  * - `getElapsedTime`: Calculates the elapsed time between the first access and finalization
  * timestamps, if available, formatted as HH:mm:ss.
  */
 @Entity
 @Table(name = "respondents", schema = "survey")
 @NamedQueries({
-        @NamedQuery(name = "Respondent.findBySurveyAndToken", query = "SELECT R FROM Respondent R where R.survey.id = :survey_id and R.token = :token"),
-        @NamedQuery(name = "Respondent.findActiveByToken", query = "SELECT R FROM Respondent R where R.token = :token and R.active = true order by R.survey.id")
+        @NamedQuery(name = "Respondent.findBySurveyAndAccessCode", query = "SELECT R FROM Respondent R where R.survey.id = :survey_id and R.accessCode = :accessCode"),
+        @NamedQuery(name = "Respondent.findActiveByAccessCode", query = "SELECT R FROM Respondent R where R.accessCode = :accessCode and R.active = true order by R.survey.id")
 })
 public class Respondent extends PanacheEntityBase {
 
@@ -66,8 +66,28 @@ public class Respondent extends PanacheEntityBase {
     @Column(name = "first_access_dt")
     public OffsetDateTime firstAccessDt;
 
+    /**
+     * The snapshot anchor (UC-002 BR-009) every structural
+     * lookup for a respondent is resolved as of: their {@link #firstAccessDt} once set, or
+     * NOW() for a brand-new respondent who has not been anchored yet (and for an unknown id).
+     * Every version-aware finder ({@code Step.findAsOf}, {@code Question.findAsOf}, ...) is
+     * bound to this instant so a respondent stays pinned to the survey definition as it
+     * existed when they first accessed it.
+     *
+     * @param respondentId the respondent whose anchor is being resolved
+     * @return the instant to bind against every {@code effective_from}/{@code effective_to} guard
+     */
+    public static OffsetDateTime snapshotAnchor(int respondentId) {
+        Respondent respondent = findById(respondentId);
+        return (respondent != null && respondent.firstAccessDt != null) ? respondent.firstAccessDt : OffsetDateTime.now();
+    }
+
     @Column(name = "finalized_dt")
     public OffsetDateTime finalizedDt;
+
+    /** The respondent's latest page render or save (UC-012 BR-004); null until they open a page. */
+    @Column(name = "last_activity_dt")
+    public OffsetDateTime lastActivityDt;
 
     public boolean active;
     public int logins;
@@ -76,13 +96,28 @@ public class Respondent extends PanacheEntityBase {
     @ManyToOne
     @JoinColumn(name = "survey_id", nullable = false)
     public Survey survey;
-    public String token;
+    @Column(name = "access_code")
+    public String accessCode;
 
+    /**
+     * Looks up a respondent by survey and access code, with the survey and its reports fetched.
+     * It does not check whether the respondent is active.
+     *
+     * @param survey_id  the survey's ID
+     * @param accessCode the respondent's access code
+     * @return the respondent, or {@code null} if the survey has no respondent with that access code
+     */
     @Transient
-    public static Respondent findBySurveyAndToken(Integer survey_id, String token) {
-        return Respondent.find("SELECT r FROM Respondent r JOIN FETCH r.survey s LEFT JOIN FETCH s.reports WHERE s.id = :survey_id and r.token = :token", Parameters.with("survey_id", survey_id).and("token", token)).firstResult();
+    public static Respondent findBySurveyAndAccessCode(Integer survey_id, String accessCode) {
+        return Respondent.find("SELECT r FROM Respondent r JOIN FETCH r.survey s LEFT JOIN FETCH s.reports WHERE s.id = :survey_id and r.accessCode = :accessCode", Map.of("survey_id", survey_id, "accessCode", accessCode)).firstResult();
     }
 
+    /**
+     * Returns the time from the respondent's first access to finalization.
+     *
+     * @return the elapsed time as {@code HH:mm:ss}, or {@code "Not calculated"} if either
+     *         timestamp is missing
+     */
     @Transient
     public String getElapsedTime() {
         if (firstAccessDt != null && finalizedDt != null) {

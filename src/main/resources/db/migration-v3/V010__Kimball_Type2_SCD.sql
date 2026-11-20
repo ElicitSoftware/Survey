@@ -1,0 +1,784 @@
+-- ***LICENSE_START***
+-- Elicit Survey
+-- %%
+-- Copyright (C) 2025 The Regents of the University of Michigan - Rogel Cancer Center
+-- %%
+-- PolyForm Noncommercial License 1.0.0
+-- <https://polyformproject.org/licenses/noncommercial/1.0.0>
+-- ***LICENSE_END***
+---
+
+-- ================================================================================================
+-- Kimball Type 2 Slowly Changing Dimensions for Survey Versioning — UPGRADE path.
+--
+-- ALTER-based migration for existing v2.x databases (the "brownfield" track — see
+-- com.elicitsoftware.flyway.SchemaTrackFlywayCustomizer, which routes an existing database
+-- into this src/main/resources/db/migration-v3/ location instead of the greenfield
+-- src/main/resources/db/migration/ root). Implements the Kimball Type 2 schema change
+-- per table against the REAL constraint names created by
+-- V001__Create_Survey_Schema.sql in this same folder (the doc's own DDL says "adjust name
+-- to match actual constraint" everywhere — this file is that adjustment).
+--
+-- The greenfield track (db/migration/V001__Create_Survey_Schema.sql /
+-- V002__Create_Reporting_Schema.sql) creates the identical end-state schema directly via
+-- CREATE TABLE, with no ALTERs. Both tracks must converge on the same schema — see the
+-- scd/** spec suite (src/test/java/com/elicitsoftware/scd/) for the shared acceptance test.
+--
+-- metadata's old surrogate FK columns are dropped once their values are carried over to the
+-- durable columns (step 12, issue #111), so metadata ends as the greenfield track creates it.
+-- ================================================================================================
+
+--------------------------------
+-- 0. Durable-key sequences
+--------------------------------
+
+-- Pre-existing gap in V001__Create_Survey_Schema.sql (frozen history, cannot be fixed there):
+-- every other sequence gets GRANT USAGE except this one. Harmless to add here since a new
+-- migration can't retroactively edit an already-applied one.
+GRANT USAGE ON SEQUENCE survey.dimensions_seq TO ${survey_user};
+
+CREATE SEQUENCE survey.questions_durable_seq;
+GRANT USAGE ON SEQUENCE survey.questions_durable_seq TO ${survey_user};
+CREATE SEQUENCE survey.sections_durable_seq;
+GRANT USAGE ON SEQUENCE survey.sections_durable_seq TO ${survey_user};
+CREATE SEQUENCE survey.steps_durable_seq;
+GRANT USAGE ON SEQUENCE survey.steps_durable_seq TO ${survey_user};
+CREATE SEQUENCE survey.select_groups_durable_seq;
+GRANT USAGE ON SEQUENCE survey.select_groups_durable_seq TO ${survey_user};
+CREATE SEQUENCE survey.select_items_durable_seq;
+GRANT USAGE ON SEQUENCE survey.select_items_durable_seq TO ${survey_user};
+CREATE SEQUENCE survey.steps_sections_durable_seq;
+GRANT USAGE ON SEQUENCE survey.steps_sections_durable_seq TO ${survey_user};
+CREATE SEQUENCE survey.sections_questions_durable_seq;
+GRANT USAGE ON SEQUENCE survey.sections_questions_durable_seq TO ${survey_user};
+CREATE SEQUENCE survey.relationships_durable_seq;
+GRANT USAGE ON SEQUENCE survey.relationships_durable_seq TO ${survey_user};
+
+--------------------------------
+-- 0b. Generic Type 2 SCD trigger, shared by every structural table below
+-- (questions, select_groups, select_items, sections, steps, steps_sections,
+-- sections_questions, relationships). BEFORE INSERT so it can close the
+-- predecessor's effective_to before the new "current" row lands, avoiding any
+-- collision with that table's *_one_current_un partial unique index. A no-op
+-- when no predecessor exists (a brand-new durable id from a create-import) —
+-- the row keeps its schema-default sentinel effective_from in that case.
+-- NOT applied to surveys itself, which stays Type 1 (see section 10 below).
+-- Matches db/migration's greenfield V001 (survey.scd_close_predecessor).
+--------------------------------
+CREATE OR REPLACE FUNCTION survey.scd_close_predecessor() RETURNS trigger AS $$
+DECLARE
+    durable_col text := TG_ARGV[0];
+    durable_val integer;
+BEGIN
+    IF NEW.effective_from = '1970-01-01 00:00:00+00' THEN
+        NEW.effective_from := now();
+    END IF;
+    IF NEW.effective_to = '9999-12-31 23:59:59+00' THEN
+        EXECUTE format('SELECT ($1).%I', durable_col) INTO durable_val USING NEW;
+        EXECUTE format(
+            'UPDATE %I.%I SET effective_to = $1 WHERE %I = $2 AND effective_to = $3 AND id <> $4',
+            TG_TABLE_SCHEMA, TG_TABLE_NAME, durable_col
+        ) USING NEW.effective_from, durable_val, '9999-12-31 23:59:59+00'::timestamptz, NEW.id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+--------------------------------
+-- 1. questions — Type 2 columns
+--------------------------------
+ALTER TABLE survey.questions
+    ADD COLUMN question_id      integer NOT NULL DEFAULT nextval('survey.questions_durable_seq'),
+    -- Cross-instance-portable identity — see survey_key on surveys (section 10 below)
+    -- for the same pattern one level up. random()'s ~52 bits of entropy per row
+    -- evaluation during this table rewrite is enough on its own for uniqueness; no
+    -- UUID extension is enabled in this schema, so this avoids depending on one.
+    ADD COLUMN question_key     uuid NOT NULL DEFAULT (md5(random()::text || clock_timestamp()::text))::uuid,
+    ADD COLUMN version          integer NOT NULL DEFAULT 0,
+    ADD COLUMN effective_from   timestamp with time zone DEFAULT '1970-01-01 00:00:00+00',
+    ADD COLUMN effective_to     timestamp with time zone DEFAULT '9999-12-31 23:59:59+00',
+    ADD COLUMN published_by     text,
+    ADD COLUMN published_comment text,
+    ADD COLUMN is_draft         boolean NOT NULL DEFAULT false;
+
+CREATE UNIQUE INDEX questions_one_current_un
+    ON survey.questions (question_id)
+    WHERE effective_to = '9999-12-31 23:59:59+00';
+
+CREATE UNIQUE INDEX questions_one_draft_un
+    ON survey.questions (question_id)
+    WHERE is_draft = true;
+
+CREATE TRIGGER questions_scd_close_predecessor BEFORE INSERT ON survey.questions
+    FOR EACH ROW EXECUTE FUNCTION survey.scd_close_predecessor('question_id');
+
+ALTER TABLE survey.questions ADD CONSTRAINT questions_id_version_un UNIQUE (question_id, version);
+ALTER TABLE survey.questions ADD CONSTRAINT questions_key_version_un UNIQUE (question_key, version);
+CREATE INDEX questions_key_idx ON survey.questions (question_key, effective_from, effective_to);
+
+-- Composite (durable key + effective range) index for as-of point-in-time resolution —
+-- the actual dominant runtime access pattern (e.g. "resolve questions.question_id as of
+-- :asOf" in QuestionManager.java's native SQL), which a plain durable-id index alone can't
+-- satisfy without a Filter step. Supersedes a plain (question_id) index: the composite
+-- already serves equality-only lookups via its leading column. Matches db/migration's
+-- greenfield V001 (questions_durable_range_idx).
+CREATE INDEX questions_durable_range_idx ON survey.questions (question_id, effective_from, effective_to);
+CREATE INDEX questions_active_range_idx ON survey.questions (survey_id, effective_from, effective_to);
+
+--------------------------------
+-- 2. select_groups — Type 2 columns
+--------------------------------
+ALTER TABLE survey.select_groups
+    ADD COLUMN select_group_id  integer NOT NULL DEFAULT nextval('survey.select_groups_durable_seq'),
+    -- Cross-instance-portable identity — see question_key above.
+    ADD COLUMN select_group_key uuid NOT NULL DEFAULT (md5(random()::text || clock_timestamp()::text))::uuid,
+    ADD COLUMN version          integer NOT NULL DEFAULT 0,
+    ADD COLUMN effective_from   timestamp with time zone DEFAULT '1970-01-01 00:00:00+00',
+    ADD COLUMN effective_to     timestamp with time zone DEFAULT '9999-12-31 23:59:59+00',
+    ADD COLUMN published_by     text,
+    ADD COLUMN published_comment text,
+    ADD COLUMN is_draft         boolean NOT NULL DEFAULT false;
+
+CREATE UNIQUE INDEX select_groups_one_current_un
+    ON survey.select_groups (select_group_id)
+    WHERE effective_to = '9999-12-31 23:59:59+00';
+
+CREATE UNIQUE INDEX select_groups_one_draft_un
+    ON survey.select_groups (select_group_id)
+    WHERE is_draft = true;
+
+CREATE TRIGGER select_groups_scd_close_predecessor BEFORE INSERT ON survey.select_groups
+    FOR EACH ROW EXECUTE FUNCTION survey.scd_close_predecessor('select_group_id');
+
+ALTER TABLE survey.select_groups ADD CONSTRAINT select_groups_id_version_un UNIQUE (select_group_id, version);
+ALTER TABLE survey.select_groups ADD CONSTRAINT select_groups_key_version_un UNIQUE (select_group_key, version);
+CREATE INDEX select_groups_key_idx ON survey.select_groups (select_group_key, effective_from, effective_to);
+
+-- Composite (durable key + effective range) index — see questions_durable_range_idx above
+-- for the access pattern this serves. Supersedes a plain (select_group_id) index. Matches
+-- db/migration's greenfield V001 (select_groups_durable_range_idx).
+CREATE INDEX select_groups_durable_range_idx ON survey.select_groups (select_group_id, effective_from, effective_to);
+CREATE INDEX select_groups_active_range_idx ON survey.select_groups (survey_id, effective_from, effective_to);
+
+-- Business-key uniqueness must be scoped to the currently-active row only — a
+-- retired version and its successor legitimately share (survey_id, name).
+ALTER TABLE survey.select_groups DROP CONSTRAINT select_groups_name_un;
+CREATE UNIQUE INDEX select_groups_name_un
+    ON survey.select_groups (survey_id, name)
+    WHERE effective_to = '9999-12-31 23:59:59+00';
+
+--------------------------------
+-- 3. select_items — Type 2 columns + durable retarget of group_id -> select_group_id
+--------------------------------
+ALTER TABLE survey.select_items
+    ADD COLUMN select_item_id   integer NOT NULL DEFAULT nextval('survey.select_items_durable_seq'),
+    -- Cross-instance-portable identity — see question_key above.
+    ADD COLUMN select_item_key  uuid NOT NULL DEFAULT (md5(random()::text || clock_timestamp()::text))::uuid,
+    ADD COLUMN version          integer NOT NULL DEFAULT 0,
+    ADD COLUMN effective_from   timestamp with time zone DEFAULT '1970-01-01 00:00:00+00',
+    ADD COLUMN effective_to     timestamp with time zone DEFAULT '9999-12-31 23:59:59+00',
+    ADD COLUMN published_by     text,
+    ADD COLUMN published_comment text,
+    ADD COLUMN is_draft         boolean NOT NULL DEFAULT false;
+
+-- Drop the old surrogate FK before the rename/backfill below overwrites group_id's values.
+ALTER TABLE survey.select_items DROP CONSTRAINT select_items_group_fk;
+
+-- Also drop select_items_display_text_un BEFORE the backfill below, not after: it's a live
+-- UNIQUE constraint on (select_group_id, display_text), checked row-by-row as the backfill
+-- UPDATE runs. On real data, writing one row's new durable select_group_id can transiently
+-- collide with another not-yet-updated row's still-surrogate value (e.g. the same display_text
+-- "Yes"/"No" reused across different select_groups, with overlapping id ranges) even though
+-- the final, fully-backfilled state has no true duplicates. Confirmed against a real
+-- pre-Kimball database — dropping first avoids a spurious mid-statement constraint violation.
+ALTER TABLE survey.select_items DROP CONSTRAINT select_items_display_text_un;
+
+ALTER TABLE survey.select_items RENAME COLUMN group_id TO select_group_id;
+
+-- Backfill: replace old surrogate id values with durable select_group_id values.
+UPDATE survey.select_items si
+   SET select_group_id = sg.select_group_id
+  FROM survey.select_groups sg
+ WHERE sg.id = si.select_group_id;
+
+ALTER TABLE survey.select_items
+    ADD COLUMN select_group_version integer NOT NULL DEFAULT 0;
+
+ALTER TABLE survey.select_items
+    ADD CONSTRAINT select_items_select_group_version_ck CHECK (select_group_version = 0);
+
+-- version = 0: entity-existence check. Time-range join resolves current version per respondent.
+-- Constraint keeps its original v2.x name (select_items_group_fk) — only the FK
+-- target changed (surrogate -> durable composite), matching the greenfield track.
+ALTER TABLE survey.select_items
+    ADD CONSTRAINT select_items_group_fk
+    FOREIGN KEY (select_group_id, select_group_version) REFERENCES survey.select_groups (select_group_id, version);
+
+CREATE UNIQUE INDEX select_items_one_current_un
+    ON survey.select_items (select_item_id)
+    WHERE effective_to = '9999-12-31 23:59:59+00';
+
+CREATE UNIQUE INDEX select_items_one_draft_un
+    ON survey.select_items (select_item_id)
+    WHERE is_draft = true;
+
+CREATE TRIGGER select_items_scd_close_predecessor BEFORE INSERT ON survey.select_items
+    FOR EACH ROW EXECUTE FUNCTION survey.scd_close_predecessor('select_item_id');
+
+ALTER TABLE survey.select_items ADD CONSTRAINT select_items_id_version_un UNIQUE (select_item_id, version);
+ALTER TABLE survey.select_items ADD CONSTRAINT select_items_key_version_un UNIQUE (select_item_key, version);
+CREATE INDEX select_items_key_idx ON survey.select_items (select_item_key, effective_from, effective_to);
+
+-- Composite (durable key + effective range) index — see questions_durable_range_idx above
+-- for the access pattern this serves. Supersedes a plain (select_item_id) index. Matches
+-- db/migration's greenfield V001 (select_items_durable_range_idx).
+CREATE INDEX select_items_durable_range_idx ON survey.select_items (select_item_id, effective_from, effective_to);
+CREATE INDEX select_items_select_group_id_idx ON survey.select_items (select_group_id);
+CREATE INDEX select_items_active_range_idx ON survey.select_items (survey_id, effective_from, effective_to);
+
+-- Business-key uniqueness scoped to the currently-active row only (see select_groups
+-- above for the same reasoning). select_items_display_text_un was already dropped
+-- before the backfill above (see the comment there); only the partial-index recreation
+-- happens here.
+CREATE UNIQUE INDEX select_items_display_text_un
+    ON survey.select_items (select_group_id, display_text)
+    WHERE effective_to = '9999-12-31 23:59:59+00';
+
+--------------------------------
+-- 4. sections — Type 2 columns
+--------------------------------
+ALTER TABLE survey.sections
+    ADD COLUMN section_id      integer NOT NULL DEFAULT nextval('survey.sections_durable_seq'),
+    -- Cross-instance-portable identity — see question_key above.
+    ADD COLUMN section_key     uuid NOT NULL DEFAULT (md5(random()::text || clock_timestamp()::text))::uuid,
+    ADD COLUMN version         integer NOT NULL DEFAULT 0,
+    ADD COLUMN effective_from  timestamp with time zone DEFAULT '1970-01-01 00:00:00+00',
+    ADD COLUMN effective_to    timestamp with time zone DEFAULT '9999-12-31 23:59:59+00',
+    ADD COLUMN published_by    text,
+    ADD COLUMN published_comment text,
+    ADD COLUMN is_draft        boolean NOT NULL DEFAULT false;
+
+CREATE UNIQUE INDEX sections_one_current_un
+    ON survey.sections (section_id)
+    WHERE effective_to = '9999-12-31 23:59:59+00';
+
+CREATE UNIQUE INDEX sections_one_draft_un
+    ON survey.sections (section_id)
+    WHERE is_draft = true;
+
+CREATE TRIGGER sections_scd_close_predecessor BEFORE INSERT ON survey.sections
+    FOR EACH ROW EXECUTE FUNCTION survey.scd_close_predecessor('section_id');
+
+ALTER TABLE survey.sections ADD CONSTRAINT sections_id_version_un UNIQUE (section_id, version);
+ALTER TABLE survey.sections ADD CONSTRAINT sections_key_version_un UNIQUE (section_key, version);
+CREATE INDEX sections_key_idx ON survey.sections (section_key, effective_from, effective_to);
+
+-- Composite (durable key + effective range) index — see questions_durable_range_idx above
+-- for the access pattern this serves. Supersedes a plain (section_id) index. Matches
+-- db/migration's greenfield V001 (sections_durable_range_idx).
+CREATE INDEX sections_durable_range_idx ON survey.sections (section_id, effective_from, effective_to);
+CREATE INDEX sections_active_range_idx ON survey.sections (survey_id, effective_from, effective_to);
+
+-- Business-key uniqueness scoped to the currently-active row only (see select_groups above).
+ALTER TABLE survey.sections DROP CONSTRAINT sections_survey_order_un;
+CREATE UNIQUE INDEX sections_survey_order_un
+    ON survey.sections (survey_id, display_order)
+    WHERE effective_to = '9999-12-31 23:59:59+00';
+
+ALTER TABLE survey.sections ALTER COLUMN display_order TYPE NUMERIC;
+
+--------------------------------
+-- 5. steps — Type 2 columns
+--------------------------------
+ALTER TABLE survey.steps
+    ADD COLUMN step_id         integer NOT NULL DEFAULT nextval('survey.steps_durable_seq'),
+    -- Cross-instance-portable identity — see question_key above.
+    ADD COLUMN step_key        uuid NOT NULL DEFAULT (md5(random()::text || clock_timestamp()::text))::uuid,
+    ADD COLUMN version         integer NOT NULL DEFAULT 0,
+    ADD COLUMN effective_from  timestamp with time zone DEFAULT '1970-01-01 00:00:00+00',
+    ADD COLUMN effective_to    timestamp with time zone DEFAULT '9999-12-31 23:59:59+00',
+    ADD COLUMN published_by    text,
+    ADD COLUMN published_comment text,
+    ADD COLUMN is_draft        boolean NOT NULL DEFAULT false;
+
+CREATE UNIQUE INDEX steps_one_current_un
+    ON survey.steps (step_id)
+    WHERE effective_to = '9999-12-31 23:59:59+00';
+
+CREATE UNIQUE INDEX steps_one_draft_un
+    ON survey.steps (step_id)
+    WHERE is_draft = true;
+
+CREATE TRIGGER steps_scd_close_predecessor BEFORE INSERT ON survey.steps
+    FOR EACH ROW EXECUTE FUNCTION survey.scd_close_predecessor('step_id');
+
+ALTER TABLE survey.steps ADD CONSTRAINT steps_id_version_un UNIQUE (step_id, version);
+ALTER TABLE survey.steps ADD CONSTRAINT steps_key_version_un UNIQUE (step_key, version);
+CREATE INDEX steps_key_idx ON survey.steps (step_key, effective_from, effective_to);
+
+-- Composite (durable key + effective range) index — see questions_durable_range_idx above
+-- for the access pattern this serves. Supersedes a plain (step_id) index. Matches
+-- db/migration's greenfield V001 (steps_durable_range_idx).
+CREATE INDEX steps_durable_range_idx ON survey.steps (step_id, effective_from, effective_to);
+CREATE INDEX steps_active_range_idx ON survey.steps (survey_id, effective_from, effective_to);
+
+-- Business-key uniqueness scoped to the currently-active row only (see select_groups above).
+ALTER TABLE survey.steps DROP CONSTRAINT steps_survey_name_un;
+CREATE UNIQUE INDEX steps_survey_name_un
+    ON survey.steps (survey_id, name)
+    WHERE effective_to = '9999-12-31 23:59:59+00';
+
+ALTER TABLE survey.steps DROP CONSTRAINT steps_survey_display_order;
+CREATE UNIQUE INDEX steps_survey_display_order
+    ON survey.steps (survey_id, display_order)
+    WHERE effective_to = '9999-12-31 23:59:59+00';
+
+ALTER TABLE survey.steps ALTER COLUMN display_order TYPE NUMERIC;
+
+--------------------------------
+-- 6. questions.select_group_id — durable retarget (run after step 2 has populated
+--    select_groups.select_group_id)
+--------------------------------
+ALTER TABLE survey.questions DROP CONSTRAINT select_groups_fk;
+
+ALTER TABLE survey.questions
+    ADD COLUMN select_group_version integer NOT NULL DEFAULT 0;
+
+ALTER TABLE survey.questions
+    ADD CONSTRAINT questions_select_group_version_ck CHECK (select_group_version = 0);
+
+UPDATE survey.questions q
+   SET select_group_id = sg.select_group_id
+  FROM survey.select_groups sg
+ WHERE sg.id = q.select_group_id;
+
+-- version = 0: entity-existence check. Time-range join resolves current version per respondent.
+-- Constraint keeps its original v2.x name (select_groups_fk) — only the FK target
+-- changed (surrogate -> durable composite), matching the greenfield track.
+ALTER TABLE survey.questions
+    ADD CONSTRAINT select_groups_fk
+    FOREIGN KEY (select_group_id, select_group_version) REFERENCES survey.select_groups (select_group_id, version);
+
+--------------------------------
+-- 7. steps_sections — Type 2 columns + durable retarget of step_id/section_id
+--------------------------------
+ALTER TABLE survey.steps_sections
+    ADD COLUMN steps_sections_id integer NOT NULL DEFAULT nextval('survey.steps_sections_durable_seq'),
+    -- Cross-instance-portable identity — see question_key above.
+    ADD COLUMN steps_sections_key uuid NOT NULL DEFAULT (md5(random()::text || clock_timestamp()::text))::uuid,
+    ADD COLUMN version           integer NOT NULL DEFAULT 0,
+    ADD COLUMN effective_from    timestamp with time zone DEFAULT '1970-01-01 00:00:00+00',
+    ADD COLUMN effective_to      timestamp with time zone DEFAULT '9999-12-31 23:59:59+00',
+    ADD COLUMN published_by      text,
+    ADD COLUMN published_comment text,
+    ADD COLUMN is_draft          boolean NOT NULL DEFAULT false,
+    ADD COLUMN step_version      integer NOT NULL DEFAULT 0,
+    ADD COLUMN section_version   integer NOT NULL DEFAULT 0;
+
+ALTER TABLE survey.steps_sections
+    ADD CONSTRAINT steps_sections_ref_versions_ck CHECK (step_version = 0 AND section_version = 0);
+
+-- Drop old surrogate FKs before backfilling step_id/section_id with durable ids.
+ALTER TABLE survey.steps_sections DROP CONSTRAINT steps_sections_steps_fk;
+ALTER TABLE survey.steps_sections DROP CONSTRAINT steps_sections_fk;
+
+UPDATE survey.steps_sections ss
+   SET step_id = s.step_id
+  FROM survey.steps s
+ WHERE s.id = ss.step_id;
+
+UPDATE survey.steps_sections ss
+   SET section_id = sec.section_id
+  FROM survey.sections sec
+ WHERE sec.id = ss.section_id;
+
+-- version = 0: entity-existence check. Time-range join resolves current version per respondent.
+ALTER TABLE survey.steps_sections
+    ADD CONSTRAINT steps_sections_steps_fk
+    FOREIGN KEY (step_id, step_version) REFERENCES survey.steps (step_id, version);
+
+ALTER TABLE survey.steps_sections
+    ADD CONSTRAINT steps_sections_fk
+    FOREIGN KEY (section_id, section_version) REFERENCES survey.sections (section_id, version);
+
+CREATE UNIQUE INDEX steps_sections_one_current_un
+    ON survey.steps_sections (steps_sections_id)
+    WHERE effective_to = '9999-12-31 23:59:59+00';
+
+CREATE UNIQUE INDEX steps_sections_one_draft_un
+    ON survey.steps_sections (steps_sections_id)
+    WHERE is_draft = true;
+
+CREATE TRIGGER steps_sections_scd_close_predecessor BEFORE INSERT ON survey.steps_sections
+    FOR EACH ROW EXECUTE FUNCTION survey.scd_close_predecessor('steps_sections_id');
+
+ALTER TABLE survey.steps_sections ADD CONSTRAINT steps_sections_id_version_un UNIQUE (steps_sections_id, version);
+ALTER TABLE survey.steps_sections ADD CONSTRAINT steps_sections_key_version_un UNIQUE (steps_sections_key, version);
+CREATE INDEX steps_sections_key_idx ON survey.steps_sections (steps_sections_key, effective_from, effective_to);
+
+-- Composite (durable key + effective range) index — see questions_durable_range_idx above
+-- for the access pattern this serves. Supersedes a plain (steps_sections_id) index. Matches
+-- db/migration's greenfield V001 (steps_sections_durable_range_idx).
+CREATE INDEX steps_sections_durable_range_idx ON survey.steps_sections (steps_sections_id, effective_from, effective_to);
+CREATE INDEX steps_sections_active_range_idx ON survey.steps_sections (survey_id, effective_from, effective_to);
+-- display_key is not a durable key but hits the identical as-of access pattern on the
+-- hottest runtime path (QuestionManager.navigate(), via StepsSections.findByDisplayKeyWithJoinsAsOf/
+-- findByDisplayKeyQueryAsOf) and had no supporting index at all outside the current-only
+-- partial unique index (steps_sections_un, which a ">"-bound :asOf predicate can't match).
+-- varchar_pattern_ops on the leading column is required because findByDisplayKeyQueryAsOf
+-- issues trailing-wildcard LIKE 'nnnn-nnnn-%' patterns (DisplayKey.getStepQueryString()/
+-- getSectionQueryString()) — a plain btree index only supports index-scan prefix-LIKE
+-- matching under C locale, which nothing here pins the database to. varchar_pattern_ops
+-- supports both "=" and prefix LIKE regardless of collation. Matches db/migration's
+-- greenfield V001 (steps_sections_display_key_range_idx).
+CREATE INDEX steps_sections_display_key_range_idx
+    ON survey.steps_sections (display_key varchar_pattern_ops, effective_from, effective_to);
+
+-- Business-key uniqueness scoped to the currently-active row only (see select_groups above).
+ALTER TABLE survey.steps_sections DROP CONSTRAINT steps_sections_un;
+CREATE UNIQUE INDEX steps_sections_un
+    ON survey.steps_sections (survey_id, display_key)
+    WHERE effective_to = '9999-12-31 23:59:59+00';
+
+-- steps_sections has no single "display_order" column — it carries the parent
+-- step's/section's display order as two denormalized columns; both must convert.
+ALTER TABLE survey.steps_sections ALTER COLUMN step_display_order TYPE NUMERIC;
+ALTER TABLE survey.steps_sections ALTER COLUMN section_display_order TYPE NUMERIC;
+
+--------------------------------
+-- 8. sections_questions — Type 2 columns + durable retarget of question_id/section_id
+--------------------------------
+ALTER TABLE survey.sections_questions
+    ADD COLUMN sections_question_id integer NOT NULL DEFAULT nextval('survey.sections_questions_durable_seq'),
+    -- Cross-instance-portable identity — see question_key above.
+    ADD COLUMN sections_question_key uuid NOT NULL DEFAULT (md5(random()::text || clock_timestamp()::text))::uuid,
+    ADD COLUMN version              integer NOT NULL DEFAULT 0,
+    ADD COLUMN effective_from       timestamp with time zone DEFAULT '1970-01-01 00:00:00+00',
+    ADD COLUMN effective_to         timestamp with time zone DEFAULT '9999-12-31 23:59:59+00',
+    ADD COLUMN published_by        text,
+    ADD COLUMN published_comment   text,
+    ADD COLUMN is_draft            boolean NOT NULL DEFAULT false,
+    ADD COLUMN question_version    integer NOT NULL DEFAULT 0,
+    ADD COLUMN section_version     integer NOT NULL DEFAULT 0;
+
+ALTER TABLE survey.sections_questions
+    ADD CONSTRAINT sections_questions_ref_versions_ck CHECK (question_version = 0 AND section_version = 0);
+
+-- Drop old surrogate FKs before backfilling section_id/question_id with durable ids.
+ALTER TABLE survey.sections_questions DROP CONSTRAINT sections_questions_sections_fk;
+ALTER TABLE survey.sections_questions DROP CONSTRAINT sections_questions_question_fk;
+
+-- Also drop sections_questions_un BEFORE the backfill below, not after: it's a live UNIQUE
+-- constraint on (survey_id, question_id, section_id, display_order), checked row-by-row as
+-- each backfill UPDATE runs. On real data, writing one row's new durable id can transiently
+-- collide with another not-yet-updated row's still-surrogate value even though the final,
+-- fully-backfilled state has no true duplicates. Confirmed against a real pre-Kimball
+-- database — dropping first avoids a spurious mid-statement constraint violation.
+ALTER TABLE survey.sections_questions DROP CONSTRAINT sections_questions_un;
+
+UPDATE survey.sections_questions sq
+   SET section_id = sec.section_id
+  FROM survey.sections sec
+ WHERE sec.id = sq.section_id;
+
+UPDATE survey.sections_questions sq
+   SET question_id = q.question_id
+  FROM survey.questions q
+ WHERE q.id = sq.question_id;
+
+-- version = 0: entity-existence check. Time-range join resolves current version per respondent.
+ALTER TABLE survey.sections_questions
+    ADD CONSTRAINT sections_questions_sections_fk
+    FOREIGN KEY (section_id, section_version) REFERENCES survey.sections (section_id, version);
+
+ALTER TABLE survey.sections_questions
+    ADD CONSTRAINT sections_questions_question_fk
+    FOREIGN KEY (question_id, question_version) REFERENCES survey.questions (question_id, version);
+
+CREATE UNIQUE INDEX sections_questions_one_current_un
+    ON survey.sections_questions (sections_question_id)
+    WHERE effective_to = '9999-12-31 23:59:59+00';
+
+CREATE UNIQUE INDEX sections_questions_one_draft_un
+    ON survey.sections_questions (sections_question_id)
+    WHERE is_draft = true;
+
+CREATE TRIGGER sections_questions_scd_close_predecessor BEFORE INSERT ON survey.sections_questions
+    FOR EACH ROW EXECUTE FUNCTION survey.scd_close_predecessor('sections_question_id');
+
+ALTER TABLE survey.sections_questions ADD CONSTRAINT sections_questions_id_version_un UNIQUE (sections_question_id, version);
+ALTER TABLE survey.sections_questions ADD CONSTRAINT sections_questions_key_version_un UNIQUE (sections_question_key, version);
+CREATE INDEX sections_questions_key_idx ON survey.sections_questions (sections_question_key, effective_from, effective_to);
+
+-- Composite (durable key + effective range) index — see questions_durable_range_idx above
+-- for the access pattern this serves. Supersedes a plain (sections_question_id) index.
+-- Matches db/migration's greenfield V001 (sections_questions_durable_range_idx).
+CREATE INDEX sections_questions_durable_range_idx ON survey.sections_questions (sections_question_id, effective_from, effective_to);
+CREATE INDEX sections_questions_active_range_idx ON survey.sections_questions (survey_id, effective_from, effective_to);
+
+-- Business-key uniqueness scoped to the currently-active row only (see select_groups above).
+-- sections_questions_un was already dropped before the backfill above (see the comment there);
+-- only the partial-index recreation happens here.
+CREATE UNIQUE INDEX sections_questions_un
+    ON survey.sections_questions (survey_id, question_id, section_id, display_order)
+    WHERE effective_to = '9999-12-31 23:59:59+00';
+
+ALTER TABLE survey.sections_questions ALTER COLUMN display_order TYPE NUMERIC;
+
+--------------------------------
+-- 9. relationships — Type 2 columns + rename downstream_s_id -> downstream_ss_id +
+--    durable retarget of all five reference columns
+--------------------------------
+ALTER TABLE survey.relationships
+    ADD COLUMN relationship_id         integer NOT NULL DEFAULT nextval('survey.relationships_durable_seq'),
+    -- Cross-instance-portable identity — see question_key above.
+    ADD COLUMN relationship_key        uuid NOT NULL DEFAULT (md5(random()::text || clock_timestamp()::text))::uuid,
+    ADD COLUMN version                 integer NOT NULL DEFAULT 0,
+    ADD COLUMN effective_from          timestamp with time zone DEFAULT '1970-01-01 00:00:00+00',
+    ADD COLUMN effective_to            timestamp with time zone DEFAULT '9999-12-31 23:59:59+00',
+    ADD COLUMN published_by           text,
+    ADD COLUMN published_comment      text,
+    ADD COLUMN is_draft               boolean NOT NULL DEFAULT false,
+    ADD COLUMN upstream_step_version   integer NOT NULL DEFAULT 0,
+    ADD COLUMN upstream_sq_version     integer NOT NULL DEFAULT 0,
+    ADD COLUMN downstream_step_version integer NOT NULL DEFAULT 0,
+    ADD COLUMN downstream_ss_version   integer NOT NULL DEFAULT 0,
+    ADD COLUMN downstream_sq_version   integer NOT NULL DEFAULT 0;
+
+ALTER TABLE survey.relationships
+    ADD CONSTRAINT relationships_ref_versions_ck CHECK (
+        upstream_step_version   = 0 AND
+        upstream_sq_version     = 0 AND
+        downstream_step_version = 0 AND
+        downstream_ss_version   = 0 AND
+        downstream_sq_version   = 0
+    );
+
+-- Drop the check constraint and the five old surrogate FKs before the rename/backfill below.
+ALTER TABLE survey.relationships DROP CONSTRAINT downstream_ck;
+ALTER TABLE survey.relationships DROP CONSTRAINT upstream_step_fk;
+ALTER TABLE survey.relationships DROP CONSTRAINT upstream_sq_fk;
+ALTER TABLE survey.relationships DROP CONSTRAINT downstream_step_fk;
+ALTER TABLE survey.relationships DROP CONSTRAINT downstream_s_fk;
+ALTER TABLE survey.relationships DROP CONSTRAINT downstream_sq_fk;
+
+-- downstream_s_id is renamed to downstream_ss_id (ss = steps_sections convention)
+ALTER TABLE survey.relationships RENAME COLUMN downstream_s_id TO downstream_ss_id;
+
+UPDATE survey.relationships r
+   SET upstream_step_id = s.step_id
+  FROM survey.steps s
+ WHERE s.id = r.upstream_step_id;
+
+UPDATE survey.relationships r
+   SET upstream_sq_id = sq.sections_question_id
+  FROM survey.sections_questions sq
+ WHERE sq.id = r.upstream_sq_id;
+
+UPDATE survey.relationships r
+   SET downstream_step_id = s.step_id
+  FROM survey.steps s
+ WHERE s.id = r.downstream_step_id;
+
+UPDATE survey.relationships r
+   SET downstream_ss_id = ss.steps_sections_id
+  FROM survey.steps_sections ss
+ WHERE ss.id = r.downstream_ss_id;
+
+UPDATE survey.relationships r
+   SET downstream_sq_id = sq.sections_question_id
+  FROM survey.sections_questions sq
+ WHERE sq.id = r.downstream_sq_id;
+
+-- Recreate the check against the renamed column.
+ALTER TABLE survey.relationships
+    ADD CONSTRAINT downstream_ck CHECK ((downstream_step_id + downstream_sq_id + downstream_ss_id) > 0);
+
+-- version = 0: entity-existence check. Time-range join resolves current version per respondent.
+ALTER TABLE survey.relationships
+    ADD CONSTRAINT upstream_step_fk
+    FOREIGN KEY (upstream_step_id, upstream_step_version) REFERENCES survey.steps (step_id, version);
+
+ALTER TABLE survey.relationships
+    ADD CONSTRAINT upstream_sq_fk
+    FOREIGN KEY (upstream_sq_id, upstream_sq_version) REFERENCES survey.sections_questions (sections_question_id, version);
+
+ALTER TABLE survey.relationships
+    ADD CONSTRAINT downstream_step_fk
+    FOREIGN KEY (downstream_step_id, downstream_step_version) REFERENCES survey.steps (step_id, version);
+
+ALTER TABLE survey.relationships
+    ADD CONSTRAINT downstream_s_fk
+    FOREIGN KEY (downstream_ss_id, downstream_ss_version) REFERENCES survey.steps_sections (steps_sections_id, version);
+
+ALTER TABLE survey.relationships
+    ADD CONSTRAINT downstream_sq_fk
+    FOREIGN KEY (downstream_sq_id, downstream_sq_version) REFERENCES survey.sections_questions (sections_question_id, version);
+
+CREATE UNIQUE INDEX relationships_one_current_un
+    ON survey.relationships (relationship_id)
+    WHERE effective_to = '9999-12-31 23:59:59+00';
+
+CREATE UNIQUE INDEX relationships_one_draft_un
+    ON survey.relationships (relationship_id)
+    WHERE is_draft = true;
+
+CREATE TRIGGER relationships_scd_close_predecessor BEFORE INSERT ON survey.relationships
+    FOR EACH ROW EXECUTE FUNCTION survey.scd_close_predecessor('relationship_id');
+
+ALTER TABLE survey.relationships ADD CONSTRAINT relationships_id_version_un UNIQUE (relationship_id, version);
+ALTER TABLE survey.relationships ADD CONSTRAINT relationships_key_version_un UNIQUE (relationship_key, version);
+CREATE INDEX relationships_key_idx ON survey.relationships (relationship_key, effective_from, effective_to);
+
+-- Composite (durable key + effective range) index — see questions_durable_range_idx above
+-- for the access pattern this serves. Supersedes a plain (relationship_id) index. Matches
+-- db/migration's greenfield V001 (relationships_durable_range_idx).
+CREATE INDEX relationships_durable_range_idx ON survey.relationships (relationship_id, effective_from, effective_to);
+CREATE INDEX relationships_active_range_idx ON survey.relationships (survey_id, effective_from, effective_to);
+
+-- Upgrade the five pre-Kimball plain FK-lookup indexes (created by this same
+-- migration-v3/'s V001 baseline, under the pre-rename column names where applicable) to
+-- composite (fk-durable-column + effective range) form. These five columns are the durable
+-- keys of steps/sections_questions/steps_sections after the retarget above, and every named
+-- query/native SQL that filters on one of them also carries an effective_from/effective_to
+-- as-of guard (Relationship.java's @NamedQueries, QuestionManager.java's native SQL) — a
+-- plain single-column index forces a Filter step for that range predicate. Matches
+-- db/migration's greenfield V001 (relationships_*_range_idx).
+DROP INDEX IF EXISTS survey.relationships_upstream_step_index;
+DROP INDEX IF EXISTS survey.relationships_upstream_sq_index;
+DROP INDEX IF EXISTS survey.relationships_downstream_step_index;
+DROP INDEX IF EXISTS survey.relationships_downstream_section_index;
+DROP INDEX IF EXISTS survey.relationships_downstream_sq_index;
+
+CREATE INDEX relationships_upstream_step_range_idx ON survey.relationships (upstream_step_id, effective_from, effective_to);
+CREATE INDEX relationships_upstream_sq_range_idx ON survey.relationships (upstream_sq_id, effective_from, effective_to);
+CREATE INDEX relationships_downstream_step_range_idx ON survey.relationships (downstream_step_id, effective_from, effective_to);
+CREATE INDEX relationships_downstream_section_range_idx ON survey.relationships (downstream_ss_id, effective_from, effective_to);
+CREATE INDEX relationships_downstream_sq_range_idx ON survey.relationships (downstream_sq_id, effective_from, effective_to);
+
+--------------------------------
+-- 10. surveys — SCD Type 1 (in-place), no version/effective columns.
+-- survey_key is a stable, cross-instance-portable identity (preserved verbatim
+-- across a create-import, unlike the durable keys above which are reallocated
+-- per-instance) — not part of Type 2 versioning, just a permanent business key
+-- alongside the existing surrogate id. Backfilled here since this path runs
+-- against an already-populated legacy database; no UUID extension is enabled
+-- in this schema, so this avoids depending on one.
+--------------------------------
+ALTER TABLE survey.surveys
+    ADD COLUMN published_by      text,
+    ADD COLUMN published_comment text,
+    ADD COLUMN survey_key        uuid;
+
+-- FHHS's V0.0.1 seeds this same authored survey with a fixed literal survey_key on a
+-- greenfield install. Pin the upgraded row to that literal first so both install paths
+-- agree on the key, and a survey definition exported from an upgraded instance still
+-- imports into a fresh one as the same survey rather than a new one. Matched on name,
+-- which surveys_name_un makes unique; any other survey falls through to the random
+-- backfill below.
+UPDATE survey.surveys
+   SET survey_key = '5e91c606-59a1-450a-a8d7-2f1530ff472b'
+ WHERE name = 'Family History Survey'
+   AND survey_key IS NULL;
+
+UPDATE survey.surveys
+   SET survey_key = md5(random()::text || clock_timestamp()::text || id::text)::uuid
+ WHERE survey_key IS NULL;
+
+ALTER TABLE survey.surveys ALTER COLUMN survey_key SET NOT NULL;
+ALTER TABLE survey.surveys ADD CONSTRAINT surveys_survey_key_un UNIQUE (survey_key);
+
+--------------------------------
+-- 11. answers — pin the exact question version seen
+--------------------------------
+ALTER TABLE survey.answers
+    ADD COLUMN question_version integer NOT NULL DEFAULT 0;
+
+UPDATE survey.answers SET question_version = 0 WHERE question_version IS NULL;
+
+-- answers.step/section are display-order values, not surrogate FKs to steps.id/sections.id —
+-- these two legacy FKs only ever "worked" by historical coincidence (steps/sections created in
+-- display-order sequence — see the doc's "INSERT_MISSING_FACT_SECTION_SQL — Display-Order Join
+-- Fix" section) and block the NUMERIC conversion outright (Postgres refuses an FK between
+-- incompatible types). The greenfield track never creates them for the same reason.
+ALTER TABLE survey.answers DROP CONSTRAINT answers_step_fk;
+ALTER TABLE survey.answers DROP CONSTRAINT answers_section_fk;
+
+ALTER TABLE survey.answers ALTER COLUMN step TYPE NUMERIC;
+ALTER TABLE survey.answers ALTER COLUMN section TYPE NUMERIC;
+
+--------------------------------
+-- 12. metadata — durable-key retarget (replace the surrogate columns with durable ones)
+--------------------------------
+ALTER TABLE survey.metadata
+    ADD COLUMN question_durable_id  integer,
+    ADD COLUMN sections_question_id integer,
+    ADD COLUMN steps_sections_id    integer;
+
+UPDATE survey.metadata m
+   SET question_durable_id = q.question_id
+  FROM survey.questions q
+ WHERE q.id = m.question_id
+   AND m.question_id IS NOT NULL;
+
+UPDATE survey.metadata m
+   SET sections_question_id = sq.sections_question_id
+  FROM survey.sections_questions sq
+ WHERE sq.id = m.section_question_id
+   AND m.section_question_id IS NOT NULL;
+
+UPDATE survey.metadata m
+   SET steps_sections_id = ss.steps_sections_id
+  FROM survey.steps_sections ss
+ WHERE ss.id = m.step_section_id
+   AND m.step_section_id IS NOT NULL;
+
+-- The surrogate columns go once their values are carried over (issue #111): nothing reads them,
+-- and the greenfield track never has them. Their constraints and the three indexes V001 created
+-- on them (metadata_question_index, metadata_section_question_index, metadata_step_section_index)
+-- are dropped by name first, so a name that does not match fails here instead of leaving a
+-- constraint behind.
+ALTER TABLE survey.metadata
+    DROP CONSTRAINT metadata_un,
+    DROP CONSTRAINT metadata_element_ck,
+    DROP CONSTRAINT metadata_question_fk,
+    DROP CONSTRAINT metadata_sect_quest_fk,
+    DROP CONSTRAINT metadata_section_fk;
+
+DROP INDEX survey.metadata_question_index;
+DROP INDEX survey.metadata_section_question_index;
+DROP INDEX survey.metadata_step_section_index;
+
+ALTER TABLE survey.metadata
+    DROP COLUMN question_id,
+    DROP COLUMN section_question_id,
+    DROP COLUMN step_section_id;
+
+ALTER TABLE survey.metadata RENAME COLUMN question_durable_id TO question_id;
+
+ALTER TABLE survey.metadata
+    ADD CONSTRAINT metadata_un UNIQUE (steps_sections_id, question_id, sections_question_id, ontology_id, value),
+    ADD CONSTRAINT metadata_element_ck CHECK ((steps_sections_id + question_id + sections_question_id) > 0);
+
+CREATE INDEX metadata_question_id_index        ON survey.metadata (question_id);
+CREATE INDEX metadata_sections_question_id_idx  ON survey.metadata (sections_question_id);
+CREATE INDEX metadata_steps_sections_id_idx     ON survey.metadata (steps_sections_id);
+
+--------------------------------
+-- 13. surveyreport.dim_step / dim_section — durable rekey columns
+--------------------------------
+ALTER TABLE surveyreport.dim_step
+    ADD COLUMN step_id integer UNIQUE;
+
+UPDATE surveyreport.dim_step ds
+   SET step_id = s.step_id
+  FROM survey.steps s
+ WHERE s.id = ds.id;
+
+ALTER TABLE surveyreport.dim_section
+    ADD COLUMN section_id integer UNIQUE;
+
+UPDATE surveyreport.dim_section dsec
+   SET section_id = sec.section_id
+  FROM survey.sections sec
+ WHERE sec.id = dsec.id;

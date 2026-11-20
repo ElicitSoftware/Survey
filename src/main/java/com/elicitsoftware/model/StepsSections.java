@@ -13,10 +13,12 @@ package com.elicitsoftware.model;
 
 import com.elicitsoftware.DisplayKey;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
-import io.quarkus.panache.common.Parameters;
 import jakarta.persistence.*;
 
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Represents the relationship between steps and sections in a survey.
@@ -34,8 +36,9 @@ import java.util.List;
  * 3. StepsSections.findBySurveyId - Finds all entries by the survey ID.
  * <p>
  * Relationships:
- * - Many-to-one relationship with the `Step` entity.
- * - Many-to-one relationship with the `Section` entity.
+ * - `stepId` and `sectionId` are the durable ids of the placed step and section; they are
+ * resolved with `Step.findAsOf` / `Section.findAsOf` at the respondent's snapshot anchor,
+ * never mapped as JPA associations (a durable id has one row per version).
  * <p>
  * Key Fields:
  * - `displaykey`: Represents the display key used to uniquely identify the record
@@ -66,78 +69,162 @@ public class StepsSections extends PanacheEntityBase {
     @Column(name = "survey_id", nullable = false, precision = 20)
     public Integer surveyId;
 
-    @ManyToOne
-    @JoinColumn(name = "step_id", nullable = false)
-    public Step step;
+    // steps_sections.step_id holds the durable steps.step_id (Kimball Type 2 SCD retarget),
+    // not steps.id. A plain column, never a @ManyToOne: a durable id has one row per version,
+    // so a JPA association on it fails with "More than one row with the given identifier" as
+    // soon as a revision exists. Resolve it with Step.findAsOf at the respondent's anchor.
+    @Column(name = "step_id", nullable = false)
+    public Integer stepId;
 
+    // NUMERIC, not INTEGER -- supports decimal-midpoint insertion between existing positions.
     @Column(name = "step_display_order", nullable = false, precision = 4)
-    public Integer stepDisplayOrder;
+    public BigDecimal stepDisplayOrder;
 
-    @ManyToOne
-    @JoinColumn(name = "section_id", nullable = false)
-    public Section section;
+    // steps_sections.section_id holds the durable sections.section_id (Kimball Type 2 SCD
+    // retarget), not sections.id — same plain-column rule as stepId above; resolve it with
+    // Section.findAsOf at the respondent's anchor.
+    @Column(name = "section_id", nullable = false)
+    public Integer sectionId;
 
+    // NUMERIC, not INTEGER -- same reasoning as stepDisplayOrder above.
     @Column(name = "section_display_order", nullable = false, precision = 4)
-    public Integer sectionDisplayOrder;
+    public BigDecimal sectionDisplayOrder;
 
     @Column(name = "display_key", nullable = false, length = 34)
     public String displaykey;
 
+    // Kimball Type 2 SCD (UC-002 BR-009) — steps_sections_id is the durable
+    // key that survives re-versioning; id (above) is the surrogate, per-version row id.
+    @Column(name = "steps_sections_id", nullable = false)
+    public Integer stepsSectionsId;
+
+    @Column(name = "version", nullable = false)
+    public Integer version = 0;
+
+    @Column(name = "effective_from")
+    public OffsetDateTime effectiveFrom;
+
+    @Column(name = "effective_to")
+    public OffsetDateTime effectiveTo;
+
+    @Column(name = "published_by")
+    public String publishedBy;
+
+    @Column(name = "published_comment")
+    public String publishedComment;
+
+    // FK-companion columns pinning the referenced rows to their entity-existence checks
+    // (always 0 -- the FK targets the referenced table's (durable id, version) unique constraint, and pinning 0 keeps this row valid across that entity's versions; the version in effect is resolved by the snapshot anchor, Respondent.snapshotAnchor).
+    @Column(name = "step_version", nullable = false)
+    public Integer stepVersion = 0;
+
+    @Column(name = "section_version", nullable = false)
+    public Integer sectionVersion = 0;
+
     @Transient
     private DisplayKey key;
 
-    public static List<StepsSections> findByDisplayKeyQuery(String key) {
-        return find("#StepsSections.findByDisplayKeyQuery", Parameters.with("displaykey", key)).list();
-    }
-
-    public static StepsSections findFirstByDisplayKeyQuery(String key) {
-        return find("#StepsSections.findByDisplayKeyQuery", Parameters.with("displaykey", key)).firstResult();
-    }
-
+    /**
+     * Looks up a placement by its exact display key, in every version; the snapshot-anchored
+     * lookup is {@link #findByDisplayKeyAsOf}.
+     *
+     * @param key the display key to search for
+     * @return the first matching row in display-key order, or {@code null} if there is none
+     */
     public static StepsSections findByDisplayKey(DisplayKey key) {
-        StepsSections stepsSections = find("#StepsSections.findByDisplayKey", Parameters.with("displaykey", key.getValue())).firstResult();
-        return stepsSections;
-    }
-
-    public static List<StepsSections> findBySurveyId(int surveyId) {
-        return find("#StepsSections.findBySurveyId", Parameters.with("surveyId", surveyId)).list();
+        return find("#StepsSections.findByDisplayKey", Map.of("displaykey", key.getValue())).firstResult();
     }
 
     /**
-     * Optimized query that fetches StepsSections with Step and Section relationships
-     * in a single query to avoid N+1 problems. Use this instead of findBySurveyId()
-     * when you need to access step and section details.
+     * Lists a survey's placements in every version; the snapshot-anchored listing is
+     * {@link #findBySurveyIdAsOf}.
      *
      * @param surveyId the ID of the survey
-     * @return list of StepsSections with eager-loaded step and section relationships
+     * @return the survey's rows in display-key order
      */
-    public static List<StepsSections> findBySurveyIdWithJoins(int surveyId) {
-        return find("SELECT DISTINCT ss FROM StepsSections ss " +
-                    "LEFT JOIN FETCH ss.step " +
-                    "LEFT JOIN FETCH ss.section " +
-                    "WHERE ss.surveyId = :surveyId " +
-                    "ORDER BY ss.displaykey", 
-                    Parameters.with("surveyId", surveyId))
-                .list();
+    public static List<StepsSections> findBySurveyId(int surveyId) {
+        return find("#StepsSections.findBySurveyId", Map.of("surveyId", surveyId)).list();
     }
 
     /**
-     * Optimized query that fetches a single StepsSections with Step and Section relationships
-     * in a single query to avoid N+1 problems. Use this instead of findByDisplayKey()
-     * when you need to access step and section details.
+     * Snapshot-anchored ({@link Respondent#snapshotAnchor}) variant of findByDisplayKeyQuery:
+     * resolves only the steps_sections row whose effective window covers {@code asOf}
+     * (the respondent's firstAccessDt, or NOW() for a brand-new respondent).
      *
-     * @param key the DisplayKey to search for
-     * @return StepsSections with eager-loaded step and section relationships
+     * @param key  a {@code like} pattern on the display key
+     * @param asOf the snapshot instant to resolve structural rows as of
+     * @return the matching placements in effect at {@code asOf}, in display-key order
      */
-    public static StepsSections findByDisplayKeyWithJoins(DisplayKey key) {
-        return find("SELECT ss FROM StepsSections ss " +
-                    "LEFT JOIN FETCH ss.step " +
-                    "LEFT JOIN FETCH ss.section " +
-                    "WHERE ss.displaykey = :displaykey", 
-                    Parameters.with("displaykey", key.getValue()))
+    public static List<StepsSections> findByDisplayKeyQueryAsOf(String key, OffsetDateTime asOf) {
+        return find("displaykey like ?1 and effectiveFrom <= ?2 and effectiveTo > ?2 order by displaykey",
+                key, asOf).list();
+    }
+
+    /**
+     * The first placement, in display-key order, that {@link #findByDisplayKeyQueryAsOf} would list.
+     *
+     * @param key  a {@code like} pattern on the display key
+     * @param asOf the snapshot instant to resolve structural rows as of
+     * @return the first matching placement in effect at {@code asOf}, or {@code null} if there is none
+     */
+    public static StepsSections findFirstByDisplayKeyQueryAsOf(String key, OffsetDateTime asOf) {
+        return find("displaykey like ?1 and effectiveFrom <= ?2 and effectiveTo > ?2 order by displaykey",
+                key, asOf).firstResult();
+    }
+
+    /**
+     * Snapshot-anchored ({@link Respondent#snapshotAnchor}) listing of a survey's step/section
+     * placements: only the rows whose effective window covers {@code asOf} (the respondent's
+     * firstAccessDt, or NOW() for a brand-new respondent). This used to fetch-join the step
+     * and section, but with the as-of guard on steps_sections alone, so once a step or
+     * section had a second version the join duplicated rows; the step and section are now
+     * resolved by {@link Step#findAsOf} / {@link Section#findAsOf} at the same instant.
+     *
+     * @param surveyId the ID of the survey
+     * @param asOf     the snapshot instant to resolve structural rows as of
+     * @return the placements in effect at {@code asOf}, in display-key order
+     */
+    public static List<StepsSections> findBySurveyIdAsOf(int surveyId, OffsetDateTime asOf) {
+        return find("surveyId = ?1 and effectiveFrom <= ?2 and effectiveTo > ?2 order by displaykey",
+                surveyId, asOf).list();
+    }
+
+    /**
+     * Snapshot-anchored ({@link Respondent#snapshotAnchor}) lookup of the placement addressed by an
+     * exact display key: the row whose effective window covers {@code asOf}. See
+     * {@link #findBySurveyIdAsOf} for why the step and section are no longer fetch-joined.
+     *
+     * @param key  the DisplayKey to search for
+     * @param asOf the snapshot instant to resolve structural rows as of
+     * @return the placement in effect at {@code asOf}, or {@code null} if none covers it
+     */
+    public static StepsSections findByDisplayKeyAsOf(DisplayKey key, OffsetDateTime asOf) {
+        return find("displaykey = ?1 and effectiveFrom <= ?2 and effectiveTo > ?2", key.getValue(), asOf)
                 .firstResult();
     }
 
+    /**
+     * The version of the durable {@code steps_sections_id} in effect at {@code asOf}
+     * (the snapshot anchor, {@link Respondent#snapshotAnchor}). See {@link Step#findAsOf} for why
+     * durable keys are resolved through a finder rather than mapped as JPA associations.
+     *
+     * @param stepsSectionsId the durable {@code steps_sections.steps_sections_id}; {@code null} yields {@code null}
+     * @param asOf            the respondent's snapshot anchor
+     * @return the placement in effect at {@code asOf}, or {@code null} if none covers it
+     */
+    public static StepsSections findAsOf(Integer stepsSectionsId, OffsetDateTime asOf) {
+        if (stepsSectionsId == null) {
+            return null;
+        }
+        return StepsSections.<StepsSections>find("stepsSectionsId = ?1 and effectiveFrom <= ?2 and effectiveTo > ?2", stepsSectionsId, asOf)
+                .singleResultOptional().orElse(null);
+    }
+
+    /**
+     * Returns the display key in its normalized, zero-padded form.
+     *
+     * @return the display key, parsed from {@link #displaykey} on first use
+     */
     public String getDisplaykey() {
         if (this.key == null) {
             this.key = new DisplayKey(this.displaykey);
@@ -145,11 +232,21 @@ public class StepsSections extends PanacheEntityBase {
         return key.getValue();
     }
 
+    /**
+     * Sets the display key and parses it into the {@link DisplayKey} that {@link #getKey()} returns.
+     *
+     * @param displaykey the display key; it must parse as a {@link DisplayKey}
+     */
     public void setDisplaykey(String displaykey) {
         this.displaykey = displaykey;
         this.key = new DisplayKey(displaykey);
     }
 
+    /**
+     * Returns the display key as a {@link DisplayKey}.
+     *
+     * @return the parsed display key, parsed from {@link #displaykey} on first use
+     */
     @Transient
     public DisplayKey getKey() {
         if (this.key == null) {

@@ -18,7 +18,6 @@ import com.elicitsoftware.PostgresTestResource;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceException;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;
@@ -26,15 +25,13 @@ import java.time.OffsetDateTime;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Executable spec for {@code survey.steps_sections} — research/Kimball_type_2.md,
- * "Schema Changes Per Table &rarr; steps_sections". Same cascade-immunity pattern as
+ * Executable spec for {@code survey.steps_sections} (UC-002 BR-009). Same cascade-immunity pattern as
  * {@link SectionsQuestionsCascadeSpecTest} applied to the step/section pair; also
  * covers {@code display_key} stability within a version's effective period
  * (Open Question 2, resolved) and reordering (Gap ETL-3 / Edge case R-2).
  */
 @QuarkusTest
 @QuarkusTestResource(PostgresTestResource.class)
-@Disabled("Enable once the steps_sections Type 2 migration lands — see research/Kimball_type_2.md 'Schema Changes Per Table -> steps_sections'")
 class StepsSectionsCascadeSpecTest {
 
     @Inject
@@ -46,9 +43,9 @@ class StepsSectionsCascadeSpecTest {
     void migration_addsDurableKeyVersionColumnsAndFkCompanions() {
         long cols = ((Number) em.createNativeQuery(
                 "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='survey' AND table_name='steps_sections' "
-                        + "AND column_name IN ('steps_sections_id','version','effective_from','effective_to','is_draft',"
+                        + "AND column_name IN ('steps_sections_id','version','effective_from','effective_to',"
                         + "'step_version','section_version')").getSingleResult()).longValue();
-        assertEquals(7, cols);
+        assertEquals(6, cols);
     }
 
     @Test
@@ -76,10 +73,10 @@ class StepsSectionsCascadeSpecTest {
         em.createNativeQuery("UPDATE survey.steps SET effective_to = ?2 WHERE step_id = ?1 AND effective_to = ?3")
                 .setParameter(1, durableStepId).setParameter(2, publishInstant).setParameter(3, MAX_SENTINEL).executeUpdate();
         em.createNativeQuery(
-                "INSERT INTO survey.steps (id, step_id, version, survey_id, display_order, name, dimension_name, "
-                        + "effective_from, effective_to, is_draft) "
-                        + "SELECT nextval('survey.steps_seq'), step_id, ?2, survey_id, display_order, 'ScdStepRenamed', dimension_name, "
-                        + "?3, ?4, false FROM survey.steps WHERE step_id = ?1 AND version = ?5")
+                "INSERT INTO survey.steps (id, step_id, step_key, version, survey_id, display_order, name, dimension_name, "
+                        + "effective_from, effective_to) "
+                        + "SELECT nextval('survey.steps_seq'), step_id, step_key, ?2, survey_id, display_order, 'ScdStepRenamed', dimension_name, "
+                        + "?3, ?4 FROM survey.steps WHERE step_id = ?1 AND version = ?5")
                 .setParameter(1, durableStepId).setParameter(2, currentVersion + 1).setParameter(3, publishInstant)
                 .setParameter(4, MAX_SENTINEL).setParameter(5, currentVersion).executeUpdate();
         em.flush();

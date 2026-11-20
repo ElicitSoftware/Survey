@@ -18,7 +18,6 @@ import com.elicitsoftware.PostgresTestResource;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceException;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;
@@ -26,15 +25,13 @@ import java.time.OffsetDateTime;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Executable spec for Type 2 versioning of {@code survey.select_items} —
- * research/Kimball_type_2.md, "Schema Changes Per Table &rarr; select_items". Covers
+ * Executable spec for Type 2 versioning of {@code survey.select_items} (UC-002 BR-009). Covers
  * the {@code group_id -> select_group_id} rename/backfill and the
  * {@code select_group_version} FK-companion column, on top of the same
  * versioning/constraint pattern as {@link QuestionsVersioningSpecTest}.
  */
 @QuarkusTest
 @QuarkusTestResource(PostgresTestResource.class)
-@Disabled("Enable once the select_items Type 2 migration lands — see research/Kimball_type_2.md 'Schema Changes Per Table -> select_items'")
 class SelectItemsVersioningSpecTest {
 
     @Inject
@@ -52,8 +49,8 @@ class SelectItemsVersioningSpecTest {
         long durableAndVersionCols = ((Number) em.createNativeQuery(
                 "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='survey' AND table_name='select_items' "
                         + "AND column_name IN ('select_item_id','select_group_id','select_group_version','version',"
-                        + "'effective_from','effective_to','is_draft')").getSingleResult()).longValue();
-        assertEquals(7, durableAndVersionCols);
+                        + "'effective_from','effective_to')").getSingleResult()).longValue();
+        assertEquals(6, durableAndVersionCols);
     }
 
     @Test

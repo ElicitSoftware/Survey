@@ -11,66 +11,73 @@ package com.elicitsoftware.flow;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.diagnostics.ContainerInfo;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.Route;
 import com.vaadin.quarkus.annotation.NormalUIScoped;
-import io.quarkus.logging.Log;
 import jakarta.annotation.PostConstruct;
+import jakarta.inject.Inject;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 
 /**
- * VersionView displays system and container information for the application.
- * This includes Docker container ID when running in a containerized environment.
+ * VersionView displays the container's current time and the creation date of its image. The
+ * time comes from the JVM's clock and the date from {@link ContainerInfo}, which finds it once
+ * per application start, so viewing the page starts no process.
  */
 @Route(value = "version", layout = MainLayout.class)
 @NormalUIScoped
 public class VersionView extends VerticalLayout {
+
+    @Inject
+    ContainerInfo containerInfo;
     
+    /** Creates the view; its content is built in {@link #init()} once {@link ContainerInfo} is injected. */
     public VersionView() {
         super();
     }
     
+    /** Builds the page: its title and the container section. */
     @PostConstruct
     public void init() {
         setSpacing(true);
         setPadding(true);
         
         // Add title
-        H2 title = new H2("Version Information");
+        H2 title = new H2(getTranslation("versionView.title"));
         add(title);
         
-        // Add Docker container ID section
-        Div containerSection = createContainerIdSection();
+        // Add the container section: its current time and the image's creation date
+        Div containerSection = createContainerSection();
         add(containerSection);
     }
     
     /**
-     * Creates a section displaying the Docker image creation date.
+     * Creates the container section: the container's current time, and the image's creation date,
+     * or a note that it is unavailable.
      * 
-     * @return Div containing the image creation date information
+     * @return Div containing the container time and the image creation date
      */
-    private Div createContainerIdSection() {
+    private Div createContainerSection() {
         Div section = new Div();
         
-        H2 sectionTitle = new H2("Container Information");
+        H2 sectionTitle = new H2(getTranslation("versionView.container"));
         section.add(sectionTitle);
         
         // Get and display container time
         String containerTime = getContainerTime();
         if (containerTime != null && !containerTime.isEmpty()) {
-            Paragraph containerTimeLabel = new Paragraph("Container Current Time:");
+            Paragraph containerTimeLabel = new Paragraph(getTranslation("versionView.containerTime"));
             containerTimeLabel.getStyle().set("font-weight", "bold");
             
             Paragraph containerTimeValue = new Paragraph(containerTime);
+            containerTimeValue.getElement().setAttribute("data-i18n-content", "");
             containerTimeValue.getStyle().set("font-family", "monospace");
             containerTimeValue.getStyle().set("background-color", "var(--lumo-primary-color-10pct)");
             containerTimeValue.getStyle().set("padding", "var(--lumo-space-s)");
@@ -86,10 +93,11 @@ public class VersionView extends VerticalLayout {
         
         // Display image creation date if available
         if (creationDate != null && !creationDate.isEmpty()) {
-            Paragraph creationDateLabel = new Paragraph("Image Creation Date:");
+            Paragraph creationDateLabel = new Paragraph(getTranslation("versionView.imageCreated"));
             creationDateLabel.getStyle().set("font-weight", "bold");
             
             Paragraph creationDateValue = new Paragraph(creationDate);
+            creationDateValue.getElement().setAttribute("data-i18n-content", "");
             creationDateValue.getStyle().set("font-family", "monospace");
             creationDateValue.getStyle().set("background-color", "var(--lumo-success-color-10pct)");
             creationDateValue.getStyle().set("padding", "var(--lumo-space-s)");
@@ -98,7 +106,7 @@ public class VersionView extends VerticalLayout {
             
             section.add(creationDateLabel, creationDateValue);
         } else {
-            Paragraph noImageInfo = new Paragraph("Image creation date not available.");
+            Paragraph noImageInfo = new Paragraph(getTranslation("versionView.imageCreatedUnavailable"));
             noImageInfo.getStyle().set("font-style", "italic");
             noImageInfo.getStyle().set("color", "var(--lumo-secondary-text-color)");
             section.add(noImageInfo);
@@ -108,312 +116,36 @@ public class VersionView extends VerticalLayout {
     }
     
     /**
-     * Simple method to get container ID for docker inspect
-     */
-    private String getContainerIdSimple() {
-        try {
-            // Try hostname first (often container ID)
-            String hostname = getHostname();
-            if (hostname != null && hostname.matches("^[a-f0-9]{12,64}$")) {
-                return hostname;
-            }
-            
-            // Try from /proc/self/mountinfo
-            ProcessBuilder processBuilder = new ProcessBuilder("sh", "-c", 
-                "cat /proc/self/mountinfo 2>/dev/null | grep -o -E '/docker/containers/[a-f0-9]{64}' | grep -o -E '[a-f0-9]{64}' | head -1");
-            
-            Process process = processBuilder.start();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            String containerId = reader.readLine();
-            process.waitFor();
-            
-            if (containerId != null && !containerId.trim().isEmpty()) {
-                return containerId.trim();
-            }
-            
-        } catch (Exception e) {
-            // Ignore exception
-        }
-        return null;
-    }
-    
-    /**
      * Gets the current time in the container with timezone information
      * 
-     * @return The current container time with timezone info or null if unavailable
+     * @return The current container time with timezone info
      */
     private String getContainerTime() {
-        try {
-            // Get current time with Java's system time in raw format
-            LocalDateTime now = LocalDateTime.now();
-            ZoneId systemZone = ZoneId.systemDefault();
-            ZonedDateTime zonedNow = now.atZone(systemZone);
-            
-            // Return raw format
-            return zonedNow.toString();
-            
-        } catch (Exception e) {
-            // If there's an error, try to get basic time info
-            try {
-                ProcessBuilder processBuilder = new ProcessBuilder("date");
-                Process process = processBuilder.start();
-                BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-                String result = reader.readLine();
-                process.waitFor();
-                
-                if (result != null && !result.trim().isEmpty()) {
-                    return result.trim();
-                }
-            } catch (Exception e2) {
-                // Last resort - Java system time
-                return LocalDateTime.now().toString();
-            }
-        }
-        return null;
+        return LocalDateTime.now().atZone(ZoneId.systemDefault()).toString();
     }
     
     /**
-     * Gets the system hostname which in Docker containers is often set to the container ID.
-     * 
-     * @return The system hostname or null if unavailable
-     */
-    private String getHostname() {
-        try {
-            ProcessBuilder processBuilder = new ProcessBuilder("hostname");
-            Process process = processBuilder.start();
-            
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            String hostname = reader.readLine();
-            
-            int exitCode = process.waitFor();
-            
-            if (exitCode == 0 && hostname != null && !hostname.trim().isEmpty()) {
-                return hostname.trim();
-            }
-            
-        } catch (Exception e) {
-            Log.debug("Could not retrieve hostname", e);
-        }
-        
-        return null;
-    }
-    
-    /**
-     * Executes methods to retrieve the Docker image tags.
-     * 
-     * @return The Docker image tags if found, null otherwise
-     */
-    private String getDockerImageTags() {
-        try {
-            // Method 1: Try to get from environment variables
-            String imageTags = getImageTagsFromEnv();
-            if (imageTags != null) {
-                return imageTags;
-            }
-            
-            // Method 2: Try to get from Docker inspect (if available)
-            imageTags = getImageTagsFromDockerInspect();
-            if (imageTags != null) {
-                return imageTags;
-            }
-            
-            // Method 3: Try to get from Docker labels
-            imageTags = getImageTagsFromLabels();
-            if (imageTags != null) {
-                return imageTags;
-            }
-            
-            return null;
-            
-        } catch (Exception e) {
-            return null;
-        }
-    }
-    
-    /**
-     * Tries to get image tags from environment variables
-     */
-    private String getImageTagsFromEnv() {
-        try {
-            // Check common environment variables that might contain image tag info
-            String[] envVars = {"DOCKER_IMAGE_TAG", "IMAGE_TAG", "DOCKER_TAG", "IMAGE_NAME"};
-            
-            for (String envVar : envVars) {
-                String value = System.getenv(envVar);
-                if (value != null && !value.trim().isEmpty()) {
-                    return value.trim();
-                }
-            }
-            
-            // Also try reading from /proc/1/environ
-            ProcessBuilder processBuilder = new ProcessBuilder("sh", "-c", 
-                "cat /proc/1/environ 2>/dev/null | tr '\\0' '\\n' | grep -E '(IMAGE_TAG|DOCKER_TAG|IMAGE_NAME)' | head -1");
-            
-            Process process = processBuilder.start();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            String line = reader.readLine();
-            process.waitFor();
-            
-            if (line != null && line.contains("=")) {
-                String value = line.split("=", 2)[1];
-                if (!value.trim().isEmpty()) {
-                    return value.trim();
-                }
-            }
-            
-        } catch (Exception e) {
-            // Ignore exception
-        }
-        return null;
-    }
-    
-    /**
-     * Tries to get image tags from docker inspect command
-     */
-    private String getImageTagsFromDockerInspect() {
-        try {
-            // First get container ID
-            String containerId = getContainerIdSimple();
-            if (containerId == null) {
-                return null;
-            }
-            
-            // Try to use docker inspect to get image tags
-            ProcessBuilder processBuilder = new ProcessBuilder("sh", "-c", 
-                "docker inspect " + containerId + " --format '{{.Config.Image}}' 2>/dev/null");
-            
-            Process process = processBuilder.start();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            String imageName = reader.readLine();
-            process.waitFor();
-            
-            if (imageName != null && !imageName.trim().isEmpty()) {
-                return imageName.trim();
-            }
-            
-            // Alternative: try to get repository tags
-            processBuilder = new ProcessBuilder("sh", "-c", 
-                "docker inspect " + containerId + " --format '{{range .RepoTags}}{{.}} {{end}}' 2>/dev/null");
-            
-            process = processBuilder.start();
-            reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            String repoTags = reader.readLine();
-            process.waitFor();
-            
-            if (repoTags != null && !repoTags.trim().isEmpty()) {
-                return repoTags.trim();
-            }
-            
-        } catch (Exception e) {
-            // Ignore exception
-        }
-        return null;
-    }
-    
-    /**
-     * Tries to get image tags from Docker labels or metadata
-     */
-    private String getImageTagsFromLabels() {
-        try {
-            // First get container ID
-            String containerId = getContainerIdSimple();
-            if (containerId == null) {
-                return null;
-            }
-            
-            // Try to get labels that might contain image information
-            ProcessBuilder processBuilder = new ProcessBuilder("sh", "-c", 
-                "docker inspect " + containerId + " --format '{{range $key, $value := .Config.Labels}}{{$key}}={{$value}} {{end}}' 2>/dev/null | grep -i image");
-            
-            Process process = processBuilder.start();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            String labels = reader.readLine();
-            process.waitFor();
-            
-            if (labels != null && !labels.trim().isEmpty()) {
-                return labels.trim();
-            }
-            
-        } catch (Exception e) {
-            // Ignore exception
-        }
-        return null;
-    }
-    
-    /**
-     * Tries to get the Docker image creation date/time
+     * The image's creation date, formatted for the page. The date is found once per application
+     * start ({@link ContainerInfo}); viewing the page starts no process.
      */
     private String getImageCreationDate() {
-        try {
-            String containerId = getContainerIdSimple();
-            String imageTags = getDockerImageTags();
-            
-            // Try multiple approaches to get image creation date
-            String[] commands = {
-                // Try docker inspect to get image creation date
-                containerId != null ? "docker inspect " + containerId + " --format '{{.Created}}' 2>/dev/null" : null,
-                
-                // Try docker images to get creation date from image tag
-                imageTags != null ? "docker images --format 'table {{.Repository}}:{{.Tag}}\\t{{.CreatedAt}}' " + imageTags + " 2>/dev/null | tail -n +2" : null,
-                
-                // Try docker inspect on the image directly
-                imageTags != null ? "docker inspect " + imageTags + " --format '{{.Created}}' 2>/dev/null" : null,
-                
-                // Look for image metadata in container config
-                containerId != null ? "find /var/lib/docker/containers/" + containerId + "/ -name 'config.v2.json' -exec grep -o '\"Created\":\"[^\"]*\"' {} \\; 2>/dev/null | cut -d'\"' -f4" : null,
-                
-                // Try to get from /proc filesystem timestamps
-                "stat -c %y /.dockerenv 2>/dev/null",
-                
-                // Try to get container start time as approximation
-                "stat -c %y /proc/1 2>/dev/null",
-                
-                // Look for Docker build date in environment
-                "cat /proc/1/environ 2>/dev/null | tr '\\0' '\\n' | grep -E '(BUILD_DATE|CREATED|IMAGE_DATE)' | head -1",
-                
-                // Check for any date-related labels
-                containerId != null ? "docker inspect " + containerId + " --format '{{range $key, $value := .Config.Labels}}{{$key}}={{$value}}{{\"\\n\"}}{{end}}' 2>/dev/null | grep -i -E '(date|created|build)'" : null
-            };
-            
-            for (String command : commands) {
-                if (command == null) continue;
-                
-                ProcessBuilder processBuilder = new ProcessBuilder("sh", "-c", command);
-                Process process = processBuilder.start();
-                BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-                String result = reader.readLine();
-                process.waitFor();
-                
-                if (result != null && !result.trim().isEmpty()) {
-                    String cleaned = result.trim();
-                    // Try to parse and format the date if it looks like a valid date
-                    if (cleaned.matches(".*\\d{4}-\\d{2}-\\d{2}.*") || 
-                        cleaned.matches(".*\\d{4}/\\d{2}/\\d{2}.*") ||
-                        cleaned.contains("T") ||
-                        cleaned.contains("UTC") ||
-                        cleaned.contains("GMT")) {
-                        
-                        // Try to format the date in a more user-friendly way
-                        String formattedDate = formatImageCreationDate(cleaned);
-                        return formattedDate != null ? formattedDate : cleaned;
-                    }
-                }
-            }
-            
-        } catch (Exception e) {
-            // Ignore exception
+        String raw = containerInfo.imageCreationDate();
+        if (raw == null) {
+            return null;
         }
-        return null;
+        String formattedDate = formatImageCreationDate(raw);
+        return formattedDate != null ? formattedDate : raw;
     }
     
     /**
-     * Formats the image creation date into raw format using container timezone
+     * Formats the image creation date in the container's time zone.
+     *
+     * @param rawDate the date as {@link ContainerInfo} found it
+     * @return the formatted date, or {@code rawDate} unchanged when it is in no format this method knows
      */
     // Package-private (not private) so VersionViewFormatImageCreationDateTest can exercise
-    // this pure date-formatting logic directly. The rest of this class's methods shell out to
-    // `hostname`/`docker inspect` and aren't safely testable without those subprocesses; this
-    // one method has no such dependency, so it's the one worth testing in isolation. Same
-    // visibility-for-testability precedent as QuestionService.CallPostSurveyAction.
+    // this pure date-formatting logic directly. Same visibility-for-testability precedent as
+    // PostSurveyActionCaller.timeout.
     String formatImageCreationDate(String rawDate) {
         try {
             // Handle different date formats that might be returned

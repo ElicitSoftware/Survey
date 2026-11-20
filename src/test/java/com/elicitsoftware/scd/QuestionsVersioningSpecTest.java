@@ -17,31 +17,30 @@ import io.quarkus.test.common.QuarkusTestResource;
 import com.elicitsoftware.PostgresTestResource;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceException;
 import jakarta.persistence.Query;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Executable spec for Type 2 versioning of {@code survey.questions} —
- * research/Kimball_type_2.md, "Schema Changes Per Table &rarr; questions" and
- * "Versioning Workflows &rarr; Rewording a question". This is the reference
+ * Executable spec for Type 2 versioning of {@code survey.questions} (UC-002 BR-009; a
+ * reword closes the current row and inserts the next version). This is the reference
  * implementation the other 7 structural-table *VersioningSpecTest classes follow.
  * <p>
  * Written entirely against native SQL (no new Panache entity fields), so it compiles
  * today; it only fails to *run* until the {@code questions} migration exists. Enable
  * by removing {@code @Disabled} once that migration lands, then iterate until green.
- * Uses the isolated V011__SCD_Spec_Fixture.sql fixture (survey "ScdSpecFixture") —
- * never the V005/Tess fixture that QuestionManagerTest/ETLServiceTest depend on.
+ * Uses the isolated V9011__SCD_Spec_Fixture.sql fixture (survey "ScdSpecFixture") —
+ * never the V9005/Tess fixture that QuestionManagerTest/ETLServiceTest depend on.
  */
 @QuarkusTest
 @QuarkusTestResource(PostgresTestResource.class)
-@Disabled("Enable once the questions Type 2 migration lands — see research/Kimball_type_2.md 'Schema Changes Per Table -> questions'")
 class QuestionsVersioningSpecTest {
 
     @Inject
@@ -58,8 +57,8 @@ class QuestionsVersioningSpecTest {
                 "SELECT column_name FROM information_schema.columns "
                         + "WHERE table_schema = 'survey' AND table_name = 'questions' "
                         + "AND column_name IN ('question_id','version','effective_from','effective_to',"
-                        + "'is_draft','published_by','published_comment')").getResultList();
-        assertEquals(7, columns.size(), "questions must gain all 7 Type 2 columns");
+                        + "'published_by','published_comment')").getResultList();
+        assertEquals(6, columns.size(), "questions must gain all 6 Type 2 columns");
 
         long sequenceExists = ((Number) em.createNativeQuery(
                 "SELECT COUNT(*) FROM information_schema.sequences "
@@ -73,51 +72,54 @@ class QuestionsVersioningSpecTest {
         Integer questionId = ScdFixtureIds.questionId(em);
 
         Object[] row = (Object[]) em.createNativeQuery(
-                "SELECT version, effective_from, effective_to, is_draft FROM survey.questions WHERE id = ?1")
+                "SELECT version, effective_from, effective_to FROM survey.questions WHERE id = ?1")
                 .setParameter(1, questionId)
                 .getSingleResult();
 
         assertEquals(0, ((Number) row[0]).intValue(), "Pre-existing row must backfill to version 0");
-        assertEquals(EPOCH_SENTINEL, row[1], "Pre-existing row must backfill effective_from to epoch");
-        assertEquals(MAX_SENTINEL, row[2], "Pre-existing row must backfill effective_to to the max sentinel");
-        assertEquals(Boolean.FALSE, row[3], "Pre-existing row must not be a draft");
+        assertEquals(EPOCH_SENTINEL, toOffsetDateTime(row[1]), "Pre-existing row must backfill effective_from to epoch");
+        assertEquals(MAX_SENTINEL, toOffsetDateTime(row[2]), "Pre-existing row must backfill effective_to to the max sentinel");
     }
 
     // ── Constraint enforcement ───────────────────────────────────────────────
 
     @Test
     @TestTransaction
-    void onlyOneCurrentRowPerDurableId_isEnforced() {
+    void insertingASecondCurrentRow_closesThePredecessorInsteadOfColliding() {
         Integer questionId = ScdFixtureIds.questionId(em);
+        Integer durableId = (Integer) em.createNativeQuery(
+                "SELECT question_id FROM survey.questions WHERE id = ?1")
+                .setParameter(1, questionId).getSingleResult();
+        OffsetDateTime newStart = OffsetDateTime.now();
 
-        // A second row claiming to be current for the same durable id must violate
-        // questions_one_current_un.
-        assertThrows(PersistenceException.class, () -> {
-            em.createNativeQuery(
-                    "INSERT INTO survey.questions (id, question_id, version, survey_id, type_id, text, required, "
-                            + "effective_from, effective_to, is_draft) "
-                            + "SELECT nextval('survey.questions_seq'), question_id, version + 1, survey_id, type_id, text, required, "
-                            + "?2, ?3, false FROM survey.questions WHERE id = ?1")
-                    .setParameter(1, questionId)
-                    .setParameter(2, OffsetDateTime.now())
-                    .setParameter(3, MAX_SENTINEL)
-                    .executeUpdate();
-            em.flush();
-        }, "questions_one_current_un must reject a second effective_to = max row for the same question_id");
-    }
+        // survey.scd_close_predecessor() closes the outgoing row BEFORE INSERT, so this
+        // succeeds rather than colliding with questions_one_current_un. The index is the
+        // backstop; the trigger is what keeps the invariant true.
+        em.createNativeQuery(
+                "INSERT INTO survey.questions (id, question_id, question_key, version, survey_id, type_id, text, required, "
+                        + "effective_from, effective_to) "
+                        + "SELECT nextval('survey.questions_seq'), question_id, question_key, version + 1, survey_id, type_id, text, required, "
+                        + "?2, ?3 FROM survey.questions WHERE id = ?1")
+                .setParameter(1, questionId)
+                .setParameter(2, newStart)
+                .setParameter(3, MAX_SENTINEL)
+                .executeUpdate();
+        em.flush();
 
-    @Test
-    @TestTransaction
-    void onlyOneDraftRowPerDurableId_isEnforced() {
-        Integer questionId = ScdFixtureIds.questionId(em);
-        Integer durableId = durableIdOf(questionId);
+        Number current = (Number) em.createNativeQuery(
+                "SELECT count(*) FROM survey.questions WHERE question_id = ?1 AND effective_to = ?2")
+                .setParameter(1, durableId).setParameter(2, MAX_SENTINEL).getSingleResult();
+        assertEquals(1, current.intValue(),
+                "questions_one_current_un's invariant must still hold: exactly one current row per question_id");
 
-        insertDraft(durableId, "First draft");
-
-        assertThrows(PersistenceException.class, () -> {
-            insertDraft(durableId, "Second concurrent draft");
-            em.flush();
-        }, "questions_one_draft_un must reject a second is_draft = true row for the same question_id (Q-A5)");
+        // Compared in SQL rather than with OffsetDateTime.equals, which is offset-sensitive:
+        // the driver returns the same instant as UTC, so an equals() against a local-offset
+        // value fails despite both being the same moment.
+        Number closedAtNewStart = (Number) em.createNativeQuery(
+                "SELECT count(*) FROM survey.questions WHERE id = ?1 AND effective_to = ?2")
+                .setParameter(1, questionId).setParameter(2, newStart).getSingleResult();
+        assertEquals(1, closedAtNewStart.intValue(),
+                "the superseded row must be closed at the incoming row's effective_from, leaving no gap");
     }
 
     // ── Close-current / insert-new (Q-R1: no gap, no overlap) ───────────────
@@ -128,19 +130,26 @@ class QuestionsVersioningSpecTest {
         Integer questionId = ScdFixtureIds.questionId(em);
         Integer durableId = durableIdOf(questionId);
         int currentVersion = versionOf(questionId);
-        OffsetDateTime publishInstant = OffsetDateTime.now();
+        // Truncated to what timestamptz keeps. The column holds microseconds and rounds to them,
+        // so a nanosecond instant does not come back as itself and the exact comparisons below
+        // would fail -- on Linux only, since a macOS JVM's clock is already microsecond.
+        OffsetDateTime publishInstant = OffsetDateTime.now().truncatedTo(ChronoUnit.MICROS);
 
         closeCurrentAndInsertNewVersion(durableId, currentVersion, publishInstant, "Reworded text");
 
-        Object[] oldRow = (Object[]) em.createNativeQuery(
+        Object oldEffectiveTo = em.createNativeQuery(
                 "SELECT effective_to FROM survey.questions WHERE question_id = ?1 AND version = ?2")
                 .setParameter(1, durableId).setParameter(2, currentVersion).getSingleResult();
         Object[] newRow = (Object[]) em.createNativeQuery(
                 "SELECT effective_from, version, text FROM survey.questions WHERE question_id = ?1 AND version = ?2")
                 .setParameter(1, durableId).setParameter(2, currentVersion + 1).getSingleResult();
 
-        assertEquals(publishInstant, oldRow[0], "Old row's effective_to must be exactly the publish instant");
-        assertEquals(publishInstant, newRow[0], "New row's effective_from must be exactly the same publish instant (no gap/overlap)");
+        assertEquals(publishInstant.toInstant(), toOffsetDateTime(oldEffectiveTo).toInstant(), "Old row's effective_to must be exactly the publish instant");
+        assertEquals(publishInstant.toInstant(), toOffsetDateTime(newRow[0]).toInstant(), "New row's effective_from must be exactly the same publish instant (no gap/overlap)");
+        // The invariant itself, independent of what either side was compared against: the moment
+        // one version ends is the moment the next begins.
+        assertEquals(toOffsetDateTime(oldEffectiveTo).toInstant(), toOffsetDateTime(newRow[0]).toInstant(),
+                "the old row must close exactly where the new one opens");
         assertEquals(currentVersion + 1, ((Number) newRow[1]).intValue(), "version must increment by exactly 1");
         assertEquals("Reworded text", newRow[2]);
     }
@@ -173,22 +182,6 @@ class QuestionsVersioningSpecTest {
                 "A query using a later timestamp must resolve to the new wording");
     }
 
-    @Test
-    @TestTransaction
-    void draftRow_isInvisibleToTheTimeRangePredicateAtAnyTimestamp() {
-        Integer questionId = ScdFixtureIds.questionId(em);
-        Integer durableId = durableIdOf(questionId);
-        insertDraft(durableId, "Draft wording, never published");
-
-        long visibleAtEpoch = countVisibleAt(durableId, EPOCH_SENTINEL.plusNanos(1000));
-        long visibleAtNow = countVisibleAt(durableId, OffsetDateTime.now());
-        long visibleAtFarFuture = countVisibleAt(durableId, OffsetDateTime.now().plusYears(50));
-
-        assertEquals(1, visibleAtEpoch, "Exactly the current (non-draft) row must be visible at any timestamp");
-        assertEquals(1, visibleAtNow, "A draft (NULL effective_from/effective_to) must never satisfy the time-range predicate");
-        assertEquals(1, visibleAtFarFuture, "Draft rows must remain invisible arbitrarily far in the future");
-    }
-
     // ── answers pin the exact version ────────────────────────────────────────
 
     @Test
@@ -212,6 +205,20 @@ class QuestionsVersioningSpecTest {
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
+    /** Native-query results for {@code timestamp with time zone} columns come back as
+     *  {@code java.time.Instant} in this Hibernate/driver combination, not {@code OffsetDateTime}
+     *  — normalize so comparisons against the OffsetDateTime constants/parameters used
+     *  throughout this suite work regardless of which temporal type is actually returned. */
+    private static OffsetDateTime toOffsetDateTime(Object value) {
+        if (value instanceof OffsetDateTime odt) {
+            return odt;
+        }
+        if (value instanceof Instant instant) {
+            return instant.atOffset(ZoneOffset.UTC);
+        }
+        throw new IllegalArgumentException("Unexpected temporal type: " + (value == null ? "null" : value.getClass()));
+    }
+
     private int versionOf(Integer surrogateId) {
         return ((Number) em.createNativeQuery("SELECT version FROM survey.questions WHERE id = ?1")
                 .setParameter(1, surrogateId).getSingleResult()).intValue();
@@ -229,18 +236,6 @@ class QuestionsVersioningSpecTest {
                 .setParameter(1, durableId).setParameter(2, ts).getSingleResult()).longValue();
     }
 
-    private void insertDraft(Integer durableId, String text) {
-        em.createNativeQuery(
-                "INSERT INTO survey.questions (id, question_id, version, survey_id, type_id, text, required, "
-                        + "effective_from, effective_to, is_draft) "
-                        + "SELECT nextval('survey.questions_seq'), question_id, "
-                        + "(SELECT MAX(version) FROM survey.questions WHERE question_id = ?1) + 1, "
-                        + "survey_id, type_id, ?2, required, NULL, NULL, true "
-                        + "FROM survey.questions WHERE question_id = ?1 AND effective_to = ?3 LIMIT 1")
-                .setParameter(1, durableId).setParameter(2, text).setParameter(3, MAX_SENTINEL)
-                .executeUpdate();
-    }
-
     /** Mirrors the doc's "close current row / insert next version" pattern, with the same
      *  publishInstant used for both the closing effective_to and the new effective_from —
      *  Q-R1's no-gap/no-overlap guarantee. */
@@ -252,10 +247,10 @@ class QuestionsVersioningSpecTest {
         assertEquals(1, updated, "Exactly one current row must be closed");
 
         em.createNativeQuery(
-                "INSERT INTO survey.questions (id, question_id, version, survey_id, type_id, text, required, "
-                        + "select_group_id, effective_from, effective_to, is_draft) "
-                        + "SELECT nextval('survey.questions_seq'), question_id, ?2, survey_id, type_id, ?3, required, "
-                        + "select_group_id, ?4, ?5, false "
+                "INSERT INTO survey.questions (id, question_id, question_key, version, survey_id, type_id, text, required, "
+                        + "select_group_id, effective_from, effective_to) "
+                        + "SELECT nextval('survey.questions_seq'), question_id, question_key, ?2, survey_id, type_id, ?3, required, "
+                        + "select_group_id, ?4, ?5 "
                         + "FROM survey.questions WHERE question_id = ?1 AND version = ?6")
                 .setParameter(1, durableId).setParameter(2, currentVersion + 1).setParameter(3, newText)
                 .setParameter(4, publishInstant).setParameter(5, MAX_SENTINEL).setParameter(6, currentVersion)

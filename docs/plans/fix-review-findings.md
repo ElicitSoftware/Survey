@@ -14,7 +14,7 @@ Two findings are **documented business decisions**, not just code smells:
   fix keeps the endpoint public (avoids the OIDC-redirect-on-new-tab problem noted in
   `application.properties:189`) but replaces the key with a `SecureRandom` value — this
   actually makes BR-013 true rather than aspirational.
-- UC-001 **BR-002** already correctly scopes `token.autoRegister` to dev/test only, and
+- UC-001 **BR-002** already correctly scopes `accessCode.autoRegister` to dev/test only, and
   verification confirmed no prod-profile line enables it — **no code fix needed there**, it was a
   false-positive-adjacent finding (real risk only if someone edits config later).
 
@@ -172,7 +172,7 @@ In `src/main/java/com/elicitsoftware/flow/`:
   new `ElicitDoubleField`/`ElicitTextArea`/`ElicitPasswordField`/`ElicitTimePicker` tests fail on
   the old code (sanity-check by temporarily reverting stream 1, optional) and pass after the fix.
 - **Manual browser check (`/run` or Quarkus dev mode):**
-  - Enter a survey token, answer a double-range question at the boundary and out-of-bounds
+  - Enter a survey access code, answer a double-range question at the boundary and out-of-bounds
     values, a textarea/password field with a saved value on revisit, and a time-picker question
     — confirm no StackOverflow, correct validation, and saved values restored.
   - Generate a PDF, confirm the download link/key looks like a random token rather than a

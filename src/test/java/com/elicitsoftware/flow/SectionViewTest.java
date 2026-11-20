@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * UC-002: Answer Section Questions — Browserless coverage of SectionView's navigation
  * controls (section-previous-button / section-next-button), seeded with a fresh, isolated
  * respondent (not the shared "Tess Tester" fixture, which other tests mutate — see
- * TokenServiceTest.testDeactivate).
+ * AccessCodeServiceTest.testDeactivate).
  * <p>
  * No {@code @TestTransaction}: {@code QuestionService.init(...)} runs in its own
  * {@code REQUIRES_NEW} transaction (see the class javadoc on {@code QuestionServiceReviewTest}
@@ -72,8 +72,10 @@ class SectionViewTest extends QuarkusBrowserlessTest {
             Button next = find(Button.class).id("section-next-button");
 
             assertFalse(previous.isEnabled(), "First section must not allow navigating further back");
-            assertTrue(next.getText().equals("Next") || next.getText().equals("Review"),
-                    "Next button must read either 'Next' or 'Review', got: " + next.getText());
+            String nextLabel = next.getTranslation("sectionView.btnNext");
+            String reviewLabel = next.getTranslation("sectionView.btnReview");
+            assertTrue(next.getText().equals(nextLabel) || next.getText().equals(reviewLabel),
+                    "Next button must read either the Next or the Review label, got: " + next.getText());
         } finally {
             cleanup(respondent.id);
         }
@@ -82,7 +84,7 @@ class SectionViewTest extends QuarkusBrowserlessTest {
     private Respondent createFreshRespondent() {
         Respondent r = new Respondent();
         r.survey = Survey.findById(SURVEY_ID);
-        r.token = "test_" + System.nanoTime();
+        r.accessCode = "test_" + System.nanoTime();
         r.active = true;
         r.logins = 0;
         r.persist();

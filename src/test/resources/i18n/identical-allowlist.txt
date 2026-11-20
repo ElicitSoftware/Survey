@@ -1,0 +1,9 @@
+# Values that legitimately stay identical to English in every language file.
+Elicit
+PDF
+CSV
+ID
+URL
+OK
+JSON
+Keycloak

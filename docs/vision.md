@@ -15,9 +15,9 @@ produced them.
 ## Target Users
 
 - **Respondents** — patients, study participants, or members of the public
-  invited to complete a survey via a tokenized link in an email.
+  invited to complete a survey via an emailed link that contains their access code.
 - **Survey administrators** — staff (in the companion Admin app) who register
-  subjects, generate invitation tokens, and monitor completion.
+  subjects, generate invitation access codes, and monitor completion.
 - **Survey authors** — designers (in the companion Authoring tool) who define
   question banks, branching logic, and publish surveys to the database.
 - **Researchers / clinicians** — consumers of the recorded responses and the
@@ -36,21 +36,24 @@ Elicit Survey itself is the respondent-facing module of the broader
 - Generate a respondent-facing report (PDF) summarizing what was submitted.
 - Integrate with downstream ETL for analytical reporting.
 - Operate as a Quarkus service deployable via Docker.
+- Present the application itself in the respondent's language (browser, invitation
+  link, or on-page choice), including right-to-left layout, with translations a
+  deployment can mount without rebuilding.
 
 ## Scope
 
 **In scope**
-- Token-based respondent entry from invitation emails.
+- Access-code-based respondent entry from invitation emails.
 - Question rendering, validation, branching, and submission via the Vaadin UI.
 - Persistence of answers and decision-tree paths in PostgreSQL.
 - PDF report generation for the respondent.
-- ETL hand-off (Kimball Type 2 dimensions — see `research/Kimball_type_2.md`).
+- ETL hand-off (Kimball Type 2 versioning — UC-002 BR-009, UC-008).
 - OpenTelemetry-based observability (see `guides/OPENTELEMETRY_SETUP.md`,
   `guides/METRICS_GUIDE.md`).
 
 **Out of scope** (handled by sibling modules)
 - Authoring surveys / defining question trees → Authoring tool.
-- Subject registration, token generation, invitation email dispatch → Admin app.
+- Subject registration, access code generation, invitation email dispatch → Admin app.
 - Cross-survey analytics dashboards → downstream reporting tools.
 
 ## Constraints
@@ -58,8 +61,8 @@ Elicit Survey itself is the respondent-facing module of the broader
 - **License:** PolyForm Noncommercial 1.0.0.
 - **Stack (do not deviate without explicit approval):**
   - Java 25
-  - Quarkus 3.34.x
-  - Vaadin 25.1.x (Flow / server-side UI)
+  - Quarkus 3.40.x (LTS)
+  - Vaadin 25.3.x (Flow / server-side UI)
   - Hibernate ORM with Panache (JPA) — *not* jOOQ
   - PostgreSQL
   - Maven build, Docker deploy

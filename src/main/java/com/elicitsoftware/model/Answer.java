@@ -15,11 +15,11 @@ import com.elicitsoftware.DisplayKey;
 import com.elicitsoftware.flow.GlobalStrings;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import io.quarkus.logging.Log;
-import io.quarkus.panache.common.Parameters;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -70,7 +70,11 @@ import java.util.*;
         @NamedQuery(name = "Answer.findByAnswerQueryString", query = "SELECT a FROM Answer a WHERE a.deleted = false and a.displayKey Like :answerQuery and a.respondentId = :respondentId order by a.displayKey"),
         @NamedQuery(name = "Answer.findBySectionInstancesQueryString", query = "SELECT a FROM Answer a WHERE a.deleted = false and a.question is null and a.displayKey Like :sectionQuery and a.respondentId = :respondentId order by a.displayKey"),
         @NamedQuery(name = "Answer.findBySectionDisplaykey", query = "SELECT DISTINCT a FROM Answer a WHERE a.deleted = false and a.respondentId = :respondentId AND a.surveyId = :surveyId and a.stepId = :stepId and a.stepInstance = :stepInstance and a.sectionId = :sectionId and a.sectionInstance = :sectionInstance order by a.displayKey"),
-        @NamedQuery(name = "Answer.findUpstreamAnswerByRelationshipId", query = "SELECT a FROM Answer a inner JOIN Relationship r ON a.stepId = r.upstreamStep.id AND a.section_question_id = r.upstreamQuestion.id WHERE a.respondentId = :respondentId and r.id = :relationshipID order by a.displayKey")})
+        // r.upstreamSqId is the durable sections_question_id while a.section_question_id pins a
+        // surrogate row, so the two are bridged through SectionsQuestion. (QuestionManager uses
+        // its own native lookup that also resolves the upstream step; this query is kept for
+        // the static finder below.)
+        @NamedQuery(name = "Answer.findUpstreamAnswerByRelationshipId", query = "SELECT a FROM Answer a, Relationship r, SectionsQuestion sq WHERE r.id = :relationshipID and sq.sectionsQuestionId = r.upstreamSqId and a.section_question_id = sq.id and a.respondentId = :respondentId order by a.displayKey")})
 public class Answer extends PanacheEntityBase {
 
     /**
@@ -127,9 +131,13 @@ public class Answer extends PanacheEntityBase {
      * <p>
      * Typically relates to the "Step" entity in the system, which defines
      * the steps within a survey.
+     * <p>
+     * NUMERIC, not INTEGER — stores the
+     * step's display_order at response time, which is itself NUMERIC to support decimal-
+     * midpoint insertion; matching the type here keeps it lossless.
      */
     @Column(name = "step", nullable = false, precision = 4)
-    public Integer stepId;
+    public BigDecimal stepId;
 
     /**
      * Represents the specific instance of a step within a survey or section.
@@ -152,9 +160,12 @@ public class Answer extends PanacheEntityBase {
      * Attributes:
      * - The column is non-nullable, ensuring that an answer is always associated with a valid section.
      * - Precision of 20 denotes the maximum size of the integer value.
+     * <p>
+     * NUMERIC, not INTEGER — stores the
+     * section's display_order at response time; same reasoning as stepId above.
      */
     @Column(name = "section", nullable = false, precision = 20)
-    public Integer sectionId;
+    public BigDecimal sectionId;
 
     /**
      * Represents the instance of a specific section in a survey. This field
@@ -239,9 +250,47 @@ public class Answer extends PanacheEntityBase {
      * Constraints:
      * - Cannot be null, ensuring that all answers have an associated display text.
      * - Maximum length is 8000 characters.
+     * <p>
+     * Always in the survey's base language, whatever language the respondent is reading
+     * (Survey V019). Every reader that is not respondent-facing depends on that: the ETL, the
+     * navigation and review SQL's fallback, Admin's respondent export, and any central instance
+     * reviewing an imported respondent.
      */
     @Column(name = "display_text", nullable = false, length = 8000)
     public String displayText;
+
+    /**
+     * The same label rendered in the language the respondent was reading, or {@code null} when
+     * that was the survey's base language (Survey V019).
+     * <p>
+     * Written by the same pass that builds {@link #displayText}, from the translated question,
+     * section or step text with the same token substitution applied. Unbounded in the database,
+     * because a translation runs longer than its source and nothing may truncate a sentence a
+     * respondent is reading. Use {@link #label()} rather than reading this field directly.
+     */
+    @Column(name = "display_text_local")
+    public String displayTextLocal;
+
+    /**
+     * BCP-47 tag of the language {@link #displayTextLocal} is written in; {@code null} when the
+     * label was shown in the base language (Survey V019).
+     * <p>
+     * A record of what the respondent was shown, not a preference: nothing pre-selects a language
+     * from it on a later visit (UC-009 BR-007).
+     */
+    @Column(name = "display_language", length = 35)
+    public String displayLanguage;
+
+    /**
+     * The label to show this respondent: the local rendering when one was stored, otherwise the
+     * base-language one. Every respondent-facing render site uses this in place of
+     * {@link #displayText}.
+     *
+     * @return the label in the language this answer was rendered in
+     */
+    public String label() {
+        return displayTextLocal != null && !displayTextLocal.isBlank() ? displayTextLocal : displayText;
+    }
 
     /**
      * Represents the identifier of a specific question within a section of a survey.
@@ -258,6 +307,25 @@ public class Answer extends PanacheEntityBase {
      */
     @Column(name = "section_question_id", nullable = true, precision = 20)
     public Integer section_question_id;
+
+    /**
+     * Pins the {@code questions.version} the respondent actually saw at response time
+     * -- question.id already pins the exact surrogate row, but this makes the version explicit
+     * for reporting joins without a lookup; a placement needs no such pin because the
+     * sections_questions row in effect is re-derived from the snapshot anchor. Defaults to 0 (matches the DB column's default) until the associated
+     * question is resolved in the constructor below.
+     */
+    @Column(name = "question_version", nullable = false)
+    public Integer questionVersion = 0;
+
+    /**
+     * The select items this answer's question offers, as of the respondent's snapshot anchor
+     * ({@link Respondent#snapshotAnchor}). {@code questions.select_group_id} is a durable id and every
+     * item has one row per version, so the items are not reachable through a JPA association;
+     * {@link #getSelectItems()} resolves them once and caches them here for the UI wrappers.
+     */
+    @Transient
+    private List<SelectItem> selectItems;
 
     /**
      * Indicates whether the answer has been marked as deleted.
@@ -288,6 +356,15 @@ public class Answer extends PanacheEntityBase {
      */
     @Column(name = "saved_dt")
     public Date savedDt;
+
+    /**
+     * When the page holding this row was first rendered for the respondent (UC-012 BR-001).
+     * Stamped by {@code QuestionManager.getAnswersBySection}, the one query every page render
+     * passes through, and only where still null. A row built at login or by a rule for a page
+     * the respondent has not reached carries no stamp.
+     */
+    @Column(name = "presented_dt")
+    public Date presentedDt;
 
     /**
      * Represents the display key associated with an answer in the survey context.
@@ -330,17 +407,26 @@ public class Answer extends PanacheEntityBase {
      *
      * @param key              the DisplayKey associated with this Answer
      * @param sectionsQuestion the SectionsQuestion object containing question details
+     * @param question         the version of the placed question in effect at the respondent's
+     *                         snapshot anchor; ignored when {@code sectionsQuestion} is null
      * @param displayText      the text to be displayed for this Answer
      * @param respondentId     the identifier of the respondent associated with this Answer
      */
-    public Answer(DisplayKey key, SectionsQuestion sectionsQuestion, String displayText, int respondentId) {
+    public Answer(DisplayKey key, SectionsQuestion sectionsQuestion, Question question, String displayText, int respondentId) {
         super();
         setDisplayKeyValues(key);
         this.displayText = displayText;
         this.respondentId = respondentId;
         if (sectionsQuestion != null) {
-            this.question = sectionsQuestion.question;
+            // The question is passed in rather than read off the placement: sections_questions
+            // .question_id is a durable id, and the caller resolved the version in effect at
+            // the respondent's snapshot anchor (Question.findAsOf).
+            this.question = question;
             this.section_question_id = sectionsQuestion.id;
+            // Pin the version of the question actually shown -- question.id already pins the
+            // exact surrogate row, so this is safe even if a later reword closes it out and
+            // inserts a new version.
+            this.questionVersion = this.question.version;
         }
     }
 
@@ -349,24 +435,32 @@ public class Answer extends PanacheEntityBase {
      *
      * @param key              the display key associated with the answer
      * @param sectionsQuestion the sections question object that contains the question and section question ID
+     * @param question         the version of the placed question in effect at the respondent's
+     *                         snapshot anchor; ignored when {@code sectionsQuestion} is null
      * @param displayText      the text to be displayed for this answer
      * @param respondentId     the identifier of the respondent who provided this answer
      * @param textValue        the textual value of the answer, may also represent a comma-separated list
      */
-    public Answer(DisplayKey key, SectionsQuestion sectionsQuestion, String displayText,
+    public Answer(DisplayKey key, SectionsQuestion sectionsQuestion, Question question, String displayText,
                   int respondentId, String textValue) {
         super();
         setDisplayKeyValues(key);
         this.displayText = displayText;
         this.respondentId = respondentId;
         if (sectionsQuestion != null) {
-            this.question = sectionsQuestion.question;
+            // See the constructor above for why the question is resolved by the caller.
+            this.question = question;
             this.section_question_id = sectionsQuestion.id;
+            // Pin the version of the question actually shown -- question.id already pins the
+            // exact surrogate row, so this is safe even if a later reword closes it out and
+            // inserts a new version.
+            this.questionVersion = this.question.version;
         }
         if (textValue != null) {
+            // A value supplied here is the question's default: it is stored and shown, but
+            // savedDt stays null because the respondent has not changed anything (UC-012 BR-002).
             this.textValue = textValue;
             this.textArray = new ArrayList<>(Arrays.asList(textValue.split(",")));
-            this.savedDt = new Date();
         }
     }
 
@@ -380,8 +474,8 @@ public class Answer extends PanacheEntityBase {
      * @return the first matching Answer entity, or null if no match is found
      */
     public static Answer findByStepSQ(Integer respondentId, int sectionQuestionId, int question_instance) {
-        return find("#Answer.findByStepSQ", Parameters.with("respondentId", respondentId)
-                .and("sectionQuestionId", sectionQuestionId).and("question_instance", question_instance)).firstResult();
+        return find("#Answer.findByStepSQ", Map.of("respondentId", respondentId,
+                "sectionQuestionId", sectionQuestionId, "question_instance", question_instance)).firstResult();
     }
 
     /**
@@ -393,8 +487,8 @@ public class Answer extends PanacheEntityBase {
      * @return the first active {@link Answer} matching the given respondent ID and display key, or null if none found
      */
     public static Answer findByDisplayKeyActive(int respondentId, String displaykey) {
-        return find("#Answer.findByDisplayKeyActive", Parameters.with("displaykey", displaykey)
-                .and("respondentId", respondentId)).firstResult();
+        return find("#Answer.findByDisplayKeyActive", Map.of("displaykey", displaykey,
+                "respondentId", respondentId)).firstResult();
     }
 
     /**
@@ -407,8 +501,8 @@ public class Answer extends PanacheEntityBase {
      * or {@code null} if no matching answer is found
      */
     public static Answer findByDisplayKeyAll(int respondentId, String displaykey) {
-        return find("#Answer.findByDisplayKeyAll", Parameters.with("displaykey", displaykey)
-                .and("respondentId", respondentId)).firstResult();
+        return find("#Answer.findByDisplayKeyAll", Map.of("displaykey", displaykey,
+                "respondentId", respondentId)).firstResult();
     }
 
     /**
@@ -419,21 +513,22 @@ public class Answer extends PanacheEntityBase {
      * @return a list of Answer objects that match the given respondent ID and query string criteria
      */
     public static List<Answer> findByAnswerQueryString(int respondentId, String answerQuery) {
-        return find("#Answer.findByAnswerQueryString", Parameters.with("answerQuery", answerQuery)
-                .and("respondentId", respondentId)).list();
+        return find("#Answer.findByAnswerQueryString", Map.of("answerQuery", answerQuery,
+                "respondentId", respondentId)).list();
     }
 
     /**
-     * Retrieves a list of Answer objects that match the section instances query string
-     * for the given respondent ID and display key.
+     * Retrieves the section markers (the answers without a question) of every instance of the
+     * key's section, within the key's step and step instance, for the given respondent.
      *
      * @param respondentId the ID of the respondent to filter the answers.
-     * @param key          the display key providing the query string for section filtering.
-     * @return a list of answers matching the specified criteria.
+     * @param key          the display key naming the survey, step, step instance and section;
+     *                     its section instance and question are ignored.
+     * @return the active markers of the section's instances, in display key order.
      */
     public static List<Answer> findBySectionInstancesQueryString(int respondentId, DisplayKey key) {
-        return find("#Answer.findBySectionInstancesQueryString", Parameters.with("respondentId", respondentId)
-                .and("sectionQuery", key.getAnswerQueryString())).list();
+        return find("#Answer.findBySectionInstancesQueryString", Map.of("respondentId", respondentId,
+                "sectionQuery", key.getSectionQueryString())).list();
     }
 
     /**
@@ -444,12 +539,12 @@ public class Answer extends PanacheEntityBase {
      * @return a list of Answer objects matching the criteria
      */
     public static List<Answer> findBySectionDisplaykey(int respondentId, DisplayKey key) {
-        return find("#Answer.findBySectionDisplaykey", Parameters.with("respondentId", respondentId)
-                .and("surveyId", key.getSurvey())
-                .and("stepId", key.getStep())
-                .and("stepInstance", key.getStepInstance())
-                .and("sectionId", key.getSection())
-                .and("sectionInstance", key.getSectionInstance())).list();
+        return find("#Answer.findBySectionDisplaykey", Map.of("respondentId", respondentId,
+                "surveyId", key.getSurvey(),
+                "stepId", key.getStep(),
+                "stepInstance", key.getStepInstance(),
+                "sectionId", key.getSection(),
+                "sectionInstance", key.getSectionInstance())).list();
     }
 
     /**
@@ -461,7 +556,8 @@ public class Answer extends PanacheEntityBase {
      * or null if no matching answer is found
      */
     public static Answer findUpstreamAnswerByRelationshipId(int respondentId, int relationshipID) {
-        return find("#Answer.findUpstreamAnswerByRelationshipId", Parameters.with("respondentId", respondentId).and("relationshipID", relationshipID)).firstResult();
+        return find("#Answer.findUpstreamAnswerByRelationshipId",
+                Map.of("respondentId", respondentId, "relationshipID", relationshipID)).firstResult();
     }
 
     /**
@@ -470,7 +566,7 @@ public class Answer extends PanacheEntityBase {
      * @param respondentId the unique identifier of the respondent whose deleted answers are to be purged
      */
     public static void purgeDeleted(int respondentId) {
-        Answer.delete("#Answer.purgeDeleted", Parameters.with("respondentId", respondentId));
+        Answer.delete("#Answer.purgeDeleted", Map.of("respondentId", respondentId));
     }
 
     /**
@@ -495,15 +591,22 @@ public class Answer extends PanacheEntityBase {
         // In the Display key they are value 0 but in this class null. see valueOrNull
         this.displayKey = displayKey.getValue();
         this.surveyId = displayKey.getSurvey();
-        this.stepId = displayKey.getStep();
+        this.stepId = BigDecimal.valueOf(displayKey.getStep());
         this.stepInstance = displayKey.getStepInstance();
         // survey.answers.section is nullable and FK'd to survey.sections(id), which never
-        // has a row with id 0 -- valueOrNull() (already applied to section_question_id above)
-        // must apply here too, or a step-only relationship (no downstream section) fails
-        // answers_section_fk on every save.
-        this.sectionId = valueOrNull(displayKey.getSection());
+        // has a row with id 0 -- valueOrNull() must apply here, or a step-only relationship
+        // (no downstream section) fails answers_section_fk on every save. sectionId is NUMERIC
+        // (see its field doc above), so wrap directly rather than reusing valueOrNull()'s
+        // Integer-typed helper.
+        Integer section = valueOrNull(displayKey.getSection());
+        this.sectionId = section == null ? null : BigDecimal.valueOf(section);
         this.sectionInstance = displayKey.getSectionInstance();
-        this.section_question_id = valueOrNull(displayKey.getQuestion());
+        // section_question_id is deliberately NOT taken from the key. Its sixth segment is the
+        // placement's display order (DisplayKey.getQuestion()), while the column is a surrogate
+        // FK to survey.sections_questions(id). The two share small integers, so a display order
+        // written here would attach the answer to an unrelated placement and the FK would never
+        // object. The constructors set it from SectionsQuestion.id, and a marker answer (a step
+        // or section with no placement) correctly has none.
         this.question_instance = displayKey.getQuestionInstance();
     }
 
@@ -585,6 +688,33 @@ public class Answer extends PanacheEntityBase {
     }
 
     /**
+     * The select items this answer's question offers, as of the respondent's snapshot anchor
+     * ({@link Respondent#snapshotAnchor}). Resolved on first use through
+     * {@link SelectItem#findByGroupAsOf} and cached; {@link #setSelectItems} lets a caller
+     * that already holds the list (or a unit test with no database) supply it instead.
+     *
+     * @return the items in display order; empty when the question has no select group
+     */
+    @Transient
+    public List<SelectItem> getSelectItems() {
+        if (selectItems == null) {
+            selectItems = (question == null || question.selectGroupId == null)
+                    ? List.of()
+                    : SelectItem.findByGroupAsOf(question.selectGroupId, Respondent.snapshotAnchor(respondentId));
+        }
+        return selectItems;
+    }
+
+    /**
+     * Supplies the select items to offer, bypassing the lookup in {@link #getSelectItems()}.
+     *
+     * @param selectItems the items in display order
+     */
+    public void setSelectItems(List<SelectItem> selectItems) {
+        this.selectItems = selectItems;
+    }
+
+    /**
      * Retrieves the selected item from the associated question's select group
      * based on the current text value of this answer.
      *
@@ -596,7 +726,7 @@ public class Answer extends PanacheEntityBase {
     public SelectItem getSelectedItem() {
         if (this.textValue != null && (question.questionType.name.equals(GlobalStrings.QUESTION_TYPE_RADIO)
                 || question.questionType.name.equals(GlobalStrings.QUESTION_TYPE_CHECKBOX))) {
-            for (SelectItem item : question.selectGroup.selectItems) {
+            for (SelectItem item : getSelectItems()) {
                 if (item.codedValue.equals(this.textValue)) {
                     return item;
                 }
@@ -634,7 +764,7 @@ public class Answer extends PanacheEntityBase {
         HashSet<SelectItem> selectedItems = new HashSet<>();
         if (this.textValue != null && (question.questionType.name.equals(GlobalStrings.QUESTIION_TYPE_CHECKBOX_GROUP)
                 || question.questionType.name.equals(GlobalStrings.QUESTIION_TYPE_MULTI_SELECT_COMBOBOX))) {
-            for (SelectItem item : question.selectGroup.selectItems) {
+            for (SelectItem item : getSelectItems()) {
                 String[] values = this.textValue.split(",");
                 for (String value : values) {
                     if (item.codedValue.equals(value)) {
@@ -659,12 +789,24 @@ public class Answer extends PanacheEntityBase {
     public void setSelectedItems(Set<SelectItem> items) {
         if (question.questionType.name.equals(GlobalStrings.QUESTIION_TYPE_CHECKBOX_GROUP)
                 || question.questionType.name.equals(GlobalStrings.QUESTIION_TYPE_MULTI_SELECT_COMBOBOX)) {
-            HashSet<String> values = new HashSet<>();
-            for (SelectItem item : items) {
-                values.add(item.codedValue);
-            }
-            this.textValue = String.join(",", values);
+            this.textValue = codedValues(items);
         }
+    }
+
+    /**
+     * The coded values of the given items joined with commas, in the order the items come: the
+     * form a CHECKBOX_GROUP, MULTI_SELECT or MULTI_SELECT_COMBOBOX answer is stored in, and the
+     * form {@link #getSelectedItems()} and the input fields read back (UC-002 BR-012).
+     *
+     * @param items the selected items
+     * @return their coded values joined with commas, or an empty string for no items
+     */
+    public static String codedValues(Collection<SelectItem> items) {
+        StringJoiner joined = new StringJoiner(",");
+        for (SelectItem item : items) {
+            joined.add(item.codedValue);
+        }
+        return joined.toString();
     }
 
     /**

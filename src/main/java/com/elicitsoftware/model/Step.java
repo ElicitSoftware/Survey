@@ -14,6 +14,10 @@ package com.elicitsoftware.model;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.util.UUID;
+
 /**
  * The Step class represents an entity in the "steps" table within the "survey" schema.
  * Each Step is associated with a survey and represents a specific step
@@ -41,12 +45,63 @@ public class Step extends PanacheEntityBase {
     @Column(name = "survey_id", nullable = false, precision = 20)
     public Integer surveyId;
 
+    /**
+     * Element key (Survey V015): the identity that survives versioning and import, and what a
+     * {@link Translation} names this element by. Read-only here -- it is minted in Author and
+     * carried verbatim by Admin's import and update; Survey never writes it.
+     */
+    @Column(name = "step_key", insertable = false, updatable = false)
+    public UUID stepKey;
+
+    // NUMERIC, not INTEGER -- supports decimal-midpoint insertion between existing positions
+    // without renumbering, once an eventual Author Tool can create fractional values here.
     @Column(name = "display_order", nullable = false, precision = 3)
-    public Integer displayOrder;
+    public BigDecimal displayOrder;
 
     @Column(length = 255)
     public String description;
 
     @Column(length = 255)
     public String name;
+
+    // Kimball Type 2 SCD (UC-002 BR-009) — step_id is the durable key
+    // that survives re-versioning; id (above) is the surrogate, per-version row id.
+    @Column(name = "step_id", nullable = false)
+    public Integer stepId;
+
+    @Column(name = "version", nullable = false)
+    public Integer version = 0;
+
+    @Column(name = "effective_from")
+    public OffsetDateTime effectiveFrom;
+
+    @Column(name = "effective_to")
+    public OffsetDateTime effectiveTo;
+
+    @Column(name = "published_by")
+    public String publishedBy;
+
+    @Column(name = "published_comment")
+    public String publishedComment;
+
+    /**
+     * The version of the durable {@code step_id} in effect at {@code asOf} (the snapshot
+     * anchor, {@link Respondent#snapshotAnchor}): the one row whose effective window covers the
+     * instant. Durable keys are never mapped as JPA associations -- once a revision exists a
+     * durable id has a row per version and Hibernate refuses to pick one ("More than one row
+     * with the given identifier was found"), which marked the whole transaction rollback-only.
+     * Every caller that holds a durable step id resolves it here with the respondent's anchor.
+     *
+     * @param stepId the durable {@code steps.step_id}; {@code null} yields {@code null}
+     * @param asOf   the respondent's snapshot anchor ({@code respondents.first_access_dt}, or now)
+     * @return the step in effect at {@code asOf}, or {@code null} if none covers it
+     * @throws jakarta.persistence.NonUniqueResultException if two versions overlap the instant
+     */
+    public static Step findAsOf(Integer stepId, OffsetDateTime asOf) {
+        if (stepId == null) {
+            return null;
+        }
+        return Step.<Step>find("stepId = ?1 and effectiveFrom <= ?2 and effectiveTo > ?2", stepId, asOf)
+                .singleResultOptional().orElse(null);
+    }
 }

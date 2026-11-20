@@ -11,14 +11,19 @@ package com.elicitsoftware.flow;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.util.BrandUtil;
 import com.vaadin.flow.server.AppShellSettings;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 /**
@@ -38,8 +43,23 @@ class AppConfigTest {
         AppConfig config = new AppConfig();
         config.brandFileSystemPath = externalDir.toString();
         config.brandLocalPath = localDir.toString();
+        config.brandUtil = brandUtilFor(externalDir);
         config.init();
         return config;
+    }
+
+    // The favicon comes from the real BrandUtil (umbrella UC-014 BR-008), pointed at the same mount;
+    // its path field is package-private in another package, so it is set reflectively.
+    private static BrandUtil brandUtilFor(Path externalDir) {
+        BrandUtil util = new BrandUtil();
+        try {
+            Field field = BrandUtil.class.getDeclaredField("brandFileSystemPath");
+            field.setAccessible(true);
+            field.set(util, externalDir.toString());
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
+        return util;
     }
 
     private static void write(Path dir, String relativePath, String content) throws IOException {
@@ -113,5 +133,62 @@ class AppConfigTest {
         AppConfig config = configFor(external, root.resolve("no-local"));
 
         assertDoesNotThrow(() -> config.configurePage(new AppShellSettings()));
+    }
+
+    // The color and typography sheets are inlined ahead of the theme, so the theme's own
+    // @import lines for them must go, or the browser fetches and applies each a second time.
+    @Test
+    void withoutInlinedImports_dropsOnlyTheBrandSheetImports() {
+        String theme = "@import url('./colors/brand-colors.css');\n"
+                + "@import url(\"typography/brand-typography.css\");\n"
+                + "@import url('https://fonts.example/css2?family=Inter');\n"
+                + "html { --lumo-primary-color: var(--brand-primary); }\n";
+
+        assertEquals("@import url('https://fonts.example/css2?family=Inter');\n"
+                + "html { --lumo-primary-color: var(--brand-primary); }\n", AppConfig.withoutInlinedImports(theme));
+    }
+
+    // NFR-021: a relative url() names a file of the brand, relative to its stylesheet, and is resolved
+    // to where BrandResourceHandler serves it, since the inlined stylesheet has no address of its own.
+    @Test
+    void withBrandUrls_resolvesRelativeUrlsAgainstTheStylesheetsDirectory() {
+        String css = "@font-face { src: url(\"fonts/Face.woff2\") format(\"woff2\"); }\n"
+                + ".a { background: url( './images/a.png' ); }\n"
+                + ".b { background: url(../images/b.png); }\n";
+
+        assertEquals("@font-face { src: url(\"/brand/typography/fonts/Face.woff2\") format(\"woff2\"); }\n"
+                + ".a { background: url(\"/brand/typography/images/a.png\"); }\n"
+                + ".b { background: url(\"/brand/images/b.png\"); }\n",
+                AppConfig.withBrandUrls(css, "typography/brand-typography.css"));
+        assertEquals(".c { background: url(\"/brand/images/c.png\"); }",
+                AppConfig.withBrandUrls(".c { background: url(images/c.png); }", "theme.css"));
+    }
+
+    @Test
+    void withBrandUrls_leavesAbsoluteRootedDataAndEscapingUrlsAsWritten() {
+        String css = "@import url('https://fonts.example/css');\n"
+                + ".a { background: url(/static/a.png); }\n"
+                + ".b { background: url(data:image/png;base64,AAAA); }\n"
+                + ".c { fill: url(#gradient); }\n"
+                + ".d { background: url(../../etc/passwd); }\n";
+
+        assertEquals(css, AppConfig.withBrandUrls(css, "colors/brand-colors.css"));
+    }
+
+    // The embedded default brand names its fonts this way, and every file it names is in the image.
+    @Test
+    void embeddedTypography_namesOnlyFontsTheImageCarries() throws IOException {
+        String css;
+        try (var in = AppConfig.class.getResourceAsStream("/META-INF/brand/typography/brand-typography.css")) {
+            css = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        }
+        var urls = java.util.regex.Pattern.compile("url\\(\"" + AppConfig.BRAND_URL + "([^\"]+)\"\\)")
+                .matcher(AppConfig.withBrandUrls(css, "typography/brand-typography.css"));
+        int fonts = 0;
+        while (urls.find()) {
+            fonts++;
+            assertNotNull(AppConfig.class.getResource("/META-INF/brand/" + urls.group(1)), urls.group(1));
+        }
+        assertTrue(fonts > 0, "the default brand declares its own fonts");
     }
 }

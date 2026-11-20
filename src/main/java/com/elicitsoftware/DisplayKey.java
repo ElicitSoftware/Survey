@@ -243,6 +243,23 @@ public class DisplayKey implements Comparable<DisplayKey> {
     }
 
     /**
+     * The section identifier <em>including</em> this key's section instance, in the format
+     * "survey-step-stepInstance-section-sectionInstance-0000-0000".
+     * <p>
+     * {@link #getSectionString()} zeroes the instance, which is right where a key names a section's
+     * structure (a placement is the same row whichever instance of it a respondent is looking at)
+     * and wrong where it names the respondent's own section answer: a REPEATed section has one
+     * answer row per instance, and they differ only here. This is the form the navigation items are
+     * built from, because they are read from those answer rows.
+     *
+     * @return the section key with its instance preserved
+     */
+    public String getSectionInstanceString() {
+        return leftPad(this.survey) + "-" + leftPad(this.step) + "-" + leftPad(this.stepInstance) + "-"
+                + leftPad(this.section) + "-" + leftPad(this.sectionInstance) + "-0000-0000";
+    }
+
+    /**
      * Constructs and returns a formatted string representation of the step identifier
      * based on the values of the survey, step, and stepInstance fields.
      * Each numerical value is left-padded with zeros to ensure a width of 4 digits.

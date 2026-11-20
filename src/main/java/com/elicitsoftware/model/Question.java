@@ -14,6 +14,9 @@ package com.elicitsoftware.model;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 
+import java.time.OffsetDateTime;
+import java.util.UUID;
+
 
 /**
  * The Question class represents a survey question entity stored in the "questions" table
@@ -38,7 +41,8 @@ import jakarta.persistence.*;
  * - validationText: An optional message shown to the user if their input fails validation.
  * - defaultValue: An optional default value for the question's response.
  * - questionType: A mandatory association to define the type of question.
- * - selectGroup: An optional association to define a selectable group of items for the question.
+ * - selectGroupId: The durable id of the optional select group whose items the question offers,
+ *   resolved as of the respondent's snapshot anchor (never a JPA association).
  * - variant: An optional variant of the question for customization purposes.
  */
 @Entity
@@ -53,6 +57,14 @@ public class Question extends PanacheEntityBase {
 
     @Column(name = "survey_id", nullable = false, precision = 20)
     public Integer surveyId;
+
+    /**
+     * Element key (Survey V015): the identity that survives versioning and import, and what a
+     * {@link Translation} names this element by. Read-only here -- it is minted in Author and
+     * carried verbatim by Admin's import and update; Survey never writes it.
+     */
+    @Column(name = "question_key", insertable = false, updatable = false)
+    public UUID questionKey;
 
     @Column(name = "required")
     public boolean required = false;
@@ -89,11 +101,61 @@ public class Question extends PanacheEntityBase {
     @JoinColumn(name = "type_id", nullable = false)
     public QuestionType questionType;
 
-    //uni-directional many-to-one association to SelectGroup
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "select_group_id")
-    public SelectGroup selectGroup;
+    // questions.select_group_id holds the durable select_groups.select_group_id (Kimball Type 2
+    // SCD retarget), not select_groups.id. It is a plain column, never a @ManyToOne: a durable
+    // id has one row per version, so a JPA association on it fails with "More than one row
+    // with the given identifier" as soon as a revision exists. Resolve the group's items with
+    // SelectItem.findByGroupAsOf (or the group with SelectGroup.findAsOf) at the respondent's
+    // snapshot anchor -- Answer.getSelectItems() does exactly that for the UI.
+    @Column(name = "select_group_id")
+    public Integer selectGroupId;
 
     @Column(name = "variant", length = 255)
     public String variant;
+
+    // Kimball Type 2 SCD (UC-002 BR-009) — question_id is the durable key
+    // that survives re-versioning; id (above) is the surrogate, per-version row id, and
+    // is what answers.question_id pins to at response time.
+    @Column(name = "question_id", nullable = false)
+    public Integer questionId;
+
+    @Column(name = "version", nullable = false)
+    public Integer version = 0;
+
+    @Column(name = "effective_from")
+    public OffsetDateTime effectiveFrom;
+
+    @Column(name = "effective_to")
+    public OffsetDateTime effectiveTo;
+
+    @Column(name = "published_by")
+    public String publishedBy;
+
+    @Column(name = "published_comment")
+    public String publishedComment;
+
+    // FK-companion column pinning the referenced select_groups row to its entity-existence
+    // check (always 0 -- the FK targets the referenced table's (durable id, version) unique constraint, and pinning 0 keeps this row valid across that entity's versions; the version in effect is resolved by the snapshot anchor, Respondent.snapshotAnchor).
+    @Column(name = "select_group_version", nullable = false)
+    public Integer selectGroupVersion = 0;
+
+    /**
+     * The version of the durable {@code question_id} in effect at {@code asOf} (the snapshot
+     * anchor, {@link Respondent#snapshotAnchor}). See {@link Step#findAsOf} for why durable keys
+     * are resolved through a finder rather than mapped as JPA associations. Note that an
+     * {@link Answer} pins the surrogate {@code questions.id} it was created against, so
+     * {@code Answer.question} stays a plain JPA association; this finder is for reaching a
+     * question from a {@link SectionsQuestion#questionId} before any answer exists.
+     *
+     * @param questionId the durable {@code questions.question_id}; {@code null} yields {@code null}
+     * @param asOf       the respondent's snapshot anchor
+     * @return the question in effect at {@code asOf}, or {@code null} if none covers it
+     */
+    public static Question findAsOf(Integer questionId, OffsetDateTime asOf) {
+        if (questionId == null) {
+            return null;
+        }
+        return Question.<Question>find("questionId = ?1 and effectiveFrom <= ?2 and effectiveTo > ?2", questionId, asOf)
+                .singleResultOptional().orElse(null);
+    }
 }

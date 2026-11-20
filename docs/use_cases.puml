@@ -5,14 +5,27 @@ skinparam packageStyle rectangle
 actor "Respondent" as Respondent
 actor "External Report Service" as ReportSvc
 actor "External Post-Survey-Action Service" as PsaSvc
+actor "System Operator" as Operator
+actor "Admin Module" as AdminApp
+actor "Authoring Module" as AuthorApp
 
 rectangle "Elicit Survey" {
-  usecase "UC-001\nEnter Survey via Token" as UC001
+  usecase "UC-001\nEnter Survey via Access Code" as UC001
   usecase "UC-002\nAnswer Survey Questions" as UC002
   usecase "UC-003\nReview Answers" as UC003
   usecase "UC-004\nFinalize Survey" as UC004
   usecase "UC-005\nView Reports & Download PDF" as UC005
   usecase "UC-006\nLog Out" as UC006
+  usecase "UC-007\nLog Startup Diagnostics" as UC007
+  usecase "UC-008\nRebuild Reporting Schema" as UC008
+  usecase "UC-009\nComplete the Survey in My Language" as UC009
+  usecase "UC-010\nRename Reporting Schema" as UC010
+  usecase "UC-011\nDrop Reporting Schema" as UC011
+  usecase "UC-012\nRecord Respondent Progress" as UC012
+  usecase "UC-013\nHold Report Marks" as UC013
+  usecase "UC-014\nRender the Respondent Report" as UC014
+  usecase "UC-015\nDeliver Post-Survey Actions" as UC015
+  usecase "UC-016\nAuthenticate a Platform Service Call" as UC016
 }
 
 Respondent --> UC001
@@ -21,11 +34,36 @@ Respondent --> UC003
 Respondent --> UC004
 Respondent --> UC005
 Respondent --> UC006
+Operator --> UC007 : reads the log
+AdminApp --> UC008 : POST /api/etl/build?survey=<key>\nafter applying a survey definition
+AdminApp --> UC010 : POST /api/etl/schema/<key>/rename
+AuthorApp --> UC011 : DELETE /api/etl/schema/<key>\nbefore deleting the survey
+Respondent --> UC009
+AdminApp --> UC012 : reads presented_dt, last_activity_dt\nand saved_dt for its participation report
+AdminApp --> UC013 : installs report_items\nwith the survey definition
+AuthorApp --> UC013 : mints the marks and exports\nthem in the .elicit file
+AdminApp --> UC014 : POST /api/reports/respondent-summary\nwhen printing a respondent's reports
 
-UC004 ..> UC005 : <<include>>\n(navigates to report view)
+UC005 ..> UC014 : <<include>>\n(a report whose address is a path\nis the built-in report, called in process)
+UC014 ..> UC013 : <<include>>\n(reads the RESPONDENT marks)
+UC004 ..> UC005 : <<include>>\n(navigates to report view, which sends\nthe respondent straight to the post-survey\nURL when the survey lists no reports)
+UC009 ..> UC001 : <<extend>>\n(language applies to every page)
 UC002 ..> UC002 : <<extend>>\n(branching shows/hides/repeats\ndownstream questions)
+UC001 ..> UC012 : <<include>>\n(the first page render stamps\nthe rows it shows)
+UC002 ..> UC012 : <<include>>\n(every page render and save\nstamps rows and the respondent)
 
-UC004 --> PsaSvc : notifies (webhook POST)
+UC008 ..> UC016 : <<include>>\n(the request carries the service token)
+UC010 ..> UC016 : <<include>>
+UC011 ..> UC016 : <<include>>
+UC014 ..> UC016 : <<include>>\n(over HTTP only)
+UC005 ..> UC016 : <<include>>\n(the token goes to a report service\nat a trusted origin only)
+UC015 ..> UC016 : <<include>>\n(the token goes to an action\nat a trusted origin only)
+Operator --> UC016 : supplies ELICIT_SERVICE_TOKEN and\nELICIT_SERVICE_TRUSTED_ORIGINS
+
+UC004 ..> UC015 : <<include>>\n(calls each post-survey action)
+UC015 --> PsaSvc : calls (method, address and\ncredential as configured; retried\nuntil delivered or the limit)
 UC005 --> ReportSvc : requests report data
+UC007 --> ReportSvc : probes reachability (GET)
+UC007 --> PsaSvc : probes reachability (GET)
 
 @enduml

@@ -18,7 +18,6 @@ import com.elicitsoftware.PostgresTestResource;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceException;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;
@@ -26,14 +25,12 @@ import java.time.OffsetDateTime;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Executable spec for {@code survey.sections_questions} — research/Kimball_type_2.md,
- * "Schema Changes Per Table &rarr; sections_questions" and the "FK Reference Migration
- * Summary". This is the core "FK cascade problem" claim: a join-table row referencing a
+ * Executable spec for {@code survey.sections_questions} (UC-002 BR-009). This is the core
+ * "FK cascade problem" claim: a join-table row referencing a
  * durable id must survive a version change on either side untouched.
  */
 @QuarkusTest
 @QuarkusTestResource(PostgresTestResource.class)
-@Disabled("Enable once the sections_questions Type 2 migration lands — see research/Kimball_type_2.md 'Schema Changes Per Table -> sections_questions'")
 class SectionsQuestionsCascadeSpecTest {
 
     @Inject
@@ -45,9 +42,9 @@ class SectionsQuestionsCascadeSpecTest {
     void migration_addsDurableKeyVersionColumnsAndFkCompanions() {
         long cols = ((Number) em.createNativeQuery(
                 "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='survey' AND table_name='sections_questions' "
-                        + "AND column_name IN ('sections_question_id','version','effective_from','effective_to','is_draft',"
+                        + "AND column_name IN ('sections_question_id','version','effective_from','effective_to',"
                         + "'question_version','section_version')").getSingleResult()).longValue();
-        assertEquals(7, cols);
+        assertEquals(6, cols);
     }
 
     @Test
@@ -81,10 +78,10 @@ class SectionsQuestionsCascadeSpecTest {
         em.createNativeQuery("UPDATE survey.questions SET effective_to = ?2 WHERE question_id = ?1 AND effective_to = ?3")
                 .setParameter(1, durableQuestionId).setParameter(2, publishInstant).setParameter(3, MAX_SENTINEL).executeUpdate();
         em.createNativeQuery(
-                "INSERT INTO survey.questions (id, question_id, version, survey_id, type_id, text, required, "
-                        + "select_group_id, effective_from, effective_to, is_draft) "
-                        + "SELECT nextval('survey.questions_seq'), question_id, ?2, survey_id, type_id, 'Reworded via cascade test', required, "
-                        + "select_group_id, ?3, ?4, false FROM survey.questions WHERE question_id = ?1 AND version = ?5")
+                "INSERT INTO survey.questions (id, question_id, question_key, version, survey_id, type_id, text, required, "
+                        + "select_group_id, effective_from, effective_to) "
+                        + "SELECT nextval('survey.questions_seq'), question_id, question_key, ?2, survey_id, type_id, 'Reworded via cascade test', required, "
+                        + "select_group_id, ?3, ?4 FROM survey.questions WHERE question_id = ?1 AND version = ?5")
                 .setParameter(1, durableQuestionId).setParameter(2, currentVersion + 1).setParameter(3, publishInstant)
                 .setParameter(4, MAX_SENTINEL).setParameter(5, currentVersion).executeUpdate();
         em.flush();

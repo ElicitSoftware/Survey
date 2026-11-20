@@ -12,10 +12,10 @@ package com.elicitsoftware.flow;
  */
 
 /**
- * Represents a user with a token for identification or authentication purposes.
+ * Represents a user with an access code for identification or authentication purposes.
  */
 public class User {
-    private String token;
+    private String accessCode;
 
     /**
      * Default constructor for the User class.
@@ -25,29 +25,29 @@ public class User {
     }
 
     /**
-     * Constructs a new User with the specified token.
+     * Constructs a new User with the specified access code.
      *
-     * @param token the unique token associated with the user
+     * @param accessCode the unique access code associated with the user
      */
-    public User(String token) {
-        this.token = token;
+    public User(String accessCode) {
+        this.accessCode = accessCode;
     }
 
     /**
-     * Retrieves the token associated with the user.
+     * Retrieves the access code associated with the user.
      *
-     * @return the token as a String
+     * @return the access code as a String
      */
-    public String getToken() {
-        return token;
+    public String getAccessCode() {
+        return accessCode;
     }
 
     /**
-     * Sets the token for the user.
+     * Sets the access code for the user.
      *
-     * @param token the token to be assigned to the user
+     * @param accessCode the access code to be assigned to the user
      */
-    public void setToken(String token) {
-        this.token = token;
+    public void setAccessCode(String accessCode) {
+        this.accessCode = accessCode;
     }
 }

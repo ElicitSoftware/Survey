@@ -11,6 +11,7 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
 import com.elicitsoftware.model.SelectItem;
@@ -57,11 +58,17 @@ public class ElicitComboBox extends ElicitComponent<ComboBox<SelectItem>> {
      * @param answer The {@link Answer} object containing the display text and selectable items
      *               for the combo box. The selectable items are retrieved from the associated
      *               question's select group.
+     * @param texts  the content language of this page draw, which also labels the options;
+     *               must not be null
      */
-    public ElicitComboBox(Answer answer) {
-        super(new ComboBox<SelectItem>(answer.displayText), answer);
-        component.setItems(answer.question.selectGroup.selectItems);
-        component.setItemLabelGenerator(item -> item.displayText);
+    public ElicitComboBox(Answer answer, ContentTexts texts) {
+        super(new ComboBox<SelectItem>(answer.label()), answer, texts);
+        component.setItems(answer.getSelectItems());
+        component.setItemLabelGenerator(texts::option);
+        // UC-003: a respondent who returns to the section sees the answer they gave.
+        if (answer.getTextValue() != null && !answer.getTextValue().isEmpty()) {
+            setValue(answer);
+        }
     }
 
     /**
@@ -84,7 +91,7 @@ public class ElicitComboBox extends ElicitComponent<ComboBox<SelectItem>> {
             component.setRequired(answer.question.required);
             component.setRequiredIndicatorVisible(answer.question.required);
             this.binder.forField(component)
-                    .asRequired(answer.question.validationText)
+                    .asRequired(requiredMessage(answer))
                     .bind(Answer::getSelectedItem, Answer::setSelectedItem);
         }
         // There is no definition for min max on a combobox
@@ -103,7 +110,7 @@ public class ElicitComboBox extends ElicitComponent<ComboBox<SelectItem>> {
     @Override
     void setValue(Answer answer) {
         if (answer.getTextValue() != null) {
-            for (SelectItem item : answer.question.selectGroup.selectItems) {
+            for (SelectItem item : answer.getSelectItems()) {
                 if (item.codedValue.equals(answer.getTextValue())) {
                     component.setValue(item);
                     break;

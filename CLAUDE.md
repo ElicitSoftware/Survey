@@ -8,15 +8,52 @@ around them.
 
 ## Stack
 
-- Java 25, Quarkus 3.34.x, Maven build
-- Vaadin 25.1.x (Flow, server-side UI)
+- Java 25, Quarkus 3.40.1.2 LTS, Maven build
+- Vaadin 25.3.5 (Flow, server-side UI)
 - Hibernate ORM with Panache (JPA) — **not jOOQ**
 - PostgreSQL
 - Docker for deployment
 - OpenTelemetry (see `guides/OPENTELEMETRY_SETUP.md`, `guides/METRICS_GUIDE.md`)
 
-When using the Quarkus Agent MCP tools, this is an **existing project** — start
-with `quarkus_update` and `quarkus_skills` per those tools' instructions.
+## MCP Servers and Skills
+
+Use the configured MCP servers and their skills instead of raw Maven, web
+search, or recalled API knowledge.
+
+**Quarkus (`quarkus-agent` plugin)** — this is an **existing project**: start
+with `quarkus_update`, then `quarkus_skills` for every extension you are about
+to touch; never `quarkus_create`. Look up Quarkus configuration and APIs with
+`quarkus_searchDocs`, not Context7 or web search. Manage dev mode with
+`quarkus_start` / `quarkus_stop` / `quarkus_status` / `quarkus_logs`; reload
+after code changes via `quarkus_callTool` → `devui-logstream_forceRestart`,
+and do a full stop/start after any `pom.xml` change. Run tests through
+`quarkus_callTool` → `devui-testing_runTests` (or `devui-testing_runTest`
+with a class name), not `mvn test`, and never `mvn clean` while dev mode is
+running. `quarkus_searchTools` lists the Dev MCP tools on the running app;
+re-run it after adding or removing an extension. The full workflow
+(extension-first rule, error recovery) is in [AGENTS.md](AGENTS.md).
+
+**Vaadin (`vaadin-skills` plugin)** — before writing Flow code, call
+`get_vaadin_primer` and `get_new_apis` for version `25.3`; API added after
+the model's training data is API it cannot know it is missing. Call
+`get_java_symbol` before concluding a method or enum constant does not exist
+(it lists inherited members too). Use `search_vaadin_docs` (ui_language
+`java`, vaadin_version `25.3`), `get_component_java_api`,
+`get_component_styling`, and `get_theme_css_properties` for component and
+theme questions. Skills: `/vaadin-form-layout` for forms and entity editors,
+`/vaadin-frontend-design` for view polish, `/aura-theme` for theme CSS. Do
+not target 25.4; it is unreleased.
+
+**IntelliJ IDEA (`idea` MCP server)** — `.run/Survey.run.xml` is the
+Quarkus dev-mode run configuration; launch it with
+`execute_run_configuration` (see `get_run_configurations`) rather than
+hand-rolling `mvn quarkus:dev`. When the project is open in the IDE, prefer
+`search_symbol`, `get_symbol_info`, `analyze_calls`, `get_file_problems`,
+`lint_files`, `rename_refactoring`, `reformat_file`, and `build_project` over
+grep-and-edit. The database tools (`list_database_connections`,
+`introspect_schema`, `execute_sql_query`, `preview_table_data`) can inspect
+the local `survey` schema; the `xdebug_*` tools set breakpoints and step
+through a running debug session.
 
 ## AIUP Workflow
 
@@ -36,6 +73,12 @@ the codebase predates AIUP adoption.
 
 ## Git Commits
 
+- `main` is the integration branch (umbrella #188); `V3`, which was until the 3.0.0 release,
+  is frozen and deleted after 3.0.0 ships. Both change only through a pull request whose CI
+  check passed; a ruleset enforces it on GitHub and `.claude/hooks/branch-guard.py` (a
+  `PreToolUse` hook in `.claude/settings.json`) refuses `git commit` and `git push` on
+  `main`, `master`, `V2` or `V3` locally. Branch from `main` as `<type>/<issue>-<slug>`;
+  never set the hook's `ELICIT_ALLOW_PROTECTED` override yourself.
 - Never append a `Co-Authored-By: Claude` (or similar AI co-author) trailer to
   commit messages.
 

@@ -14,6 +14,10 @@ package com.elicitsoftware.model;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.UUID;
+
 /**
  * The SelectItem class represents a selectable item within a survey and
  * corresponds to the "SELECT_ITEMS" table in the database under the "survey" schema.
@@ -44,16 +48,66 @@ public class SelectItem extends PanacheEntityBase {
     @Column(name = "survey_id", nullable = false, precision = 20)
     public Integer surveyId;
 
+    /**
+     * Element key (Survey V015): the identity that survives versioning and import, and what a
+     * {@link Translation} names this element by. Read-only here -- it is minted in Author and
+     * carried verbatim by Admin's import and update; Survey never writes it.
+     */
+    @Column(name = "select_item_key", insertable = false, updatable = false)
+    public UUID selectItemKey;
+
     @Column(name = "coded_value", length = 255)
     public String codedValue;
 
     @Column(name = "display_text", length = 255)
     public String displayText;
 
-    @Column(name = "group_id", nullable = false)
+    @Column(name = "select_group_id", nullable = false)
     public Integer selectGroupId;
 
     @Column(name = "display_order", nullable = false, precision = 20)
     public Integer displayOrder;
 
+    // Kimball Type 2 SCD (UC-002 BR-009) — select_item_id is the durable key;
+    // id (above) is the surrogate, per-version row id.
+    @Column(name = "select_item_id", nullable = false)
+    public Integer selectItemId;
+
+    @Column(name = "version", nullable = false)
+    public Integer version = 0;
+
+    @Column(name = "effective_from")
+    public OffsetDateTime effectiveFrom;
+
+    @Column(name = "effective_to")
+    public OffsetDateTime effectiveTo;
+
+    @Column(name = "published_by")
+    public String publishedBy;
+
+    @Column(name = "published_comment")
+    public String publishedComment;
+
+    // FK-companion column pinning the referenced select_groups row to its entity-existence
+    // check (always 0 -- the FK targets the referenced table's (durable id, version) unique constraint, and pinning 0 keeps this row valid across that entity's versions; the version in effect is resolved by the snapshot anchor, Respondent.snapshotAnchor).
+    @Column(name = "select_group_version", nullable = false)
+    public Integer selectGroupVersion = 0;
+
+    /**
+     * The item versions of a durable {@code select_group_id} in effect at {@code asOf}, in
+     * display order (the snapshot anchor, {@link Respondent#snapshotAnchor}). Replaces the former
+     * {@code SelectGroup.selectItems} collection mapping, which joined on the durable column
+     * and returned every version of every item once a revision existed.
+     *
+     * @param selectGroupId the durable {@code select_groups.select_group_id}
+     * @param asOf          the respondent's snapshot anchor
+     * @return the items in effect at {@code asOf}; empty when the id is {@code null} or has none
+     */
+    public static List<SelectItem> findByGroupAsOf(Integer selectGroupId, OffsetDateTime asOf) {
+        if (selectGroupId == null) {
+            return List.of();
+        }
+        return find("selectGroupId = ?1 and effectiveFrom <= ?2 and effectiveTo > ?2 order by displayOrder asc",
+                selectGroupId, asOf).list();
+    }
 }

@@ -1,0 +1,21 @@
+--
+-- ***LICENSE_START***
+-- Elicit Survey
+-- %%
+-- Copyright (C) 2025 - 2026 The Regents of the University of Michigan - Rogel Cancer Center
+-- %%
+-- PolyForm Noncommercial License 1.0.0
+-- <https://polyformproject.org/licenses/noncommercial/1.0.0>
+-- ***LICENSE_END***
+--
+
+--------------------------------
+-- Let the application user read the Flyway history. The Author tool's System > Database page
+-- reports which Survey migration created the schema in its database, and Author connects as
+-- ${survey_user}, which until now could not read survey.flyway_history (the table is created
+-- and owned by the owner connection that runs these migrations). Read-only: the history is
+-- still written only by Flyway through the owner connection.
+--------------------------------
+-- ${flyway:defaultSchema} and ${flyway:table} resolve to survey.flyway_history in a deployment and to the
+-- test schema and table under the test profile, where the schema is survey_test.
+GRANT SELECT ON TABLE "${flyway:defaultSchema}"."${flyway:table}" TO ${survey_user};

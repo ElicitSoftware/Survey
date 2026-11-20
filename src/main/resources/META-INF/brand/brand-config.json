@@ -1,10 +1,20 @@
 {
   "name": "Elicit Default Brand",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "organization": "Elicit Software",
   "logos": {
     "horizontal": "HorizontalLogo.png",
     "icon": "icon-white.png"
   },
-  "favicon": "favicon.ico"
+  "favicon": "favicon.ico",
+  "localized": {
+    "es-419": {
+      "name": "Marca predeterminada de Elicit",
+      "organization": "Elicit Software"
+    },
+    "ar": {
+      "name": "العلامة الافتراضية لـ Elicit",
+      "organization": "Elicit Software"
+    }
+  }
 }

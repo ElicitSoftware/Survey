@@ -17,6 +17,8 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -153,26 +155,102 @@ class BrandUtilTest {
         assertEquals(first.getBrandKey(), second.getBrandKey());
     }
 
-    @Test
-    void getLogoResourcePath_externalBrandUnderMountPath_rewrittenToServedPath(@TempDir Path brandDir) {
-        BrandUtil util = util(brandDir);
-        BrandUtil.BrandInfo external = new BrandUtil.BrandInfo("acme", "Acme", brandDir + "/images/logo.png", "acme");
-
-        assertEquals("brand/images/HorizontalLogo.png", util.getLogoResourcePath(external));
+    private static void image(Path dir, String file) throws IOException {
+        Files.createDirectories(dir.resolve("images"));
+        Files.writeString(dir.resolve("images").resolve(file), "image");
     }
 
+    // Umbrella UC-014 BR-008: the header icon is the file logos.icon names, served under brand/.
     @Test
-    void getLogoResourcePath_defaultBrand_returnedAsIs(@TempDir Path brandDir) {
+    void getIconResourcePath_mountNamingItsIcon_returnsThatFile(@TempDir Path brandDir) throws IOException {
+        writeConfig(brandDir, "{\"name\": \"Acme\", \"logos\": {\"icon\": \"mark.svg\"}, \"favicon\": \"tab.svg\"}");
+        image(brandDir, "mark.svg");
+        image(brandDir, "tab.svg");
         BrandUtil util = util(brandDir);
-        BrandUtil.BrandInfo defaultBrand = new BrandUtil.BrandInfo("default-brand", "Elicit", "brand/images/HorizontalLogo.png", "default-brand");
 
-        assertEquals("brand/images/HorizontalLogo.png", util.getLogoResourcePath(defaultBrand));
+        assertEquals("brand/images/mark.svg", util.getIconResourcePath(util.detectCurrentBrand()));
+        assertEquals(new BrandUtil.LogoFile("mark.svg", true), util.getLogoFile(BrandUtil.Logo.ICON));
+        assertEquals("brand/images/tab.svg", util.getLogoUrl(BrandUtil.Logo.FAVICON));
+        assertFalse(util.isIconMissingBesideFavicon());
+        assertEquals(List.of(), util.getMissingLogoFiles());
     }
 
+    // Umbrella UC-014 BR-008: the lockup is the file logos.horizontal names.
     @Test
-    void getIconResourcePath_alwaysReturnsWhiteIcon(@TempDir Path brandDir) {
-        BrandUtil.BrandInfo info = new BrandUtil.BrandInfo("acme", "Acme", "logo.png", "acme");
-        assertEquals("brand/images/icon-white.png", util(brandDir).getIconResourcePath(info));
+    void getLogoResourcePath_mountNamingItsLockup_returnsThatFile(@TempDir Path brandDir) throws IOException {
+        writeConfig(brandDir, "{\"name\": \"Acme\", \"logos\": {\"horizontal\": \"Wide.png\"}}");
+        image(brandDir, "Wide.png");
+        BrandUtil util = util(brandDir);
+
+        assertEquals("brand/images/Wide.png", util.getLogoResourcePath(util.detectCurrentBrand()));
+    }
+
+    // Umbrella UC-014 BR-008: with nothing mounted every logo is the default brand's file.
+    @Test
+    void logos_nothingMounted_areTheDefaultBrandsFiles(@TempDir Path emptyDir) {
+        BrandUtil util = util(emptyDir.resolve("missing"));
+
+        assertEquals("brand/images/HorizontalLogo.png", util.getLogoUrl(BrandUtil.Logo.HORIZONTAL));
+        assertEquals(new BrandUtil.LogoFile("icon-white.png", false), util.getLogoFile(BrandUtil.Logo.ICON));
+        assertEquals("brand/images/icon-white.png", util.getIconResourcePath(util.detectCurrentBrand()));
+        assertEquals("brand/images/favicon.ico", util.getLogoUrl(BrandUtil.Logo.FAVICON));
+        assertFalse(util.isIconMissingBesideFavicon());
+        assertEquals(List.of(), util.getMissingLogoFiles());
+    }
+
+    // Umbrella UC-014 BR-009: a mounted favicon without a mounted icon leaves the default mark, and says so.
+    @Test
+    void isIconMissingBesideFavicon_mountedFaviconWithoutIcon_isTrue(@TempDir Path brandDir) throws IOException {
+        writeConfig(brandDir, "{\"name\": \"Acme\", \"favicon\": \"favicon.svg\"}");
+        image(brandDir, "favicon.svg");
+        BrandUtil util = util(brandDir);
+
+        assertEquals("brand/images/icon-white.png", util.getIconResourcePath(util.detectCurrentBrand()));
+        assertTrue(util.isIconMissingBesideFavicon());
+    }
+
+    // Umbrella UC-014 BR-002: a file the mount holds under the default name counts as mounted.
+    @Test
+    void getLogoFile_mountHoldingTheDefaultIconName_isMounted(@TempDir Path brandDir) throws IOException {
+        writeConfig(brandDir, "{\"name\": \"Acme\", \"favicon\": \"favicon.svg\"}");
+        image(brandDir, "favicon.svg");
+        image(brandDir, "icon-white.png");
+        BrandUtil util = util(brandDir);
+
+        assertEquals(new BrandUtil.LogoFile("icon-white.png", true), util.getLogoFile(BrandUtil.Logo.ICON));
+        assertFalse(util.isIconMissingBesideFavicon());
+    }
+
+    // Umbrella UC-014 BR-008: a named file the mount lacks falls back to the default and is reported.
+    @Test
+    void getLogoFile_namedIconTheMountLacks_fallsBackAndIsReported(@TempDir Path brandDir) throws IOException {
+        writeConfig(brandDir, "{\"name\": \"Acme\", \"logos\": {\"icon\": \"mark.svg\"}}");
+        BrandUtil util = util(brandDir);
+
+        assertEquals(new BrandUtil.LogoFile("icon-white.png", false), util.getLogoFile(BrandUtil.Logo.ICON));
+        assertEquals(List.of("images/mark.svg"), util.getMissingLogoFiles());
+    }
+
+    // A configured name that climbs out of images/ is not a file of the brand.
+    @Test
+    void getLogoFile_nameOutsideImages_isIgnored(@TempDir Path brandDir) throws IOException {
+        writeConfig(brandDir, "{\"name\": \"Acme\", \"logos\": {\"icon\": \"../brand-config.json\"}}");
+        BrandUtil util = util(brandDir);
+
+        assertEquals("brand/images/icon-white.png", util.getIconResourcePath(util.detectCurrentBrand()));
+    }
+
+    // Umbrella UC-014 BR-006: the logos are cached until the brand is cleared.
+    @Test
+    void getLogoUrl_changedMount_cachedUntilCleared(@TempDir Path brandDir) throws IOException {
+        BrandUtil util = util(brandDir);
+        assertEquals("brand/images/icon-white.png", util.getLogoUrl(BrandUtil.Logo.ICON));
+        writeConfig(brandDir, "{\"name\": \"Acme\", \"logos\": {\"icon\": \"mark.svg\"}}");
+        image(brandDir, "mark.svg");
+
+        assertEquals("brand/images/icon-white.png", util.getLogoUrl(BrandUtil.Logo.ICON));
+        util.clearCache();
+        assertEquals("brand/images/mark.svg", util.getLogoUrl(BrandUtil.Logo.ICON));
     }
 
     @Test
@@ -185,5 +263,32 @@ class BrandUtilTest {
     void getApplicationTitle_externalBrand_usesDisplayName(@TempDir Path brandDir) {
         BrandUtil.BrandInfo external = new BrandUtil.BrandInfo("acme", "Acme Corp", "logo.png", "acme");
         assertEquals("Acme Corp Survey", util(brandDir).getApplicationTitle(external, "Survey"));
+    }
+
+    // UC-009 BR-006: the brand's "localized" block supplies per-language display names.
+    @Test
+    void detectCurrentBrand_localizedBlock_resolvesTagThenLanguageThenBase(@TempDir Path brandDir) throws IOException {
+        writeConfig(brandDir, "{\"name\": \"Health Test\", \"organization\": \"Health Test Organization\", "
+                + "\"localized\": {\"es-419\": {\"organization\": \"Organizaci\u00f3n de prueba\"}, "
+                + "\"ar\": {\"name\": \"\u0645\u0646\u0638\u0645\u0629\"}}}");
+
+        BrandUtil.BrandInfo info = util(brandDir).detectCurrentBrand();
+
+        assertEquals("Health Test Organization", info.getDisplayName());
+        assertEquals("Organizaci\u00f3n de prueba", info.getDisplayName(Locale.forLanguageTag("es-419")));
+        assertEquals("Organizaci\u00f3n de prueba", info.getDisplayName(Locale.forLanguageTag("es-GT")), "language-only fallback");
+        assertEquals("\u0645\u0646\u0638\u0645\u0629", info.getDisplayName(Locale.forLanguageTag("ar")), "name is used when no organization variant");
+        assertEquals("Health Test Organization", info.getDisplayName(Locale.FRENCH), "base name when the language has no variant");
+        assertEquals("health-test", info.getBrandKey(), "the technical key always derives from the base name");
+    }
+
+    @Test
+    void detectCurrentBrand_withoutLocalizedBlock_localeLookupReturnsBase(@TempDir Path brandDir) throws IOException {
+        writeConfig(brandDir, "{\"name\": \"Plain Brand\"}");
+
+        BrandUtil.BrandInfo info = util(brandDir).detectCurrentBrand();
+
+        assertEquals("Plain Brand", info.getDisplayName(Locale.forLanguageTag("ar")));
+        assertEquals("Plain Brand", info.getDisplayName(null));
     }
 }

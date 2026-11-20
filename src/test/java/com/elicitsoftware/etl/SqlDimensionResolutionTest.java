@@ -28,12 +28,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * (question_id-direct, section_question_id, step_section_id) — finer-grained than
  * {@link ETLServiceTest}: these tests run the SQL constants directly via native
  * queries and inspect the raw tuples, independent of ETLService's table-creation
- * plumbing. Both dimension-value-resolution SQL constants must be rewritten to use
- * durable keys per research/Kimball_type_2.md ("ETL Dimension-Discovery and Value
- * Queries — Time-Range Guards"); this is the query-level "before" picture the
- * rewrite must reproduce (modulo the join column itself).
+ * plumbing. Both dimension-value-resolution SQL constants traverse the structural tables
+ * by durable key with effective_from/effective_to guards (UC-008); this is the query-level
+ * picture that rewrite had to reproduce (modulo the join column itself).
  * <p>
- * Uses the V005/V005.5/V005.6 fixture (survey_id=1, Tess Tester = respondent_id=1).
+ * Uses the V005/V9005.5/V9005.6 fixture (survey_id=1, Tess Tester = respondent_id=1).
  */
 @QuarkusTest
 @QuarkusTestResource(PostgresTestResource.class)
@@ -46,7 +45,7 @@ class SqlDimensionResolutionTest {
 
     @SuppressWarnings("unchecked")
     private List<Object[]> findDimensionValuesForTess() {
-        Query q = em.createNativeQuery(Sql.FIND_DIMENSTION_VALUES_SQL);
+        Query q = em.createNativeQuery(Sql.FIND_DIMENSION_VALUES_SQL);
         q.setParameter("respondentId", TESS_RESPONDENT_ID);
         return q.getResultList();
     }
@@ -55,7 +54,7 @@ class SqlDimensionResolutionTest {
         return rows.stream().anyMatch(r -> dim.equals(r[0]) && val.equals(r[1]));
     }
 
-    // ── FIND_DIMENSTION_VALUES_SQL — all three join paths ───────────────────
+    // ── FIND_DIMENSION_VALUES_SQL — all three join paths ───────────────────
 
     @Test
     void given_tess_when_findDimensionValues_then_sectionQuestionIdPathResolvesConstant() {
@@ -69,7 +68,7 @@ class SqlDimensionResolutionTest {
     @Test
     void given_tess_when_findDimensionValues_then_stepSectionIdPathResolvesConstant() {
         // Path: answers -> steps_sections (display-order join) -> metadata.step_section_id
-        // -> ontology (tag-only). V005.6 fixture-added coverage.
+        // -> ontology (tag-only). V9005.6 fixture-added coverage.
         List<Object[]> rows = findDimensionValuesForTess();
         assertTrue(containsTuple(rows, "dim_welcome_reached", "welcomestepreached"),
                 "step_section_id join path must resolve the constant metadata.value for ss_welcome");
@@ -79,7 +78,7 @@ class SqlDimensionResolutionTest {
     void given_tess_when_findDimensionValues_then_questionIdDirectPathResolvesAnswerText() {
         // Path: answers.question_id -> metadata.question_id (direct) -> ontology (tag-only).
         // metadata.value IS NULL here, so resolution falls back to the raw answers.text_value
-        // ('true' for Tess's Q37 CHECKBOX answer). V005.6 fixture-added coverage.
+        // ('true' for Tess's Q37 CHECKBOX answer). V9005.6 fixture-added coverage.
         List<Object[]> rows = findDimensionValuesForTess();
         assertTrue(containsTuple(rows, "dim_terms_consent_direct_probe", "true"),
                 "question_id-direct join path must fall back to the respondent's raw answer text");
@@ -87,7 +86,7 @@ class SqlDimensionResolutionTest {
 
     @Test
     void given_unfinalizedOrUnknownRespondent_when_findDimensionValues_then_empty() {
-        Query q = em.createNativeQuery(Sql.FIND_DIMENSTION_VALUES_SQL);
+        Query q = em.createNativeQuery(Sql.FIND_DIMENSION_VALUES_SQL);
         q.setParameter("respondentId", -1);
         @SuppressWarnings("unchecked")
         List<Object[]> rows = q.getResultList();
@@ -100,7 +99,8 @@ class SqlDimensionResolutionTest {
     void given_tessFactSectionsPopulated_when_findMissingFactSectionDimensions_then_allThreePathsPresent() {
         // Relies on @Startup's ETLService.init() having already run addRespondentFactSections()
         // for every finalized respondent (Tess included) once for this test JVM.
-        Query q = em.createNativeQuery(Sql.FIND_MISSING_FACT_SECTION_DIMENSIONS_SQL);
+        // The template is per survey (UC-008 BR-009): the Library survey reports in report_librarycardreg.
+        Query q = em.createNativeQuery(Sql.in("report_librarycardreg", Sql.FIND_MISSING_FACT_SECTION_DIMENSIONS_SQL));
         q.setParameter("respondent_id", TESS_RESPONDENT_ID);
         @SuppressWarnings("unchecked")
         List<Object[]> rows = q.getResultList();

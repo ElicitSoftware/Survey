@@ -11,6 +11,8 @@ package com.elicitsoftware;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.flow.GlobalStrings;
+import com.elicitsoftware.i18n.ContentTranslator;
 import com.elicitsoftware.model.*;
 import com.elicitsoftware.response.NavResponse;
 import com.elicitsoftware.response.NavigationItem;
@@ -20,14 +22,22 @@ import io.micrometer.core.annotation.Timed;
 import io.quarkus.logging.Log;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.NoResultException;
 import jakarta.persistence.Query;
 import jakarta.transaction.Transactional;
 
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * The {@code QuestionManager} class is responsible for managing the lifecycle of survey questions,
@@ -44,67 +54,243 @@ public class QuestionManager {
     @Inject
     EntityManager entityManager;
 
+    @Inject
+    ContentTranslator translator;
+
+    /** Group 1 is the phrase, group 2 the default text (null when the placeholder has none). */
+    private static final Pattern PLACEHOLDER = Pattern.compile("\\{([^{}|]+)(?:\\|([^{}]*))?}");
+
+    /** A token where it is used, inside a phrase: {@code <NAME>}. Mirrors Author's Tokens. */
+    private static final Pattern TOKEN_REF = Pattern.compile("<([A-Za-z0-9_]+)>");
+
+    /** Counters this class fills itself, from the answer's key, not from a rule. */
+    private static final java.util.Set<String> BUILT_IN_PLACEHOLDERS = java.util.Set.of("Q#", "S#");
+
     /**
-     * Replaces tokens in the given text with corresponding values from the provided map.
-     * The tokens are identified by keys enclosed in curly braces and replaced with their associated values.
-     * Any unmatched tokens are removed, leaving default text.
-     * Additionally, certain specific text replacements and formatting adjustments are applied to the final result.
-     *
-     * @param text   the input string containing tokens to be replaced
-     * @param values a {@code TreeMap} containing key-value pairs, where keys correspond to tokens in the text,
-     *               and values are the replacements for those tokens
-     * @return the resulting string after replacing all specified tokens and applying formatting adjustments
+     * How many times an authored value is re-read for placeholders of its own. A rule's value is
+     * often a placeholder ("{@code {<G1>'s|your} mother}"), and the token it carries may be filled by
+     * a value that is a placeholder in turn, so resolving stops at a fixed point or at this bound,
+     * whichever comes first. Matches Author's preview (PreviewFields.MAX_NESTING) so the designer and
+     * the runtime agree.
      */
-    static String replaceTokens(String text, TreeMap<String, String> values) {
+    private static final int MAX_NESTING = 5;
 
-        // Split the string into parts
-        String[] displayText = text.split("}");
+    /** One log line per distinct undelimited phrase, not one per page draw. */
+    private static final java.util.Set<String> WARNED_UNDELIMITED = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
-        if (!values.isEmpty()) {
-            // Replace all the Token values
-            for (String key : values.keySet()) {
-                for (int i = 0; i < displayText.length; i++) {
-                    String string = displayText[i];
-                    if (string.contains(key)) {
-                        string = string.replaceFirst("\\{", "");
-                        string = string.replaceFirst("\\|.*", "");
-                        string = string.replaceFirst(key,
-                                java.util.regex.Matcher.quoteReplacement(escapeHtml(values.get(key))));
-                    }
-                    if (string.contains("}")) {
-                        string = replaceTokens(string, values);
-                    }
-                    displayText[i] = string;
-                }
+    /**
+     * A phrase with every {@code <TOKEN>} in it replaced, or null when a value is missing.
+     *
+     * <p>Null rather than a partly-filled phrase on purpose: a placeholder is all-or-nothing, so a
+     * phrase whose token has no value falls back to the default the author wrote instead of
+     * showing half a sentence.</p>
+     *
+     * <p>The substitution is anchored on the brackets. It used to be {@code string.contains(key)}
+     * over a whole segment of the text, which could not tell the token {@code NAME} from the word
+     * "name" in ordinary prose and would rewrite the prose instead of the placeholder.</p>
+     */
+    private static String fillPhrase(String phrase, TreeMap<String, String> values, java.util.Set<String> authored,
+                                     boolean html) {
+        Matcher ref = TOKEN_REF.matcher(phrase);
+        StringBuilder filled = new StringBuilder();
+        boolean any = false;
+        while (ref.find()) {
+            any = true;
+            String value = valueOf(ref.group(1), values);
+            if (value == null) {
+                return null;
+            }
+            // The respondent's own words are attacker-controllable, so in a text rendered as HTML
+            // they are escaped. Everywhere else the label is set as plain text, which an entity
+            // would only corrupt (O'Brien shown as O&#39;Brien, #149), so they go in as typed. A
+            // value the author wrote is never escaped: it has already had its own placeholders
+            // resolved, and escaping it here would double-escape the respondent text spliced into
+            // it -- and would destroy the <TOKEN> brackets it carries before they could be read.
+            boolean fromAuthor = authored.stream().anyMatch(t -> t.equalsIgnoreCase(ref.group(1)));
+            ref.appendReplacement(filled, Matcher.quoteReplacement(fromAuthor || !html ? value : escapeHtml(value)));
+        }
+        ref.appendTail(filled);
+        return any ? filled.toString() : null;
+    }
+
+    /** A token's value, matched by name without regard to case. */
+    private static String valueOf(String token, TreeMap<String, String> values) {
+        String exact = values.get(token);
+        if (exact != null) {
+            return exact;
+        }
+        for (java.util.Map.Entry<String, String> e : values.entrySet()) {
+            if (e.getKey() != null && e.getKey().equalsIgnoreCase(token)) {
+                return e.getValue();
             }
         }
+        return null;
+    }
 
-        for (int i = 0; i < displayText.length; i++) {
-            String string = displayText[i];
-
-            // Remove any tokens values that were not passed, leaving the
-            // default
-            // part
-            // of the text
-            string = string.replaceAll("\\{.*\\|", "");
-            displayText[i] = string;
+    /**
+     * The values with every authored one's own placeholders resolved, so a rule's value reaches a
+     * sentence as prose and not as braces.
+     *
+     * <p>The Family History Survey fills {@code S1} with {@code {<G1>'s|your} mother} and {@code G1}
+     * with the patient's name, so the question "Please indicate if {@code {<S1>|you}} is still
+     * living" needs two rounds: one to put the mother phrase in the slot, one to put the name in
+     * <em>its</em> slot. Only authored values are re-read. A respondent's own answer is spliced in
+     * once and never rescanned, so free text that happens to contain braces is never taken for a
+     * placeholder.</p>
+     */
+    private static TreeMap<String, String> resolveAuthoredValues(TreeMap<String, String> values, java.util.Set<String> authored,
+                                                                 boolean html) {
+        if (authored.isEmpty()) {
+            return values;
         }
-
-        // Rebuild the sting from its parts
-        StringBuilder textBuilder = new StringBuilder();
-        for (String s : displayText) {
-            textBuilder.append(s);
+        TreeMap<String, String> ready = new TreeMap<>(values);
+        for (int pass = 0; pass < MAX_NESTING; pass++) {
+            boolean changed = false;
+            for (String token : authored) {
+                String value = ready.get(token);
+                if (value == null || value.indexOf('{') < 0) {
+                    continue;
+                }
+                String next = substituteOnce(value, ready, authored, html);
+                if (!next.equals(value)) {
+                    ready.put(token, next);
+                    changed = true;
+                }
+            }
+            if (!changed) {
+                break;
+            }
         }
-        text = textBuilder.toString();
+        return ready;
+    }
 
-        // Until I can come up with a better solution to this problem I'll
-        // force it here. I know this is a hack.
+    /** One pass over a template: every placeholder filled, or left as its default. */
+    private static String substituteOnce(String text, TreeMap<String, String> values, java.util.Set<String> authored,
+                                         boolean html) {
+        Matcher placeholder = PLACEHOLDER.matcher(text);
+        StringBuilder out = new StringBuilder();
+        while (placeholder.find()) {
+            String phrase = placeholder.group(1);
+            String defaultText = placeholder.group(2);
+            String replacement;
+            if (BUILT_IN_PLACEHOLDERS.contains(phrase.trim())) {
+                // {Q#} and {S#} are runtime counters, filled later against the answer's own key.
+                replacement = placeholder.group();
+            } else {
+                if (!TOKEN_REF.matcher(phrase).find()) {
+                    warnUndelimited(phrase, values);
+                }
+                String filled = fillPhrase(phrase, values, authored, html);
+                replacement = filled != null ? filled : (defaultText == null ? phrase : defaultText);
+            }
+            placeholder.appendReplacement(out, Matcher.quoteReplacement(replacement));
+        }
+        placeholder.appendTail(out);
+        return out.toString();
+    }
+
+    /**
+     * A phrase that names a token as a bare word rather than as {@code <TOKEN>} fills nothing, and
+     * the respondent silently reads the default instead of a personalized sentence. Say so once, so a
+     * definition written before the brackets is visible in the log rather than only on the page.
+     */
+    private static void warnUndelimited(String phrase, TreeMap<String, String> values) {
+        for (String token : values.keySet()) {
+            if (token == null || token.isBlank()) {
+                continue;
+            }
+            Pattern bare = Pattern.compile("(?i)(?<![A-Za-z0-9_])" + Pattern.quote(token) + "(?![A-Za-z0-9_])");
+            if (!bare.matcher(phrase).find()) {
+                continue;
+            }
+            if (WARNED_UNDELIMITED.add(phrase)) {
+                Log.warn("Placeholder {" + phrase + "} names the token " + token + " without angle brackets,"
+                        + " so no rule fills it and respondents read its default instead. Write <" + token + ">.");
+            }
+            return;
+        }
+    }
+
+    /**
+     * A text with its placeholders filled, for a label set as plain text, where every value is an
+     * answer the respondent gave. A placeholder whose tokens have no value shows its default text,
+     * and the English possessive tidying of {@link #replaceTokens(String, TreeMap, java.util.Set, boolean)}
+     * is applied.
+     *
+     * @param text   the base or translated template; {@code null} gives {@code null}
+     * @param values token to the value that fills it
+     * @return the text with its placeholders filled
+     */
+    static String replaceTokens(String text, TreeMap<String, String> values) {
+        return replaceTokens(text, values, java.util.Set.of());
+    }
+
+    /**
+     * A text with its placeholders filled, for a label set as plain text.
+     *
+     * @param text     the base or translated template; {@code null} gives {@code null}
+     * @param values   token to the value that fills it
+     * @param authored the tokens whose value is prose the author wrote rather than an answer
+     * @return the text with its placeholders filled
+     */
+    static String replaceTokens(String text, TreeMap<String, String> values, java.util.Set<String> authored) {
+        return replaceTokens(text, values, authored, false);
+    }
+
+    /**
+     * A text with its placeholders filled.
+     *
+     * <p>A placeholder is {@code {phrase|default}}, and the phrase holds prose and {@code <TOKEN>}
+     * references. Everything but the references is the author's words, translated with the rest of
+     * the text; the references are slots, filled from the values here (UC-002 BR-010, BR-011).</p>
+     *
+     * @param text     the base or translated template
+     * @param values   token to the value that fills it
+     * @param authored the tokens whose value is prose the author wrote, rather than an answer the
+     *                 respondent gave: those values may be placeholders in their own right and are
+     *                 resolved first, and they are spliced in without HTML-escaping
+     * @param html     whether the text is rendered as HTML ({@code ElicitHtml}, {@code ElicitModal}):
+     *                 then the respondent's values are HTML-escaped; otherwise they go in as typed,
+     *                 since every other consumer sets the text as plain text (#149)
+     * @return the text with its placeholders filled; {@code null} when {@code text} is {@code null}
+     */
+    static String replaceTokens(String text, TreeMap<String, String> values, java.util.Set<String> authored,
+                                boolean html) {
+        if (text == null) {
+            return null;
+        }
+        text = substituteOnce(text, resolveAuthoredValues(values, authored, html), authored, html);
+
+        // English possessive tidying, applied unconditionally to every rendered text.
+        //
+        // A placeholder may put the possessive inside the phrase ({<CS2>'s|Your} Cancers) or leave
+        // it in the prose outside ({<S1>}'s age at death), and a token's value may be a name, a
+        // noun phrase or a pronoun. The four replacements below patch the combinations that read
+        // wrong in English. They are not a general rule and there is no locale check.
+        //
+        // Two of them are load-bearing, not cosmetic. The Family History Survey's question 40 is
+        // "What was {<S1>}'s age at death?" -- the 's sits outside the placeholder -- and the four
+        // grandparent rules (relationships 95, 99, 103 and 107) fill S1 with the bare pronoun "her"
+        // or "his". Without the first two lines those questions read "What was her's age at death?".
+        // Deleting them means re-authoring that question and those rules; see FHHS C-009.
+        //
+        // " Your's " is dead: no rule in any current survey supplies "Your" as a value. The last
+        // line is a style choice only, "Dennis's" to "Dennis'"; both forms are correct English.
+        //
+        // These run on Answer.displayTextLocal as well as displayText (see buildDisplayText), so
+        // they are applied to translated text too. That is harmless for the languages shipped today
+        // rather than by design: "her's"/"his's"/"Your's" are English word forms, and "s's" needs a
+        // literal ASCII s-apostrophe-s, which neither es-419 nor ar writes. A respondent's own words
+        // are tidied too in a plain-text label, where they go in unescaped (#149): a name typed as
+        // "Bess's Cafe" reads "Bess' Cafe". In an HTML text they are escaped first, ' to &#39;, so
+        // they are not. A target language that does write s-apostrophe-s would be corrupted here
+        // silently.
+        //
+        // Author's PreviewFields.substituteTokens holds an independent copy of these four
+        // replacements so the designer preview matches the runtime. Change one, change both.
         text = text.replace(" her's ", " her ");
         text = text.replace(" his's ", " his ");
         text = text.replace(" Your's ", " Your ");
-
-        // Lastly replace any s's with s' this if for names like Dennis as in
-        // what is Dennis'name
         text = text.replaceAll("s's", "s'");
 
         return text;
@@ -112,11 +298,11 @@ public class QuestionManager {
 
     /**
      * Escapes HTML-significant characters in a string so it is safe to splice into
-     * HTML markup that will later be rendered via {@code innerHTML} (e.g. by
-     * {@code ElicitHtml}). This is used to escape individual token substitution
-     * values (attacker-controllable free-text survey answers) before they are
-     * spliced into display text templates, without altering any legitimate literal
-     * HTML that may already be present in the template text itself.
+     * HTML markup that will later be rendered via {@code innerHTML} (by
+     * {@code ElicitHtml} or {@code ElicitModal}). This is used to escape individual token
+     * substitution values (attacker-controllable free-text survey answers) before they are
+     * spliced into the display text of an HTML question, without altering any legitimate
+     * literal HTML that may already be present in the template text itself.
      *
      * @param input the raw value to escape; {@code null} is treated as an empty string
      * @return the HTML-escaped value, safe to insert into HTML markup
@@ -131,6 +317,42 @@ public class QuestionManager {
     }
 
     /**
+     * Resolves the snapshot instant ({@link Respondent#snapshotAnchor}) that
+     * structural queries (questions, sections, steps, relationships, ...) must be resolved
+     * as of for the given respondent: their {@code firstAccessDt} once set, or NOW() for a
+     * brand-new respondent who has not yet been anchored. This guarantees a respondent stays
+     * pinned to the survey definition as it existed when they first accessed it, even if a
+     * researcher publishes a new version of a question/section/relationship afterward.
+     *
+     * @param respondentId the respondent whose snapshot instant is being resolved
+     * @return the timestamp to bind against every {@code effective_from}/{@code effective_to} guard
+     */
+    private OffsetDateTime resolveAsOf(int respondentId) {
+        return Respondent.snapshotAnchor(respondentId);
+    }
+
+    /**
+     * The version of a placement's question in effect for the respondent. {@code
+     * sections_questions.question_id} is a durable id (one row per version), so it is never
+     * mapped as an association; this is the one place the runtime turns it into a row.
+     *
+     * @param sectionsQuestion the placement (a surrogate row an answer pins, or one resolved as of the anchor)
+     * @param respondentId     the respondent whose snapshot anchor the question is resolved as of
+     * @return the question version the respondent sees
+     * @throws IllegalStateException if no version covers the respondent's anchor -- a structural
+     *                               inconsistency that must surface rather than produce an answer
+     *                               with no question
+     */
+    private Question questionOf(SectionsQuestion sectionsQuestion, int respondentId) {
+        Question question = Question.findAsOf(sectionsQuestion.questionId, resolveAsOf(respondentId));
+        if (question == null) {
+            throw new IllegalStateException("No version of question " + sectionsQuestion.questionId
+                    + " (placement " + sectionsQuestion.id + ") is in effect for respondent " + respondentId);
+        }
+        return question;
+    }
+
+    /**
      * Initializes the initial answers for a specified respondent based on the survey steps
      * associated with the given key.
      *
@@ -142,8 +364,9 @@ public class QuestionManager {
 
         DisplayKey displaykey = new DisplayKey(key);
 
-        // Use optimized query with joins to avoid N+1 problem
-        List<StepsSections> steps = StepsSections.findBySurveyIdWithJoins(displaykey.getSurvey());
+        // Snapshot-anchored (Respondent.snapshotAnchor) to this respondent's firstAccessDt so
+        // they stay pinned to the survey definition as it existed when they first accessed it.
+        List<StepsSections> steps = StepsSections.findBySurveyIdAsOf(displaykey.getSurvey(), resolveAsOf(respondentId));
         for (StepsSections step : steps) {
             buildInitialAnswers(respondentId, step.getKey());
         }
@@ -174,18 +397,16 @@ public class QuestionManager {
      * and question instance.
      *
      * @param respondentId      the identifier of the respondent
-     * @param stepId            the identifier of the step
-     * @param sqId              the identifier of the section question
+     * @param sqId              the surrogate sections_questions.id the answer was pinned to
      * @param question_instance the instance number of the question
-     * @return the Answer object corresponding to the provided parameters, or null in case
-     * of an exception or if no matching answer is found
+     * @return the Answer object corresponding to the provided parameters, or null if no
+     * matching answer is found
      */
-    private Answer getAnswersByStepAndSectionQuestion(int respondentId, int stepId, int sqId, int question_instance) {
-        try {
-            return Answer.findByStepSQ(respondentId, sqId, question_instance);
-        } catch (Exception e) {
-            return null;
-        }
+    private Answer getAnswersByStepAndSectionQuestion(int respondentId, int sqId, int question_instance) {
+        // findByStepSQ takes the first result, so "no answer yet" is a null, not an exception;
+        // anything that does throw here is a real failure and must propagate (the former
+        // catch-all hid a rollback-only transaction behind a null).
+        return Answer.findByStepSQ(respondentId, sqId, question_instance);
     }
 
     /**
@@ -194,21 +415,28 @@ public class QuestionManager {
      * attempts to find and return the associated Section from the database.
      * If no matching Section is found or an exception occurs, null is returned.
      *
+     * @param respondentId the respondent whose snapshot instant this lookup is anchored to
      * @param key the display key used to locate the associated Section
      * @return the Section object corresponding to the provided display key,
      * or null if no match is found or an exception occurs
      */
-    private Section getSectionByDisplayKey(String key) {
+    private Section getSectionByDisplayKey(int respondentId, String key) {
         DisplayKey dkey = new DisplayKey(key);
+        // A placement is the same row whichever instance of it a respondent is looking at, and its
+        // key carries no instances. Leaving the section instance in found nothing for the marker of
+        // a repeated section, which then kept the text it was first built with and never got its
+        // name in the respondent's language.
         dkey.setStepInstance(0);
-        try {
-            // Use optimized query with joins to avoid N+1 problem
-            StepsSections stepsSections = StepsSections.findByDisplayKeyWithJoins(dkey);
-            return stepsSections.section;
-        } catch (Exception e) {
-            // There may not be one in the database. Return the null value;
+        dkey.setSectionInstance(0);
+        // Snapshot-anchored (Respondent.snapshotAnchor) to this respondent's firstAccessDt:
+        // the placement and then the section version it names are both resolved as of the
+        // same instant. A missing placement is a null, never an exception to swallow.
+        OffsetDateTime asOf = resolveAsOf(respondentId);
+        StepsSections stepsSections = StepsSections.findByDisplayKeyAsOf(dkey, asOf);
+        if (stepsSections == null) {
             return null;
         }
+        return Section.findAsOf(stepsSections.sectionId, asOf);
     }
 
     /**
@@ -216,31 +444,29 @@ public class QuestionManager {
      * The method queries the database using the provided DisplayKey to find the step.
      * It handles potential exceptions, such as missing data, and returns null if no matching step is found.
      *
+     * @param respondentId the respondent whose snapshot instant this lookup is anchored to
      * @param key the DisplayKey used to locate the step. The key contains identifiers
      *            for querying either a section or step in the database.
      * @return the Step object corresponding to the provided DisplayKey, or null if no matching step is found
      * or an exception occurs.
      */
-    private Step getStepByDisplayKey(DisplayKey key) {
+    private Step getStepByDisplayKey(int respondentId, DisplayKey key) {
 
         StepsSections stepsSections;
-        try {
-            if (key.getSection() != 0) {
-                stepsSections = StepsSections.findFirstByDisplayKeyQuery(key.getSectionQueryString());
-            } else {
-                stepsSections = StepsSections.findFirstByDisplayKeyQuery(key.getStepQueryString());
-            }
-        } catch (Exception e) {
-            // There may not be one in the database. Return the null value;
-            return null;
+        OffsetDateTime asOf = resolveAsOf(respondentId);
+        if (key.getSection() != 0) {
+            stepsSections = StepsSections.findFirstByDisplayKeyQueryAsOf(key.getSectionQueryString(), asOf);
+        } else {
+            stepsSections = StepsSections.findFirstByDisplayKeyQueryAsOf(key.getStepQueryString(), asOf);
         }
 
-        if (stepsSections == null || stepsSections.step == null) {
+        if (stepsSections == null) {
             // There may not be one in the database. Return the null value;
             return null;
-        } else {
-            return stepsSections.step;
         }
+        // The placement names the step by durable id; resolve the version in effect for this
+        // respondent (the former @ManyToOne could not choose between versions).
+        return Step.findAsOf(stepsSections.stepId, asOf);
     }
 
     /**
@@ -264,9 +490,28 @@ public class QuestionManager {
         navItems = ls.toArray(navItems);
         NavigationItem curreNavItem = getCurrentNavItem(navItems, sectionDisplaykey);
 
-        Step step = getStepByDisplayKey(key);
+        Step step = getStepByDisplayKey(respondentId, key);
 
         return new NavResponse(step, curreNavItem, answers, navItems);
+    }
+
+    /**
+     * Records that the respondent did something just now (UC-012 BR-004): a page render or a
+     * save. Set on the managed entity and flushed with the caller's transaction. It is not done
+     * inside {@link #navigate} on purpose: a page render runs in a transaction of its own
+     * ({@code QuestionService.init} is REQUIRES_NEW), and when that is nested in a transaction
+     * that has already written the respondent's row -- session restore logs the respondent in
+     * and then renders the page -- an update of the same row from the inner transaction waits
+     * on the outer one until the transaction times out. The caller stamps in a transaction
+     * that joins the outer one when there is one.
+     *
+     * @param respondentId the respondent who is active
+     */
+    public void recordActivity(int respondentId) {
+        Respondent respondent = Respondent.findById(respondentId);
+        if (respondent != null) {
+            respondent.lastActivityDt = OffsetDateTime.now();
+        }
     }
 
     /**
@@ -282,8 +527,13 @@ public class QuestionManager {
 
         DisplayKey dkey = new DisplayKey(key);
 
+        // The instance-bearing form: navigation items are built from the respondent's own section
+        // answer rows, and a REPEATed section has one per instance. Matching on getSectionString(),
+        // which zeroes the instance, found no item for the second and later instances of a repeated
+        // section, so the view got a null current item -- no Previous/Next buttons and no section
+        // title, which is what samples/FINDINGS.md 5 saw as "navigation stalls after a REPEAT".
         for (NavigationItem navigationItem : navItems) {
-            if (navigationItem.getPath().equals(dkey.getSectionString())) {
+            if (navigationItem.getPath().equals(dkey.getSectionInstanceString())) {
                 return navigationItem;
             }
         }
@@ -309,9 +559,19 @@ public class QuestionManager {
         // this next call ensures that all the initial answers are generated.
         buildInitialAnswers(respondentId, key);
         List<Answer> existing = Answer.findBySectionDisplaykey(respondentId, key);
+        // These are exactly the rows of the page about to be rendered, so this is where
+        // "presented" is recorded: once per row, on its first render (UC-012 BR-001). The
+        // entities are managed in the caller's transaction and the stamp is flushed with it.
+        Date presentedNow = new Date();
         TreeMap<String, Answer> answers = new TreeMap<>();
         // move all the answers to an ordered map.
         for (Answer answer : existing) {
+            if (answer.presentedDt == null) {
+                answer.presentedDt = presentedNow;
+            }
+            // Resolve the select items (as of this respondent's anchor) while the transaction
+            // is open, so the UI wrappers never query for them from the request thread.
+            answer.getSelectItems();
             answers.put(answer.getDisplayKey(), answer);
         }
 
@@ -339,20 +599,37 @@ public class QuestionManager {
         // or downstream step.
         ArrayList<SectionsQuestion> sectionsQuestions = new ArrayList<>();
 
+        // SS.ID/SQ.ID below are replaced with SS.steps_sections_id/SQ.sections_question_id
+        // (the durable keys) wherever compared against R.DOWNSTREAM_SS_ID/R.DOWNSTREAM_SQ_ID —
+        // those relationship columns were retargeted to durable ids by the Kimball Type 2 SCD
+        // migration (UC-002 BR-009), while SS.ID/SQ.ID remain each row's surrogate,
+        // per-version id. EFFECTIVE_FROM/EFFECTIVE_TO guards snapshot-anchor the resolution to
+        // this respondent's firstAccessDt so they stay pinned to what they first saw.
         String sqlStep = "SELECT SQ.ID, SQ.DISPLAY_ORDER FROM SURVEY.SECTIONS_QUESTIONS SQ "
                 + "JOIN SURVEY.STEPS_SECTIONS SS ON SQ.SECTION_ID = SS.SECTION_ID AND SQ.SURVEY_ID = SS.SURVEY_ID "
-                + "WHERE SS.SURVEY_ID = :surveyId AND SS.STEP_ID = :stepId AND SS.SECTION_DISPLAY_ORDER = :displayOrder "
-                + "AND SS.ID NOT IN (SELECT R.DOWNSTREAM_S_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.DOWNSTREAM_STEP_ID = SS.STEP_ID AND R.DOWNSTREAM_SQ_ID IS NULL AND R.DOWNSTREAM_S_ID IS NOT NULL AND R.ACTION_ID != 3) "
-                + "AND Sq.id NOT IN (SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.UPSTREAM_STEP_ID = SS.STEP_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_S_ID IS NOT NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL) "
+                + "WHERE SS.SURVEY_ID = :surveyId AND SS.STEP_DISPLAY_ORDER = :stepDisplayOrder AND SS.SECTION_DISPLAY_ORDER = :displayOrder "
+                + "AND SS.EFFECTIVE_FROM <= :asOf AND SS.EFFECTIVE_TO > :asOf "
+                + "AND SQ.EFFECTIVE_FROM <= :asOf AND SQ.EFFECTIVE_TO > :asOf "
+                + "AND SS.STEPS_SECTIONS_ID NOT IN (SELECT R.DOWNSTREAM_SS_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.DOWNSTREAM_STEP_ID = SS.STEP_ID AND R.DOWNSTREAM_SQ_ID IS NULL AND R.DOWNSTREAM_SS_ID IS NOT NULL AND R.ACTION_ID != 3 AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf) "
+                + "AND Sq.SECTIONS_QUESTION_ID NOT IN ( "
+                + "SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.UPSTREAM_STEP_ID = SS.STEP_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_SS_ID IS NOT NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf "
+                // The same question-only branch sqlSection carries: a rule whose target sits in
+                // the upstream question's own section is stored with DOWNSTREAM_SS_ID null (Author
+                // RulePath.complete), and without this branch the step-level build renders that
+                // target immediately instead of leaving it to the rule.
+                + "UNION "
+                + "SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_SS_ID IS NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf) "
                 + "order by SQ.DISPLAY_ORDER";
 
         String sqlSection = "SELECT SQ.ID, SQ.DISPLAY_ORDER FROM SURVEY.SECTIONS_QUESTIONS SQ "
                 + "JOIN SURVEY.STEPS_SECTIONS SS ON SQ.SECTION_ID = SS.SECTION_ID AND SQ.SURVEY_ID = SS.SURVEY_ID "
-                + "WHERE SS.SURVEY_ID = :surveyId AND SS.STEP_ID = :stepId AND SS.SECTION_DISPLAY_ORDER = :displayOrder "
-                + "AND Sq.id NOT IN ( "
-                + "SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.UPSTREAM_STEP_ID = SS.STEP_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_S_ID IS NOT NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL "
+                + "WHERE SS.SURVEY_ID = :surveyId AND SS.STEP_DISPLAY_ORDER = :stepDisplayOrder AND SS.SECTION_DISPLAY_ORDER = :displayOrder "
+                + "AND SS.EFFECTIVE_FROM <= :asOf AND SS.EFFECTIVE_TO > :asOf "
+                + "AND SQ.EFFECTIVE_FROM <= :asOf AND SQ.EFFECTIVE_TO > :asOf "
+                + "AND Sq.SECTIONS_QUESTION_ID NOT IN ( "
+                + "SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.UPSTREAM_STEP_ID = SS.STEP_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_SS_ID IS NOT NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf "
                 + "UNION "
-                + "SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_S_ID IS NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL) "
+                + "SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.SURVEY_ID = SS.SURVEY_ID AND R.ACTION_ID != 3 AND R.DOWNSTREAM_SS_ID IS NULL AND R.DOWNSTREAM_SQ_ID IS NOT NULL AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf) "
                 + "order by SQ.DISPLAY_ORDER";
 
         Query q;
@@ -364,8 +641,13 @@ public class QuestionManager {
         }
 
         q.setParameter("surveyId", key.getSurvey());
-        q.setParameter("stepId", key.getStep());
+        // key.getStep() is the step's DISPLAY ORDER (that is what a display key encodes), so it is
+        // matched against SS.STEP_DISPLAY_ORDER; SS.STEP_ID is the durable steps.step_id and only
+        // ever equals the display order by coincidence (the seeded surveys), never for an
+        // Author-published one.
+        q.setParameter("stepDisplayOrder", key.getStep());
         q.setParameter("displayOrder", key.getSection());
+        q.setParameter("asOf", resolveAsOf(respondentId));
 
         @SuppressWarnings("unchecked")
         List<Object[]> rs = q.getResultList();
@@ -401,21 +683,31 @@ public class QuestionManager {
         // section
         // or downstream step.
         ArrayList<SectionsQuestion> sectionsQuestions = new ArrayList<>();
+        // S.ID NOT IN (...R.DOWNSTREAM_SQ_ID...) and the nested SS.ID = R.DOWNSTREAM_SS_ID join
+        // are replaced with the durable S.SECTIONS_QUESTION_ID / SS.STEPS_SECTIONS_ID columns —
+        // R.DOWNSTREAM_SQ_ID/R.DOWNSTREAM_SS_ID were retargeted to durable ids by the Kimball
+        // Type 2 SCD migration (UC-002 BR-009). The A.SECTION_QUESTION_ID = S.ID
+        // and SS.STEP_ID = R.DOWNSTREAM_STEP_ID comparisons are unaffected — the former compares
+        // two surrogate ids (answers pin the exact surrogate row), the latter compares two
+        // already-durable ids. EFFECTIVE_FROM/EFFECTIVE_TO guards snapshot-anchor the
+        // resolution to this respondent's firstAccessDt.
         String sql = "SELECT S.ID, S.DISPLAY_ORDER " + "FROM SURVEY.SECTIONS_QUESTIONS S "
                 + "Join SURVEY.STEPS_SECTIONS SS on S.SECTION_ID = SS.SECTION_ID AND S.SURVEY_ID = SS.SURVEY_ID "
                 + "WHERE SS.SURVEY_ID = :surveyId AND SS.STEP_DISPLAY_ORDER = :stepDisplayOrder "
-                + "AND S.ID NOT IN (SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.DOWNSTREAM_SQ_ID IS NOT NULL) "
+                + "AND SS.EFFECTIVE_FROM <= :asOf AND SS.EFFECTIVE_TO > :asOf "
+                + "AND S.EFFECTIVE_FROM <= :asOf AND S.EFFECTIVE_TO > :asOf "
+                + "AND S.SECTIONS_QUESTION_ID NOT IN (SELECT R.DOWNSTREAM_SQ_ID FROM SURVEY.RELATIONSHIPS R WHERE R.DOWNSTREAM_SQ_ID IS NOT NULL AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf) "
                 + "AND S.ID NOT IN (SELECT A.SECTION_QUESTION_ID FROM SURVEY.Answers A WHERE A.RESPONDENT_ID = :respondentId and A.SECTION_QUESTION_ID = S.ID ) "
-                + "AND S.ID NOT IN (SELECT SQ.ID from SURVEY.SECTIONS_QUESTIONS SQ JOIN SURVEY.STEPS_SECTIONS SS on SQ.SECTION_ID = SS.SECTION_ID JOIN SURVEY.RELATIONSHIPS R ON SS.ID = R.DOWNSTREAM_S_ID WHERE R.DOWNSTREAM_S_ID IS NOT NULL) "
+                + "AND S.ID NOT IN (SELECT SQ.ID from SURVEY.SECTIONS_QUESTIONS SQ JOIN SURVEY.STEPS_SECTIONS SS on SQ.SECTION_ID = SS.SECTION_ID JOIN SURVEY.RELATIONSHIPS R ON SS.STEPS_SECTIONS_ID = R.DOWNSTREAM_SS_ID WHERE R.DOWNSTREAM_SS_ID IS NOT NULL AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf) "
                 + "AND S.ID NOT IN (SELECT T.ID FROM SURVEY.SECTIONS_QUESTIONS T JOIN SURVEY.STEPS_SECTIONS SS ON T.SECTION_ID = SS.SECTION_ID JOIN SURVEY.RELATIONSHIPS R ON SS.STEP_ID = R.DOWNSTREAM_STEP_ID) "
                 + "order by S.DISPLAY_ORDER";
 
 
-        //entityManager.joinTransaction();
         Query q = entityManager.createNativeQuery(sql);
         q.setParameter("surveyId", key.getSurvey());
         q.setParameter("respondentId", respondentId);
         q.setParameter("stepDisplayOrder", key.getStep());
+        q.setParameter("asOf", resolveAsOf(respondentId));
 
         @SuppressWarnings("unchecked")
         List<Object[]> rs = q.getResultList();
@@ -467,10 +759,11 @@ public class QuestionManager {
             for (SectionsQuestion sectionsQuestion : sectionsQuestions) {
                 // Build a display key for the answer
                 dkey = new DisplayKey(key.getValue());
-                dkey.setQuestion(sectionsQuestion.displayOrder);
-                answer = new Answer(dkey, sectionsQuestion, sectionsQuestion.question.text, respondentId, sectionsQuestion.question.defaultValue);
+                dkey.setQuestion(sectionsQuestion.displayOrder.intValue());
+                Question question = questionOf(sectionsQuestion, respondentId);
+                answer = new Answer(dkey, sectionsQuestion, question, question.text, respondentId, question.defaultValue);
                 answer = saveAnswer(answer, null);
-                if ("HTML".equals(sectionsQuestion.question.questionType.name) || answer.getTextValue() != null) {
+                if ("HTML".equals(question.questionType.name) || answer.getTextValue() != null) {
                     buildDownstreamQuestions(answer);
                 }
             }
@@ -491,9 +784,15 @@ public class QuestionManager {
         Answer sectionAanswer = getAnswerByDisplayKey(respondentId, key, true);
         if (sectionAanswer == null) {
 
-            Section section = getSectionByDisplayKey(key);
-            assert section != null;
-            Answer answer = new Answer(new DisplayKey(key), null, section.name, respondentId);
+            Section section = getSectionByDisplayKey(respondentId, key);
+            if (section == null) {
+                // No placement names this key as of the respondent's anchor, so there is no section
+                // to answer for. This was an assert, which the container never evaluates (-ea off).
+                Log.warn("No section for display key " + key + " (respondent " + respondentId
+                        + "); no section answer built.");
+                return;
+            }
+            Answer answer = new Answer(new DisplayKey(key), null, null, section.name, respondentId);
             saveAnswer(answer, dependents);
         }
     }
@@ -513,16 +812,26 @@ public class QuestionManager {
                                  HashMap<Integer, Dependent> dependents) {
 
         DisplayKey dkey = new DisplayKey(key);
-        Step step = getStepByDisplayKey(dkey);
+        Step step = getStepByDisplayKey(upstream.respondentId, dkey);
         assert step != null;
-        Answer answer = new Answer(dkey, null, step.name, upstream.respondentId);
-        // Find upstream relationships by downstream section id
-        List<Relationship> relationships = Relationship.findRepeatByDownstreamStep(dkey.getSurvey(), dkey.getStep());
+        Answer answer = new Answer(dkey, null, null, step.name, upstream.respondentId);
+        // Find every rule that targets this step as a whole. dkey.getStep() is the step's display
+        // order; the rule holds the durable step_id, so resolve one from the other first.
+        List<Relationship> relationships = new ArrayList<>();
+        OffsetDateTime asOf = resolveAsOf(upstream.respondentId);
+        Integer durableStepId = getDurableStepId(dkey.getSurvey(), dkey.getStep(), upstream.respondentId);
+        if (durableStepId != null) {
+            relationships = Relationship.findRepeatByDownstreamStep(dkey.getSurvey(), durableStepId, asOf);
+        }
         Answer a;
         Dependent dependent;
         for (Relationship r : relationships) {
-            a = getAnswersByStepAndSectionQuestion(upstream.respondentId, r.upstreamStep.id,
-                    r.upstreamQuestion.id, dkey.getStepInstance());
+            // The rule names its upstream question by durable id; the answer pins the surrogate
+            // sections_questions.id of the version in effect for this respondent, so resolve
+            // that row first. The step is implied by it and is not part of the lookup.
+            SectionsQuestion upstreamSq = SectionsQuestion.findAsOf(r.upstreamSqId, asOf);
+            a = upstreamSq == null ? null
+                    : getAnswersByStepAndSectionQuestion(upstream.respondentId, upstreamSq.id, dkey.getStepInstance());
 
             if (a != null && r.evaluateOperator(a)) {
                 // Add a dependent.
@@ -550,6 +859,9 @@ public class QuestionManager {
         ArrayList<Relationship> relationships = findRelationshipsByUpstreamQuestion(upstreamAnswer);
 
         HashMap<Integer, Dependent> dependents;
+        // The rule's endpoints are durable ids; every row they name is resolved as of this
+        // respondent's snapshot anchor (Respondent.snapshotAnchor), never through a mapping.
+        OffsetDateTime asOf = resolveAsOf(upstreamAnswer.respondentId);
 
         // now loop through them and see if the operator evaluates to true
         for (Relationship relationship : relationships) {
@@ -561,24 +873,29 @@ public class QuestionManager {
                     switch (relationship.actionType.name) {
                         case "SHOW":
                             // Are we going to show a Question, Section or Step?
-                            if (relationship.downstreamQuestion != null) {
+                            if (relationship.downstreamSqId != null) {
                                 DisplayKey key = buildDisplayKey(upstreamAnswer, relationship);
+                                SectionsQuestion downstreamQuestion = SectionsQuestion.findAsOf(relationship.downstreamSqId, asOf);
+                                Question question = questionOf(downstreamQuestion, upstreamAnswer.respondentId);
 
-                                key.setQuestion(relationship.downstreamQuestion.displayOrder);
-                                // this may be the first answer in a section
-                                buildSectionAnswer(upstreamAnswer.respondentId, key.getSectionString(), dependents);
-                                Answer a = new Answer(key, relationship.downstreamQuestion,
-                                        relationship.downstreamQuestion.question.text,
-                                        upstreamAnswer.respondentId, relationship.downstreamQuestion.question.defaultValue);
+                                key.setQuestion(downstreamQuestion.displayOrder.intValue());
+                                // this may be the first answer in a section. The marker is the
+                                // one of the instance the question is shown in: zeroing the
+                                // instance here gave a question shown inside a repeated section a
+                                // second marker, instance 0, that depended on an answer inside the
+                                // section it marks -- and removing an instance then never ended.
+                                buildSectionAnswer(upstreamAnswer.respondentId, key.getSectionInstanceString(), dependents);
+                                Answer a = new Answer(key, downstreamQuestion, question, question.text,
+                                        upstreamAnswer.respondentId, question.defaultValue);
                                 a = saveAnswer(a, dependents);
                                 if (a.getTextValue() != null) {
                                     buildDownstreamQuestions(a);
                                 }
-                            } else if (relationship.downstreamSection != null) {
+                            } else if (relationship.downstreamSsId != null) {
                                 // build the initial answers of the section.
                                 DisplayKey newSectionKey = buildDisplayKey(upstreamAnswer, relationship);
                                 buildInitialSectionAnswers(relationship, upstreamAnswer, newSectionKey, dependents, false);
-                            } else if (relationship.downstreamStep != null) {
+                            } else if (relationship.downstreamStepId != null) {
                                 // Show a step
                                 DisplayKey newStepKey = buildDisplayKey(upstreamAnswer, relationship);
                                 newStepKey.setStepInstance(upstreamAnswer.question_instance);
@@ -589,18 +906,18 @@ public class QuestionManager {
                             break;
                         case "REPEAT":
                             // Are we going to repeat a Question or Section?
-                            if (relationship.downstreamQuestion != null) {
+                            if (relationship.downstreamSqId != null) {
                                 // Repeat a question
                                 buildRepeatedAnswers(upstreamAnswer.respondentId, upstreamAnswer,
-                                        relationship.downstreamQuestion, relationship, dependents);
-                            } else if (relationship.downstreamSection != null) {
+                                        SectionsQuestion.findAsOf(relationship.downstreamSqId, asOf), relationship, dependents);
+                            } else if (relationship.downstreamSsId != null) {
                                 // repeat the section
-                                buildRepeatedSections(upstreamAnswer, relationship.downstreamSection.section,
+                                StepsSections downstreamSection = StepsSections.findAsOf(relationship.downstreamSsId, asOf);
+                                buildRepeatedSections(upstreamAnswer, Section.findAsOf(downstreamSection.sectionId, asOf),
                                         relationship.id, dependents);
-                            } else if (relationship.downstreamStep != null) {
-                                // Repeat a step
-                                buildRepeatedStep(upstreamAnswer, relationship.downstreamStep, relationship.id,
-                                        dependents);
+                            } else if (relationship.downstreamStepId != null) {
+                                // UC-002 A3b: a Repeat rule on a step builds nothing
+                                warnStepRepeatIgnored(relationship.id, relationship.downstreamStepId);
                             }
 
                             break;
@@ -622,17 +939,17 @@ public class QuestionManager {
                 if (relationship.evaluateOperator(upstreamAnswer)) {
 
                     // Are we going to alter a Question or Section?
-                    if (relationship.downstreamQuestion != null) {
+                    if (relationship.downstreamSqId != null) {
                         // a question
                         DisplayKey key = buildDisplayKey(upstreamAnswer, relationship);
-                        key.setQuestion(relationship.downstreamQuestion.displayOrder);
+                        key.setQuestion(SectionsQuestion.findAsOf(relationship.downstreamSqId, asOf).displayOrder.intValue());
                         Answer a = getAnswerByDisplayKey(upstreamAnswer.respondentId, key.getValue(), false);
                         if (a != null) {
                             dependents.put(relationship.id,
                                     new Dependent(upstreamAnswer.respondentId, upstreamAnswer, a, relationship));
                             saveAnswer(a, dependents);
                         }
-                    } else if (relationship.downstreamSection != null) {
+                    } else if (relationship.downstreamSsId != null) {
                         // a section
                         ArrayList<Answer> answers = getDownstreamSectionAnswers(relationship,
                                 upstreamAnswer.respondentId);
@@ -650,15 +967,15 @@ public class QuestionManager {
                     // We may have to reset the default values
 
                     // Are we going to alter a Question or Section?
-                    if (relationship.downstreamQuestion != null) {
+                    if (relationship.downstreamSqId != null) {
                         // a question
                         DisplayKey key = buildDisplayKey(upstreamAnswer, relationship);
-                        key.setQuestion(relationship.downstreamQuestion.displayOrder);
+                        key.setQuestion(SectionsQuestion.findAsOf(relationship.downstreamSqId, asOf).displayOrder.intValue());
                         Answer a = getAnswerByDisplayKey(upstreamAnswer.respondentId, key.getValue(), false);
                         if (a != null) {
                             saveAnswer(a, dependents);
                         }
-                    } else if (relationship.downstreamSection != null) {
+                    } else if (relationship.downstreamSsId != null) {
                         // a section
                         ArrayList<Answer> answers = getDownstreamSectionAnswers(relationship,
                                 upstreamAnswer.respondentId);
@@ -682,17 +999,24 @@ public class QuestionManager {
     private ArrayList<Answer> getDownstreamSectionAnswers(Relationship relationship, Integer respondentId) {
         ArrayList<Answer> answers = new ArrayList<>();
 
-        String sql = "SELECT A.ID FROM survey.RELATIONSHIPS R " + " JOIN survey.STEPS_SECTIONS SS ON R.DOWNSTREAM_S_ID = SS.ID "
-                + " JOIN survey.ANSWERS A ON SS.STEP_ID = A.STEP AND SS.SECTION_DISPLAY_ORDER = A.SECTION "
+        // R.DOWNSTREAM_SS_ID is now the durable steps_sections_id (Kimball Type 2 SCD
+        // retarget) — join on SS.STEPS_SECTIONS_ID, not the surrogate SS.ID. SS.STEP_ID is
+        // likewise durable, not a display-order value — join the ANSWERS row on
+        // STEP_DISPLAY_ORDER/SECTION_DISPLAY_ORDER instead. EFFECTIVE_FROM/EFFECTIVE_TO guards
+        // snapshot-anchor the resolution to this respondent's firstAccessDt.
+        String sql = "SELECT A.ID FROM survey.RELATIONSHIPS R " + " JOIN survey.STEPS_SECTIONS SS ON R.DOWNSTREAM_SS_ID = SS.STEPS_SECTIONS_ID "
+                + " JOIN survey.ANSWERS A ON SS.STEP_DISPLAY_ORDER = A.STEP AND SS.SECTION_DISPLAY_ORDER = A.SECTION "
                 + " WHERE A.DELETED = false AND R.SURVEY_ID = :surveyId" + " AND A.SURVEY_ID = :surveyId"
                 + " AND A.RESPONDENT_ID = :respondentId" + " AND R.ID = :rid"
+                + " AND SS.EFFECTIVE_FROM <= :asOf AND SS.EFFECTIVE_TO > :asOf"
+                + " AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf"
                 + " ORDER BY A.DISPLAY_KEY";
 
-        //entityManager.joinTransaction();
         Query q = entityManager.createNativeQuery(sql);
         q.setParameter("surveyId", relationship.surveyId);
         q.setParameter("respondentId", respondentId);
         q.setParameter("rid", relationship.id);
+        q.setParameter("asOf", resolveAsOf(respondentId));
 
         @SuppressWarnings("unchecked")
         List<Integer> rs = q.getResultList();
@@ -717,12 +1041,18 @@ public class QuestionManager {
      */
     private void replaceText(Relationship relationship, Answer upstreamAnswer) {
 
-        String sectionSQL = "SELECT A.ID,  A.SECTION, A.SECTION_QUESTION_ID FROM survey.RELATIONSHIPS R JOIN survey.STEPS_SECTIONS SS ON R.DOWNSTREAM_S_ID = SS.ID JOIN survey.ANSWERS A ON SS.STEP_ID = A.STEP AND SS.SECTION_DISPLAY_ORDER = A.SECTION WHERE A.DELETED = false AND R.ID = :rid AND A.RESPONDENT_ID = :respondentId ORDER BY A.DISPLAY_KEY";
-        String questionSQL = "SELECT A.ID,  A.SECTION, A.SECTION_QUESTION_ID FROM survey.RELATIONSHIPS R JOIN survey.SECTIONS_QUESTIONS SQ ON R.DOWNSTREAM_SQ_ID = SQ.ID JOIN survey.ANSWERS A ON SQ.ID = A.SECTION_QUESTION_ID WHERE A.DELETED = false AND R.ID = :rid AND A.RESPONDENT_ID = :respondentId ORDER BY A.DISPLAY_KEY";
+        // R.DOWNSTREAM_SS_ID/R.DOWNSTREAM_SQ_ID are now durable ids (Kimball Type 2 SCD
+        // retarget) — join on SS.STEPS_SECTIONS_ID / SQ.SECTIONS_QUESTION_ID, not the surrogate
+        // SS.ID/SQ.ID. SS.STEP_ID is likewise durable, not a display-order value — join the
+        // ANSWERS row on STEP_DISPLAY_ORDER/SECTION_DISPLAY_ORDER instead (see
+        // getDownstreamSectionAnswers above). SQ.ID = A.SECTION_QUESTION_ID is unaffected —
+        // both are surrogate ids (answers pin the exact surrogate row). EFFECTIVE_FROM/
+        // EFFECTIVE_TO guards snapshot-anchor the resolution to this respondent's firstAccessDt.
+        String sectionSQL = "SELECT A.ID,  A.SECTION, A.SECTION_QUESTION_ID FROM survey.RELATIONSHIPS R JOIN survey.STEPS_SECTIONS SS ON R.DOWNSTREAM_SS_ID = SS.STEPS_SECTIONS_ID JOIN survey.ANSWERS A ON SS.STEP_DISPLAY_ORDER = A.STEP AND SS.SECTION_DISPLAY_ORDER = A.SECTION WHERE A.DELETED = false AND R.ID = :rid AND A.RESPONDENT_ID = :respondentId AND SS.EFFECTIVE_FROM <= :asOf AND SS.EFFECTIVE_TO > :asOf AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf ORDER BY A.DISPLAY_KEY";
+        String questionSQL = "SELECT A.ID,  A.SECTION, A.SECTION_QUESTION_ID FROM survey.RELATIONSHIPS R JOIN survey.SECTIONS_QUESTIONS SQ ON R.DOWNSTREAM_SQ_ID = SQ.SECTIONS_QUESTION_ID JOIN survey.ANSWERS A ON SQ.ID = A.SECTION_QUESTION_ID WHERE A.DELETED = false AND R.ID = :rid AND A.RESPONDENT_ID = :respondentId AND SQ.EFFECTIVE_FROM <= :asOf AND SQ.EFFECTIVE_TO > :asOf AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf ORDER BY A.DISPLAY_KEY";
 
         Query q;
-        //entityManager.joinTransaction();
-        if (relationship.downstreamQuestion != null) {
+        if (relationship.downstreamSqId != null) {
             q = entityManager.createNativeQuery(questionSQL);
 
         } else {
@@ -731,6 +1061,7 @@ public class QuestionManager {
 
         q.setParameter("rid", relationship.id);
         q.setParameter("respondentId", upstreamAnswer.respondentId);
+        q.setParameter("asOf", resolveAsOf(upstreamAnswer.respondentId));
 
         @SuppressWarnings("unchecked")
         List<Object[]> rs = q.getResultList();
@@ -741,10 +1072,12 @@ public class QuestionManager {
                 answer.displayText = answer.question.text;
             } else {
 
-                Section section = getSectionByDisplayKey(answer.getDisplayKey());
-                answer.displayText = section.name;
+                Section section = getSectionByDisplayKey(answer.respondentId, answer.getDisplayKey());
+                if (section != null) {
+                    answer.displayText = section.name;
+                }
             }
-            buildDipslayText(answer);
+            buildDisplayText(answer);
             answer.persistAndFlush();
         }
     }
@@ -766,21 +1099,23 @@ public class QuestionManager {
         DisplayKey key = new DisplayKey(upstreamAnswer.getDisplayKey());
 
         // Relationships may not have a downstream step.
-        if (relationship.downstreamStep != null) {
-            //MFD this will have to be reworked ID will not work!!
-            key.setStep(getStepDisplayOrder(relationship.surveyId, relationship.downstreamStep.id));
+        if (relationship.downstreamStepId != null) {
+            // downstreamStepId is the durable step_id; getStepDisplayOrder turns it into the
+            // display order the key needs, as of this respondent.
+            key.setStep(getStepDisplayOrder(relationship.surveyId, relationship.downstreamStepId, upstreamAnswer.respondentId));
             // if the section is empty then create an instance of the step.
-            if (relationship.downstreamSection == null) {
+            if (relationship.downstreamSsId == null) {
                 key.setStepInstance(upstreamAnswer.question_instance);
             }
             key.setSection(0);
         }
 
-        if (relationship.downstreamSection != null) {
-            //MFD this will have to be reworked ID will not work!!
-            key.setSection(getSectionDisplayOrder(relationship.surveyId, relationship.downstreamSection.id));
+        if (relationship.downstreamSsId != null) {
+            // downstreamSsId is the durable steps_sections_id; getSectionDisplayOrder reads the
+            // display order of the version in effect for this respondent.
+            key.setSection(getSectionDisplayOrder(relationship.surveyId, relationship.downstreamSsId, upstreamAnswer.respondentId));
             // if the step is empty set the instance on the section.
-            if (relationship.downstreamStep == null) {
+            if (relationship.downstreamStepId == null) {
                 key.setSectionInstance(upstreamAnswer.question_instance);
             }
         }
@@ -794,19 +1129,29 @@ public class QuestionManager {
     /**
      * Retrieves the display order of a specific step within a survey.
      *
-     * @param surveyId the identifier of the survey to which the step belongs
-     * @param stepId   the identifier of the step whose display order is to be retrieved
-     * @return the step display order as an Integer, or -1 if an exception occurs
+     * @param surveyId     the identifier of the survey to which the step belongs
+     * @param stepId       the DURABLE {@code steps.step_id} whose display order is to be retrieved
+     * @param respondentId the respondent whose snapshot instant this lookup is anchored to
+     * @return the step display order as an Integer, or -1 if no placement of the step is in
+     * effect for the respondent
      */
-    private Integer getStepDisplayOrder(long surveyId, long stepId) {
+    private Integer getStepDisplayOrder(long surveyId, long stepId, int respondentId) {
+        // steps_sections.step_id is the durable step_id (Kimball Type 2 SCD retarget), the same
+        // id space the relationship columns use, so no surrogate bridge is needed. EFFECTIVE_FROM/
+        // EFFECTIVE_TO guards snapshot-anchor the resolution to this respondent's firstAccessDt.
+        String sql = "select distinct ss.step_display_order from survey.steps_sections ss "
+                + "where ss.survey_id = :surveyId and ss.step_id = :stepId "
+                + "and ss.effective_from <= :asOf and ss.effective_to > :asOf order by ss.step_display_order";
+        Query q = entityManager.createNativeQuery(sql);
+        q.setParameter("surveyId", surveyId);
+        q.setParameter("stepId", stepId);
+        q.setParameter("asOf", resolveAsOf(respondentId));
         try {
-            String sql = "select distinct ss.step_display_order from survey.steps_sections ss where ss.survey_id = :surveyId and ss.step_id = :stepId order by ss.step_display_order";
-            // entityManager.joinTransaction();
-            Query q = entityManager.createNativeQuery(sql);
-            q.setParameter("surveyId", surveyId);
-            q.setParameter("stepId", stepId);
-            return (Integer) q.getSingleResult();
-        } catch (Exception e) {
+            // step_display_order is NUMERIC (decimal midpoint insertion support), not INTEGER — JDBC
+            // returns BigDecimal, so go through Number rather than casting straight to Integer.
+            return ((Number) q.getSingleResult()).intValue();
+        } catch (NoResultException e) {
+            // Only "no placement in effect" is a normal outcome; anything else propagates.
             return -1;
         }
     }
@@ -814,21 +1159,56 @@ public class QuestionManager {
     /**
      * Retrieves the display order of a specific section within a survey.
      *
-     * @param surveyId  the identifier of the survey
-     * @param sectionId the identifier of the section within the survey
-     * @return the display order of the section as an Integer or -1 in case of an exception
+     * @param surveyId        the identifier of the survey
+     * @param stepsSectionsId the DURABLE {@code steps_sections.steps_sections_id} of the placement
+     * @param respondentId    the respondent whose snapshot instant this lookup is anchored to
+     * @return the display order of the section as an Integer, or -1 if no version of the
+     * placement is in effect for the respondent
      */
-    private Integer getSectionDisplayOrder(long surveyId, long sectionId) {
+    private Integer getSectionDisplayOrder(long surveyId, long stepsSectionsId, int respondentId) {
+        // stepsSectionsId is the durable id a relationship's downstream_ss_id holds; the version
+        // whose window covers this respondent's firstAccessDt supplies the display order.
+        String sql = "select distinct ss.section_display_order from survey.steps_sections ss where ss.survey_id = :surveyId and ss.steps_sections_id = :stepsSectionsId and ss.effective_from <= :asOf and ss.effective_to > :asOf order by ss.section_display_order";
+        Query q = entityManager.createNativeQuery(sql);
+        q.setParameter("surveyId", surveyId);
+        q.setParameter("stepsSectionsId", stepsSectionsId);
+        q.setParameter("asOf", resolveAsOf(respondentId));
         try {
-            String sql = "select distinct ss.section_display_order from survey.steps_sections ss where ss.survey_id = :surveyId and ss.id = :sectionId order by ss.section_display_order";
-            // entityManager.joinTransaction();
-            Query q = entityManager.createNativeQuery(sql);
-            q.setParameter("surveyId", surveyId);
-            q.setParameter("sectionId", sectionId);
-            return (Integer) q.getSingleResult();
-        } catch (Exception e) {
+            // section_display_order is NUMERIC (decimal midpoint insertion support), not INTEGER —
+            // JDBC returns BigDecimal, so go through Number rather than casting straight to Integer.
+            return ((Number) q.getSingleResult()).intValue();
+        } catch (NoResultException e) {
+            // Only "no placement in effect" is a normal outcome; anything else propagates.
             return -1;
         }
+    }
+
+    /**
+     * The inverse of {@link #getStepDisplayOrder}: the durable {@code steps.step_id} of the step
+     * shown at a display order, as of the respondent's snapshot anchor.
+     * <p>
+     * An answer's display key (and {@code answers.step}) carries the step's display order, while
+     * every relationship column ({@code upstream_step_id}, {@code downstream_step_id}) and
+     * {@code steps_sections.step_id} carry the durable id. The seeded surveys happen to number
+     * their steps so the two coincide; an Author-published survey does not, so any comparison
+     * between the two spaces has to go through this lookup.
+     *
+     * @param surveyId         the survey
+     * @param stepDisplayOrder the display order from a display key
+     * @param respondentId     the respondent whose snapshot instant this lookup is anchored to
+     * @return the durable step id, or {@code null} if no step is at that display order as of the anchor
+     */
+    private Integer getDurableStepId(long surveyId, int stepDisplayOrder, int respondentId) {
+        String sql = "select distinct ss.step_id from survey.steps_sections ss "
+                + "where ss.survey_id = :surveyId and ss.step_display_order = :stepDisplayOrder "
+                + "and ss.effective_from <= :asOf and ss.effective_to > :asOf";
+        Query q = entityManager.createNativeQuery(sql);
+        q.setParameter("surveyId", surveyId);
+        q.setParameter("stepDisplayOrder", stepDisplayOrder);
+        q.setParameter("asOf", resolveAsOf(respondentId));
+        @SuppressWarnings("unchecked")
+        List<Object> rs = q.getResultList();
+        return rs.isEmpty() ? null : ((Number) rs.get(0)).intValue();
     }
 
     /**
@@ -840,12 +1220,27 @@ public class QuestionManager {
      * @return An ArrayList of Relationship objects that match the upstream question criteria.
      */
     private ArrayList<Relationship> findRelationshipsByUpstreamQuestion(Answer upstreamAnswer) {
-        String sql = "SELECT r.ID FROM survey.RELATIONSHIPS r WHERE r.UPSTREAM_SQ_ID = :upstream_sq_id and r.SURVEY_ID = :surveyId and (r.UPSTREAM_STEP_ID = :upstream_step_id or r.UPSTREAM_STEP_ID is null) order by r.ID";
-        // entityManager.joinTransaction();
+        // upstreamAnswer.section_question_id is the surrogate sections_questions.id pinned at
+        // response time, but r.UPSTREAM_SQ_ID is now the durable sections_question_id (Kimball
+        // Type 2 SCD retarget) — bridge through sections_questions rather than comparing
+        // directly. Likewise the answer's key carries the step's DISPLAY ORDER while
+        // r.UPSTREAM_STEP_ID is the durable steps.step_id, so the step is bridged through
+        // steps_sections (see getDurableStepId); comparing the two directly only ever worked for
+        // surveys whose step ids happen to equal their display orders, and silently dropped every
+        // rule that names its upstream step for any other survey. EFFECTIVE_FROM/EFFECTIVE_TO
+        // guards snapshot-anchor the relationship resolution to this respondent's firstAccessDt.
+        String sql = "SELECT r.ID FROM survey.RELATIONSHIPS r "
+                + "JOIN survey.SECTIONS_QUESTIONS sq ON r.UPSTREAM_SQ_ID = sq.SECTIONS_QUESTION_ID "
+                + "WHERE sq.ID = :upstream_sq_id and r.SURVEY_ID = :surveyId "
+                + "and (r.UPSTREAM_STEP_ID is null or r.UPSTREAM_STEP_ID in ("
+                + "SELECT ss.STEP_ID FROM survey.STEPS_SECTIONS ss WHERE ss.SURVEY_ID = r.SURVEY_ID "
+                + "and ss.STEP_DISPLAY_ORDER = :stepDisplayOrder and ss.EFFECTIVE_FROM <= :asOf and ss.EFFECTIVE_TO > :asOf)) "
+                + "and r.EFFECTIVE_FROM <= :asOf and r.EFFECTIVE_TO > :asOf order by r.ID";
         Query q = entityManager.createNativeQuery(sql);
         q.setParameter("surveyId", upstreamAnswer.surveyId);
         q.setParameter("upstream_sq_id", upstreamAnswer.section_question_id);
-        q.setParameter("upstream_step_id", upstreamAnswer.getKey().getStep());
+        q.setParameter("stepDisplayOrder", upstreamAnswer.getKey().getStep());
+        q.setParameter("asOf", resolveAsOf(upstreamAnswer.respondentId));
 
         @SuppressWarnings("unchecked")
         List<Integer> rs = q.getResultList();
@@ -881,7 +1276,7 @@ public class QuestionManager {
                                          HashMap<Integer, Dependent> dependents) {
         // We want to build the initial section questions for all sections in
         // this step
-        List<StepsSections> sections = StepsSections.findByDisplayKeyQuery(sectionKey.getStepQueryString());
+        List<StepsSections> sections = StepsSections.findByDisplayKeyQueryAsOf(sectionKey.getStepQueryString(), resolveAsOf(upstreamAnswer.respondentId));
         for (StepsSections stepSection : sections) {
             stepSection.getKey().setStepInstance(sectionKey.getStepInstance());
             buildInitialSectionAnswers(r, upstreamAnswer, stepSection.getKey(), dependents, true);
@@ -909,38 +1304,47 @@ public class QuestionManager {
         // now find the section
         Section section;
         if (sectionAanswer == null) {
-            if (r.downstreamStep == null) {
+            if (r.downstreamStepId == null) {
                 // use the current step
-                section = getSectionByDisplayKey(upstreamAnswer.getKey().getSectionString());
+                section = getSectionByDisplayKey(upstreamAnswer.respondentId, upstreamAnswer.getKey().getSectionString());
             } else {
-                if (r.downstreamSection != null) {
-                    section = r.downstreamSection.section;
+                if (r.downstreamSsId != null) {
+                    // The rule names the placement by durable id; both it and the section it
+                    // names are resolved as of this respondent's anchor.
+                    OffsetDateTime asOf = resolveAsOf(upstreamAnswer.respondentId);
+                    StepsSections placement = StepsSections.findAsOf(r.downstreamSsId, asOf);
+                    section = placement == null ? null : Section.findAsOf(placement.sectionId, asOf);
                 } else {
-                    section = getSectionByDisplayKey(sectionKey.getValue());
+                    section = getSectionByDisplayKey(upstreamAnswer.respondentId, sectionKey.getValue());
                 }
             }
         } else {
-            section = getSectionByDisplayKey(sectionKey.getSectionString());
+            section = getSectionByDisplayKey(upstreamAnswer.respondentId, sectionKey.getSectionString());
         }
-
-        List<Answer> answers = new ArrayList<>();
 
         ArrayList<SectionsQuestion> initial = getInitialSectionSectionsQuestion(upstreamAnswer.respondentId,
                 sectionKey, loadStep);
         if (!initial.isEmpty()) {
-            saveAnswer(new Answer(sectionKey, null, section.name, upstreamAnswer.respondentId), dependents);
+            if (section == null) {
+                // Every branch above can come back empty when no placement or section version is
+                // live at this respondent's anchor; without one there is no section answer to name.
+                Log.warn("No section for relationship " + r.id + " at display key " + sectionKey.getValue()
+                        + " (respondent " + upstreamAnswer.respondentId + "); no section answers built.");
+                return;
+            }
+            saveAnswer(new Answer(sectionKey, null, null, section.name, upstreamAnswer.respondentId), dependents);
 
             Answer answer;
             for (SectionsQuestion sectionsQuestion : initial) {
                 DisplayKey dkey = new DisplayKey(sectionKey.getValue());
-                dkey.setQuestion(sectionsQuestion.displayOrder);
-                answer = new Answer(dkey, sectionsQuestion, sectionsQuestion.question.text,
-                        upstreamAnswer.respondentId, sectionsQuestion.question.defaultValue);
+                dkey.setQuestion(sectionsQuestion.displayOrder.intValue());
+                Question question = questionOf(sectionsQuestion, upstreamAnswer.respondentId);
+                answer = new Answer(dkey, sectionsQuestion, question, question.text,
+                        upstreamAnswer.respondentId, question.defaultValue);
                 answer = saveAnswer(answer, dependents);
                 // build the downstream answers. they can be triggered by
                 // IF_EXISTS
                 buildDownstreamQuestions(answer);
-                answers.add(answer);
             }
         }
     }
@@ -961,36 +1365,53 @@ public class QuestionManager {
         // if they are increasing the number then there may already be some
         // answers.
 
+        // A REPEAT rule may name only its target question (downstream_step_id and
+        // downstream_ss_id NULL) when that question sits in the upstream question's own
+        // section -- the shape Author stores for a same-section repeat, and the only shape
+        // that works inside the survey's first step, whose downstream sections and steps
+        // are hidden at login. Keep the upstream answer's step and section in that case,
+        // exactly as the key built for the new instances below already does.
         DisplayKey answerKey = new DisplayKey(upstreamAnswer.getDisplayKey());
-        answerKey.setStep(getStepDisplayOrder(relationship.surveyId, relationship.downstreamStep.id));
-        answerKey.setSection(getSectionDisplayOrder(relationship.surveyId, relationship.downstreamSection.id));
-        answerKey.setQuestion(relationship.downstreamQuestion.displayOrder);
+        if (relationship.downstreamStepId != null) {
+            answerKey.setStep(getStepDisplayOrder(relationship.surveyId, relationship.downstreamStepId, respondentId));
+        }
+        if (relationship.downstreamSsId != null) {
+            answerKey.setSection(getSectionDisplayOrder(relationship.surveyId, relationship.downstreamSsId, respondentId));
+        }
+        answerKey.setQuestion(downstreamQuestion.displayOrder.intValue());
 
         List<Answer> answers = Answer.findByAnswerQueryString(respondentId, answerKey.getAnswerQueryString());
 
-        int repeatValue = Integer.parseInt(upstreamAnswer.getTextValue());
-        if (repeatValue >= answers.size()) {
+        // UC-002 BR-012: 1 to N for a count, the position of each selected item for a selection.
+        List<Integer> instances = repeatInstances(upstreamAnswer);
+        // A count is raised over the instances it already built. An item's instance is its
+        // position in the list, so there is no "built up to here" to skip past.
+        int built = RepeatSource.perItem(upstreamAnswer.question) ? 0 : answers.size();
+        if (!instances.isEmpty()) {
             // We are adding new Answers here. These could be based on sub
             // sections or section question
             Answer answer;
             DisplayKey key = new DisplayKey(upstreamAnswer.getDisplayKey());
-            if (relationship.downstreamStep != null) {
-                key.setStep(getStepDisplayOrder(relationship.surveyId, relationship.downstreamStep.id));
+            if (relationship.downstreamStepId != null) {
+                key.setStep(getStepDisplayOrder(relationship.surveyId, relationship.downstreamStepId, respondentId));
             }
 
-            if (relationship.downstreamSection != null) {
-                //MFD this will have to be reworked ID will not work!!
-                key.setSection(getSectionDisplayOrder(relationship.surveyId, relationship.downstreamSection.id));
+            if (relationship.downstreamSsId != null) {
+                key.setSection(getSectionDisplayOrder(relationship.surveyId, relationship.downstreamSsId, respondentId));
             }
             if (downstreamQuestion.displayOrder != null) {
-                key.setQuestion(downstreamQuestion.displayOrder);
+                key.setQuestion(downstreamQuestion.displayOrder.intValue());
             }
+            Question question = questionOf(downstreamQuestion, respondentId);
             DisplayKey newKey;
-            for (int i = answers.size() + 1; i <= repeatValue; i++) {
+            for (int i : instances) {
+                if (i <= built) {
+                    continue;
+                }
                 newKey = new DisplayKey(key.getValue());
                 newKey.setQuestionInstance(i);
-                answer = new Answer(newKey, downstreamQuestion, downstreamQuestion.question.text,
-                        respondentId, downstreamQuestion.question.defaultValue);
+                answer = new Answer(newKey, downstreamQuestion, question, question.text,
+                        respondentId, question.defaultValue);
                 answer = saveAnswer(answer, dependents);
                 if (answer.getTextValue() != null) {
                     buildDownstreamQuestions(answer);
@@ -1019,42 +1440,124 @@ public class QuestionManager {
         Relationship r = Relationship.findById(relationshipId);
         if (r.actionType.name.equals("REPEAT")) {
 
+            // A section repeat that names no step keeps the upstream answer's step (see
+            // buildRepeatedAnswers for the question-only counterpart).
             DisplayKey answerKey = new DisplayKey(upstreamAnswer.getDisplayKey());
-            //MFD this will have to be reworked ID will not work!!
-            answerKey.setStep(getStepDisplayOrder(r.surveyId, r.downstreamStep.id));
-            //MFD this will have to be reworked ID will not work!!
-            answerKey.setSection(getSectionDisplayOrder(r.surveyId, r.downstreamSection.id));
+            if (r.downstreamStepId != null) {
+                answerKey.setStep(getStepDisplayOrder(r.surveyId, r.downstreamStepId, upstreamAnswer.respondentId));
+            }
+            if (r.downstreamSsId != null) {
+                answerKey.setSection(getSectionDisplayOrder(r.surveyId, r.downstreamSsId, upstreamAnswer.respondentId));
+            }
 
-            List<Answer> answers = Answer.findBySectionInstancesQueryString(relationshipId, answerKey);
-
-            if (upstreamAnswer.getTextValue() != null) {
-                long count = Long.parseLong(upstreamAnswer.getTextValue());
-                if (count > answers.size()) {
-                    DisplayKey key;
-                    for (int i = answers.size(); i < count; i++) {
-                        key = buildDisplayKey(upstreamAnswer, r);
-                        key.setSectionInstance(i + 1);
-                        saveAnswer(new Answer(key, null, downstreamSection.name, upstreamAnswer.respondentId), dependents);
-                        buildInitialSectionAnswers(r, upstreamAnswer, key, dependents, false);
-                    }
+            // UC-002 BR-012: 1 to N for a count, the position of each selected item for a
+            // selection (see buildRepeatedAnswers for why a selection skips nothing). A count
+            // skips the instances whose marker is already there, so raising it builds only the
+            // new ones and leaves the respondent's answers in the built ones alone.
+            Set<Integer> built = new HashSet<>();
+            if (!RepeatSource.perItem(upstreamAnswer.question)) {
+                for (Answer marker : Answer.findBySectionInstancesQueryString(upstreamAnswer.respondentId, answerKey)) {
+                    built.add(marker.sectionInstance);
                 }
+            }
+            DisplayKey key;
+            for (int i : repeatInstances(upstreamAnswer)) {
+                if (built.contains(i)) {
+                    continue;
+                }
+                key = buildDisplayKey(upstreamAnswer, r);
+                key.setSectionInstance(i);
+                saveAnswer(new Answer(key, null, null, downstreamSection.name, upstreamAnswer.respondentId), dependents);
+                buildInitialSectionAnswers(r, upstreamAnswer, key, dependents, false);
             }
         }
     }
 
     /**
-     * Builds a repeated step by associating an upstream answer with a downstream step
-     * based on the specified relationship ID and updates the dependents map as needed.
+     * The instances a Repeat rule builds from the answer it reads (UC-002 BR-012).
      *
-     * @param upstreamAnswer the answer object from the upstream which will be linked to the step
-     * @param downstreamStep the step object in the downstream to be built or updated
-     * @param relationshipId the identifier representing the relationship between the answer and step
-     * @param dependents     a map of dependent objects indexed by their unique identifiers to be updated
+     * @param upstreamAnswer the answer the rule reads
+     * @return the instance numbers in ascending order, empty when nothing was answered
      */
-    private void buildRepeatedStep(Answer upstreamAnswer, Step downstreamStep, Integer relationshipId,
-                                   HashMap<Integer, Dependent> dependents) {
-        // TODO
-        Log.info("buildRepeatedStep not yet implemented");
+    private List<Integer> repeatInstances(Answer upstreamAnswer) {
+        return RepeatSource.instances(upstreamAnswer.question, upstreamAnswer.getTextValue(), repeatItems(upstreamAnswer));
+    }
+
+    /**
+     * The list a per-item repeat numbers its instances by: the upstream question's select items as
+     * of the respondent's snapshot anchor, in display order. Items sharing a display order are
+     * ordered by durable id so that a position names the same item every time it is asked for.
+     *
+     * @param upstreamAnswer the answer a Repeat rule reads
+     * @return the items, empty for a question that is not answered by selecting several
+     */
+    private List<SelectItem> repeatItems(Answer upstreamAnswer) {
+        if (!RepeatSource.perItem(upstreamAnswer.question)) {
+            return List.of();
+        }
+        List<SelectItem> items = new ArrayList<>(SelectItem.findByGroupAsOf(
+                upstreamAnswer.question.selectGroupId, resolveAsOf(upstreamAnswer.respondentId)));
+        items.sort(Comparator.comparing((SelectItem item) -> item.displayOrder)
+                .thenComparing(item -> item.selectItemId));
+        return items;
+    }
+
+    /**
+     * The select item a downstream answer's repeated instance was built from, when the rule that
+     * fills its token reads the multi-select that drove the repeat (UC-002 BR-013).
+     * <p>
+     * The instance number is the item's position (BR-012), and which number to read -- the
+     * question instance or the section instance -- is decided by the Repeat rule that reaches the
+     * downstream answer, not by the rule carrying the token: a Text rule on a repeated section
+     * fills its token per instance exactly as the Repeat rule's own token would.
+     *
+     * @param dependent the rule, the answer it reads and the answer whose text is being built
+     * @return the item, or {@code null} when the downstream answer is not in such an instance
+     */
+    private SelectItem repeatedItem(Dependent dependent) {
+        Answer upstream = dependent.upstream;
+        Answer downstream = dependent.downstream;
+        if (upstream == null || downstream == null || !RepeatSource.perItem(upstream.question)) {
+            return null;
+        }
+        Relationship rule = dependent.relationship;
+        OffsetDateTime asOf = resolveAsOf(downstream.respondentId);
+        List<Relationship> repeats = "REPEAT".equals(rule.actionType.name) ? List.of(rule)
+                : Relationship.findRepeatByUpstream(rule.surveyId, rule.upstreamSqId, asOf);
+        DisplayKey key = downstream.getKey();
+        for (Relationship repeat : repeats) {
+            int instance = 0;
+            if (repeat.downstreamSqId != null) {
+                SectionsQuestion placement = downstream.section_question_id == null ? null
+                        : SectionsQuestion.findById(downstream.section_question_id);
+                if (placement != null && repeat.downstreamSqId.equals(placement.sectionsQuestionId)) {
+                    instance = key.getQuestionInstance();
+                }
+            } else if (repeat.downstreamSsId != null) {
+                StepsSections mount = StepsSections.findAsOf(repeat.downstreamSsId, asOf);
+                if (mount != null && mount.getKey().getStep() == key.getStep()
+                        && mount.getKey().getSection() == key.getSection()) {
+                    instance = key.getSectionInstance();
+                }
+            }
+            if (instance > 0) {
+                return RepeatSource.item(repeatItems(upstream), instance);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * UC-002 A3b: a Repeat rule whose target is a step builds nothing. Author refuses such a rule,
+     * so one only arrives in an older {@code .elicit} file; the warning names it so the site can
+     * see that the step is never repeated, rather than the rule silently doing nothing.
+     *
+     * @param relationshipId   the Repeat rule
+     * @param downstreamStepId the step it names
+     */
+    private static void warnStepRepeatIgnored(Integer relationshipId, Integer downstreamStepId) {
+        Log.warnf("Repeat rule %d targets step %d; a Repeat rule on a step builds nothing (UC-002 A3b)."
+                + " Repeat the step's sections instead, or change the rule to Show.", relationshipId, downstreamStepId);
     }
 
     /**
@@ -1066,7 +1569,7 @@ public class QuestionManager {
      * @param answer The Answer object for which the display text
      *               is to be built and saved.
      */
-    private void buildDipslayText(Answer answer) {
+    private void buildDisplayText(Answer answer) {
 
         ArrayList<Dependent> dependents = findRelationshipsByDownstreamAnswer(answer);
         for (Dependent dep : dependents) {
@@ -1079,27 +1582,171 @@ public class QuestionManager {
             text = answer.question.text;
         } else if (answer.sectionId != null) {
             // use the section name
-            Section s = getSectionByDisplayKey(answer.getDisplayKey());
+            Section s = getSectionByDisplayKey(answer.respondentId, answer.getDisplayKey());
             if (s != null) {
                 text = s.name;
             }
         } else {
             // use the step name
-            Step s = getStepByDisplayKey(answer.getKey());
+            Step s = getStepByDisplayKey(answer.respondentId, answer.getKey());
             if (s != null) {
                 text = s.name;
             }
         }
 
+        // The same sentence in the respondent's language, when one applies. Resolved from the
+        // element the base template came from, so a question falls back per string rather than
+        // per page (UC-009 BR-005).
+        OffsetDateTime asOf = resolveAsOf(answer.respondentId);
+        Survey survey = Survey.findById(answer.surveyId);
+        String language = translator.language(survey);
+        String localTemplate = language == null ? null : localTemplate(answer, survey, asOf);
+
         // Substitute the Question instances and Section Instances.
         text = text.replaceAll("\\{Q#\\}", answer.getKey().getQuestionInstance() + "");
         text = text.replaceAll("\\{S#\\}", answer.getKey().getStepInstance() + "");
 
-        TreeMap<String, String> values;
+        TokenValues tokens = getValuesMap(answer);
+        // sources() names the tokens whose value the author wrote on a rule, which are the ones that
+        // may be placeholders themselves and that must not be HTML-escaped (BR-011).
+        java.util.Set<String> authored = tokens.sources().keySet();
+        boolean html = rendersAsHtml(answer);
+        answer.displayText = replaceTokens(text, tokens.base(), authored, html);
 
-        values = getValuesMap(answer);
+        if (localTemplate == null) {
+            answer.displayTextLocal = null;
+            answer.displayLanguage = null;
+        } else {
+            String local = localTemplate
+                    .replaceAll("\\{Q#\\}", answer.getKey().getQuestionInstance() + "")
+                    .replaceAll("\\{S#\\}", answer.getKey().getStepInstance() + "");
+            answer.displayTextLocal = replaceTokens(local, tokens.localized(survey, translator, asOf), authored, html);
+            answer.displayLanguage = language;
+        }
+    }
 
-        answer.displayText = replaceTokens(text, values);
+    /**
+     * Whether an answer's label is rendered as HTML: an HTML or MODAL question, which
+     * {@code SectionView} shows through {@code ElicitHtml} or {@code ElicitModal} and their
+     * {@code innerHTML}. Every other label -- input components, section and step titles, the review
+     * page, the respondent summary and Admin's export -- is plain text (#149).
+     */
+    static boolean rendersAsHtml(Answer answer) {
+        if (answer.question == null || answer.question.questionType == null) {
+            return false;
+        }
+        String type = answer.question.questionType.name;
+        return GlobalStrings.QUESTION_TYPE_HTML.equals(type) || GlobalStrings.QUESTION_TYPE_MODAL.equals(type);
+    }
+
+    /**
+     * The base template of an answer's label in the respondent's language, or {@code null} when no
+     * translation applies to it. Mirrors the base-template choice above: a question's text, else
+     * the section's name, else the step's name.
+     *
+     * @param answer the answer whose label is being built
+     * @param survey the survey being answered
+     * @param asOf   the respondent's snapshot anchor
+     * @return the translated template, or {@code null} to leave the local columns empty
+     */
+    private String localTemplate(Answer answer, Survey survey, OffsetDateTime asOf) {
+        if (answer.question != null) {
+            return translator.get(survey, answer.question.questionKey, "text", answer.question.text, asOf)
+                    .orElse(null);
+        }
+        if (answer.sectionId != null) {
+            Section section = getSectionByDisplayKey(answer.respondentId, answer.getDisplayKey());
+            return section == null ? null
+                    : translator.get(survey, section.sectionKey, "name", section.name, asOf).orElse(null);
+        }
+        Step step = getStepByDisplayKey(answer.respondentId, answer.getKey());
+        return step == null ? null
+                : translator.get(survey, step.stepKey, "name", step.name, asOf).orElse(null);
+    }
+
+    /**
+     * The content language in force for a respondent's survey, or {@code ""} when content is shown
+     * in the base language. Bound into the navigation and review SQL, where a null would make
+     * every comparison null rather than false.
+     *
+     * @param respondentId the respondent being served
+     * @return the BCP-47 tag, or the empty string
+     */
+    String currentContentLanguage(int respondentId) {
+        Respondent respondent = Respondent.findById(respondentId);
+        if (respondent == null || respondent.survey == null) {
+            return "";
+        }
+        String language = translator.language(respondent.survey);
+        return language == null ? "" : language;
+    }
+
+    /**
+     * Re-renders a respondent's active answer labels after a language switch (UC-009 BR-005).
+     * <p>
+     * One UPDATE per active answer on a rare event, which is what buys a stored rendering: the
+     * alternative is re-deriving every label from its tokens on every page draw. Marker answers are
+     * included -- they are what the navigation shows.
+     *
+     * @param respondentId the respondent whose labels should be rebuilt
+     */
+    @Transactional
+    public void relocalize(int respondentId) {
+        List<Answer> answers = Answer.list("respondentId = ?1 and deleted = false", respondentId);
+        for (Answer answer : answers) {
+            buildDisplayText(answer);
+            answer.persist();
+        }
+    }
+
+    /**
+     * The token substitutions for one answer, with the rule each value came from.
+     * <p>
+     * A token's value is usually the upstream respondent's own words, which no one translates. But
+     * when a rule supplies {@code default_upstream_value} that value is authored prose the
+     * respondent reads ("your mother", "your brother"), so the local rendering has to substitute
+     * its translation and the base rendering the base text. Keeping the source rule beside each
+     * value is what lets one walk of the dependents serve both.
+     *
+     * <p>
+     * A select item's text is authored prose too (UC-002 BR-013), with a translation of its own,
+     * so the item is kept beside its value in the same way.
+     *
+     * @param base    token to the value the base-language sentence uses
+     * @param sources token to the rule that supplied it, for the tokens that came from a rule's
+     *                default upstream value; absent for a respondent's own text
+     * @param items   token to the select item whose text fills it, for the tokens filled from the
+     *                item a repeated instance was built from
+     */
+    private record TokenValues(TreeMap<String, String> base, TreeMap<String, Relationship> sources,
+                               TreeMap<String, SelectItem> items) {
+
+        TokenValues() {
+            this(new TreeMap<>(), new TreeMap<>(), new TreeMap<>());
+        }
+
+        void putAll(TokenValues other) {
+            // The inner value replaces the outer one whole: where it came from goes with it, or
+            // the local rendering would translate a value the base rendering no longer uses.
+            sources.keySet().removeAll(other.base().keySet());
+            items.keySet().removeAll(other.base().keySet());
+            base.putAll(other.base());
+            sources.putAll(other.sources());
+            items.putAll(other.items());
+        }
+
+        /** The same tokens with every rule-supplied value and item text replaced by its translation. */
+        TreeMap<String, String> localized(Survey survey, ContentTranslator translator, OffsetDateTime asOf) {
+            TreeMap<String, String> localized = new TreeMap<>(base);
+            items.forEach((token, item) -> localized.put(token, translator.displayText(survey, item, asOf)));
+            sources.forEach((token, relationship) -> {
+                String translated = translator.defaultUpstreamValue(survey, relationship, asOf);
+                if (translated != null) {
+                    localized.put(token, translated);
+                }
+            });
+            return localized;
+        }
     }
 
 
@@ -1133,7 +1780,7 @@ public class QuestionManager {
                 "updating existing answer for respondent " + finalAnswer.respondentId
             );
 
-            List<Dependent> deps = Dependent.findByDownstream(finalAnswer.id, finalAnswer.respondentId);
+            List<Dependent> deps = Dependent.findByDownstream(finalAnswer.respondentId, finalAnswer.id);
             for (Dependent dependent : deps) {
                 dependent.deleted = false;
                 saveDependent(dependent);
@@ -1164,7 +1811,7 @@ public class QuestionManager {
         }
         // The dependents need to be saved before we build the display text
 
-        buildDipslayText(finalAnswer);
+        buildDisplayText(finalAnswer);
 
         // Save the answer again so we have the correct display text
         DatabaseRetryUtil.executeWithRetry(
@@ -1186,7 +1833,27 @@ public class QuestionManager {
     private ArrayList<Dependent> findRelationshipsByDownstreamAnswer(Answer answer) {
         ArrayList<Dependent> dependents = new ArrayList<>();
 
-        ArrayList<Relationship> relationships = new ArrayList<>(Relationship.findRelationshipsByDownstreamAnswer(answer.respondentId, answer.id));
+        // TEXT rules that target the step this section/step answer sits in. answers.step is the
+        // step's display order and r.DOWNSTREAM_STEP_ID the durable step_id, so the two are
+        // bridged through steps_sections as of this respondent (the former JPQL compared
+        // r.downstreamStep.id with a.stepId directly and matched nothing for any survey whose
+        // step ids differ from their display orders).
+        String sql = "SELECT DISTINCT r.ID FROM survey.RELATIONSHIPS r "
+                + "JOIN survey.ANSWERS a ON a.ID = :answerId AND a.RESPONDENT_ID = :respondentId AND a.SURVEY_ID = r.SURVEY_ID "
+                + "JOIN survey.STEPS_SECTIONS ss ON ss.SURVEY_ID = a.SURVEY_ID AND ss.STEP_DISPLAY_ORDER = a.STEP "
+                + "AND ss.STEP_ID = r.DOWNSTREAM_STEP_ID AND ss.EFFECTIVE_FROM <= :asOf AND ss.EFFECTIVE_TO > :asOf "
+                + "WHERE a.SECTION_QUESTION_ID IS NULL AND r.DOWNSTREAM_SQ_ID IS NULL AND r.ACTION_ID = 3 "
+                + "AND r.EFFECTIVE_FROM <= :asOf AND r.EFFECTIVE_TO > :asOf ORDER BY r.ID";
+        Query q = entityManager.createNativeQuery(sql);
+        q.setParameter("answerId", answer.id);
+        q.setParameter("respondentId", answer.respondentId);
+        q.setParameter("asOf", resolveAsOf(answer.respondentId));
+        @SuppressWarnings("unchecked")
+        List<Integer> ids = q.getResultList();
+        ArrayList<Relationship> relationships = new ArrayList<>();
+        for (Integer id : ids) {
+            relationships.add(Relationship.findById(id));
+        }
 
         // Now find the upstream Answers and evaluate the relationship.
         Answer upstream;
@@ -1212,20 +1879,29 @@ public class QuestionManager {
     private Answer getUpstreamAnswerByRelationshipId(int answerId, int respondentId) {
 
         Answer answer = null;
-        String sql = "SELECT A.ID FROM survey.ANSWERS A JOIN survey.RELATIONSHIPS R ON A.STEP = R.UPSTREAM_STEP_ID AND A.SECTION_QUESTION_ID = R.UPSTREAM_SQ_ID WHERE A.RESPONDENT_ID = :respondentId AND R.id = :answerId order by A.DISPLAY_KEY";
+        // A.SECTION_QUESTION_ID is the surrogate sections_questions.id and A.STEP the step's
+        // display order; R.UPSTREAM_SQ_ID and R.UPSTREAM_STEP_ID are the durable ids. Both are
+        // bridged through their tables as of this respondent rather than compared directly. A
+        // rule that names no upstream step matches the question's answer in whichever step it is.
+        String sql = "SELECT A.ID FROM survey.ANSWERS A "
+                + "JOIN survey.RELATIONSHIPS R ON R.id = :answerId AND R.SURVEY_ID = A.SURVEY_ID "
+                + "JOIN survey.SECTIONS_QUESTIONS SQ ON SQ.ID = A.SECTION_QUESTION_ID AND SQ.SECTIONS_QUESTION_ID = R.UPSTREAM_SQ_ID "
+                + "WHERE A.RESPONDENT_ID = :respondentId "
+                + "AND (R.UPSTREAM_STEP_ID IS NULL OR R.UPSTREAM_STEP_ID IN ("
+                + "SELECT SS.STEP_ID FROM survey.STEPS_SECTIONS SS WHERE SS.SURVEY_ID = A.SURVEY_ID "
+                + "AND SS.STEP_DISPLAY_ORDER = A.STEP AND SS.EFFECTIVE_FROM <= :asOf AND SS.EFFECTIVE_TO > :asOf)) "
+                + "order by A.DISPLAY_KEY";
 
         Query q = entityManager.createNativeQuery(sql);
         q.setParameter("respondentId", respondentId);
         q.setParameter("answerId", answerId);
+        q.setParameter("asOf", resolveAsOf(respondentId));
 
         @SuppressWarnings("unchecked")
         List<Object[]> rs = q.getResultList();
         for (Object record : rs) {
-            try {
-                answer = Answer.findById(record);
-            } catch (Exception e) {
-                // no value yet.
-            }
+            // findById returns null for an unknown id; there is nothing here to catch.
+            answer = Answer.findById(record);
         }
         return answer;
     }
@@ -1250,13 +1926,9 @@ public class QuestionManager {
             return;
         }
 
-        Dependent existing = null;
-        try {
-            existing = Dependent.findUnique(dependent.respondentId, dependent.upstream.id, dependent.downstream.id, dependent.relationship.id);
-            // Found one so we do not need to create another.
-        } catch (Exception e) {
-            // most likely no result found.
-        }
+        // findUnique takes the first result, so "none yet" is a null; a failure here (the
+        // former catch-all hid a rollback-only transaction behind one) must propagate.
+        Dependent existing = Dependent.findUnique(dependent.respondentId, dependent.upstream.id, dependent.downstream.id, dependent.relationship.id);
 
         if (existing == null) {
             // Dependent passed in is not in the database and we didn't find an existing one.
@@ -1307,18 +1979,32 @@ public class QuestionManager {
                     // If this is the root answer then they are altering it we
                     // may have to only remove some of the downstream elements.
                     if (upstreamAnswer.id == rootAnswerId) {
-                        if (dependent.relationship.downstreamQuestion != null
-                                && !dependent.upstream.getTextValue().isBlank()) {
-                            if (Integer.parseInt(dependent.upstream.getTextValue()) < dependent.downstream.question_instance) {
+                        if (RepeatSource.perItem(upstreamAnswer.question)) {
+                            // UC-002 A3b / BR-012: an instance belongs to one item, so a changed
+                            // selection removes the instances of the items no longer selected and
+                            // leaves every other one, with its answers, where it is. None are
+                            // wanted once the rule's own condition stops holding.
+                            List<Integer> wanted = dependent.relationship.evaluateOperator(upstreamAnswer)
+                                    ? repeatInstances(upstreamAnswer) : List.of();
+                            int instance = dependent.relationship.downstreamSqId != null
+                                    ? dependent.downstream.question_instance
+                                    : dependent.downstream.sectionInstance;
+                            if (!wanted.contains(instance)) {
+                                deleteAnswers(dependent.downstream, rootAnswerId);
+                            }
+                        } else if (dependent.relationship.downstreamSqId != null) {
+                            // UC-002 BR-017: a cleared count is zero, so every instance goes.
+                            if (repeatCount(dependent.upstream) < dependent.downstream.question_instance) {
                                 deleteAnswers(dependent.downstream, rootAnswerId);
                             }
                         } else {
-                            // Section-based REPEAT: use sectionInstance comparison, not question_instance
-                            if (!upstreamAnswer.getTextValue().isBlank()) {
-                                deleteSomeDownstreamSectionAnswers(respondentId, "",
-                                        Integer.valueOf(upstreamAnswer.getTextValue()),
-                                        dependent.relationship.downstreamSection.getKey(), rootAnswerId);
-                            }
+                            // Section-based REPEAT: use sectionInstance comparison, not question_instance.
+                            // The rule names the placement by durable id; its key comes from
+                            // the version in effect for this respondent.
+                            StepsSections downstreamSection = StepsSections.findAsOf(
+                                    dependent.relationship.downstreamSsId, resolveAsOf(respondentId));
+                            deleteSomeDownstreamSectionAnswers(respondentId, "",
+                                    repeatCount(upstreamAnswer), downstreamSection.getKey(), rootAnswerId);
                         }
                     } else {
                         // If it is not the root answer it is being deleted upstream
@@ -1335,6 +2021,18 @@ public class QuestionManager {
     }
 
     /**
+     * The repeat count an answer gives when the rules are recalculated after it changed (UC-002
+     * A3, BR-017): its number, or zero when it is unanswered, as after the respondent cleared it.
+     *
+     * @param upstream the answer holding the count
+     * @return the count, zero for no answer
+     */
+    static int repeatCount(Answer upstream) {
+        String text = upstream.getTextValue();
+        return text == null || text.isBlank() ? 0 : Integer.parseInt(text.trim());
+    }
+
+    /**
      * Deletes specific downstream section answers based on the provided criteria.
      *
      * @param respondentId  the unique identifier of the respondent
@@ -1347,7 +2045,8 @@ public class QuestionManager {
                                                     DisplayKey downstreamKey, int rootAnswerId) {
         List<Answer> relationships = Answer.findByAnswerQueryString(respondentId, downstreamKey.getSectionQueryString());
         for (Answer answer : relationships) {
-            if (answer.sectionInstance > instances - 1) {
+            // A count's instances are 1 to N (UC-002 BR-012): keep those, remove the ones above.
+            if (answer.sectionInstance > instances) {
                 deleteAnswers(answer, rootAnswerId);
             }
         }
@@ -1427,46 +2126,6 @@ public class QuestionManager {
     }
 
     /**
-     * Deletes downstream answers based on provided parameters and conditions.
-     *
-     * @param respondentId  the ID of the respondent whose answers are to be processed
-     * @param instances     the number of instances used to determine which answers to delete
-     * @param downstreamKey the key representing the downstream answers to be deleted
-     * @param rootAnswerId  the ID of the root answer associated with the downstream answers
-     */
-    private void deleteSomeDownstreamAnswers(Integer respondentId, Integer instances,
-                                             String downstreamKey, int rootAnswerId) {
-        DisplayKey key = new DisplayKey(downstreamKey);
-        List<Answer> relationships = Answer.findByAnswerQueryString(respondentId, key.getAnswerQueryString());
-        for (Answer answer : relationships) {
-            if (answer.question_instance > instances - 1) {
-                deleteAnswers(answer, rootAnswerId);
-            }
-        }
-    }
-
-    /**
-     * Deletes all downstream answers associated with the provided upstream answer
-     * recursively by marking them and their dependents as deleted.
-     *
-     * @param respondentId the identifier of the respondent whose answers are to be processed
-     * @param upstream     the upstream answer from which to determine downstream dependents
-     */
-    private void deleteAllDownstreamAnswers(Integer respondentId, Answer upstream) {
-
-        // This function needs to loop through all downstream dependents.
-        List<Dependent> dependents = findDependentsByUpstreamAnswer(upstream);
-
-        Answer deletableAnswer;
-        // Now loop through the dependents and delete their dependents.
-        for (Dependent dependent : dependents) {
-            deletableAnswer = dependent.downstream;
-
-            markAnswerAndDependentsAsDeleted(deletableAnswer);
-        }
-    }
-
-    /**
      * Checks if all relationships associated with the given relationship object are satisfied
      * based on the provided answer and updates the dependents map with relevant dependency information.
      * <p>
@@ -1483,10 +2142,11 @@ public class QuestionManager {
                                               HashMap<Integer, Dependent> dependents) {
 
         Log.info("All relationships satisfide?");
-        // Question or Section Step?
-        if (relationship.downstreamQuestion != null) {
+        // Question or Section Step? The sibling-rule lookups compare durable ids with the
+        // relationship's own columns, so no endpoint row is resolved here.
+        if (relationship.downstreamSqId != null) {
             // Questions
-            List<Relationship> relationships = Relationship.findByDownstream_SQ_ID(relationship.surveyId, relationship.downstreamQuestion.id);
+            List<Relationship> relationships = Relationship.findByDownstream_SQ_ID(relationship.surveyId, relationship.downstreamSqId, resolveAsOf(answer.respondentId));
             for (Relationship r : relationships) {
                 // Find all upstreamAnswers for this relationship
                 Answer upstreamAnswer = getUpstreamAnswer(r, answer);
@@ -1496,15 +2156,11 @@ public class QuestionManager {
                 }
                 dependents.put(r.id, new Dependent(answer.respondentId, upstreamAnswer, null, r));
             }
-        } else if (relationship.downstreamSection != null) {
+        } else if (relationship.downstreamSsId != null) {
             // Section
-            int stepId;
-            if (relationship.upstreamStep == null) {
-                stepId = answer.stepId;
-            } else {
-                stepId = relationship.upstreamStep.id;
-            }
-            List<Relationship> relationships = Relationship.findByDownstream_S_ID(relationship.surveyId, relationship.downstreamSection.id, stepId);
+            Integer stepId = upstreamDurableStepId(relationship, answer);
+            List<Relationship> relationships = stepId == null ? List.of()
+                    : Relationship.findByDownstream_SS_ID(relationship.surveyId, relationship.downstreamSsId, stepId, resolveAsOf(answer.respondentId));
             for (Relationship r : relationships) {
                 Answer upstreamAnswer = getUpstreamAnswer(r, answer);
                 if (!r.evaluateOperator(upstreamAnswer)) {
@@ -1515,15 +2171,10 @@ public class QuestionManager {
             }
         } else {
             // Step
-            int stepId;
-            if (relationship.upstreamStep == null) {
-                stepId = answer.stepId;
-            } else {
-                stepId = relationship.upstreamStep.id;
-            }
-            List<Relationship> relationships = Relationship.findByDownstream_Step_ID(relationship.surveyId, relationship.downstreamStep.id, stepId);
+            Integer stepId = upstreamDurableStepId(relationship, answer);
+            List<Relationship> relationships = stepId == null ? List.of()
+                    : Relationship.findByDownstream_Step_ID(relationship.surveyId, relationship.downstreamStepId, stepId, resolveAsOf(answer.respondentId));
             for (Relationship r : relationships) {
-                // Answer upstreamAnswer = getUpstreamAnswer(r, answer);
                 if (!r.evaluateOperator(answer)) {
                     Log.info("relationships " + r.id + " not satisfied.");
                     return false;
@@ -1531,8 +2182,22 @@ public class QuestionManager {
                 dependents.put(r.id, new Dependent(answer.respondentId, answer, null, r));
             }
         }
-        Log.info("All relationships satisfide = true");
+        Log.info("All relationships satisfied = true");
         return true;
+    }
+
+    /**
+     * The durable step id the sibling-rule lookups in {@link #allRelationshipsSatisfide} key on:
+     * the rule's own upstream step when it names one, else the step the triggering answer sits
+     * in -- whose {@code stepId} is a display order and has to be resolved (see
+     * {@link #getDurableStepId}). Both branches used to be passed as if they were the same id
+     * space, which only held for surveys whose step ids equal their display orders.
+     */
+    private Integer upstreamDurableStepId(Relationship relationship, Answer answer) {
+        if (relationship.upstreamStepId != null) {
+            return relationship.upstreamStepId;
+        }
+        return getDurableStepId(relationship.surveyId, answer.stepId.intValue(), answer.respondentId);
     }
 
     /**
@@ -1544,19 +2209,28 @@ public class QuestionManager {
      */
     private Answer getUpstreamAnswer(Relationship r, Answer a) {
 
-        String sql = "SELECT a.ID FROM survey.RELATIONSHIPS r join survey.SECTIONS_QUESTIONS sq on r.UPSTREAM_SQ_ID = sq.id "
-                + "join survey.QUESTIONS q on sq.QUESTION_ID = q.ID left join survey.ANSWERS a on q.ID = a.QUESTION_ID  "
-                + "WHERE a.deleted = false and a.RESPONDENT_ID = :respondentId and r.id = :relationshioId "
+        // r.UPSTREAM_SQ_ID and sq.QUESTION_ID are now durable ids (Kimball Type 2 SCD
+        // retarget) — join on sq.SECTIONS_QUESTION_ID / q.QUESTION_ID, not the surrogate
+        // sq.id/q.ID. q.ID = a.QUESTION_ID is unaffected — both are surrogate ids (answers
+        // pin the exact surrogate row). EFFECTIVE_FROM/EFFECTIVE_TO guards snapshot-anchor
+        // the resolution to this respondent's firstAccessDt.
+        String sql = "SELECT a.ID FROM survey.RELATIONSHIPS r join survey.SECTIONS_QUESTIONS sq on r.UPSTREAM_SQ_ID = sq.SECTIONS_QUESTION_ID "
+                + "join survey.QUESTIONS q on sq.QUESTION_ID = q.QUESTION_ID left join survey.ANSWERS a on q.ID = a.QUESTION_ID  "
+                + "WHERE a.deleted = false and a.RESPONDENT_ID = :respondentId and r.id = :relationshipId "
                 + "and a.step = :stepId and a.STEP_INSTANCE = :stepInstance and a.section = :sectionId "
-                + "and a.SECTION_INSTANCE = :sectionInstance order by a.display_key";
-        //entityManager.joinTransaction();
+                + "and a.SECTION_INSTANCE = :sectionInstance "
+                + "and sq.EFFECTIVE_FROM <= :asOf and sq.EFFECTIVE_TO > :asOf "
+                + "and q.EFFECTIVE_FROM <= :asOf and q.EFFECTIVE_TO > :asOf "
+                + "and r.EFFECTIVE_FROM <= :asOf and r.EFFECTIVE_TO > :asOf "
+                + "order by a.display_key";
         Query q = entityManager.createNativeQuery(sql);
-        q.setParameter("relationshioId", r.id);
+        q.setParameter("relationshipId", r.id);
         q.setParameter("respondentId", a.respondentId);
         q.setParameter("stepId", a.stepId);
         q.setParameter("stepInstance", a.stepInstance);
         q.setParameter("sectionId", a.sectionId);
         q.setParameter("sectionInstance", a.sectionInstance);
+        q.setParameter("asOf", resolveAsOf(a.respondentId));
 
         @SuppressWarnings("unchecked")
         List<Object[]> rs = q.getResultList();
@@ -1564,11 +2238,8 @@ public class QuestionManager {
         Answer answer = null;
         for (Object record : rs) {
             id = (Integer) record;
-            try {
-                answer = entityManager.find(Answer.class, id);
-            } catch (Exception e) {
-                // no value yet.
-            }
+            // find returns null for an unknown id; there is nothing here to catch.
+            answer = entityManager.find(Answer.class, id);
         }
         return answer;
     }
@@ -1581,9 +2252,9 @@ public class QuestionManager {
      * @param answer the Answer object used to extract key-value pairs
      * @return a TreeMap containing the combined key-value pairs from step, section, and question
      */
-    private TreeMap<String, String> getValuesMap(Answer answer) {
+    private TokenValues getValuesMap(Answer answer) {
 
-        TreeMap<String, String> values = getStepKeyValues(answer);
+        TokenValues values = getStepKeyValues(answer);
         values.putAll(getSectionKeyValues(answer));
         values.putAll(getQuestionKeyValues(answer));
 
@@ -1596,7 +2267,7 @@ public class QuestionManager {
      * @param answer the answer object containing the key and respondent details to fetch the step key-value pairs
      * @return a TreeMap containing the key-value pairs for the specified step, sorted by keys
      */
-    private TreeMap<String, String> getStepKeyValues(Answer answer) {
+    private TokenValues getStepKeyValues(Answer answer) {
         DisplayKey key = new DisplayKey(answer.getKey().getStepString());
 
         int stepID = getAnswerIdByDisplayKey(answer.respondentId, key.getValue());
@@ -1610,7 +2281,7 @@ public class QuestionManager {
      * @param answer the Answer object containing the respondent information and display key
      * @return a TreeMap with keys and values representing the section data
      */
-    private TreeMap<String, String> getSectionKeyValues(Answer answer) {
+    private TokenValues getSectionKeyValues(Answer answer) {
         DisplayKey key = new DisplayKey(answer.getDisplayKey());
         key.setQuestionInstance(0);
         key.setQuestion(0);
@@ -1627,7 +2298,7 @@ public class QuestionManager {
      * @return A TreeMap where the keys and values correspond to data derived
      * from the provided Answer object.
      */
-    private TreeMap<String, String> getQuestionKeyValues(Answer answer) {
+    private TokenValues getQuestionKeyValues(Answer answer) {
         return getKeyValues(answer.respondentId, answer.id);
     }
 
@@ -1657,45 +2328,57 @@ public class QuestionManager {
      * @return A TreeMap containing key-value pairs where keys are relationship tokens and
      * values are derived based on dependent configurations and upstream data.
      */
-    private TreeMap<String, String> getKeyValues(int respondentId, int downstreamId) {
+    private TokenValues getKeyValues(int respondentId, int downstreamId) {
 
-        TreeMap<String, String> values = new TreeMap<>();
+        TokenValues values = new TokenValues();
         try {
             List<Dependent> dependents = Dependent.findByDownstream(respondentId, downstreamId);
-            String key;
-            String value;
-            // TODO GET THE DEFAULT VALUES
+            String language = currentContentLanguage(respondentId);
             for (Dependent dependent : dependents) {
-                value = null;
-                if (dependent.relationship.token != null
-                        && !dependent.relationship.token.isEmpty()) {
-                    key = dependent.relationship.token;
-                    switch (dependent.upstream.question.questionType.name) {
-                        case "CHECKBOX":
-                        case "DROPDOWN":
-                        case "HTML":
-                        case "NUMBER":
-                        case "RADIO":
-                            if (dependent.relationship.defaultUpstreamValue != null) {
-                                value = dependent.relationship.defaultUpstreamValue;
-                            } else if (dependent.upstream.getTextValue() != null) {
-                                value = dependent.upstream.getTextValue();
-                            }
-                            break;
-                        case "TEXT":
-                        case "DATE":
-                            if (dependent.upstream.getTextValue() != null) {
-                                value = dependent.upstream.getTextValue();
-                            }
-                            break;
-                    }
-                    if (value != null) {
-                        values.put(key, value);
-                    }
+                String key = dependent.relationship.token;
+                if (key == null || key.isEmpty()) {
+                    continue;
+                }
+                // UC-002 BR-013: inside an instance built from a selected item, the slot holds
+                // that item's text. It outranks the rule's constant, which is the same for every
+                // instance.
+                SelectItem item = repeatedItem(dependent);
+                if (item != null && item.displayText != null && !item.displayText.isBlank()) {
+                    values.base().put(key, item.displayText);
+                    values.sources().remove(key);
+                    values.items().put(key, item);
+                    continue;
+                }
+                // What can go in the slot, and whether it is the rule's authored prose or the
+                // respondent's own answer, is decided from the question the rule reads (see
+                // TokenSource).
+                TokenSource.Fill fill = dependent.upstream == null
+                        ? TokenSource.fill(dependent.relationship, null, null, language)
+                        : TokenSource.fill(dependent.relationship, dependent.upstream.question,
+                                dependent.upstream.getTextValue(), language);
+                if (fill == null) {
+                    // This rule has nothing to put in the slot -- but several rules may fill one
+                    // token (the Family History Survey fills {S1} from fifteen places), so leave
+                    // what another one supplied. Only when no rule fills it does replaceTokens fall
+                    // back to the placeholder's default.
+                    continue;
+                }
+                values.base().put(key, fill.value());
+                values.items().remove(key);
+                if (fill.fromRule()) {
+                    // Authored prose the respondent reads, so it is translatable; the respondent's
+                    // own text is not, and must not keep an earlier rule's translation.
+                    values.sources().put(key, dependent.relationship);
+                } else {
+                    values.sources().remove(key);
                 }
             }
-        } catch (Exception e) {
-            Log.error("Error getting dependents with downstream id " + downstreamId);
+        } catch (RuntimeException e) {
+            // A failure here (a PersistenceException, say) has already marked the transaction
+            // rollback-only; returning a partial map would let the request finish as if the
+            // answer had been saved. Log it and let it surface.
+            Log.warn("Error getting dependents with downstream id " + downstreamId + " for respondent " + respondentId, e);
+            throw e;
         }
         return values;
     }
@@ -1715,15 +2398,19 @@ public class QuestionManager {
      */
     private ArrayList<NavigationItem> buildNavItems(int respondentId) {
 
-        String pathSQL = "SELECT a.display_text, a.display_key" + " FROM survey.answers a" + " WHERE a.deleted = false"
+        // The local rendering when this answer was drawn in the language now in force, the base
+        // one otherwise. After relocalize the two always agree; the CASE is what keeps the
+        // navigation honest in between, and on a respondent whose answers predate a language.
+        String pathSQL = "SELECT CASE WHEN a.display_language = :language THEN a.display_text_local"
+                + " ELSE a.display_text END, a.display_key" + " FROM survey.answers a" + " WHERE a.deleted = false"
                 + " AND a.respondent_id = :respondentId" + " AND a.question_id is null" + " AND a.section != 0"
                 + " ORDER BY a.display_key";
 
         ArrayList<NavigationItem> paths = new ArrayList<>();
 
-        //entityManager.joinTransaction();
         Query q = entityManager.createNativeQuery(pathSQL);
         q.setParameter("respondentId", respondentId);
+        q.setParameter("language", currentContentLanguage(respondentId));
 
         @SuppressWarnings("unchecked")
         List<Object[]> rs = q.getResultList();

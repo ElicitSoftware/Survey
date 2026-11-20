@@ -15,6 +15,7 @@ import com.elicitsoftware.DisplayKey;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 /**
@@ -54,5 +55,11 @@ class StepsSectionsTest {
         DisplayKey first = ss.getKey();
         DisplayKey second = ss.getKey();
         assertSame(first, second);
+    }
+
+    // UC-002 BR-009: a rule that names no placement has nothing to resolve.
+    @Test
+    void given_noDurableId_when_findAsOf_then_nullWithoutAQuery() {
+        assertNull(StepsSections.findAsOf(null, java.time.OffsetDateTime.now()));
     }
 }

@@ -27,6 +27,13 @@ public class ReviewSection {
     private String title;
     private List<ReviewItem> items;
 
+    /**
+     * Creates a section.
+     *
+     * @param title      the section's title
+     * @param displayKey the key that identifies the section
+     * @param items      the section's review items
+     */
     public ReviewSection(String title, String displayKey, List<ReviewItem> items) {
         super();
         this.title = title;
@@ -34,22 +41,47 @@ public class ReviewSection {
         this.items = items;
     }
 
+    /**
+     * Returns the section's title.
+     *
+     * @return the title
+     */
     public String getTitle() {
         return title;
     }
 
+    /**
+     * Sets the section's title.
+     *
+     * @param title the title
+     */
     public void setTitle(String title) {
         this.title = title;
     }
 
+    /**
+     * Returns the key that identifies the section.
+     *
+     * @return the display key
+     */
     public String getDisplayKey() {
         return displayKey;
     }
 
+    /**
+     * Returns the section's review items.
+     *
+     * @return the items, as set; not copied
+     */
     public List<ReviewItem> getItems() {
         return items;
     }
 
+    /**
+     * Replaces the section's review items.
+     *
+     * @param items the items
+     */
     public void setItems(List<ReviewItem> items) {
         this.items = items;
     }

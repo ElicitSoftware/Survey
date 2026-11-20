@@ -11,6 +11,7 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
 import com.vaadin.flow.component.checkbox.Checkbox;
@@ -50,9 +51,10 @@ public class ElicitCheckbox extends ElicitComponent<Checkbox> {
      * based on the boolean value parsed from the answer's text value.
      *
      * @param answer the answer object containing the data for this checkbox
+     * @param texts  the content language of this page draw; null means the survey's base text
      */
-    public ElicitCheckbox(Answer answer) {
-        super(new Checkbox(answer.displayText, Boolean.parseBoolean(answer.getTextValue())), answer);
+    public ElicitCheckbox(Answer answer, ContentTexts texts) {
+        super(new Checkbox(answer.label(), Boolean.parseBoolean(answer.getTextValue())), answer, texts);
     }
 
     @Override

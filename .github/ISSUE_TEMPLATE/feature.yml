@@ -1,0 +1,50 @@
+name: Feature or change
+description: New behavior, or a change to existing behavior, in Survey.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Who is blocked or ill-served today, and how. Not the solution yet.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: What Survey should do, from the user's point of view.
+    validations:
+      required: true
+  - type: input
+    id: aiup
+    attributes:
+      label: Affected AIUP artifacts
+      description: The FR and UC IDs under docs/ this changes, or "new" for a new requirement or use case. The docs change lands before the code.
+      placeholder: FR-012, UC-004 or new
+    validations:
+      required: true
+  - type: checkboxes
+    id: other-repos
+    attributes:
+      label: Other repositories affected
+      description: Tick any other module this touches. More than one repository means a tracking issue in ElicitSoftware/Elicit with one PR per repository.
+      options:
+        - label: Elicit (umbrella)
+        - label: Admin
+        - label: FHHS
+        - label: Pedigree
+        - label: Author
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: How a reviewer will know it is done. These become the use case's postconditions and the tests.
+      placeholder: |
+        -
+        -
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Constraints, alternatives considered, links.

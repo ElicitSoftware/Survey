@@ -136,6 +136,7 @@ class DatabaseRetryUtilTest {
                     throw wrapping(new SQLTransientException("always fails"));
                 }, "exhausted-op"));
         assertEquals(5, attempts.get());
-        assertTrue(thrown.getMessage().contains("All retry attempts failed"));
+        assertEquals("All retry attempts failed for exhausted-op. Last exception: db failure", thrown.getMessage());
+        assertInstanceOf(PersistenceException.class, thrown.getCause());
     }
 }

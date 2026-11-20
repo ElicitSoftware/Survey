@@ -11,8 +11,10 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
+import com.vaadin.flow.data.binder.Binder;
 import com.vaadin.flow.component.textfield.IntegerField;
 import com.vaadin.flow.component.textfield.TextFieldVariant;
 import com.vaadin.flow.data.binder.ValidationResult;
@@ -35,9 +37,10 @@ public class ElicitIntegerField extends ElicitComponent<IntegerField> {
      *
      * @param answer The Answer object containing the display text and value for the integer field.
      *               If the text value of the answer is not null or empty, it initializes the field with that value.
+     * @param texts  the content language of this page draw; null means the survey's base text
      */
-    public ElicitIntegerField(Answer answer) {
-        super(new IntegerField(answer.displayText), answer);
+    public ElicitIntegerField(Answer answer, ContentTexts texts) {
+        super(new IntegerField(answer.label()), answer, texts);
         component.setStepButtonsVisible(true);
         if (answer.getTextValue() != null && !answer.getTextValue().isEmpty()) {
             setValue(answer);
@@ -62,18 +65,23 @@ public class ElicitIntegerField extends ElicitComponent<IntegerField> {
      */
     @Override
     void setBindings(Answer answer) {
+        // One binding carries every rule: Binder keeps one binding per field, so a second
+        // forField for this component would replace the required rule (UC-002).
+        Binder.BindingBuilder<Answer, Integer> binding = binder.forField(component);
         if (answer.question.required) {
             component.setRequired(answer.question.required);
             component.setRequiredIndicatorVisible(answer.question.required);
-            this.binder.forField(component)
-                    .asRequired(answer.question.validationText)
-                    .bind(Answer::getInteger, Answer::setInteger);
+            binding = binding.asRequired(requiredMessage(answer));
         }
 
         if (answer.question.minValue != null && answer.question.maxValue != null) {
-            this.binder.forField(component)
-                    .withValidator(createRangeValidator(answer.question.minValue, answer.question.maxValue, answer.question.validationText))
-                    .bind(Answer::getInteger, Answer::setInteger);
+            binding = binding
+                    .withValidator(createRangeValidator(answer.question.minValue, answer.question.maxValue, rangeMessage(answer)));
+        }
+        // Bound only when there is a rule: a lone min or max sets the field's own limit and adds
+        // no binder rule, as before.
+        if (answer.question.required || (answer.question.minValue != null && answer.question.maxValue != null)) {
+            binding.bind(Answer::getInteger, Answer::setInteger);
         }
     }
 

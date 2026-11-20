@@ -11,6 +11,7 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
 import com.vaadin.flow.component.timepicker.TimePicker;
@@ -46,9 +47,10 @@ public class ElicitTimePicker extends ElicitComponent<TimePicker> {
      *
      * @param answer The {@link Answer} object containing the display text
      *               and initial value for the time picker.
+     * @param texts  the content language of this page draw; null means the survey's base text
      */
-    public ElicitTimePicker(Answer answer) {
-        super(new TimePicker(answer.displayText), answer);
+    public ElicitTimePicker(Answer answer, ContentTexts texts) {
+        super(new TimePicker(answer.label()), answer, texts);
         if (answer.getTextValue() != null && !answer.getTextValue().isEmpty()) {
             setValue(answer);
         }
@@ -72,14 +74,14 @@ public class ElicitTimePicker extends ElicitComponent<TimePicker> {
             component.setRequired(answer.question.required);
             component.setRequiredIndicatorVisible(answer.question.required);
             this.binder.forField(component)
-                    .asRequired(answer.question.validationText)
+                    .asRequired(requiredMessage(answer))
                     .bind(Answer::getLocalTime, Answer::setLocalTime);
         }
         if (answer.question.minValue != null) {
-            component.setMin(LocalTime.ofNanoOfDay(answer.question.minValue));
+            component.setMin(ElicitDateTimePicker.timeFromHHMM(answer.question.minValue));
         }
         if (answer.question.maxValue != null) {
-            component.setMax(LocalTime.ofNanoOfDay(answer.question.maxValue));
+            component.setMax(ElicitDateTimePicker.timeFromHHMM(answer.question.maxValue));
         }
 
     }

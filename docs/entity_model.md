@@ -23,6 +23,7 @@ erDiagram
     SURVEY ||--o{ POST_SURVEY_ACTION : "has"
     SURVEY ||--o{ ONTOLOGY : "has"
     SURVEY ||--o{ METADATA : "has"
+    SURVEY ||--o{ TRANSLATION : "has"
 
     STEP ||--o{ STEPS_SECTIONS : "maps to"
     SECTION ||--o{ STEPS_SECTIONS : "maps to"
@@ -59,10 +60,11 @@ erDiagram
     RESPONDENT ||--o{ RESPONDENT_PSA : "has attempts"
 ```
 
-*(The `surveyreport` star schema — `DIM_DATE`, `DIM_STEP`, `DIM_SECTION`, `DIM_STATUS`,
-`FACT_SECTIONS`, `FACT_RESPONDENTS` — is described in its own subsection below and omitted
-from the diagram above to keep the operational-schema relationships legible; see
-"surveyreport Schema (ETL Star Schema)".)*
+*(The reporting star — the common `surveyreport` schema with `DIM_DATE` and `DIM_STATUS`, and
+one schema per survey with `DIM_STEP`, `DIM_SECTION`, `DIM_QUESTION`, `DIM_ITEM`, the tag
+dimensions, `FACT_SECTIONS` and the `FACT_RESPONDENTS` view — is described in its own
+subsection below and omitted from the diagram above to keep the operational-schema
+relationships legible; see "Reporting Schemas (ETL Star Schema)".)*
 
 ---
 
@@ -81,23 +83,27 @@ A single configured questionnaire definition — the root of a decision-tree sur
 | description | Longer descriptive text. | String | 2000 | Optional |
 | initialDisplayKey | The display key of the first step/section shown to a new respondent. | String | 255 | Optional |
 | postSurveyURL | URL the respondent is redirected to after viewing reports, if configured. | String | 255 | Optional |
+| baseLanguage | BCP-47 tag of the language this survey's content was authored in; the language every string falls back to. | String | 35 | Not Null, Default: "en" |
+| contentLanguages | Comma-separated BCP-47 tags the author has published content translations for. A site serves one of them only when it is also mounted for the application's own texts there (UC-009 BR-009). | String | 255 | Optional |
+| reportSchema | The name of this survey's own reporting schema at this site, assigned by the first build from the survey's name (UC-008 BR-006) and changed only by a rename (UC-010); null until the survey has been built. Site-local: never carried in a survey definition file. | String | 63 | Optional, Unique, `^[a-z_][a-z0-9_]{0,62}$` |
 
 ### RESPONDENT
 
-A single person's attempt at taking a survey, identified by their login token; tracks login activity and completion state.
+A single person's attempt at taking a survey, identified by their access code; tracks login activity and completion state.
 
 | Attribute | Description | Data Type | Length/Precision | Validation Rules |
 |---|---|---|---|---|
 | id | Primary key. | Long | — | Primary Key, Sequence |
 | surveyId | The survey this respondent is taking. | Long | — | Not Null, Foreign Key (SURVEY.id) |
-| token | The login token issued to this respondent. | String | 255 | Not Null |
+| access_code | The access code issued to this respondent; the credential they enter to reach the survey. | String | 255 | Not Null |
 | active | Whether the respondent is still taking the survey (true) or has finalized/is inactive (false). | Boolean | — | Not Null, Default: true |
 | logins | Number of times this respondent has logged in. | Integer | — | Not Null, Default: 0 |
 | createdDt | When the respondent record was created. | DateTime | — | Not Null |
 | firstAccessDt | When the respondent first logged in. | DateTime | — | Optional |
 | finalizedDt | When the respondent finalized the survey. | DateTime | — | Optional |
+| lastActivityDt | The instant of the respondent's latest page render or save (UC-012 BR-004); null until they have opened a page. | DateTime | — | Optional |
 
-*Uniqueness note (from SQL, not enforced at the Java level as a bean-validation rule): `(survey_id, token)` is unique.*
+*Uniqueness note (from SQL, not enforced at the Java level as a bean-validation rule): `(survey_id, access_code)` is unique.*
 
 ### STEP
 
@@ -131,9 +137,9 @@ The junction between a step and a section, capturing the ordering of each within
 |---|---|---|---|---|
 | id | Primary key. | Long | — | Primary Key, Sequence |
 | surveyId | The survey this mapping belongs to. | Long | — | Not Null |
-| stepId | The step in this mapping. | Long | — | Not Null, Foreign Key (STEP.id) |
+| stepId | The durable id of the step in this mapping; resolved to the version in effect at the respondent's snapshot anchor (`Step.findAsOf`), never mapped as a JPA association. | Long | — | Not Null, Foreign Key (STEP.step_id) |
 | stepDisplayOrder | The step's display order at the time of mapping. | Integer | — | Optional |
-| sectionId | The section in this mapping. | Long | — | Not Null, Foreign Key (SECTION.id) |
+| sectionId | The durable id of the section in this mapping; resolved as of the respondent's anchor (`Section.findAsOf`). | Long | — | Not Null, Foreign Key (SECTION.section_id) |
 | sectionDisplayOrder | The section's display order within the step. | Integer | — | Optional |
 | displaykey | The step/section-level display key prefix (`survey-step-stepInstance-section-...`). | String | 34 | Not Null |
 
@@ -156,7 +162,7 @@ A single question definition — its prompt text, input type, and validation con
 | validationText | Message shown when validation fails. | String | 255 | Optional |
 | defaultValue | Value pre-filled when the question is first shown. | String | 255 | Optional |
 | questionTypeId | The input type this question renders as. | Long | — | Not Null, Foreign Key (QUESTION_TYPE.id) |
-| selectGroupId | The set of selectable options, for select-style question types. | Long | — | Optional, Foreign Key (SELECT_GROUP.id) |
+| selectGroupId | The durable id of the set of selectable options, for select-style question types; the items are resolved as of the respondent's anchor (`SelectItem.findByGroupAsOf`, surfaced as `Answer.getSelectItems()`), never through a JPA association. | Long | — | Optional, Foreign Key (SELECT_GROUP.select_group_id) |
 | variant | Optional rendering variant hint. | String | 255 | Optional |
 
 ### QUESTION_TYPE
@@ -178,8 +184,8 @@ Places a specific question into a specific section (within a survey) at a given 
 |---|---|---|---|---|
 | id | Primary key. | Long | — | Primary Key, Sequence |
 | displayOrder | Order this question appears within its section. | Integer | 3 | Not Null |
-| questionId | The question being placed. | Long | — | Not Null, Foreign Key (QUESTION.id) |
-| sectionId | The section the question is placed into. | Long | — | Not Null, Foreign Key (SECTION.id) |
+| questionId | The durable id of the question being placed; resolved to the version in effect at the respondent's anchor (`Question.findAsOf`), never mapped as a JPA association. | Long | — | Not Null, Foreign Key (QUESTION.question_id) |
+| sectionId | The durable id of the section the question is placed into. | Long | — | Not Null, Foreign Key (SECTION.section_id) |
 | surveyId | The survey this placement belongs to. | Long | — | Not Null, Foreign Key (SURVEY.id) |
 
 ### SELECT_GROUP
@@ -201,7 +207,7 @@ One selectable option within a SELECT_GROUP, with the coded (stored) value and i
 |---|---|---|---|---|
 | id | Primary key. | Long | — | Primary Key, Sequence |
 | surveyId | The survey this item belongs to. | Long | — | Not Null, Foreign Key (SURVEY.id) |
-| selectGroupId | The group this item belongs to (mapped via `group_id`). | Long | — | Not Null, Foreign Key (SELECT_GROUP.id) |
+| selectGroupId | The durable id of the group this item belongs to. | Long | — | Not Null, Foreign Key (SELECT_GROUP.select_group_id) |
 | codedValue | The value stored on the answer when this item is selected. | String | 255 | Optional |
 | displayText | The label shown to the respondent. | String | 255 | Optional |
 | displayOrder | Order this item appears within its group. | Integer | 20 | Not Null |
@@ -223,11 +229,14 @@ The respondent's recorded response to a single question instance — or, when it
 | sectionQuestionId | The specific question placement this answer responds to; null for step/section marker answers. | Long | 20 | Optional, Foreign Key (SECTIONS_QUESTION.id) |
 | questionId | The question this answer responds to; null for step/section marker answers. | Long | — | Optional, Foreign Key (QUESTION.id) |
 | displayKey | The full 7-segment hierarchical address of this answer (`survey-step-stepInstance-section-sectionInstance-question-questionInstance`). | String | 34 | Not Null, Default: "0.0.0.0.0.0.0" |
-| displayText | The rendered label/prompt shown for this answer (question text, or section/step name for marker answers). | String | 8000 | Not Null |
+| displayText | The rendered label/prompt shown for this answer (question text, or section/step name for marker answers), always in the survey's base language. Every reader that is not respondent-facing — the ETL, Admin, the respondent export — reads this column. | String | 8000 | Not Null |
+| displayTextLocal | The same label rendered in the language the respondent was reading, when that is not the base language; null otherwise. Unbounded, because a translation may be longer than the base sentence. | String | — | Optional |
+| displayLanguage | BCP-47 tag of the language `displayTextLocal` is written in; null when the label was shown in the base language. | String | 35 | Optional |
 | textValue | The raw stored answer value (interpreted per question type — e.g., parsed as a date, number, or comma-joined list of selections). | String | 255 | Optional |
 | deleted | Soft-delete flag; true when a branching change has removed this answer from the respondent's current path. | Boolean | — | Not Null, Default: false |
 | createdDt | When the answer row was first created. | DateTime | — | Not Null |
-| savedDt | When the answer's value was last saved by the respondent. | DateTime | — | Optional |
+| savedDt | When the respondent last changed this answer's value (UC-012 BR-002). Null for a row created with a question's default value that the respondent never changed, and for a row with no value. | DateTime | — | Optional |
+| presentedDt | When the page holding this row was first rendered for the respondent (UC-012 BR-001). Null for a row built for a page the respondent has not reached. | DateTime | — | Optional |
 
 *Uniqueness note (from SQL): `(respondent_id, display_key)` is unique.*
 
@@ -258,11 +267,13 @@ A single configured branching rule: "when the upstream question's answer satisfi
 | token | The placeholder token (used in `{token|default}` text substitution) this rule's upstream value can be inserted as. | String | 10 | Optional |
 | actionTypeId | The action to take when the rule is satisfied (SHOW / REPEAT / TEXT). | Long | — | Not Null, Foreign Key (ACTION_TYPE.id) |
 | operatorTypeId | The comparison operator used to evaluate the upstream answer. | Long | — | Not Null, Foreign Key (OPERATOR_TYPE.id) |
-| upstreamStepId | The step the upstream question must be within, if constrained. | Long | — | Optional, Foreign Key (STEP.id) |
-| upstreamQuestionId | The question whose answer is evaluated. | Long | — | Not Null, Foreign Key (SECTIONS_QUESTION.id) |
-| downstreamStepId | The step affected by this rule, if the action targets a step. | Long | — | Optional, Foreign Key (STEP.id) |
-| downstreamSectionId | The step/section mapping affected by this rule, if the action targets a section (despite the name, this references STEPS_SECTIONS, not SECTION directly). | Long | — | Optional, Foreign Key (STEPS_SECTIONS.id) |
-| downstreamQuestionId | The question affected by this rule, if the action targets a question. | Long | — | Optional, Foreign Key (SECTIONS_QUESTION.id) |
+| upstreamStepId | The durable id of the step the upstream question must be within, if constrained. | Long | — | Optional, Foreign Key (STEP.step_id) |
+| upstreamSqId | The durable id of the question placement whose answer is evaluated. | Long | — | Not Null, Foreign Key (SECTIONS_QUESTION.sections_question_id) |
+| downstreamStepId | The durable id of the step affected by this rule, if the action targets a step. | Long | — | Optional, Foreign Key (STEP.step_id) |
+| downstreamSsId | The durable id of the step/section mapping affected by this rule, if the action targets a section (this references STEPS_SECTIONS, not SECTION directly). | Long | — | Optional, Foreign Key (STEPS_SECTIONS.steps_sections_id) |
+| downstreamSqId | The durable id of the question placement affected by this rule, if the action targets a question. | Long | — | Optional, Foreign Key (SECTIONS_QUESTION.sections_question_id) |
+
+*Versioning note: the five endpoint columns hold durable ids and are plain columns on the Java entity, not JPA associations -- a durable id has one row per published version, so the row a rule points at is resolved with `Step.findAsOf` / `StepsSections.findAsOf` / `SectionsQuestion.findAsOf` at the respondent's snapshot anchor (UC-002 BR-009).*
 
 ### OPERATOR_TYPE
 
@@ -304,16 +315,19 @@ A configured report the respondent sees after finalizing — an external service
 
 ### POST_SURVEY_ACTION
 
-A configured webhook the system calls once the respondent finalizes — used to notify an external system (e.g., registration/EHR integration) that the respondent has completed the survey.
+A configured call the system makes once the respondent finalizes (UC-015) — used to notify an external system (e.g., registration/EHR integration) that the respondent has completed the survey. Its credential, if any, is site configuration keyed by `postSurveyActionKey`, never a column (UC-015 BR-003).
 
 | Attribute | Description | Data Type | Length/Precision | Validation Rules |
 |---|---|---|---|---|
 | id | Primary key. | Long | — | Primary Key, Sequence |
 | surveyId | The survey this action belongs to. | Long | — | Not Null, Foreign Key (SURVEY.id) |
 | name | Internal name of the action. | String | 255 | Not Null |
-| description | Description of the action's purpose. | String | 1000 | Optional |
-| url | The external webhook endpoint to POST to. | String | 500 | Not Null |
-| executionOrder | Order this action runs in among the survey's post-survey actions. | Integer | — | Not Null, Default: 1 |
+| postSurveyActionKey | Stable key; matches the action across sites and keys its site credential. | UUID | — | Not Null, Unique |
+| description | Description of the action's purpose. | String | 255 | Not Null |
+| url | The address called; may contain `{respondentId}` and, when `sendsExternalId`, `{externalId}`. | String | 255 | Optional in SQL; Author requires it |
+| executionOrder | Order this action runs in among the survey's post-survey actions. | Integer | — | Not Null |
+| method | The HTTP method of the call (UC-015 BR-001). | String | 10 | Not Null, Default: `POST`, One of `POST`, `GET`, `PUT` |
+| sendsExternalId | Whether the call carries the subject's External ID and department code; requires an `https` url (UC-015 BR-002). | Boolean | — | Not Null, Default: false |
 
 *Uniqueness note (from SQL): `(survey_id, name)` is unique.*
 
@@ -326,8 +340,8 @@ Tracks, per respondent and per configured POST_SURVEY_ACTION, the status of the 
 | id | Primary key. | Long | — | Primary Key, Sequence |
 | respondentId | The respondent this attempt belongs to. | Long | — | Not Null, Foreign Key (RESPONDENT.id) |
 | postSurveyActionId | The post-survey action this attempt is for. | Long | — | Not Null, Foreign Key (POST_SURVEY_ACTION.id) |
-| tries | Number of attempts made. | Long | — | Not Null, Default: 0 |
-| status | Current status string (observed values: PENDING, RESENDING, FAILED — no explicit success value is ever set). | String | 255 | Not Null |
+| tries | Number of attempts made: Survey's calls, and any a service counts on the same record. | Long | — | Not Null, Default: 0 |
+| status | Survey's states `PENDING`, `RESENDING`, `DELIVERED`, `CALL_FAILED`, `CALL_REFUSED` (UC-015 BR-004), or a state a service wrote itself (FHHS: `STARTED`, `COMPLETED`, `FAILED`), which Survey never overwrites. | String | 255 | Not Null |
 | errorMsg | The most recent error message, if any. | String | 255 | Optional |
 | createdDt | When this attempt record was first created. | DateTime | — | Not Null |
 | uploadedDt | When the notification was confirmed delivered, if tracked. | DateTime | — | Optional |
@@ -365,13 +379,32 @@ Attaches an ONTOLOGY tag's value to exactly one of a step/section mapping, a que
 |---|---|---|---|---|
 | id | Primary key. | Long | — | Primary Key, Sequence |
 | surveyId | The survey this metadata belongs to. | Long | — | Not Null, Foreign Key (SURVEY.id) |
-| stepSectionId | The step/section mapping being tagged, if applicable. | Long | — | Optional, Foreign Key (STEPS_SECTIONS.id) |
-| questionId | The question being tagged, if applicable. | Long | — | Optional, Foreign Key (QUESTION.id) |
-| sectionQuestionId | The section-question placement being tagged, if applicable. | Long | — | Optional, Foreign Key (SECTIONS_QUESTION.id) |
+| metadataKey | Stable key; matches the tag across sites. | UUID | — | Not Null, Unique |
+| stepsSectionsId | The step/section mapping tagged, by durable id (`steps_sections.steps_sections_id`), if applicable; one row covers every version. | Integer | — | Optional, no FK (durable id) |
+| questionId | The question tagged, by durable id (`questions.question_id`), if applicable. | Integer | — | Optional, no FK (durable id) |
+| sectionsQuestionId | The question placement tagged, by durable id (`sections_questions.sections_question_id`), if applicable. | Integer | — | Optional, no FK (durable id) |
 | ontologyId | The ontology tag being applied. | Long | — | Not Null, Foreign Key (ONTOLOGY.id) |
 | value | The tag's value for this specific element. | String | 255 | Optional |
 
-*Validation note (from SQL): a check constraint requires exactly one of `stepSectionId`/`questionId`/`sectionQuestionId` to be set (enforced as `(a+b+c) > 0`, which also technically permits more than one being set simultaneously — a loose approximation of "exactly one," not a strict XOR).*
+*Validation note (from SQL): a check constraint requires exactly one of `stepsSectionsId`/`questionId`/`sectionsQuestionId` to be set (enforced as `(a+b+c) > 0`, which also technically permits more than one being set simultaneously — a loose approximation of "exactly one," not a strict XOR). The upgrade track drops metadata's pre-Kimball surrogate columns (`step_section_id`, `question_id`, `section_question_id`) in V010, so both tracks end with these columns only.*
+
+### REPORT_ITEM *(Survey V023; mapped read-only by `ReportItem`)*
+
+A mark of what one of the survey's default reports shows (UC-013): exactly one of a step/section placement, a question, or a section-question placement, for the respondent report or the administrator report, in report order and under an optional label. Authored in Author, carried in the `.elicit` file as `report_items`, installed by Admin's apply; Survey never writes it, and reads the `RESPONDENT` rows to render the respondent report (UC-014).
+
+| Attribute | Description | Data Type | Length/Precision | Validation Rules |
+|---|---|---|---|---|
+| id | Primary key. | Integer | — | Primary Key, Sequence |
+| surveyId | The survey this mark belongs to. | Integer | — | Not Null, Foreign Key (SURVEY.id) |
+| reportItemKey | Cross-instance identity of the mark, minted in Author and carried verbatim by export, import and update. | UUID | — | Not Null, Unique |
+| reportType | Which default report the mark is for: `RESPONDENT` or `ADMINISTRATOR`. | String | 13 | Not Null, Check (one of the two) |
+| stepSectionId | The step/section placement marked, by durable id (`steps_sections.steps_sections_id`), if applicable. | Integer | — | Optional, no FK (durable id) |
+| questionId | The question marked, by durable id (`questions.question_id`), if applicable. | Integer | — | Optional, no FK (durable id) |
+| sectionQuestionId | The question placement marked, by durable id (`sections_questions.sections_question_id`), if applicable. | Integer | — | Optional, no FK (durable id) |
+| label | Text shown on the report instead of the element's own text; translatable (TRANSLATION with `element_type` `report_items`, `field` `label`). | String | 255 | Optional |
+| displayOrder | Position within the report. | Integer | — | Not Null, Default 0 |
+
+*Validation note (from SQL): `report_items_element_ck` requires exactly one of `stepSectionId`/`questionId`/`sectionQuestionId` (`num_nonnulls(...) = 1`, a strict exactly-one, unlike METADATA's).*
 
 ### EXCLUDED_XIDS *(no JPA entity — documented from SQL DDL)*
 
@@ -388,18 +421,55 @@ Tracks external subject identifiers ("xid") excluded from a given department/stu
 
 *Uniqueness note (from SQL): `(xid, department)` is unique.*
 
+### TRANSLATION
+
+One piece of survey content in one language: the translated value of one field of one element, attached to that element by its UUID element key rather than by a surrogate or durable id, so it survives both versioning and import into another instance. Kimball Type 2 in the same shape as the eight structural tables — a correction is a new version, a removal is a closed `effectiveTo`, and a respondent resolves the row effective at their first access (UC-009 BR-010). Written in Author, delivered inside the survey definition file, and read at runtime by `ContentTranslator`; never written by Survey.
+
+| Attribute | Description | Data Type | Length/Precision | Validation Rules |
+|---|---|---|---|---|
+| id | Primary key. | Long | — | Primary Key, Sequence |
+| surveyId | The survey this translation belongs to. | Long | — | Not Null, Foreign Key (SURVEY.id) |
+| elementType | Which table the translated element lives in: `surveys`, `steps`, `sections`, `questions`, `select_items`, `relationships`, `reports` or `report_items` (V023). | String | 32 | Not Null, Check constraint |
+| elementKey | The `*_key` UUID of the translated element. Never a surrogate id and never a durable id, both of which are per instance. | UUID | — | Not Null |
+| field | The column name of the base text this row translates (`text`, `short_text`, `tool_tip`, `placeholder`, `validation_text`, `name`, `description`, `display_text`, `default_upstream_value`), constrained by the translatable-field whitelist. | String | 32 | Not Null |
+| language | BCP-47 tag, written as the mounted chrome bundles write it (`es-419`, `ar`). | String | 35 | Not Null |
+| value | The translated text. A removal is a closed `effectiveTo`, never an empty value. | String | — | Not Null |
+| sourceHash | Lower-case hex SHA-256 of the UTF-8 bytes of the base text this was translated from. A row whose hash no longer matches the current base text is stale and is not served (UC-009 BR-008). | String | 64 | Not Null |
+| sourceText | Authoring-only snapshot of that base text, for the stale diff in Author. Not exported, on the same footing as `QUESTION.sample`. | String | — | Optional |
+| translationId | Durable id linking every version of this translation within one instance. | Long | — | Not Null, Sequence |
+| translationKey | Cross-instance identity, minted once in Author and preserved verbatim by export, import and update. | UUID | — | Not Null |
+| version | Version number within the durable id; 0 in Author, incremented by Admin at publish. | Integer | — | Not Null, Default: 0 |
+| effectiveFrom | When this version became current. | DateTime | — | Not Null, Default: 1970-01-01T00:00:00Z |
+| effectiveTo | When this version stopped being current; the sentinel 9999-12-31T23:59:59Z while current. | DateTime | — | Not Null, Default: sentinel |
+| publishedBy | Who published this version. | String | — | Optional |
+| publishedComment | Why this version was published. | String | — | Optional |
+
+*Uniqueness notes (from SQL): `(translation_id, version)` and `(translation_key, version)` are unique; one current row per `translation_id`, and one current row per `(survey_id, language, element_key, field)`, both as partial unique indexes over `effective_to = sentinel`.*
+
+*Retirement note: retiring a step, section, question, select item, relationship or report closes every current translation of it at the same instant, so a translation is never current while its element is retired; restoring the element reopens them.*
+
 ---
 
-## surveyreport Schema (ETL Star Schema) *(no JPA entities — documented from SQL DDL; populated by `ETLService`/`ETLRespondentService` via native SQL)*
+## Reporting Schemas (ETL Star Schema) *(no JPA entities — documented from SQL DDL and the ETL's own templates; created and populated by `ETLService`/`ETLRespondentService` via native SQL)*
+
+Two kinds of schema hold the star (UC-008 BR-006, BR-007):
+
+- **`surveyreport`**, the common schema, created by the migrations (V002) and shared by every
+  survey. It holds only the conformed dimensions `DIM_DATE` and `DIM_STATUS`.
+- **One schema per survey**, named on `SURVEY.reportSchema`, created by the first build and
+  owned by Survey's owner role. It holds that survey's `DIM_STEP`, `DIM_SECTION`, `DIM_QUESTION`,
+  `DIM_ITEM`, one `DIM_<tag>` per reporting tag, `FACT_SECTIONS`, and the views
+  `FACT_RESPONDENTS`, `FACT_RESPONDENTS_VIEW` and `FACT_SECTIONS_VIEW`. The identifiers are the
+  same in every survey's schema; only the qualifier differs.
 
 > The project's own documentation calls these "Kimball Type 2 dimensions," but nothing in
 > the DDL or ETL code implements true SCD Type 2 (no effective-dated/versioned rows) — they
-> are simple lookup/dimension tables plus two fact tables. Flagging the mismatch between
-> stated intent and actual implementation rather than perpetuating the label.
+> are simple lookup/dimension tables plus one fact table and one fact view. Flagging the
+> mismatch between stated intent and actual implementation rather than perpetuating the label.
 
-### DIM_DATE
+### DIM_DATE *(surveyreport)*
 
-Standard date dimension used to key the respondent fact table's created/first-access/finalized dates for time-based reporting.
+Standard date dimension used to key the respondent fact view's created/first-access/finalized dates for time-based reporting. Holds 1970-01-01 (the "no date" member) and every day from 2020-01-01 through 2050-12-31 (UC-008 BR-013): V004 seeded 2020 to 2029 by hand, and V024 generates the calendar through 2050 from one `generate_series`, so widening the span is a change to its two bounds. The views join it with a `LEFT JOIN`, so a date outside the span yields a null label rather than a missing row (UC-008 BR-010). Column rules: `dayOfWeek` is 1 Sunday to 7 Saturday; Saturday and Sunday are the weekend; weeks start on Sunday and week 1 is the week holding January 1; the fiscal year starts on July 1 (`FY2021-01` is July 2020).
 
 | Attribute | Description | Data Type | Length/Precision | Validation Rules |
 |---|---|---|---|---|
@@ -410,8 +480,8 @@ Standard date dimension used to key the respondent fact table's created/first-ac
 | dayNameOfWeek | Name of the day of week. | String | 10 | Not Null |
 | dayOfMonth | Day-of-month number. | Integer | — | Not Null |
 | dayOfYear | Day-of-year number. | Integer | — | Not Null |
-| weekdayWeekend | Whether the date is a weekday or weekend. | String | 10 | Not Null |
-| weekOfYear | ISO week-of-year number. | Integer | — | Not Null |
+| weekdayWeekend | `Weekend` for Saturday and Sunday, `Weekday` otherwise. | String | 10 | Not Null |
+| weekOfYear | Week-of-year number: weeks start on Sunday, week 1 holds January 1 (not ISO). | Integer | — | Not Null |
 | monthName | Name of the month. | String | 10 | Not Null |
 | monthOfYear | Numeric month. | Integer | — | Not Null |
 | isLastDayOfMonth | Whether this date is the last day of its month. | String | 1 | Not Null |
@@ -425,67 +495,104 @@ Standard date dimension used to key the respondent fact table's created/first-ac
 | fiscalYearMonth | Combined fiscal year-month label. | String | 10 | Not Null |
 | fiscalYearQtr | Combined fiscal year-quarter label. | String | 10 | Not Null |
 
-### DIM_STEP
+### DIM_STATUS *(surveyreport)*
 
-Dimension mapping a step's name to a stable surrogate key used by FACT_SECTIONS.
-
-| Attribute | Description | Data Type | Length/Precision | Validation Rules |
-|---|---|---|---|---|
-| id | Primary key. | Integer | — | Primary Key |
-| value | The step name/value being keyed. | String | 50 | Not Null, Unique |
-
-### DIM_SECTION
-
-Dimension mapping a section's name to a stable surrogate key used by FACT_SECTIONS.
-
-| Attribute | Description | Data Type | Length/Precision | Validation Rules |
-|---|---|---|---|---|
-| id | Primary key. | Integer | — | Primary Key |
-| value | The section name/value being keyed. | String | 50 | Not Null, Unique |
-
-### DIM_STATUS
-
-Dimension of respondent completion status values.
+Dimension of respondent completion status values: 0 Not Started, 1 In Progress, 2 Finished.
 
 | Attribute | Description | Data Type | Length/Precision | Validation Rules |
 |---|---|---|---|---|
 | id | Primary key. | Integer | — | Primary Key, Sequence |
 | value | The status label. | String | 50 | Unique |
 
-### FACT_SECTIONS
+### DIM_STEP *(per survey)*
 
-One row per section instance visited by a respondent — the granular fact table behind section-level completion reporting.
+Dimension mapping a step's dimension name to a stable surrogate key used by FACT_SECTIONS. Upserted by the durable `stepId`, so a renamed step updates its row in place and keeps its id.
+
+| Attribute | Description | Data Type | Length/Precision | Validation Rules |
+|---|---|---|---|---|
+| id | Primary key; the surrogate id of the first version of the step ever seen. | Integer | — | Primary Key |
+| value | The step's dimension name. | String | 50 | Not Null, Unique within the survey |
+| stepId | The durable id of the step (`STEP.stepId`). | Integer | — | Unique |
+
+### DIM_SECTION *(per survey)*
+
+Dimension mapping a section's dimension name to a stable surrogate key used by FACT_SECTIONS, keyed as DIM_STEP is.
+
+| Attribute | Description | Data Type | Length/Precision | Validation Rules |
+|---|---|---|---|---|
+| id | Primary key; the surrogate id of the first version of the section ever seen. | Integer | — | Primary Key |
+| value | The section's dimension name. | String | 50 | Not Null, Unique within the survey |
+| sectionId | The durable id of the section (`SECTION.sectionId`). | Integer | — | Unique |
+
+### DIM_QUESTION *(per survey)*
+
+The questions a Repeat rule reads to build one section instance per selected item (UC-008 BR-012). Keyed by the portable `questionKey`, so a reworded question updates its row and moves no fact. Holds the `(-1, null)` "no value" member.
 
 | Attribute | Description | Data Type | Length/Precision | Validation Rules |
 |---|---|---|---|---|
 | id | Primary key. | Integer | — | Primary Key, Sequence |
-| surveyId | The survey the visit belongs to. | Integer | — | Not Null |
-| respondentId | The respondent who visited this section instance. | Integer | — | Not Null |
-| stepKey | The DIM_STEP surrogate key for the step this section instance belongs to. | Integer | — | Not Null, Default: 0, Foreign Key (DIM_STEP.id) |
-| name | Denormalized section/step display name for convenience. | String | 50 | Optional |
-| stepInstance | Which repeated instance of the step this row belongs to. | Integer | — | Not Null, Default: 0 |
-| sectionKey | The DIM_SECTION surrogate key for the section visited. | Integer | — | Not Null, Foreign Key (DIM_SECTION.id) |
-| sectionInstance | Which repeated instance of the section this row belongs to. | Integer | — | Not Null, Default: 0 |
+| questionKey | The portable key of the question (`QUESTION.questionKey`). | UUID | — | Unique |
+| value | The question's short text. | String | 255 | Optional |
 
-### FACT_RESPONDENTS
+### DIM_ITEM *(per survey)*
 
-One row per respondent — the survey-level completion fact table, auto-populated by a database trigger when a new respondent is inserted (for `survey_id = 1` — a hardcoded survey id, per the trigger definition).
+The items such instances were built from (UC-008 BR-012). Keyed by the portable `selectItemKey`, so reordering or rewording a list updates one row and moves no fact. Holds the `(-1, null)` "no value" member.
 
 | Attribute | Description | Data Type | Length/Precision | Validation Rules |
 |---|---|---|---|---|
-| id | Primary key; mirrors the RESPONDENT.id it summarizes. | Integer | — | Primary Key |
-| surveyId | The survey the respondent belongs to. | Integer | — | Not Null |
-| createdKey | The DIM_DATE key for the respondent's creation date. | Integer | — | Not Null, Foreign Key (DIM_DATE.dateKey) |
-| firstAccessKey | The DIM_DATE key for the respondent's first-access date. | Integer | — | Not Null, Foreign Key (DIM_DATE.dateKey) |
-| finalizedKey | The DIM_DATE key for the respondent's finalize date. | Integer | — | Not Null, Foreign Key (DIM_DATE.dateKey) |
-| active | Whether the respondent is still active. | Boolean | — | Not Null |
-| logins | Number of logins. | Integer | — | Not Null, Default: 0 |
-| status | Completion status code (0 = not started, 1 = in progress, 2 = finished — encoded directly as an integer rather than via a DIM_STATUS foreign key). | Integer | — | Not Null, Default: 0 |
-| duration | Elapsed time between first access and finalization. | Decimal *(interval)* | — | Optional, Default: 0 |
+| id | Primary key. | Integer | — | Primary Key, Sequence |
+| selectItemKey | The portable key of the item (`SELECT_ITEM.selectItemKey`). | UUID | — | Unique |
+| value | The item's coded value, lower-cased and trimmed as every tag dimension value is. | String | 255 | Optional |
+| displayText | The item's text in the survey's base language. | String | 255 | Optional |
+| listName | The name of the list the item belongs to. | String | 255 | Optional |
+| displayOrder | The item's position in its list as last built. | Decimal | — | Optional |
 
-*Known gap: `status` is a hardcoded integer code (0/1/2) rather than a foreign key into `DIM_STATUS`, even though `DIM_STATUS` exists specifically to hold status values — the two are not currently wired together.*
+### DIM_<tag> *(per survey)*
 
----
+One table per reporting tag or named dimension of the survey, created by the build when first seen. `value` is the coded value or the answer text, lower-cased and trimmed. Holds the `(-1, null)` "no value" member.
+
+| Attribute | Description | Data Type | Length/Precision | Validation Rules |
+|---|---|---|---|---|
+| id | Primary key. | Integer | — | Primary Key, Sequence |
+| value | The dimension value. | String | 255 | Unique |
+
+### FACT_SECTIONS *(per survey)*
+
+One row per section instance visited by a finalized respondent — the granular fact table behind section-level reporting. Gains one `<tag>_key` column per reporting tag, each `NOT NULL DEFAULT -1` with a foreign key to its dimension.
+
+| Attribute | Description | Data Type | Length/Precision | Validation Rules |
+|---|---|---|---|---|
+| id | Primary key. | Integer | — | Primary Key, Sequence |
+| surveyId | The survey the visit belongs to (redundant inside the schema; kept for unions across surveys). | Integer | — | Not Null |
+| respondentId | The respondent who visited this section instance. | Integer | — | Not Null |
+| stepKey | The DIM_STEP key of the step this section instance belongs to, resolved as of the respondent's anchor (UC-008 BR-011). | Integer | — | Not Null, Foreign Key (DIM_STEP.id) |
+| name | The step's name. | String | 50 | Optional |
+| stepInstance | Which repeated instance of the step this row belongs to. | Integer | — | Not Null, Default: 0 |
+| sectionKey | The DIM_SECTION key of the section visited, resolved as of the respondent's anchor (UC-008 BR-011). | Integer | — | Not Null, Foreign Key (DIM_SECTION.id) |
+| sectionInstance | Which repeated instance of the section this row belongs to; for a section repeated per selected item, the item's position in its list. | Integer | — | Not Null, Default: 0 |
+| questionKey | The DIM_QUESTION key of the question a per-item instance was built from; -1 otherwise (UC-008 BR-012). | Integer | — | Not Null, Default: -1, Foreign Key (DIM_QUESTION.id) |
+| itemKey | The DIM_ITEM key of the item a per-item instance is about; -1 otherwise (UC-008 BR-012). | Integer | — | Not Null, Default: -1, Foreign Key (DIM_ITEM.id) |
+
+### FACT_RESPONDENTS *(per survey, a view)*
+
+One row per respondent of the survey, selected from `RESPONDENT` on the fly (UC-008 BR-010) — no trigger and no table, so status and dates are always current and nothing is written into a reporting schema when a respondent is inserted or updated.
+
+| Attribute | Description | Data Type | Length/Precision | Validation Rules |
+|---|---|---|---|---|
+| id | The RESPONDENT.id it summarizes. | Integer | — | — |
+| surveyId | The survey the respondent belongs to. | Integer | — | — |
+| createdKey | The DIM_DATE key for the respondent's creation date; 19700101 when null. | Integer | — | — |
+| firstAccessKey | The DIM_DATE key for the respondent's first-access date; 19700101 when null. | Integer | — | — |
+| finalizedKey | The DIM_DATE key for the respondent's finalize date; 19700101 when null. | Integer | — | — |
+| active | Whether the respondent is still active. | Boolean | — | — |
+| logins | Number of logins. | Integer | — | — |
+| status | 0 = not started, 1 = in progress, 2 = finished; the id of the DIM_STATUS member. | Integer | — | — |
+| duration | `finalizedDt - firstAccessDt`, the time spent answering; 0 until finished. | Interval | — | — |
+
+### Views
+
+- `FACT_RESPONDENTS_VIEW` joins `FACT_RESPONDENTS` to `surveyreport.DIM_DATE` (three `LEFT JOIN`s) and `surveyreport.DIM_STATUS`, exposing the date names and the status label.
+- `FACT_SECTIONS_VIEW` joins `FACT_SECTIONS` to every dimension it has a key for, exposing each as the column name without `_key`: `step`, `section`, `question`, `item` and one column per tag.
 
 ## Cross-Validation Notes
 

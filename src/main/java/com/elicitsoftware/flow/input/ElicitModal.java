@@ -1,0 +1,86 @@
+package com.elicitsoftware.flow.input;
+
+/*-
+ * ***LICENSE_START***
+ * Elicit Survey
+ * %%
+ * Copyright (C) 2025 The Regents of the University of Michigan - Rogel Cancer Center
+ * %%
+ * PolyForm Noncommercial License 1.0.0
+ * <https://polyformproject.org/licenses/noncommercial/1.0.0>
+ * ***LICENSE_END***
+ */
+
+import com.elicitsoftware.flow.SafeHtml;
+import com.elicitsoftware.i18n.ContentTexts;
+import com.elicitsoftware.model.Answer;
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.dialog.Dialog;
+import com.vaadin.flow.component.html.Div;
+
+/**
+ * Represents an informational modal dialog driven by a MODAL question.
+ * <p>
+ * Like {@link ElicitHtml} this is a display-only element: it renders
+ * {@code answer.label()} as cleaned HTML (UC-002 BR-015), collects no value, and never saves an
+ * answer. It differs only in presentation — the content is shown in a modal
+ * dialog that opens as soon as the section is displayed, rather than inline.
+ * <p>
+ * The dialog opens on attach rather than in the constructor, because
+ * {@code SectionView.buildQuestions()} rebuilds every component on each render
+ * but only attaches the ones that are newly displayed. Opening on attach keeps
+ * the dialog from reappearing every time an unrelated answer on the page is
+ * saved.
+ * <p>
+ * Note that {@code setId} on a Dialog lands on the hidden host element, not on
+ * the rendered overlay, so the close button carries its own id for tests to
+ * locate.
+ */
+public class ElicitModal extends Dialog {
+
+    /**
+     * Suffix for the close button's id, appended to the answer's display key.
+     */
+    public static final String CLOSE_BUTTON_ID_SUFFIX = "-close";
+
+    /**
+     * Constructs an ElicitModal for the given answer.
+     * <p>
+     * The question's short text, when present, becomes the dialog header, in the respondent's
+     * content language.
+     *
+     * @param answer the answer whose display text is shown as HTML in the dialog
+     * @param texts  the content language of this page draw, for the header
+     */
+    public ElicitModal(Answer answer, ContentTexts texts) {
+        super();
+        String displayKey = answer.getDisplayKey();
+        this.setId(displayKey);
+
+        // Through texts, not off the entity: short_text is a translatable field (Author
+        // TranslatableFields), so a respondent reading the survey in their own language must get
+        // the header in it too. Reading answer.question.shortText here left every modal in a
+        // translated survey with an English title over a translated body.
+        String header = texts.shortText(answer.question);
+        if (header != null && !header.isEmpty()) {
+            setHeaderTitle(header);
+        }
+
+        Div content = new Div();
+        content.getElement().setAttribute("data-i18n-content", "");
+        content.getElement().setProperty("innerHTML", SafeHtml.content(answer.label())); // UC-002 BR-015
+        add(content);
+
+        Button close = new Button(getTranslation("common.close"));
+        close.setId(displayKey + CLOSE_BUTTON_ID_SUFFIX);
+        close.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        close.addClickListener(e -> close());
+        getFooter().add(close);
+
+        setCloseOnEsc(true);
+        setCloseOnOutsideClick(true);
+
+        addAttachListener(e -> setOpened(true));
+    }
+}

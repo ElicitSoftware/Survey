@@ -11,8 +11,10 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
+import com.vaadin.flow.data.binder.Binder;
 import com.vaadin.flow.component.Unit;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.textfield.TextFieldVariant;
@@ -32,11 +34,12 @@ public class ElicitTextField extends ElicitComponent<TextField> {
      * @param answer The Answer object containing the display text and value for the text field.
      *               The display text is used to set the width of the component, and if the
      *               text value is not null or empty, it initializes the field with the given value.
+     * @param texts  the content language of this page draw; null means the survey's base text
      */
-    public ElicitTextField(Answer answer) {
-        super(new TextField(answer.displayText), answer);
+    public ElicitTextField(Answer answer, ContentTexts texts) {
+        super(new TextField(answer.label()), answer, texts);
         //These are specific to TextFields
-        component.setWidth(answer.displayText.length(), Unit.CH);
+        component.setWidth(answer.label().length(), Unit.CH);
         if (answer.getTextValue() != null && !answer.getTextValue().isEmpty()) {
             setValue(answer);
         }
@@ -59,18 +62,23 @@ public class ElicitTextField extends ElicitComponent<TextField> {
      */
     @Override
     void setBindings(Answer answer) {
+        // One binding carries every rule: Binder keeps one binding per field, so a second
+        // forField for this component would replace the required rule (UC-002).
+        Binder.BindingBuilder<Answer, String> binding = binder.forField(component);
         if (answer.question.required) {
             component.setRequired(answer.question.required);
             component.setRequiredIndicatorVisible(answer.question.required);
-            binder.forField(component)
-                    .asRequired(answer.question.validationText)
-                    .bind(Answer::getTextValue, Answer::setTextValue);
+            binding = binding.asRequired(requiredMessage(answer));
         }
 
         if (answer.question.minValue != null && answer.question.maxValue != null) {
-            binder.forField(component)
-                    .withValidator(text -> text.length() >= answer.question.minValue && text.length() <= answer.question.maxValue, answer.question.validationText)
-                    .bind(Answer::getTextValue, Answer::setTextValue);
+            binding = binding
+                    .withValidator(text -> text.length() >= answer.question.minValue && text.length() <= answer.question.maxValue, lengthMessage(answer));
+        }
+        // Bound only when there is a rule: a lone min or max sets the field's own limit and adds
+        // no binder rule, as before.
+        if (answer.question.required || (answer.question.minValue != null && answer.question.maxValue != null)) {
+            binding.bind(Answer::getTextValue, Answer::setTextValue);
         }
     }
 

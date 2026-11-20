@@ -3,7 +3,8 @@
     <modelVersion>4.0.0</modelVersion>
 <groupId>com.elicitsoftware</groupId>
     <artifactId>survey</artifactId>
-    <version>2.0.0</version>
+    <version>3.0.0-rc.2</version>
+    <packaging>quarkus</packaging>
 
     <properties>
         <compiler-plugin.version>3.15.0</compiler-plugin.version>
@@ -12,10 +13,10 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
-        <quarkus.platform.version>3.39.2</quarkus.platform.version>
+        <quarkus.platform.version>3.40.1.2</quarkus.platform.version>
         <skipITs>true</skipITs>
-        <surefire-plugin.version>3.5.5</surefire-plugin.version>
-        <vaadin.version>25.2.7</vaadin.version>
+        <surefire-plugin.version>3.5.6</surefire-plugin.version>
+        <vaadin.version>25.3.5</vaadin.version>
         <javadoc-plugin.version>3.12.0</javadoc-plugin.version>
         <site-plugin.version>3.21.0</site-plugin.version>
         <timestamp>${maven.build.timestamp}</timestamp>
@@ -25,7 +26,29 @@
         <license.thirdPartyFilename>Notice.txt</license.thirdPartyFilename>
         <license.includeTransitiveDependencies>false</license.includeTransitiveDependencies>
         <license.excludedScopes>test,provided</license.excludedScopes>
+        <!--
+            vaadin-dev is a dev-mode tool and is not distributed, so the notice must not list it.
+            The vaadin-dev-tools profile adds the dependency whenever quarkus.profile is unset and
+            add-third-party runs in the default lifecycle, so without this a plain `mvn test`
+            regenerates Notice.txt naming a jar that never ships, while the image build (which sets
+            quarkus.profile=docker) regenerates it without. Excluded outright so the file is the
+            same either way.
+
+            The plugin does not match this pattern on its own: it wraps it as
+            `[^:]+:[^:]*(PATTERN)[^:]*` and matches that against groupId:artifactId, so a leading
+            `^` can never match and `^vaadin-dev$` excluded nothing. The lookbehind anchors the
+            artifactId's start at the colon instead, keeping the match exact (not vaadin-dev-server
+            or any other artifactId that merely contains vaadin-dev).
+        -->
+        <license.excludedArtifacts>(?&lt;=:)vaadin-dev$</license.excludedArtifacts>
         <license.outputDirectory>${project.basedir}</license.outputDirectory>
+        <!--
+            add-third-party registers its output directory as a project resource with **/*.txt
+            whenever it runs. With the root as that directory every .txt in the tree was packaged:
+            the license-header templates under src/license and the i18n test allowlists (Elicit#70).
+            Switched off here; the root resource declared under <build> packages Notice.txt alone.
+        -->
+        <license.addOutputDirectoryAsResourceDir>false</license.addOutputDirectoryAsResourceDir>
     </properties>
     <dependencyManagement>
         <dependencies>
@@ -43,25 +66,6 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
-            <!-- Fix jackson-annotations version mismatch between Vaadin BOM and Flyway -->
-            <dependency>
-                <groupId>com.fasterxml.jackson.core</groupId>
-                <artifactId>jackson-annotations</artifactId>
-                <version>2.21</version>
-            </dependency>
-            <!-- Fix JUnit 6 version mismatch: Vaadin BOM pins junit-jupiter(-api) to 6.0.3
-                 while the Quarkus BOM pins the rest of the JUnit 6 artifacts to 6.1.1. -->
-            <dependency>
-                <groupId>org.junit.jupiter</groupId>
-                <artifactId>junit-jupiter</artifactId>
-                <version>6.1.1</version>
-                <scope>test</scope>
-            </dependency>
-            <dependency>
-                <groupId>org.junit.jupiter</groupId>
-                <artifactId>junit-jupiter-api</artifactId>
-                <version>6.1.1</version>
-            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -71,10 +75,10 @@
             <artifactId>vaadin-quarkus-extension</artifactId>
             <version>${vaadin.version}</version>
         </dependency>
+        <!-- Cleans report HTML before it reaches the page (UC-005 BR-021); version from the Vaadin BOM. -->
         <dependency>
-            <groupId>com.vaadin</groupId>
-            <artifactId>vaadin-dev</artifactId>
-            <optional>true</optional>
+            <groupId>org.jsoup</groupId>
+            <artifactId>jsoup</artifactId>
         </dependency>
         <!-- setup and build -->
         <dependency>
@@ -133,7 +137,7 @@
         <dependency>
             <groupId>org.apache.xmlgraphics</groupId>
             <artifactId>batik-all</artifactId>
-            <version>1.16</version>
+            <version>1.20</version>
         </dependency>
         <dependency>
             <groupId>xerces</groupId>
@@ -149,9 +153,19 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-rest-client</artifactId>
         </dependency>
+        <!-- UC-015 BR-005: failed post-survey action calls are retried on a schedule. -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-scheduler</artifactId>
+        </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-rest-client-jsonb</artifactId>
+        </dependency>
+        <!-- Server-side JSON for the built-in report service (UC-014 A1) -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-rest-jsonb</artifactId>
         </dependency>
         <!-- Testing -->
         <dependency>
@@ -177,6 +191,17 @@
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>testcontainers-postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Quarkus's runtime Flyway integration provides Postgres support internally, but a
+             plain, non-Quarkus-bootstrap test driving the Flyway Java API directly (see
+             ManualSchemaMigratorUpgradeTest, which replicates ManualSchemaMigrator's own
+             direct-API usage against a throwaway container) needs the real plugin jar. -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+            <!-- Version intentionally omitted: quarkus-bom manages it, keeping this in
+                 lockstep with the flyway-core that quarkus-flyway itself runs against. -->
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -231,23 +256,27 @@
                     <exclude>application.properties</exclude>
                 </excludes>
             </resource>
+            <!-- The third-party notice, generated at the project root so the committed copy is
+                 the reviewed one, ships in the jar: this is the only root-level resource, now that
+                 license.addOutputDirectoryAsResourceDir no longer sweeps in every .txt (Elicit#70). -->
+            <resource>
+                <directory>${project.basedir}</directory>
+                <filtering>false</filtering>
+                <includes>
+                    <include>Notice.txt</include>
+                </includes>
+            </resource>
         </resources>
         <plugins>
             <plugin>
                 <groupId>${quarkus.platform.group-id}</groupId>
                 <artifactId>quarkus-maven-plugin</artifactId>
                 <version>${quarkus.platform.version}</version>
+                <!-- <packaging>quarkus</packaging> plus extensions=true already binds generate-code,
+                     generate-code-tests, build and native-image-agent through the plugin's lifecycle
+                     mapping. Do not add an <executions> block: it binds them a second time, so every
+                     augmentation and the container-image build run twice per `mvn package`. -->
                 <extensions>true</extensions>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>build</goal>
-                            <goal>generate-code</goal>
-                            <goal>generate-code-tests</goal>
-                            <goal>native-image-agent</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
             <plugin>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -292,6 +321,31 @@
                         <id>report</id>
                         <phase>test</phase>
                         <goals><goal>report</goal></goals>
+                    </execution>
+                    <execution>
+                        <!--
+                            Coverage gate. Fails the build if bundle line coverage drops below
+                            the minimum, locking in the 58.6% -> 70.2% gain rather than letting
+                            it silently regress. Uses this plugin's default exec file (not
+                            jacoco-quarkus.exec) to match the report execution above.
+                        -->
+                        <id>jacoco-check</id>
+                        <phase>verify</phase>
+                        <goals><goal>check</goal></goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.70</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
@@ -346,9 +400,7 @@
                 <version>${javadoc-plugin.version}</version>
                 <configuration>
                     <outputDirectory>${project.build.directory}/javadoc</outputDirectory>
-                    <failOnError>false</failOnError>
                     <failOnWarnings>false</failOnWarnings>
-                    <additionalOptions>-Xdoclint:none</additionalOptions>
                     <quiet>true</quiet>
 <!--                    <javadocDirectory>./docs/javadoc</javadocDirectory>-->
                 </configuration>
@@ -370,6 +422,132 @@
                 </executions>
             </plugin>
             <plugin>
+                <!--
+                    Pitest mutation testing (https://pitest.org). Not bound to any phase: it is slow
+                    and on demand only, run as `./mvnw test-compile pitest:mutationCoverage`, with the
+                    report at target/pit-reports/index.html.
+
+                    targetTests names the plain unit tests one by one, on purpose. A @QuarkusTest (or QuarkusBrowserlessTest) loads
+                    the application through QuarkusClassLoader, which reads the original bytes from
+                    target/classes and never sees Pitest's mutant, so every mutant it covers would be
+                    reported as surviving; it would also boot the application and a PostgreSQL
+                    container once per mutant. There is no glob that separates the two kinds, so a new
+                    plain unit test is added here by hand; leaving one out only lowers the score, where
+                    wrongly including a booted test would falsify it.
+
+                    Two plain tests are left out because they start a PostgreSQL container of their own:
+                    ManualSchemaMigratorUpgradeTest, and ManualSchemaMigratorScaleTest, which is also
+                    @Disabled and seeds hundreds of thousands of rows when run on demand.
+                -->
+                <groupId>org.pitest</groupId>
+                <artifactId>pitest-maven</artifactId>
+                <version>1.30.1</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.pitest</groupId>
+                        <artifactId>pitest-junit5-plugin</artifactId>
+                        <version>1.2.3</version>
+                    </dependency>
+                </dependencies>
+                <configuration>
+                    <targetClasses>
+                        <param>com.elicitsoftware.*</param>
+                    </targetClasses>
+                    <targetTests>
+                        <param>com.elicitsoftware.AccessCodeServiceGeneratorTest</param>
+                        <param>com.elicitsoftware.DisplayKeyTest</param>
+                        <param>com.elicitsoftware.QuestionManagerNavigationTest</param>
+                        <param>com.elicitsoftware.QuestionManagerRepeatGuardTest</param>
+                        <param>com.elicitsoftware.QuestionManagerTokenTest</param>
+                        <param>com.elicitsoftware.QuestionManagerTokenValuesTest</param>
+                        <param>com.elicitsoftware.QuestionServiceCallPostSurveyActionTest</param>
+                        <param>com.elicitsoftware.QuestionServiceDelegationTest</param>
+                        <param>com.elicitsoftware.RepeatSourceTest</param>
+                        <param>com.elicitsoftware.ReplaceTokensTest</param>
+                        <param>com.elicitsoftware.SessionPersistenceServiceSessionTest</param>
+                        <param>com.elicitsoftware.SessionPersistenceServiceTest</param>
+                        <param>com.elicitsoftware.TokenSourceTest</param>
+                        <param>com.elicitsoftware.UISessionDataServiceTest</param>
+                        <param>com.elicitsoftware.diagnostics.BrandDiagnosticsTest</param>
+                        <param>com.elicitsoftware.diagnostics.BuildInfoValuesTest</param>
+                        <param>com.elicitsoftware.diagnostics.ConnectionChecksProbeTest</param>
+                        <param>com.elicitsoftware.diagnostics.DatabaseDiagnosticsProbeTest</param>
+                        <param>com.elicitsoftware.diagnostics.SettingsReportTest</param>
+                        <param>com.elicitsoftware.diagnostics.StartupDiagnosticsReportLinesTest</param>
+                        <param>com.elicitsoftware.etl.ETLBuildResourceUnitTest</param>
+                        <param>com.elicitsoftware.etl.ETLSchemaResourceUnitTest</param>
+                        <param>com.elicitsoftware.etl.ETLServiceStubbedDatabaseTest</param>
+                        <param>com.elicitsoftware.etl.ReportSchemaNamesTest</param>
+                        <param>com.elicitsoftware.flow.AppConfigTest</param>
+                        <param>com.elicitsoftware.flow.BrandResourceHandlerTest</param>
+                        <param>com.elicitsoftware.flow.LogoutViewAttachTest</param>
+                        <param>com.elicitsoftware.flow.MainLayoutHeaderNavTest</param>
+                        <param>com.elicitsoftware.flow.MainViewLoginFlowTest</param>
+                        <param>com.elicitsoftware.flow.ReportCardTest</param>
+                        <param>com.elicitsoftware.flow.ReportViewReportCallTest</param>
+                        <param>com.elicitsoftware.flow.ReviewCardTest</param>
+                        <param>com.elicitsoftware.flow.SectionViewSessionGuardTest</param>
+                        <param>com.elicitsoftware.flow.UserAccessCodeTest</param>
+                        <param>com.elicitsoftware.flow.VersionViewFormatImageCreationDateTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitCheckboxGroupTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitCheckboxTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitComboBoxTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitComponentTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitDatePickerTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitDateTimePickerTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitDoubleFieldTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitEmailFieldTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitHtmlTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitIntegerFieldTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitModalTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitMultiSelectComboBoxTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitPasswordFieldTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitRadioButtonGroupTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitTextAreaTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitTextFieldTest</param>
+                        <param>com.elicitsoftware.flow.input.ElicitTimePickerTest</param>
+                        <param>com.elicitsoftware.flow.input.PickerTextsTest</param>
+                        <param>com.elicitsoftware.i18n.ContentHashUnitTest</param>
+                        <param>com.elicitsoftware.i18n.ContentTextsShortTextTest</param>
+                        <param>com.elicitsoftware.i18n.ContentTextsTest</param>
+                        <param>com.elicitsoftware.i18n.ContentTranslatorUnitTest</param>
+                        <param>com.elicitsoftware.i18n.DisplayedStringsCoverageTest</param>
+                        <param>com.elicitsoftware.i18n.ElicitI18NProviderTest</param>
+                        <param>com.elicitsoftware.i18n.LanguageSwitcherTest</param>
+                        <param>com.elicitsoftware.i18n.LocaleConfigTest</param>
+                        <param>com.elicitsoftware.i18n.LocaleInitializerTest</param>
+                        <param>com.elicitsoftware.i18n.LocaleLayoutUnitTest</param>
+                        <param>com.elicitsoftware.i18n.LocaleSelectionTest</param>
+                        <param>com.elicitsoftware.i18n.TranslationBundleConsistencyTest</param>
+                        <param>com.elicitsoftware.i18n.TranslationRequestGeneratorTest</param>
+                        <param>com.elicitsoftware.i18n.TranslationsTest</param>
+                        <param>com.elicitsoftware.model.AnswerTest</param>
+                        <param>com.elicitsoftware.model.DependentTest</param>
+                        <param>com.elicitsoftware.model.RelationshipTest</param>
+                        <param>com.elicitsoftware.model.RespondentElapsedTimeTest</param>
+                        <param>com.elicitsoftware.model.StepsSectionsTest</param>
+                        <param>com.elicitsoftware.report.PDFDownloadResourceTest</param>
+                        <param>com.elicitsoftware.report.PDFServicePaginationTest</param>
+                        <param>com.elicitsoftware.report.PDFServiceTest</param>
+                        <param>com.elicitsoftware.report.builtin.BuiltInReportsLookupTest</param>
+                        <param>com.elicitsoftware.report.builtin.RespondentSummaryServiceRenderingTest</param>
+                        <param>com.elicitsoftware.response.NavResponseTest</param>
+                        <param>com.elicitsoftware.util.BrandUtilTest</param>
+                        <param>com.elicitsoftware.util.DatabaseRetryUtilClassificationTest</param>
+                        <param>com.elicitsoftware.util.DatabaseRetryUtilTest</param>
+                    </targetTests>
+                    <jvmArgs>
+                        <jvmArg>-Djava.util.logging.manager=org.jboss.logmanager.LogManager</jvmArg>
+                    </jvmArgs>
+                    <outputFormats>
+                        <format>HTML</format>
+                        <format>XML</format>
+                    </outputFormats>
+                    <timestampedReports>false</timestampedReports>
+                    <threads>4</threads>
+                </configuration>
+            </plugin>
+            <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>license-maven-plugin</artifactId>
                 <version>2.7.1</version>
@@ -382,7 +560,13 @@
                     <emptyLineAfterHeader>true</emptyLineAfterHeader>
                     <excludes>
                         <exclude>**/*.properties</exclude>
-                        <exclude>**/brand-config.json</exclude>
+                        <!-- JSON has no comment syntax: a header makes the file unparseable.
+                             This covers brand-config.json, brand-info.json, typography.json,
+                             i18n-config.json and anything added later. -->
+                        <exclude>**/*.json</exclude>
+                        <!-- An SVG under src/ is a drawing from elsewhere, such as Pedigree's
+                             output in test/resources/report, not Survey's own source. -->
+                        <exclude>**/*.svg</exclude>
                     </excludes>
                     <licenseResolver>${project.baseUri}src/license</licenseResolver>
                     <processStartTag>***LICENSE_START***</processStartTag>
@@ -475,6 +659,27 @@
         </plugins>
     </reporting>
     <profiles>
+        <profile>
+            <!-- Vaadin dev tools (dev server, Copilot, dev bundle) for dev mode and tests.
+                 Active only when no -Dquarkus.profile is passed on the Maven command line, so
+                 the image build (-Dquarkus.profile=docker) keeps them off the build classpath.
+                 Quarkus packages optional dependencies, and filtering them only at packaging
+                 time breaks startup because augmentation has already generated a bean for
+                 vaadin-dev's DevModeStartupListener. -->
+            <id>vaadin-dev-tools</id>
+            <activation>
+                <property>
+                    <name>!quarkus.profile</name>
+                </property>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>com.vaadin</groupId>
+                    <artifactId>vaadin-dev</artifactId>
+                    <optional>true</optional>
+                </dependency>
+            </dependencies>
+        </profile>
         <profile>
             <id>license</id>
             <activation>

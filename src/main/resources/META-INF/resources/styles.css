@@ -38,6 +38,21 @@
 /* Import component styles */
 @import 'components/branded-header.css';
 
+/* Per-language font scale (UC-009 BR-011) */
+/* LocaleLayout writes --elicit-font-scale onto the document element from the mounted
+   i18n-config.json when a locale declares one; it is absent, and so 1, for every other
+   locale and for a mount that declares none. Scaling the ROOT font size is what makes one
+   property enough: Lumo's font sizes, spacing and control sizes, the brand typography
+   tokens and this application's own rules are all expressed in rem, so the whole page grows
+   in proportion and nothing clips. 100% is the reader's own browser default -- a scale
+   multiplies that rather than replacing it, so a respondent who has enlarged text keeps the
+   enlargement. Arabic is the case this exists for: its apparent x-height is smaller than
+   Latin's in the system font stack, so it reads small at a size that is comfortable in
+   English. */
+html {
+    font-size: calc(100% * var(--elicit-font-scale, 1));
+}
+
 /* Brand Integration Architecture */
 /* These CSS custom properties provide the contract between brands and the application.
    The mapping lives on :root — the same selector the brand color/typography files use —
@@ -109,21 +124,21 @@
 
 .review-item-question {
     font-weight: bold;
-    padding-left: 10px;
+    padding-inline-start: 10px;
 }
 
 /* Application Animations */
 @keyframes flash {
     0% { background-color: var(--lumo-base-color, white); }
-    10% { background-color: var(--brand-interactive-light, rgba(22, 118, 243, 0.1)); }
-    20% { background-color: var(--brand-interactive-light, rgba(22, 118, 243, 0.15)); }
-    30% { background-color: var(--brand-interactive-light, rgba(22, 118, 243, 0.2)); }
-    40% { background-color: var(--brand-interactive-light, rgba(22, 118, 243, 0.25)); }
-    50% { background-color: var(--brand-interactive-light, rgba(22, 118, 243, 0.3)); }
-    60% { background-color: var(--brand-interactive-light, rgba(22, 118, 243, 0.25)); }
-    70% { background-color: var(--brand-interactive-light, rgba(22, 118, 243, 0.2)); }
-    80% { background-color: var(--brand-interactive-light, rgba(22, 118, 243, 0.15)); }
-    90% { background-color: var(--brand-interactive-light, rgba(22, 118, 243, 0.1)); }
+    10% { background-color: var(--brand-interactive-light, color-mix(in srgb, var(--brand-primary, #0A3D62) 10%, transparent)); }
+    20% { background-color: var(--brand-interactive-light, color-mix(in srgb, var(--brand-primary, #0A3D62) 15%, transparent)); }
+    30% { background-color: var(--brand-interactive-light, color-mix(in srgb, var(--brand-primary, #0A3D62) 20%, transparent)); }
+    40% { background-color: var(--brand-interactive-light, color-mix(in srgb, var(--brand-primary, #0A3D62) 25%, transparent)); }
+    50% { background-color: var(--brand-interactive-light, color-mix(in srgb, var(--brand-primary, #0A3D62) 30%, transparent)); }
+    60% { background-color: var(--brand-interactive-light, color-mix(in srgb, var(--brand-primary, #0A3D62) 25%, transparent)); }
+    70% { background-color: var(--brand-interactive-light, color-mix(in srgb, var(--brand-primary, #0A3D62) 20%, transparent)); }
+    80% { background-color: var(--brand-interactive-light, color-mix(in srgb, var(--brand-primary, #0A3D62) 15%, transparent)); }
+    90% { background-color: var(--brand-interactive-light, color-mix(in srgb, var(--brand-primary, #0A3D62) 10%, transparent)); }
     100% { background-color: var(--lumo-base-color, white); }
 }
 

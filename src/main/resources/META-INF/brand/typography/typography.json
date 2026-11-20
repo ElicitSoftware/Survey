@@ -1,32 +1,21 @@
-/*-
- * ***LICENSE_START***
- * Elicit Survey
- * %%
- * Copyright (C) 2025 - 2026 The Regents of the University of Michigan - Rogel Cancer Center
- * %%
- * PolyForm Noncommercial License 1.0.0
- * <https://polyformproject.org/licenses/noncommercial/1.0.0>
- * ***LICENSE_END***
- */
-
 {
   "brand": {
     "name": "Elicit Default Brand",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "Typography configuration for the Elicit default brand"
   },
   "typography": {
     "primary": {
-      "name": "System Font Stack",
-      "family": "system-ui",
-      "fallback": ["-apple-system", "BlinkMacSystemFont", "Roboto", "Segoe UI", "Helvetica", "Arial", "sans-serif"],
+      "name": "IBM Plex Sans",
+      "family": "IBM Plex Sans",
+      "fallback": ["IBM Plex Sans Arabic", "-apple-system", "BlinkMacSystemFont", "Roboto", "Segoe UI", "Helvetica", "Arial", "sans-serif"],
       "weight": "normal",
       "style": "normal",
       "display": "swap"
     },
     "monospace": {
-      "name": "System Monospace Stack",
-      "family": "monospace",
+      "name": "IBM Plex Mono",
+      "family": "IBM Plex Mono",
       "fallback": ["SF Mono", "Monaco", "Inconsolata", "Roboto Mono", "Consolas", "Courier New"],
       "weight": "normal",
       "style": "normal",
@@ -35,12 +24,12 @@
   },
   "styles": {
     "body": {
-      "fontFamily": "system-ui",
+      "fontFamily": "IBM Plex Sans",
       "fontSize": "16px",
       "lineHeight": "1.5"
     },
     "heading": {
-      "fontFamily": "system-ui",
+      "fontFamily": "IBM Plex Sans",
       "fontSize": "32px",
       "fontWeight": "600",
       "textAlign": "start",

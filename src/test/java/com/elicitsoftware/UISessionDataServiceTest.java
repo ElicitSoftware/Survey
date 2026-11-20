@@ -55,7 +55,7 @@ class UISessionDataServiceTest {
 
         Respondent respondent = new Respondent();
         respondent.id = 42;
-        respondent.token = "tok-123";
+        respondent.accessCode = "tok-123";
         NavigationItem navItem = new NavigationItem("Step 1", false, "0-0-0-0-0-0-0", null, null);
         NavResponse navResponse = new NavResponse(null, navItem, null, null);
 

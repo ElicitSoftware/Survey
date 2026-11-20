@@ -17,7 +17,6 @@ import io.quarkus.test.common.QuarkusTestResource;
 import com.elicitsoftware.PostgresTestResource;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;
@@ -25,14 +24,12 @@ import java.time.OffsetDateTime;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Executable spec for Type 2 versioning of {@code survey.relationships} —
- * research/Kimball_type_2.md, "Schema Changes Per Table &rarr; relationships" and
- * "Versioning Workflows &rarr; Changing conditional logic". Covers the
+ * Executable spec for Type 2 versioning of {@code survey.relationships} (UC-002 BR-009;
+ * changing conditional logic versions the rule). Covers the
  * {@code downstream_s_id -> downstream_ss_id} rename and all 5 durable-key FK columns.
  */
 @QuarkusTest
 @QuarkusTestResource(PostgresTestResource.class)
-@Disabled("Enable once the relationships Type 2 migration lands — see research/Kimball_type_2.md 'Schema Changes Per Table -> relationships'")
 class RelationshipsVersioningSpecTest {
 
     @Inject
@@ -49,10 +46,10 @@ class RelationshipsVersioningSpecTest {
 
         long cols = ((Number) em.createNativeQuery(
                 "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='survey' AND table_name='relationships' "
-                        + "AND column_name IN ('relationship_id','version','effective_from','effective_to','is_draft',"
+                        + "AND column_name IN ('relationship_id','version','effective_from','effective_to',"
                         + "'downstream_ss_id','upstream_step_version','upstream_sq_version','downstream_step_version',"
                         + "'downstream_ss_version','downstream_sq_version')").getSingleResult()).longValue();
-        assertEquals(11, cols);
+        assertEquals(10, cols);
     }
 
     @Test
@@ -70,12 +67,12 @@ class RelationshipsVersioningSpecTest {
         em.createNativeQuery("UPDATE survey.relationships SET effective_to = ?2 WHERE relationship_id = ?1 AND effective_to = ?3")
                 .setParameter(1, durableRelationshipId).setParameter(2, publishInstant).setParameter(3, MAX_SENTINEL).executeUpdate();
         em.createNativeQuery(
-                "INSERT INTO survey.relationships (id, relationship_id, version, survey_id, upstream_step_id, upstream_sq_id, "
+                "INSERT INTO survey.relationships (id, relationship_id, relationship_key, version, survey_id, upstream_step_id, upstream_sq_id, "
                         + "downstream_step_id, downstream_ss_id, downstream_sq_id, operator_id, action_id, reference_value, "
-                        + "effective_from, effective_to, is_draft) "
-                        + "SELECT nextval('survey.relationships_seq'), relationship_id, ?2, survey_id, upstream_step_id, upstream_sq_id, "
+                        + "effective_from, effective_to) "
+                        + "SELECT nextval('survey.relationships_seq'), relationship_id, relationship_key, ?2, survey_id, upstream_step_id, upstream_sq_id, "
                         + "downstream_step_id, downstream_ss_id, downstream_sq_id, operator_id, action_id, 'FALSE', "
-                        + "?3, ?4, false FROM survey.relationships WHERE relationship_id = ?1 AND version = ?5")
+                        + "?3, ?4 FROM survey.relationships WHERE relationship_id = ?1 AND version = ?5")
                 .setParameter(1, durableRelationshipId).setParameter(2, currentVersion + 1).setParameter(3, publishInstant)
                 .setParameter(4, MAX_SENTINEL).setParameter(5, currentVersion).executeUpdate();
         em.flush();

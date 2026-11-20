@@ -1,0 +1,109 @@
+package com.elicitsoftware.etl;
+
+/*-
+ * ***LICENSE_START***
+ * Elicit Survey
+ * %%
+ * Copyright (C) 2025 - 2026 The Regents of the University of Michigan - Rogel Cancer Center
+ * %%
+ * PolyForm Noncommercial License 1.0.0
+ * <https://polyformproject.org/licenses/noncommercial/1.0.0>
+ * ***LICENSE_END***
+ */
+
+import jakarta.inject.Inject;
+import jakarta.ws.rs.DELETE;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
+
+import java.util.UUID;
+
+/**
+ * A survey's reporting schema as a resource, {@code /api/etl/schema/{surveyKey}}:
+ * <ul>
+ * <li>{@code POST .../rename?name=<new_name>} renames it (UC-010). Answers {@code 200 ok}
+ * with the new name in {@code schema}, {@code 400 invalid}, {@code 404 unknown},
+ * {@code 409 taken} or {@code 409 unbuilt}, or {@code 500 failed}.</li>
+ * <li>{@code DELETE} drops it with everything in it (UC-011), when
+ * {@code elicit.etl.drop.enabled=true}. Answers {@code 200 ok} (also when there was nothing to
+ * drop), {@code 403 disabled}, {@code 404 unknown} or {@code 500 failed}.</li>
+ * </ul>
+ * Both take no body and answer the same hand-written JSON as {@link ETLBuildResource}. Both
+ * require the platform service token (UC-016); the drop is in addition off unless a deployment
+ * turns it on (UC-011 BR-001).
+ */
+@Path("/api/etl/schema/{surveyKey}")
+public class ETLSchemaResource {
+
+    @Inject
+    ETLService etlService;
+
+    /**
+     * Renames the survey's reporting schema (UC-010).
+     *
+     * @param surveyKey the survey's key, a UUID
+     * @param name      the new schema name, trimmed before it is checked
+     * @return {@code 200 ok} with the new name in {@code schema}, {@code 400 invalid} for a key
+     *         that is not a UUID or a name that is not allowed, {@code 404 unknown},
+     *         {@code 409 taken} or {@code 409 unbuilt}, or {@code 500 failed}
+     */
+    @POST
+    @Path("/rename")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response rename(@PathParam("surveyKey") String surveyKey, @QueryParam("name") String name) {
+        UUID key = parse(surveyKey);
+        if (key == null) {
+            return ETLBuildResource.respond(Response.Status.BAD_REQUEST, "invalid", "surveyKey must be a survey key (UUID): " + surveyKey);
+        }
+        ETLService.RenameResult result = etlService.renameReportingSchema(key, name == null ? null : name.trim());
+        Response.Status http = switch (result.status()) {
+            case OK -> Response.Status.OK;
+            case INVALID -> Response.Status.BAD_REQUEST;
+            case UNKNOWN -> Response.Status.NOT_FOUND;
+            case TAKEN, UNBUILT -> Response.Status.CONFLICT;
+            case FAILED -> Response.Status.INTERNAL_SERVER_ERROR;
+        };
+        String body = "{\"status\":\"" + ETLBuildResource.escape(result.status().name().toLowerCase())
+                + "\",\"message\":\"" + ETLBuildResource.escape(result.message())
+                + "\",\"schema\":" + (result.schema() == null ? "null" : "\"" + ETLBuildResource.escape(result.schema()) + "\"") + "}";
+        return Response.status(http).type(MediaType.APPLICATION_JSON).entity(body).build();
+    }
+
+    /**
+     * Drops the survey's reporting schema with everything in it (UC-011), when
+     * {@code elicit.etl.drop.enabled=true}.
+     *
+     * @param surveyKey the survey's key, a UUID
+     * @return {@code 200 ok} (also when there was nothing to drop), {@code 400 invalid} for a key
+     *         that is not a UUID, {@code 403 disabled}, {@code 404 unknown} or {@code 500 failed}
+     */
+    @DELETE
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response drop(@PathParam("surveyKey") String surveyKey) {
+        UUID key = parse(surveyKey);
+        if (key == null) {
+            return ETLBuildResource.respond(Response.Status.BAD_REQUEST, "invalid", "surveyKey must be a survey key (UUID): " + surveyKey);
+        }
+        ETLService.DropResult result = etlService.dropReportingSchema(key);
+        Response.Status http = switch (result.status()) {
+            case OK -> Response.Status.OK;
+            case DISABLED -> Response.Status.FORBIDDEN;
+            case UNKNOWN -> Response.Status.NOT_FOUND;
+            case FAILED -> Response.Status.INTERNAL_SERVER_ERROR;
+        };
+        return ETLBuildResource.respond(http, result.status().name().toLowerCase(), result.message());
+    }
+
+    private static UUID parse(String surveyKey) {
+        try {
+            return UUID.fromString(surveyKey.trim());
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+}

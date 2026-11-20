@@ -10,20 +10,22 @@
  */
 
 /* Brand Color Palette */
-/* Elicit default brand colors, derived from the clipboard/checkmark mark */
+/* Elicit default brand colors, taken from the Choice E mark */
 
 :root {
-  /* Primary Brand Colors - Ink family (lightened from the logo's literal navy
-     #0A3D62, which reads as near-black at header size) */
-  --elicit-ink: #1B629C;
-  --elicit-ink-dark: #154C79;
-  --elicit-ink-darker: #103A5C;
-  --elicit-ink-darkest: #0A3D62;
+  /* Primary Brand Colors - Ink family. Ink is the mark's own navy, so the
+     white mark sits on the header exactly as it is drawn: Paper text on it is
+     ~11.0:1, and the mark's light Verdigris row ~4.9:1. The darker steps are
+     hover, pressed and border shades of the same hue. */
+  --elicit-ink: #0A3D62;
+  --elicit-ink-dark: #072E4A;
+  --elicit-ink-darker: #052238;
+  --elicit-ink-darkest: #041A2B;
 
-  /* Accent - Verdigris family (logo checkmark teal). Darkened from the
+  /* Accent - Verdigris family (the mark's selected row). Darkened from the
      original #2FA084 -- white button/badge text on that fill was 3.24:1,
      below WCAG AA's 4.5:1 for normal text. Same hue/saturation, just deeper;
-     white text on this base is ~5.46:1. */
+     white text on this base is ~5.43:1. */
   --elicit-verdigris: #22775D;
   --elicit-verdigris-dark: #1C5F4B;
   --elicit-verdigris-light: #5CBBA4;
@@ -55,8 +57,8 @@
   /* Generic brand color mappings */
   --brand-primary: var(--elicit-ink);
   --brand-primary-contrast: var(--elicit-paper);
-  --brand-primary-50pct: rgba(27, 98, 156, 0.5);
-  --brand-primary-10pct: rgba(27, 98, 156, 0.1);
+  --brand-primary-50pct: rgba(10, 61, 98, 0.5);
+  --brand-primary-10pct: rgba(10, 61, 98, 0.1);
   --brand-secondary: var(--elicit-verdigris);
   --brand-accent: var(--elicit-verdigris);
   --brand-background: var(--elicit-paper);
@@ -79,7 +81,10 @@
   --brand-text-disabled: #93A0AB;
   --brand-text-on-primary: var(--elicit-paper);
   --brand-text-on-secondary: var(--elicit-white);
-  --brand-text-on-accent: var(--elicit-ink-darkest);
+  /* Author's rule glyphs draw on the accent. White, as on the secondary
+     color (the same Verdigris), holds ~5.43:1, above WCAG AA's 4.5:1 for
+     text; Ink on Verdigris is ~2.1:1, under the 3:1 even an icon needs. */
+  --brand-text-on-accent: var(--elicit-white);
 
   /* Interactive states */
   --brand-hover: rgba(34, 119, 93, 0.1);
@@ -107,11 +112,11 @@
   /* Border and shadow colors - Ledger: warm gray, paper-adjacent */
   --brand-border: var(--elicit-ledger);
   --brand-border-light: var(--elicit-ledger-light);
-  --brand-shadow: rgba(27, 98, 156, 0.12);
+  --brand-shadow: rgba(10, 61, 98, 0.12);
 
-  /* Token pill - the signature recurring device (specimen-label style token chips) */
-  --brand-token-bg: var(--elicit-verdigris-pale);
-  --brand-token-text: var(--elicit-ink);
+  /* Access-code pill - the signature recurring device (specimen-label style identifier chips) */
+  --brand-access-code-bg: var(--elicit-verdigris-pale);
+  --brand-access-code-text: var(--elicit-ink);
 
   /* Accessibility enhancements */
   --high-contrast-text: var(--elicit-black);
@@ -120,7 +125,7 @@
 }
 
 /* Header treatment: solid Ink background, Paper text. No accent rule beneath --
-   a Verdigris (green) rule under a blue header read as an unrelated third
+   a Verdigris (green) rule under a navy header read as an unrelated third
    color; the header now uses Ink shades only. Keep this flat rather than a
    gradient -- the mark is a solid-fill icon and reads best against a flat field. */
 vaadin-app-layout[theme="default"] [slot="navbar"],
@@ -186,8 +191,8 @@ vaadin-button[theme~="secondary"]:focus-visible,
   outline-offset: 2px;
 }
 
-/* Token pill - specimen-label style chip for survey/subject tokens */
-.elicit-token {
+/* Access-code pill - specimen-label style chip for respondent access codes */
+.elicit-access-code {
   display: inline-block;
   font-family: var(--brand-font-monospace);
   font-size: 0.8125rem;
@@ -195,8 +200,8 @@ vaadin-button[theme~="secondary"]:focus-visible,
   letter-spacing: 0.02em;
   padding: 0.125rem 0.5rem;
   border-radius: 0.25rem;
-  background-color: var(--brand-token-bg);
-  color: var(--brand-token-text);
+  background-color: var(--brand-access-code-bg);
+  color: var(--brand-access-code-text);
   white-space: nowrap;
 }
 

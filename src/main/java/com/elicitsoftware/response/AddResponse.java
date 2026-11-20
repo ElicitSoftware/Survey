@@ -15,17 +15,17 @@ package com.elicitsoftware.response;
  * Represents the response generated after an add operation.
  * <p>
  * This class encapsulates information relevant to the result of an addition process.
- * It includes the identifier of the respondent, an associated token for identification
- * or access purposes, and an error message if the operation encountered an issue.
+ * It includes the identifier of the respondent, the access code the respondent enters to
+ * reach the survey, and an error message if the operation encountered an issue.
  * <p>
  * The {@code respondentId} represents the unique identifier of the user or entity
- * involved in the operation. The {@code token} is typically used for authentication
- * or to reference the operation, while the {@code error} provides details when an
- * error occurs during the add process.
+ * involved in the operation. The {@code accessCode} is the credential issued to that
+ * respondent, while the {@code error} provides details when an error occurs during the
+ * add process.
  */
 public class AddResponse {
     private int respondentId;
-    private String token;
+    private String accessCode;
     private String error;
 
     /**
@@ -47,21 +47,21 @@ public class AddResponse {
     }
 
     /**
-     * Gets the token associated with this response.
+     * Gets the access code issued to the respondent.
      *
-     * @return the authentication or reference token
+     * @return the respondent's access code
      */
-    public String getToken() {
-        return token;
+    public String getAccessCode() {
+        return accessCode;
     }
 
     /**
-     * Sets the token for this response.
+     * Sets the access code issued to the respondent.
      *
-     * @param token the authentication or reference token
+     * @param accessCode the respondent's access code
      */
-    public void setToken(String token) {
-        this.token = token;
+    public void setAccessCode(String accessCode) {
+        this.accessCode = accessCode;
     }
 
     /**
@@ -84,6 +84,7 @@ public class AddResponse {
 
     @Override
     public String toString() {
-        return "AddResponse [respondentId=" + respondentId + ", token=" + token + ", error=" + error + "]";
+        // The access code is a credential, so only report whether one was issued.
+        return "AddResponse [respondentId=" + respondentId + ", accessCodePresent=" + (accessCode != null) + ", error=" + error + "]";
     }
 }

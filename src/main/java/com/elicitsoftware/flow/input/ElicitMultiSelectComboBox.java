@@ -11,13 +11,16 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
 import com.elicitsoftware.model.SelectItem;
 import com.vaadin.flow.component.combobox.MultiSelectComboBox;
 import com.vaadin.flow.component.combobox.MultiSelectComboBoxVariant;
 
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Set;
 
 /**
  * The ElicitMultiSelectComboBox class represents a UI component for selecting multiple
@@ -46,11 +49,13 @@ public class ElicitMultiSelectComboBox extends ElicitComponent<MultiSelectComboB
      *                 <li>Sets a label generator for the items to display their `displayText` property.</li>
      *                 <li>Pre-selects the value if the `Answer` object contains a non-empty text value.</li>
      *               </ul>
+     * @param texts  the content language of this page draw, which also labels the options;
+     *               must not be null
      */
-    public ElicitMultiSelectComboBox(Answer answer) {
-        super(new MultiSelectComboBox<SelectItem>(answer.displayText), answer);
-        component.setItems(answer.question.selectGroup.selectItems);
-        component.setItemLabelGenerator(item -> item.displayText);
+    public ElicitMultiSelectComboBox(Answer answer, ContentTexts texts) {
+        super(new MultiSelectComboBox<SelectItem>(answer.label()), answer, texts);
+        component.setItems(answer.getSelectItems());
+        component.setItemLabelGenerator(texts::option);
         if (answer.getTextValue() != null && !answer.getTextValue().isEmpty()) {
             setValue(answer);
         }
@@ -74,7 +79,7 @@ public class ElicitMultiSelectComboBox extends ElicitComponent<MultiSelectComboB
         if (answer.question.required) {
             component.setRequired(answer.question.required);
             component.setRequiredIndicatorVisible(answer.question.required);
-            this.binder.forField(component).asRequired(answer.question.validationText)
+            this.binder.forField(component).asRequired(requiredMessage(answer))
                     .bind(Answer::getSelectedItems, Answer::setSelectedItems);
             // No min or max for Combo Multi select
         }
@@ -97,8 +102,11 @@ public class ElicitMultiSelectComboBox extends ElicitComponent<MultiSelectComboB
     void setValue(Answer answer) {
         HashSet<SelectItem> selected = new HashSet<SelectItem>();
         if (answer.getTextValue() != null) {
-            for (SelectItem item : answer.question.selectGroup.selectItems) {
-                if (answer.getTextValue().contains(item.codedValue)) {
+            // The stored value is the selected coded values joined with commas, so an item is
+            // selected by its whole code: "10" must not select the item coded "1".
+            Set<String> codes = new HashSet<>(Arrays.asList(answer.getTextValue().split(",")));
+            for (SelectItem item : answer.getSelectItems()) {
+                if (codes.contains(item.codedValue)) {
                     selected.add(item);
                 }
             }

@@ -12,13 +12,16 @@ package com.elicitsoftware.model;
  */
 
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
-import io.quarkus.panache.common.Parameters;
+import io.quarkus.logging.Log;
 import jakarta.persistence.*;
 
 import java.text.SimpleDateFormat;
+import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * The Relationship class represents the relationship between different components
@@ -50,17 +53,22 @@ import java.util.List;
  * section.
  * - `findByDownstream_SQ_ID(int surveyId, int downstream_sq_id)`: Retrieves
  * relationships for a particular downstream question.
- * - `findByDownstream_S_ID(int surveyId, int downstream_s_id, int stepId)`:
+ * - `findByDownstream_SS_ID(int surveyId, int downstream_ss_id, int stepId)`:
  * Retrieves relationships for a specific downstream section and upstream step.
  * - `findByDownstream_Step_ID(int surveyId, int downstream_step_id, int stepId)`:
  * Retrieves relationships for a specific downstream step and upstream step.
- * - `findRelationshipsByDownstreamAnswer(int respondentId, int answerId)`:
- * Retrieves relationships associated with a specific downstream answer.
+ * - `findRelationshipsByDownstreamAnswer` was removed: it compared a step's durable id with an
+ *   answer's display order; `QuestionManager.findRelationshipsByDownstreamAnswer` bridges the two.
  * - `findRelationshipsByUpstreamQuestion(int surveyId, int upstream_step_id, int upstream_sq_id)`:
  * Retrieves relationships related to an upstream question and step.
  * - `evaluateOperator(Answer answer)`: Evaluates the relationship's operator
  * against the given answer, returning true or false based on the operator's
  * logic and the provided answer's details.
+ * <p>
+ * The five endpoint columns (`upstreamStepId`, `upstreamSqId`, `downstreamStepId`,
+ * `downstreamSsId`, `downstreamSqId`) hold durable ids and are deliberately plain columns:
+ * the endpoint rows are resolved with the `findAsOf` finders on `Step`, `SectionsQuestion`
+ * and `StepsSections` at the respondent's snapshot anchor (`Respondent.snapshotAnchor`).
  * <p>
  * The class leverages JPA for database interactions and includes transient fields
  * for internal utility purposes (e.g., date formatting during operator evaluation).
@@ -68,13 +76,14 @@ import java.util.List;
 @Entity
 @Table(name = "RELATIONSHIPS", schema = "survey")
 @NamedQueries({
-        @NamedQuery(name = "Relationship.findByDownstream_Step_ID", query = "SELECT r FROM Relationship r WHERE r.surveyId = :surveyId and r.actionType.name <> 'TEXT' and r.downstreamSection is null and r.downstreamQuestion is null and r.downstreamStep.id = :downstream_step_id and r.upstreamStep.id = :stepId order by r.id"),
-        @NamedQuery(name = "Relationship.findByDownstream_S_ID", query = "SELECT r FROM Relationship r WHERE r.surveyId = :surveyId and r.actionType.name <> 'TEXT' and r.downstreamSection.id = :downstream_s_id and r.upstreamStep.id = :stepId order by r.id"),
-        @NamedQuery(name = "Relationship.findByDownstream_SQ_ID", query = "SELECT r FROM Relationship r WHERE r.surveyId = :surveyId and r.actionType.name <> 'TEXT' and r.downstreamQuestion.id = :downstream_sq_id order by r.id"),
-        @NamedQuery(name = "Relationship.findRepeatByDownstreamStep", query = "SELECT r FROM Relationship r WHERE r.surveyId = :surveyId and r.downstreamStep.id = :downstreamStepId and r.downstreamSection is null and r.downstreamQuestion is null order by r.id"),
-        @NamedQuery(name = "Relationship.findRepeatByDownstreamStepSection", query = "SELECT r FROM Relationship r WHERE r.surveyId = :surveyId and r.downstreamStep.id = :downstreamStepId and r.downstreamSection.id = :downstreamSectionId and r.downstreamQuestion is null order by r.id"),
-        @NamedQuery(name = "Relationship.findRelationshipsByDownstreamAnswer", query = "SELECT r FROM Relationship r inner JOIN Answer a on r.downstreamStep.id = a.stepId AND r.downstreamQuestion.id is null AND r.surveyId = a.surveyId WHERE a.section_question_id is null AND a.respondentId = :respondentId AND r.actionType.id = 3 AND a.id = :answerId order by r.id"),
-        @NamedQuery(name = "Relationship.findRelationshipsByUpstreamQuestion", query = "SELECT r FROM Relationship r WHERE r.upstreamQuestion.id = :upstream_sq_id and r.surveyId = :surveyId and (r.upstreamStep.id = :upstream_step_id or r.upstreamStep.id is null)  order by r.id")})
+        // Every endpoint parameter below is a DURABLE id compared with the relationship's own
+        // column; nothing joins the versioned endpoint tables (see the field comments).
+        @NamedQuery(name = "Relationship.findByDownstream_Step_ID", query = "SELECT r FROM Relationship r WHERE r.surveyId = :surveyId and r.actionType.name <> 'TEXT' and r.downstreamSsId is null and r.downstreamSqId is null and r.downstreamStepId = :downstream_step_id and r.upstreamStepId = :stepId and r.effectiveFrom <= :asOf and r.effectiveTo > :asOf order by r.id"),
+        @NamedQuery(name = "Relationship.findByDownstream_SS_ID", query = "SELECT r FROM Relationship r WHERE r.surveyId = :surveyId and r.actionType.name <> 'TEXT' and r.downstreamSsId = :downstream_ss_id and r.upstreamStepId = :stepId and r.effectiveFrom <= :asOf and r.effectiveTo > :asOf order by r.id"),
+        @NamedQuery(name = "Relationship.findByDownstream_SQ_ID", query = "SELECT r FROM Relationship r WHERE r.surveyId = :surveyId and r.actionType.name <> 'TEXT' and r.downstreamSqId = :downstream_sq_id and r.effectiveFrom <= :asOf and r.effectiveTo > :asOf order by r.id"),
+        @NamedQuery(name = "Relationship.findRepeatByDownstreamStep", query = "SELECT r FROM Relationship r WHERE r.surveyId = :surveyId and r.downstreamStepId = :downstreamStepId and r.downstreamSsId is null and r.downstreamSqId is null and r.effectiveFrom <= :asOf and r.effectiveTo > :asOf order by r.id"),
+        @NamedQuery(name = "Relationship.findRepeatByDownstreamStepSection", query = "SELECT r FROM Relationship r WHERE r.surveyId = :surveyId and r.downstreamStepId = :downstreamStepId and r.downstreamSsId = :downstreamSectionId and r.downstreamSqId is null order by r.id"),
+        @NamedQuery(name = "Relationship.findRelationshipsByUpstreamQuestion", query = "SELECT r FROM Relationship r WHERE r.upstreamSqId = :upstream_sq_id and r.surveyId = :surveyId and (r.upstreamStepId = :upstream_step_id or r.upstreamStepId is null) and r.effectiveFrom <= :asOf and r.effectiveTo > :asOf order by r.id")})
 public class Relationship extends PanacheEntityBase {
 
     @Transient
@@ -85,6 +94,14 @@ public class Relationship extends PanacheEntityBase {
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "RELATIONSHIPS_ID_GENERATOR")
     @Column(name = "ID", unique = true, nullable = false, precision = 20)
     public Integer id;
+
+    /**
+     * Element key (Survey V015): the identity that survives versioning and import, and what a
+     * {@link Translation} names this element by. Read-only here -- it is minted in Author and
+     * carried verbatim by Admin's import and update; Survey never writes it.
+     */
+    @Column(name = "relationship_key", insertable = false, updatable = false)
+    public UUID relationshipKey;
 
     @Column(name = "DEFAULT_UPSTREAM_VALUE", length = 255)
     public String defaultUpstreamValue;
@@ -108,33 +125,82 @@ public class Relationship extends PanacheEntityBase {
     @JoinColumn(name = "OPERATOR_ID", nullable = false)
     public OperatorType operatorType;
 
-    // uni-directional many-to-one association to Step
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "UPSTREAM_STEP_ID")
-    public Step upstreamStep;
+    // The five endpoint columns hold DURABLE ids (Kimball Type 2 SCD retarget): steps.step_id,
+    // sections_questions.sections_question_id and steps_sections.steps_sections_id, never the
+    // surrogate ids. They are plain columns, not @ManyToOne associations: a durable id has one
+    // row per version, so a JPA association on it fails with "More than one row with the given
+    // identifier" as soon as a revision exists, marking the transaction rollback-only. Callers
+    // resolve the endpoint they need with Step.findAsOf / SectionsQuestion.findAsOf /
+    // StepsSections.findAsOf at the respondent's snapshot anchor (Respondent.snapshotAnchor).
+    @Column(name = "UPSTREAM_STEP_ID")
+    public Integer upstreamStepId;
 
-    // uni-directional many-to-one association to SectionsQuestion
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "UPSTREAM_SQ_ID", nullable = false)
-    public SectionsQuestion upstreamQuestion;
+    @Column(name = "UPSTREAM_SQ_ID", nullable = false)
+    public Integer upstreamSqId;
 
-    // uni-directional many-to-one association to Step
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "DOWNSTREAM_STEP_ID")
-    public Step downstreamStep;
+    @Column(name = "DOWNSTREAM_STEP_ID")
+    public Integer downstreamStepId;
 
-    // uni-directional many-to-one association to Section
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "DOWNSTREAM_S_ID")
-    public StepsSections downstreamSection;
+    @Column(name = "DOWNSTREAM_SS_ID")
+    public Integer downstreamSsId;
 
-    // uni-directional many-to-one association to SectionsQuestion
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "DOWNSTREAM_SQ_ID")
-    public SectionsQuestion downstreamQuestion;
+    @Column(name = "DOWNSTREAM_SQ_ID")
+    public Integer downstreamSqId;
 
     @Column(name = "SURVEY_ID", nullable = false, precision = 20)
     public Integer surveyId;
+
+    // Kimball Type 2 SCD (UC-002 BR-009) — relationship_id is the durable
+    // key that survives re-versioning; id (above) is the surrogate, per-version row id.
+    @Column(name = "relationship_id", nullable = false)
+    public Integer relationshipId;
+
+    @Column(name = "version", nullable = false)
+    public Integer version = 0;
+
+    @Column(name = "effective_from")
+    public OffsetDateTime effectiveFrom;
+
+    @Column(name = "effective_to")
+    public OffsetDateTime effectiveTo;
+
+    @Column(name = "published_by")
+    public String publishedBy;
+
+    @Column(name = "published_comment")
+    public String publishedComment;
+
+    // FK-companion columns pinning the referenced rows to their entity-existence checks
+    // (always 0 -- the FK targets the referenced table's (durable id, version) unique constraint, and pinning 0 keeps this row valid across that entity's versions; the version in effect is resolved by the snapshot anchor, Respondent.snapshotAnchor).
+    @Column(name = "upstream_step_version", nullable = false)
+    public Integer upstreamStepVersion = 0;
+
+    @Column(name = "upstream_sq_version", nullable = false)
+    public Integer upstreamSqVersion = 0;
+
+    @Column(name = "downstream_step_version", nullable = false)
+    public Integer downstreamStepVersion = 0;
+
+    @Column(name = "downstream_ss_version", nullable = false)
+    public Integer downstreamSsVersion = 0;
+
+    @Column(name = "downstream_sq_version", nullable = false)
+    public Integer downstreamSqVersion = 0;
+
+    /**
+     * The Repeat rules that read one question, as of a respondent's snapshot anchor. A rule of
+     * another action reading the same question uses them to learn which repeated instance its
+     * downstream answer sits in (UC-002 BR-013).
+     *
+     * @param surveyId     the survey
+     * @param upstreamSqId the durable id of the question placement the rules read
+     * @param asOf         the respondent's snapshot anchor
+     * @return the Repeat rules in id order
+     */
+    public static List<Relationship> findRepeatByUpstream(int surveyId, int upstreamSqId, OffsetDateTime asOf) {
+        return list("surveyId = ?1 and upstreamSqId = ?2 and actionType.name = 'REPEAT' "
+                + "and effectiveFrom <= ?3 and effectiveTo > ?3 order by id", surveyId, upstreamSqId, asOf);
+    }
 
     /**
      * Finds and retrieves a list of {@link Relationship} entities based on the specified survey ID
@@ -142,12 +208,14 @@ public class Relationship extends PanacheEntityBase {
      * associated with a given downstream step in the context of a survey.
      *
      * @param surveyId         the identifier of the survey in which the relationships are searched
-     * @param downstreamStepId the identifier of the downstream step to filter the relationships
+     * @param downstreamStepId the DURABLE {@code steps.step_id} of the downstream step (what the
+     *                         relationship row stores), not a surrogate id or a display order
+     * @param asOf             the respondent's snapshot anchor
      * @return a list of {@link Relationship} entities that match the given survey ID and downstream step ID
      */
-    public static List<Relationship> findRepeatByDownstreamStep(int surveyId, int downstreamStepId) {
-        return find("#Relationship.findRepeatByDownstreamStep", Parameters.with("surveyId", surveyId)
-                .and("downstreamStepId", downstreamStepId)).list();
+    public static List<Relationship> findRepeatByDownstreamStep(int surveyId, int downstreamStepId, OffsetDateTime asOf) {
+        return find("#Relationship.findRepeatByDownstreamStep", Map.of("surveyId", surveyId,
+                "downstreamStepId", downstreamStepId, "asOf", asOf)).list();
     }
 
     /**
@@ -156,12 +224,14 @@ public class Relationship extends PanacheEntityBase {
      * particular downstream question in the context of a survey.
      *
      * @param surveyId         the identifier of the survey in which the relationships are searched
-     * @param downstream_sq_id the identifier of the downstream question to filter the relationships
+     * @param downstream_sq_id the DURABLE {@code sections_questions.sections_question_id} of the
+     *                         downstream question (what the relationship row stores), not a surrogate id
+     * @param asOf             the respondent's snapshot anchor
      * @return a list of {@link Relationship} entities that match the given survey ID and downstream question ID
      */
-    public static List<Relationship> findByDownstream_SQ_ID(int surveyId, int downstream_sq_id) {
-        return find("#Relationship.findByDownstream_SQ_ID", Parameters.with("surveyId", surveyId)
-                .and("downstream_sq_id", downstream_sq_id)).list();
+    public static List<Relationship> findByDownstream_SQ_ID(int surveyId, int downstream_sq_id, OffsetDateTime asOf) {
+        return find("#Relationship.findByDownstream_SQ_ID", Map.of("surveyId", surveyId,
+                "downstream_sq_id", downstream_sq_id, "asOf", asOf)).list();
     }
 
     /**
@@ -170,14 +240,16 @@ public class Relationship extends PanacheEntityBase {
      * with a particular downstream section within the context of a specific survey and step.
      *
      * @param surveyId        the identifier of the survey in which the relationships are searched
-     * @param downstream_s_id the identifier of the downstream section to filter the relationships
-     * @param stepId          the identifier of the step to filter the relationships
+     * @param downstream_ss_id the DURABLE {@code steps_sections.steps_sections_id} of the downstream
+     *                         section (what the relationship row stores), not a surrogate id
+     * @param stepId          the DURABLE {@code steps.step_id} of the upstream step, never a display order
+     * @param asOf            the respondent's snapshot anchor
      * @return a list of {@link Relationship} entities that match the given survey ID, downstream section ID, and step ID
      */
-    public static List<Relationship> findByDownstream_S_ID(int surveyId, int downstream_s_id, int stepId) {
-        return find("#Relationship.findByDownstream_S_ID", Parameters.with("surveyId", surveyId)
-                .and("downstream_s_id", downstream_s_id)
-                .and("stepId", stepId)).list();
+    public static List<Relationship> findByDownstream_SS_ID(int surveyId, int downstream_ss_id, int stepId, OffsetDateTime asOf) {
+        return find("#Relationship.findByDownstream_SS_ID", Map.of("surveyId", surveyId,
+                "downstream_ss_id", downstream_ss_id,
+                "stepId", stepId, "asOf", asOf)).list();
     }
 
     /**
@@ -186,27 +258,16 @@ public class Relationship extends PanacheEntityBase {
      * associated with a specific downstream step and step within the context of a survey.
      *
      * @param surveyId           the identifier of the survey in which the relationships are searched
-     * @param downstream_step_id the identifier of the downstream step to filter the relationships
-     * @param stepId             the identifier of the step to filter the relationships
+     * @param downstream_step_id the DURABLE {@code steps.step_id} of the downstream step (what the
+     *                           relationship row stores), not a surrogate id
+     * @param stepId             the DURABLE {@code steps.step_id} of the upstream step, never a display order
+     * @param asOf               the respondent's snapshot anchor
      * @return a list of {@link Relationship} entities that match the given survey ID, downstream step ID, and step ID
      */
-    public static List<Relationship> findByDownstream_Step_ID(int surveyId, int downstream_step_id, int stepId) {
-        return find("#Relationship.findByDownstream_Step_ID", Parameters.with("surveyId", surveyId)
-                .and("downstream_step_id", downstream_step_id)
-                .and("stepId", stepId)).list();
-    }
-
-    /**
-     * Finds and retrieves a list of {@link Relationship} entities based on the specified respondent ID
-     * and answer ID. This method is used to identify relationships associated with a particular respondent
-     * and their corresponding downstream answer.
-     *
-     * @param respondentId the identifier of the respondent whose relationships are being searched
-     * @param answerId     the identifier of the answer to filter the relationships
-     * @return a list of {@link Relationship} entities that match the given respondent ID and answer ID
-     */
-    public static List<Relationship> findRelationshipsByDownstreamAnswer(int respondentId, int answerId) {
-        return find("#Relationship.findRelationshipsByDownstreamAnswer", Parameters.with("respondentId", respondentId).and("answerId", answerId)).list();
+    public static List<Relationship> findByDownstream_Step_ID(int surveyId, int downstream_step_id, int stepId, OffsetDateTime asOf) {
+        return find("#Relationship.findByDownstream_Step_ID", Map.of("surveyId", surveyId,
+                "downstream_step_id", downstream_step_id,
+                "stepId", stepId, "asOf", asOf)).list();
     }
 
     /**
@@ -227,12 +288,18 @@ public class Relationship extends PanacheEntityBase {
 
         // Catch any errors from trying to transform data types.
         try {
+            // An unanswered question satisfies only FIELD_EXIST; every other operator is false.
+            if (answer != null && answer.getTextValue() == null && !"FIELD_EXIST".equals(operatorType.name)) {
+                return false;
+            }
             switch (operatorType.name) {
                 case "BOOLEAN":
                     returnValue = Boolean.parseBoolean(answer.getTextValue());
                     break;
                 case "LESS THAN":
-                    if (this.upstreamQuestion.question.questionType.name.equals("DATE")) {
+                    // The answer pins the exact question version the respondent saw, so its
+                    // type is read from there rather than by resolving upstreamSqId again.
+                    if (isDateQuestion(answer)) {
                         Date dateValue = sdf.parse(answer.getTextValue());
                         Date dateRef;
                         try {
@@ -255,7 +322,7 @@ public class Relationship extends PanacheEntityBase {
                     }
                     break;
                 case "GREATER THAN":
-                    if (this.upstreamQuestion.question.questionType.name.equals("DATE")) {
+                    if (isDateQuestion(answer)) {
                         Date dateValue = sdf.parse(answer.getTextValue());
                         Date dateRef;
                         try {
@@ -304,9 +371,28 @@ public class Relationship extends PanacheEntityBase {
                     break;
             }
         } catch (Exception e) {
-            // TODO log exception
-            // return default value
+            // The rule does not hold. The answer text is left out: it is the respondent's.
+            Log.warnf("Rule %s of survey %s could not be evaluated (%s %s): %s; it is treated as not holding.",
+                    relationshipId, surveyId, operatorType == null ? null : operatorType.name, referenceValue,
+                    e.getClass().getSimpleName());
+            return false;
         }
         return returnValue;
+    }
+
+    /**
+     * Whether a LESS THAN / GREATER THAN comparison should read both sides as dates rather than as
+     * numbers. The type is matched by name because {@code data_type} does not separate the three
+     * date and time types from plain text ({@code DATE_TIME_PICKER} and {@code TIME_PICKER} are both
+     * {@code Text}). It used to compare against {@code "DATE"}, which is a {@code data_type} value
+     * and not the name of any question type, so no comparison ever took the date path
+     * (ElicitSoftware/Author#10).
+     * <p>
+     * Only {@code DATE_PICKER} qualifies: {@code sdf} is {@code yyyy-MM-dd}, which is the form
+     * {@code LocalDate.toString()} stores, while a datetime or a time stores a value it cannot parse.
+     */
+    private static boolean isDateQuestion(Answer answer) {
+        return answer.question != null && answer.question.questionType != null
+                && "DATE_PICKER".equals(answer.question.questionType.name);
     }
 }

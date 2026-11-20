@@ -30,7 +30,7 @@ There is no enforced code-coverage percentage gate in this repo's build — writ
 
 ### Backend
 - **Java**: 25 (see `.java-version`; `maven.compiler.release=25` in `pom.xml`)
-- **Framework**: Quarkus 3.39.x
+- **Framework**: Quarkus 3.40.x (LTS)
 - **ORM**: Hibernate ORM with Panache — **active record** style (`extends PanacheEntityBase`, public fields, no repository classes)
 - **Database**: PostgreSQL 17, two datasources (`default` for the app, `owner` for Flyway-owned DDL — see `application.properties`)
 - **Migrations**: Flyway, `src/main/resources/db/migration`
@@ -39,7 +39,7 @@ There is no enforced code-coverage percentage gate in this repo's build — writ
 - **Observability**: OpenTelemetry, Micrometer + Prometheus (see `guides/OPENTELEMETRY_SETUP.md`, `guides/METRICS_GUIDE.md`)
 
 ### Frontend
-- **Framework**: Vaadin 25.2.x **Flow** (server-side Java UI, integrated via `vaadin-quarkus-extension` — not Spring Boot)
+- **Framework**: Vaadin 25.3.x **Flow** (server-side Java UI, integrated via `vaadin-quarkus-extension` — not Spring Boot)
 - **Custom fields**: `flow/input/Elicit*` wrap Vaadin's input components with the project's `Answer`/`Question` binding conventions
 
 ### Testing
@@ -47,6 +47,8 @@ There is no enforced code-coverage percentage gate in this repo's build — writ
 - **Integration style**: `@QuarkusTest` against a real PostgreSQL instance. The `%test.` datasource URLs/credentials are supplied at runtime by `PostgresTestResource` (`src/test/java/com/elicitsoftware/PostgresTestResource.java`), which uses Testcontainers to start a throwaway `postgres:18` container per test run and tears it down afterward — no externally-running database is required. Every `@QuarkusTest` class carries `@QuarkusTestResource(PostgresTestResource.class)` so the whole suite shares one container and one Quarkus boot (Quarkus's Dev Services auto-provisioning is disabled via `%test.quarkus.datasource(.owner)?.devservices.enabled=false` — the resource supplies the URL explicitly instead).
 - **Assertions**: plain `org.junit.jupiter.api.Assertions` — no AssertJ or Mockito in the current dependency set
 - **Coverage tooling**: `./mvnw test` generates a real jacoco report at `target/site/jacoco/index.html` (and `jacoco.csv`) via `jacoco-maven-plugin`, bound to the `test` phase — so it only runs after a fully passing test run. `quarkus-jacoco` is also still required as a dependency: `jacoco-maven-plugin`'s own agent wins the surefire `argLine` race so `quarkus-jacoco` never produces its own separate report, but its presence is what makes Quarkus build classes whose bytecode matches what the agent records against for every `@QuarkusTest`-driven class — removing it silently collapses coverage numbers for anything Quarkus boots. No threshold is enforced in the build or CI.
+- **Mutation testing**: Pitest (`pitest-maven`), on demand only (`./mvnw test-compile pitest:mutationCoverage`, report at `target/pit-reports/index.html`). It runs only the plain unit tests, which `targetTests` in `pom.xml` lists by name: a booted `@QuarkusTest` loads classes through `QuarkusClassLoader` and never sees a mutant. Add a new plain unit test to that list by hand.
+  - Plain tests share `src/test` with the booted ones, and a booted test's build indexes every test class. So a test-only `UI` subclass needs a no-argument constructor (the Vaadin extension makes each `UI` subclass a CDI bean), and a placeholder view must not carry `@Route`: register it by path with `RouteConfiguration` instead, or it claims the real view's route. `flow/PlainViewTestSupport` (a plain `BrowserlessTest` base with stub services) and `i18n/PlainVaadin` show both.
 
 ### Build & Tools
 - **Build**: Maven, via the wrapper (`./mvnw`) — don't assume a global `mvn` matches the project's expected version
@@ -247,6 +249,9 @@ Use `@TestTransaction` (from `io.quarkus.test`) when a test needs to mutate data
 
 # Run tests in a package
 ./mvnw test -Dtest=com.elicitsoftware.etl.*
+
+# Run Pitest mutation testing over the plain unit tests (target/pit-reports/index.html)
+./mvnw test-compile pitest:mutationCoverage
 ```
 
 **Never run `mvn clean`/`./mvnw clean` while Quarkus dev mode is running against the same project** — it deletes `target/test-classes` and breaks the dev-mode test runner (see `AGENTS.md`).
@@ -336,9 +341,10 @@ Dynamic text replacement for personalized question text, implemented in `Questio
 
 ### Metadata & Dimensional Modeling (ETL)
 
-- Ontology tags on questions/sections automatically drive `dim_*` dimension tables in the `surveyreport` schema
-- `ETLService`/`ETLRespondentService` populate `surveyreport.fact_sections` and `surveyreport.fact_respondents` on survey finalize
-- Table/column identifiers derived from ontology tags are validated (`Sql.requireValidIdentifier`) before being spliced into native SQL, since JDBC can't bind identifiers as parameters — respondent-entered *values* are always passed as bind parameters, never spliced
+- Every survey has a reporting schema of its own, named on `survey.surveys.report_schema` (UC-008 BR-006; `report_<slug>` by default); the common `surveyreport` schema holds only `dim_date` and `dim_status`
+- Ontology tags on questions/sections automatically drive `dim_*` dimension tables in the survey's schema
+- `ETLService` populates the survey's `fact_sections` on survey finalize (through `ETLRespondentService`) and on a build (`POST /api/etl/build?survey=<key>`); `fact_respondents` is a view
+- Table/column identifiers derived from ontology tags are validated (`Sql.requireValidIdentifier`), and schema names by `Sql.requireValidSchema`, before being spliced into native SQL, since JDBC can't bind identifiers as parameters — respondent-entered *values* are always passed as bind parameters, never spliced
 
 ### Key Database Tables
 

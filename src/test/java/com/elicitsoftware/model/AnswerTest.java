@@ -14,6 +14,7 @@ package com.elicitsoftware.model;
 import com.elicitsoftware.DisplayKey;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -41,10 +42,10 @@ class AnswerTest {
         Answer answer = new Answer();
         Question question = new Question();
         question.questionType = type;
-        SelectGroup group = new SelectGroup();
-        group.selectItems = items;
-        question.selectGroup = group;
         answer.question = question;
+        // Select items are resolved per respondent as of their snapshot anchor (UC-002), so
+        // they hang off the answer, not the question; supply them directly here.
+        answer.setSelectItems(items);
         return answer;
     }
 
@@ -62,22 +63,21 @@ class AnswerTest {
         SectionsQuestion sq = new SectionsQuestion();
         sq.id = 99;
         Question question = new Question();
-        sq.question = question;
 
-        Answer answer = new Answer(key, sq, "Display text", 7);
+        Answer answer = new Answer(key, sq, question, "Display text", 7);
 
         assertEquals("Display text", answer.displayText);
         assertEquals(7, answer.respondentId);
         assertSame(question, answer.question);
         assertEquals(99, answer.section_question_id);
         assertEquals(1, answer.surveyId);
-        assertEquals(3, answer.sectionId);
+        assertEquals(BigDecimal.valueOf(3), answer.sectionId);
     }
 
     @Test
     void constructor_withNullSectionsQuestion_leavesQuestionAndSectionQuestionIdNull() {
         DisplayKey key = new DisplayKey("1-2-0-0-0-0-0");
-        Answer answer = new Answer(key, null, "text", 7);
+        Answer answer = new Answer(key, null, null, "text", 7);
 
         assertNull(answer.question);
         assertNull(answer.section_question_id);
@@ -86,33 +86,48 @@ class AnswerTest {
     @Test
     void constructor_zeroValuedQuestionSegment_sectionQuestionIdBecomesNull() {
         // setDisplayKeyValues()'s own comment says "some of the foreign keys are nullable... in
-        // the Display key they are value 0 but in this class null" -- but valueOrNull() is only
-        // actually applied to section_question_id below. sectionId/sectionInstance are assigned
-        // directly and stay literal 0, not null, for a zero-valued key segment; pinning the real
-        // behavior rather than the comment's broader claim.
+        // the Display key they are value 0 but in this class null" -- but section_question_id is
+        // never taken from the key at all (see the next test), and sectionInstance is assigned
+        // directly and stays literal 0, not null, for a zero-valued key segment; pinning the
+        // real behavior rather than the comment's broader claim.
         DisplayKey key = new DisplayKey("1-2-0-3-0-0-0");
 
-        Answer answer = new Answer(key, null, "text", 7);
+        Answer answer = new Answer(key, null, null, "text", 7);
 
         assertNull(answer.section_question_id);
         assertEquals(0, answer.sectionInstance);
-        assertEquals(3, answer.sectionId);
+        assertEquals(BigDecimal.valueOf(3), answer.sectionId);
     }
 
     @Test
-    void constructor_withTextValue_splitsIntoTextArrayAndStampsSavedDt() {
+    void constructor_nonZeroQuestionSegment_withoutSectionsQuestion_leavesSectionQuestionIdNull() {
+        // The key's sixth segment is the placement's display order, not sections_questions.id.
+        // A marker answer built without a SectionsQuestion must not have that order written into
+        // the surrogate FK, where it would point at an unrelated placement and the FK constraint
+        // could not tell (Survey #127).
+        DisplayKey key = new DisplayKey("1-2-0-3-0-4-0");
+
+        Answer answer = new Answer(key, null, null, "text", 7);
+
+        assertNull(answer.section_question_id);
+        assertEquals(0, answer.question_instance);
+    }
+
+    @Test
+    void constructor_withTextValue_splitsIntoTextArrayWithoutStampingSavedDt() {
+        // UC-012 BR-002: a value given at creation is the question's default, not a save.
         DisplayKey key = new DisplayKey("1-1-0-1-0-1-0");
-        Answer answer = new Answer(key, null, "text", 7, "a,b,c");
+        Answer answer = new Answer(key, null, null, "text", 7, "a,b,c");
 
         assertEquals("a,b,c", answer.getTextValue());
         assertEquals(List.of("a", "b", "c"), answer.textArray);
-        assertNotNull(answer.savedDt);
+        assertNull(answer.savedDt);
     }
 
     @Test
     void constructor_withNullTextValue_leavesTextArrayAndSavedDtUntouched() {
         DisplayKey key = new DisplayKey("1-1-0-1-0-1-0");
-        Answer answer = new Answer(key, null, "text", 7, null);
+        Answer answer = new Answer(key, null, null, "text", 7, null);
 
         assertNull(answer.getTextValue());
         assertNull(answer.savedDt);
@@ -255,5 +270,186 @@ class AnswerTest {
         answer.setSelectedItems(Set.of(item("A")));
 
         assertEquals("A", answer.getTextValue());
+    }
+
+    @Test
+    void given_selectedItems_when_codedValues_then_theirCodesJoinedWithCommasInOrder() {
+        // UC-002 BR-012 (#173): the stored form of every multiple choice, MULTI_SELECT_COMBOBOX
+        // included, which used to store the selection Set's toString() (object identities).
+        assertEquals("1,10,B", Answer.codedValues(List.of(item("1"), item("10"), item("B"))));
+    }
+
+    @Test
+    void given_noSelectedItems_when_codedValues_then_anEmptyString() {
+        assertEquals("", Answer.codedValues(List.of()));
+    }
+
+    @Test
+    void given_aMultiSelectComboBox_when_itemsSetAndReadBack_then_theSameItemsComeBack() {
+        // UC-002 BR-012 (#173): what is stored for a MULTI_SELECT_COMBOBOX is read back as the
+        // same items, the round trip a returning respondent depends on.
+        SelectItem one = item("1");
+        SelectItem two = item("2");
+        SelectItem ten = item("10");
+        Answer answer = answerWithQuestion(typeNamed("MULTI_SELECT_COMBOBOX"), List.of(one, two, ten));
+
+        answer.setTextValue(Answer.codedValues(new java.util.LinkedHashSet<>(List.of(one, ten))));
+
+        assertEquals("1,10", answer.getTextValue());
+        assertEquals(Set.of(one, ten), answer.getSelectedItems());
+    }
+
+    @Test
+    void constructor_withDefaultValue_storesValueWithoutSavedDt() {
+        // UC-012 BR-002: a row created with the question's default value has a value the
+        // respondent can see and validate against, but no saved stamp and no presented stamp.
+        Answer answer = new Answer(new DisplayKey("0001-0001-0000-0001-0000-0002-0000"), null, null,
+                "Terms of Use", 1, "true");
+
+        assertEquals("true", answer.getTextValue());
+        assertNull(answer.savedDt, "a default is not a change the respondent made");
+        assertNull(answer.presentedDt, "creation is not a render");
+    }
+
+    @Test
+    void constructor_withoutValue_storesNothing() {
+        Answer answer = new Answer(new DisplayKey("0001-0001-0000-0001-0000-0002-0000"), null, null,
+                "Terms of Use", 1, null);
+
+        assertNull(answer.getTextValue());
+        assertNull(answer.savedDt);
+    }
+
+    // --- the remaining paths of the constructors, label() and the selection accessors ---
+
+    @Test
+    void given_theSixArgumentConstructor_when_built_then_theKeysSegmentsAreCopied() {
+        Answer answer = new Answer(new DisplayKey("2-3-4-5-6-7-8"), null, null, "text", 1, "v");
+
+        assertEquals("0002-0003-0004-0005-0006-0007-0008", answer.getDisplayKey());
+        assertEquals(2, answer.surveyId);
+        assertEquals(BigDecimal.valueOf(3), answer.stepId);
+        assertEquals(4, answer.stepInstance);
+        assertEquals(BigDecimal.valueOf(5), answer.sectionId);
+        assertEquals(6, answer.sectionInstance);
+        assertEquals(8, answer.question_instance);
+    }
+
+    @Test
+    void given_aStepOnlyKey_when_built_then_theSectionIsNullNotZero() {
+        // answers.section is FK'd to survey.sections(id), which has no row 0.
+        assertNull(new Answer(new DisplayKey("1-2-0-0-0-0-0"), null, null, "Step", 7).sectionId);
+        assertNull(new Answer(new DisplayKey("1-2-0-0-0-0-0"), null, null, "Step", 7, null).sectionId);
+    }
+
+    @Test
+    void given_aPlacementAndQuestion_when_builtWithAValue_then_theQuestionVersionIsPinned() {
+        SectionsQuestion sq = new SectionsQuestion();
+        sq.id = 41;
+        Question question = new Question();
+        question.version = 3;
+
+        Answer answer = new Answer(new DisplayKey("1-1-0-1-0-2-0"), sq, question, "Q", 7, "x");
+
+        assertSame(question, answer.question);
+        assertEquals(41, answer.section_question_id);
+        assertEquals(3, answer.questionVersion);
+    }
+
+    @Test
+    void given_aTranslatedRendering_when_label_then_itIsPreferredOverTheBaseText() {
+        Answer answer = new Answer();
+        answer.displayText = "Base";
+        answer.displayTextLocal = "Local";
+
+        assertEquals("Local", answer.label());
+    }
+
+    @Test
+    void given_noOrABlankTranslatedRendering_when_label_then_theBaseTextIsUsed() {
+        Answer answer = new Answer();
+        answer.displayText = "Base";
+
+        assertEquals("Base", answer.label());
+        answer.displayTextLocal = "  ";
+        assertEquals("Base", answer.label());
+    }
+
+    @Test
+    void given_noQuestionOrNoSelectGroup_when_getSelectItems_then_emptyWithoutALookupAndCached() {
+        Answer marker = new Answer();
+        List<SelectItem> first = marker.getSelectItems();
+        assertEquals(List.of(), first);
+        assertSame(first, marker.getSelectItems());
+
+        Answer text = new Answer();
+        text.question = new Question();
+        assertEquals(List.of(), text.getSelectItems());
+    }
+
+    @Test
+    void given_aCheckboxQuestion_when_getSelectedItemAndSetSelectedItem_then_theCodedValueIsUsed() {
+        SelectItem yes = item("true");
+        Answer answer = answerWithQuestion(typeNamed("CHECKBOX"), List.of(item("false"), yes));
+        answer.setTextValue("true");
+        assertSame(yes, answer.getSelectedItem());
+
+        answer.setTextValue(null);
+        answer.setSelectedItem(yes);
+        assertEquals("true", answer.getTextValue());
+    }
+
+    @Test
+    void given_aRadioQuestionWithNoValueOrNoMatch_when_getSelectedItem_then_null() {
+        Answer answer = answerWithQuestion(typeNamed("RADIO"), List.of(item("YES")));
+        assertNull(answer.getSelectedItem());
+        answer.setTextValue("NO");
+        assertNull(answer.getSelectedItem());
+    }
+
+    @Test
+    void given_aQuestionThatIsNotASingleChoice_when_setSelectedItem_then_theValueIsUnchanged() {
+        Answer answer = answerWithQuestion(typeNamed("TEXT"), List.of());
+        answer.setTextValue("typed");
+
+        answer.setSelectedItem(item("YES"));
+
+        assertEquals("typed", answer.getTextValue());
+    }
+
+    @Test
+    void given_aMultiSelectComboboxQuestion_when_getAndSetSelectedItems_then_theCodedValuesAreUsed() {
+        SelectItem a = item("A");
+        Answer answer = answerWithQuestion(typeNamed("MULTI_SELECT_COMBOBOX"), List.of(a, item("B")));
+        answer.setTextValue("A");
+        assertEquals(Set.of(a), answer.getSelectedItems());
+
+        answer.setSelectedItems(Set.of(item("B")));
+        assertEquals("B", answer.getTextValue());
+    }
+
+    @Test
+    void given_aQuestionThatIsNotAMultiChoice_when_getAndSetSelectedItems_then_nothingIsReadOrWritten() {
+        Answer answer = answerWithQuestion(typeNamed("RADIO"), List.of(item("A")));
+        answer.setTextValue("A");
+        assertNull(answer.getSelectedItems());
+
+        answer.setSelectedItems(Set.of(item("B")));
+        assertEquals("A", answer.getTextValue());
+
+        Answer unanswered = answerWithQuestion(typeNamed("CHECKBOX_GROUP"), List.of(item("A")));
+        assertNull(unanswered.getSelectedItems());
+    }
+
+    @Test
+    void given_aValueThatIsNotANumber_when_getDoubleOrGetInteger_then_theFailureIsLogged() {
+        Answer answer = new Answer();
+        answer.setTextValue("abc");
+        try (com.elicitsoftware.LogCapture log = com.elicitsoftware.LogCapture.of(Answer.class)) {
+            assertEquals(0.0, answer.getDouble());
+            assertEquals(1, log.messages(com.elicitsoftware.LogCapture.ERROR).size());
+            assertEquals(0, answer.getInteger());
+            assertEquals(2, log.messages(com.elicitsoftware.LogCapture.ERROR).size());
+        }
     }
 }

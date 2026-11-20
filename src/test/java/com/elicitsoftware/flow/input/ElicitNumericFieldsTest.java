@@ -11,6 +11,7 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
 import com.vaadin.flow.component.textfield.IntegerField;
@@ -43,7 +44,7 @@ class ElicitNumericFieldsTest {
         Question question = question(false, null, null, null, null);
         Answer answer = answer("1.1.1.1.2.1.1", "Age", question, "42");
 
-        IntegerField field = new ElicitIntegerField(answer).component;
+        IntegerField field = new ElicitIntegerField(answer, ContentTexts.base()).component;
 
         assertEquals(42, field.getValue());
         assertTrue(field.isStepButtonsVisible());
@@ -55,8 +56,8 @@ class ElicitNumericFieldsTest {
         Answer blank = answer("1.1.1.1.2.1.2", "Age", question, null);
         Answer literalNull = answer("1.1.1.1.2.1.3", "Age", question, "null");
 
-        assertNull(new ElicitIntegerField(blank).component.getValue());
-        assertNull(new ElicitIntegerField(literalNull).component.getValue());
+        assertNull(new ElicitIntegerField(blank, ContentTexts.base()).component.getValue());
+        assertNull(new ElicitIntegerField(literalNull, ContentTexts.base()).component.getValue());
     }
 
     @Test
@@ -64,7 +65,7 @@ class ElicitNumericFieldsTest {
         Question question = question(true, null, null, null, "Age is required");
         Answer answer = answer("1.1.1.1.2.1.4", "Age", question, null);
 
-        ElicitIntegerField wrapper = new ElicitIntegerField(answer);
+        ElicitIntegerField wrapper = new ElicitIntegerField(answer, ContentTexts.base());
         IntegerField field = wrapper.component;
 
         assertTrue(field.isRequiredIndicatorVisible());
@@ -79,7 +80,7 @@ class ElicitNumericFieldsTest {
         Question question = question(false, 1, 120, null, "Must be between 1 and 120");
         Answer answer = answer("1.1.1.1.2.1.5", "Age", question, null);
 
-        ElicitIntegerField wrapper = new ElicitIntegerField(answer);
+        ElicitIntegerField wrapper = new ElicitIntegerField(answer, ContentTexts.base());
         IntegerField field = wrapper.component;
 
         assertFalse(wrapper.getBinder().validate().isOk(), "no value at all must fail the range validator");
@@ -100,7 +101,7 @@ class ElicitNumericFieldsTest {
         Question question = question(false, null, null, variants, null);
         Answer answer = answer("1.1.1.1.2.1.6", "Age", question, null);
 
-        IntegerField field = new ElicitIntegerField(answer).component;
+        IntegerField field = new ElicitIntegerField(answer, ContentTexts.base()).component;
 
         assertTrue(field.getThemeNames().contains(TextFieldVariant.LUMO_ALIGN_CENTER.getVariantName()));
     }
@@ -110,7 +111,7 @@ class ElicitNumericFieldsTest {
         Question question = question(false, null, null, null, null);
         Answer answer = answer("1.1.1.1.2.2.1", "Height", question, "5.75");
 
-        NumberField field = new ElicitDoubleField(answer).component;
+        NumberField field = new ElicitDoubleField(answer, ContentTexts.base()).component;
 
         assertEquals(5.75, field.getValue());
         assertTrue(field.isStepButtonsVisible());
@@ -122,8 +123,8 @@ class ElicitNumericFieldsTest {
         Answer blank = answer("1.1.1.1.2.2.2", "Height", question, null);
         Answer literalNull = answer("1.1.1.1.2.2.6", "Height", question, "null");
 
-        assertNull(new ElicitDoubleField(blank).component.getValue());
-        assertNull(new ElicitDoubleField(literalNull).component.getValue());
+        assertNull(new ElicitDoubleField(blank, ContentTexts.base()).component.getValue());
+        assertNull(new ElicitDoubleField(literalNull, ContentTexts.base()).component.getValue());
     }
 
     @Test
@@ -131,7 +132,7 @@ class ElicitNumericFieldsTest {
         Question question = question(true, null, null, null, "Height is required");
         Answer answer = answer("1.1.1.1.2.2.3", "Height", question, null);
 
-        ElicitDoubleField wrapper = new ElicitDoubleField(answer);
+        ElicitDoubleField wrapper = new ElicitDoubleField(answer, ContentTexts.base());
         NumberField field = wrapper.component;
 
         assertFalse(wrapper.getBinder().validate().isOk());
@@ -145,7 +146,7 @@ class ElicitNumericFieldsTest {
         Question question = question(false, 1, 10, null, "Must be between 1 and 10");
         Answer answer = answer("1.1.1.1.2.2.4", "Height", question, null);
 
-        ElicitDoubleField wrapper = new ElicitDoubleField(answer);
+        ElicitDoubleField wrapper = new ElicitDoubleField(answer, ContentTexts.base());
         NumberField field = wrapper.component;
 
         assertEquals(1.0, field.getMin());
@@ -167,7 +168,7 @@ class ElicitNumericFieldsTest {
         Question question = question(false, null, null, variants, null);
         Answer answer = answer("1.1.1.1.2.2.5", "Height", question, null);
 
-        NumberField field = new ElicitDoubleField(answer).component;
+        NumberField field = new ElicitDoubleField(answer, ContentTexts.base()).component;
 
         assertTrue(field.getThemeNames().contains(TextFieldVariant.LUMO_HELPER_ABOVE_FIELD.getVariantName()));
     }

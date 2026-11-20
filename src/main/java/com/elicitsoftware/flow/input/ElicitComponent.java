@@ -11,12 +11,15 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTexts;
+import com.elicitsoftware.i18n.Translations;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
 import com.vaadin.flow.component.*;
 import com.vaadin.flow.component.shared.HasAllowedCharPattern;
 import com.vaadin.flow.component.shared.HasTooltip;
 import com.vaadin.flow.data.binder.Binder;
+import java.time.LocalDate;
 
 /**
  * The ElicitComponent class serves as an abstract base class for creating custom UI components
@@ -47,6 +50,13 @@ public abstract class ElicitComponent<T extends Component> {
         public T component;
         Answer answer;
 
+        /**
+         * The content language of this page draw. Everything a widget reads from the live
+         * {@code Question} goes through it; the answer's own label is already stored per language
+         * ({@link Answer#label()}).
+         */
+        ContentTexts texts;
+
         Binder<Answer> binder = null;
 
 
@@ -76,12 +86,28 @@ public abstract class ElicitComponent<T extends Component> {
          * @see com.elicitsoftware.model.Question
          */
         public ElicitComponent(T component, Answer answer) {
+            this(component, answer, ContentTexts.base());
+        }
+
+        /**
+         * Constructs the component in the given content language: binds it to the answer, gives it
+         * the answer's display key as its id, and applies the question's variants, tooltip,
+         * validation message and placeholder in that language.
+         *
+         * @param component the UI component to wrap
+         * @param answer    the answer the component edits
+         * @param texts     the content language of this page draw; null means the survey's base text
+         */
+        public ElicitComponent(T component, Answer answer, ContentTexts texts) {
+            this.texts = texts == null ? ContentTexts.base() : texts;
             super();
             this.answer = answer;
             this.binder = new Binder<Answer>();
             this.component = component;
             this.component.setId(answer.getDisplayKey());
             this.component.setClassName("elicit-input-field");
+            // Labels, placeholders and options are authored survey content, not chrome (UC-009 BR-005)
+            this.component.getElement().setAttribute("data-i18n-content", "");
 
             setBindings(answer);
 
@@ -89,16 +115,19 @@ public abstract class ElicitComponent<T extends Component> {
                 addVariants(answer.question);
             }
 
-            if (answer.question.toolTip != null && !answer.question.toolTip.isEmpty()) {
-                setToolTip(answer.question.toolTip);
+            String toolTip = this.texts.toolTip(answer.question);
+            if (toolTip != null && !toolTip.isEmpty()) {
+                setToolTip(toolTip);
             }
 
-            if (answer.question.validationText != null && !answer.question.validationText.isEmpty()) {
-                setValidationErrorMessage(answer.question.validationText);
+            String validationText = this.texts.validationText(answer.question);
+            if (validationText != null && !validationText.isEmpty()) {
+                setValidationErrorMessage(validationText);
             }
 
-            if (answer.question.placeholder != null && !answer.question.placeholder.isEmpty()) {
-                setPlaceholderText(answer.question.placeholder);
+            String placeholder = this.texts.placeholder(answer.question);
+            if (placeholder != null && !placeholder.isEmpty()) {
+                setPlaceholderText(placeholder);
             }
         }
 
@@ -111,6 +140,85 @@ public abstract class ElicitComponent<T extends Component> {
         public Binder<Answer> getBinder() {
             return binder;
         }
+        /**
+         * Returns the message to show when a question's answer fails validation.
+         * <p>
+         * {@code questions.validation_text} is nullable, and most authored surveys leave it
+         * unset -- but Vaadin's {@code ValidationResult.create} rejects a null message with a
+         * NullPointerException, thrown from inside the binder rather than surfaced to the user.
+         * Passing the raw column straight to {@code asRequired}/{@code withValidator} therefore
+         * makes a required question with no validation text impossible to get past: the
+         * exception aborts the write, no error is rendered, and the Next button just does
+         * nothing. Falling back to a generic message keeps that data valid.
+         *
+         * @param answer   the answer whose question supplies the authored message, if any
+         * @param fallback the message to use when the question has no validation text
+         * @return the authored validation text, or {@code fallback} when it is null or blank
+         */
+        String validationMessage(Answer answer, String fallback) {
+            String authored = texts.validationText(answer.question);
+            return (authored == null || authored.isBlank()) ? fallback : authored;
+        }
+
+        /**
+         * Returns the message to show when a required question has been left unanswered.
+         *
+         * @param answer the answer whose question supplies the authored message, if any
+         * @return the authored validation text, or a generic required-field message
+         * @see #validationMessage(Answer, String)
+         */
+        String requiredMessage(Answer answer) {
+            return validationMessage(answer, Translations.get("validation.required"));
+        }
+
+        /**
+         * Returns the message for a min/max length validator.
+         *
+         * @param answer the answer whose question supplies the authored message and bounds
+         * @return the authored validation text, or a generic length message
+         * @see #validationMessage(Answer, String)
+         */
+        String lengthMessage(Answer answer) {
+            return validationMessage(answer, Translations.get("validation.length",
+                    answer.question.minValue, answer.question.maxValue));
+        }
+
+        /**
+         * Returns the message for a min/max value validator.
+         *
+         * @param answer the answer whose question supplies the authored message and bounds
+         * @return the authored validation text, or a generic range message
+         * @see #validationMessage(Answer, String)
+         */
+        String rangeMessage(Answer answer) {
+            return validationMessage(answer, Translations.get("validation.range",
+                    answer.question.minValue, answer.question.maxValue));
+        }
+
+        /**
+         * Returns the message for a date earlier than a date or date-time question's minimum
+         * (UC-002 BR-016).
+         *
+         * @param answer the answer whose question supplies the authored message
+         * @param min    the earliest allowed date
+         * @return the authored validation text, or a message naming the date in the respondent's language
+         */
+        String dateMinMessage(Answer answer, LocalDate min) {
+            return validationMessage(answer, Translations.get("validation.dateMin", PickerTexts.formatDate(min)));
+        }
+
+        /**
+         * Returns the message for a date later than a date or date-time question's maximum
+         * (UC-002 BR-016).
+         *
+         * @param answer the answer whose question supplies the authored message
+         * @param max    the latest allowed date
+         * @return the authored validation text, or a message naming the date in the respondent's language
+         */
+        String dateMaxMessage(Answer answer, LocalDate max) {
+            return validationMessage(answer, Translations.get("validation.dateMax", PickerTexts.formatDate(max)));
+        }
+
         /**
          * Sets the value of this component using the provided answer.
          *

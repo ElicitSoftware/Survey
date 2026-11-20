@@ -1,0 +1,341 @@
+package com.elicitsoftware.flyway;
+
+/*-
+ * ***LICENSE_START***
+ * Elicit Survey
+ * %%
+ * Copyright (C) 2025 The Regents of the University of Michigan - Rogel Cancer Center
+ * %%
+ * PolyForm Noncommercial License 1.0.0
+ * <https://polyformproject.org/licenses/noncommercial/1.0.0>
+ * ***LICENSE_END***
+ */
+
+import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.exception.FlywayValidateException;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.testcontainers.postgresql.PostgreSQLContainer;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Exercises {@link ManualSchemaMigrator}'s upgrade branch — the one path of the V2-to-V3
+ * migration strategy (DeploymentScript.md) that no other test
+ * in the suite touches. Every {@code @QuarkusTest} in this project boots a genuinely fresh
+ * Testcontainers Postgres (see {@code PostgresTestResource}), so {@code ManualSchemaMigrator}
+ * always takes the greenfield {@code db/migration} branch before any test method gets to
+ * run — {@code db/migration-v3} (the ALTER-based upgrade path for existing v2.x databases)
+ * has had zero automated coverage.
+ * <p>
+ * This is a plain JUnit test, not {@code @QuarkusTest} — {@code ManualSchemaMigrator} calls
+ * the Flyway Java API directly (see its own header comment on why Quarkus's build-time
+ * classpath-location config can't be mutated at runtime), so its exact branching logic can
+ * be replicated here against a throwaway container without needing CDI at all.
+ * <p>
+ * Seeds a "v2.x" pre-Kimball database by running only {@code db/migration-v3}'s V001-V009 —
+ * those are verbatim copies of the original pre-Kimball V001-V009 (see V010's own header
+ * comment in that location) — then drives {@code ManualSchemaMigrator}'s exact sequence:
+ * validate against {@code db/migration} (must fail, since its V001 now has Kimball baked in
+ * and therefore a different checksum), migrate via {@code db/migration-v3} (applies V010 and
+ * V011), repair against {@code db/migration}, then validate against {@code db/migration} again
+ * (must now succeed, proving every future boot converges there directly).
+ */
+class ManualSchemaMigratorUpgradeTest {
+
+    private static final String PASSWORD = "SURVEYPW";
+    private static final String OWNER_USER = "elicit_owner";
+
+    private PostgreSQLContainer container;
+
+    @BeforeEach
+    void startContainer() {
+        container = new PostgreSQLContainer("postgres:18")
+                .withDatabaseName("survey")
+                .withInitScript("db/testcontainers-init.sql");
+        container.start();
+    }
+
+    @AfterEach
+    void stopContainer() {
+        if (container != null) {
+            container.stop();
+        }
+    }
+
+    @Test
+    void upgradeTrack_appliedToPreV010History_convergesOnGreenfieldSchema() throws SQLException {
+        // Seed a "v2.x" pre-Kimball database: apply ONLY V001-V009 from the upgrade
+        // location, matching how a real existing production database's Flyway history
+        // looks before ManualSchemaMigrator's upgrade path has ever run against it.
+        flywayFor("classpath:db/migration-v3", "9").migrate();
+
+        // ManualSchemaMigrator.validatesCleanly(): db/migration's V001 now has Kimball baked
+        // in from the start, so its checksum no longer matches this "v2.x" history's V001 —
+        // this must fail validation, exactly like a real un-upgraded database would.
+        assertThrows(FlywayValidateException.class,
+                () -> flywayFor("classpath:db/migration", null).validate(),
+                "A pre-V010 history must NOT validate cleanly against db/migration -- its V001 checksum "
+                        + "differs now that Kimball is baked in");
+
+        // ManualSchemaMigrator's upgrade branch: migrate via db/migration-v3 (applies V010,
+        // the ALTER-based Kimball migration, and V011, the metadata_element_ck fix, on top of
+        // the existing V001-V009 history), then repair against db/migration so every future
+        // boot's validate() succeeds there directly.
+        flywayFor("classpath:db/migration-v3", null).migrate();
+        flywayFor("classpath:db/migration", null).repair();
+
+        // This is the whole point of repair(): the NEXT boot must validate cleanly against
+        // db/migration with no further routing through db/migration-v3.
+        assertDoesNotThrow(() -> flywayFor("classpath:db/migration", null).validate(),
+                "After repair(), db/migration must validate cleanly so every future boot uses it directly");
+
+        assertKimballSchemaPresent();
+
+        // A database that upgrades AFTER V011 exists in db/migration-v3 must get the correct
+        // constraint in the very same boot -- no second reboot needed.
+        assertMetadataElementCheckReferencesDurableColumns();
+    }
+
+    /**
+     * UC-001: V014 renames the respondent's login credential from {@code token} to
+     * {@code access_code}. A respondent created on a pre-Kimball database must keep the value it
+     * logs in with after the upgrade path runs, and the column's unique constraint and indexes
+     * must carry the new names -- the same names db/migration's V014 produces on a fresh database.
+     */
+    @Test
+    void upgradeTrack_existingRespondent_keepsItsAccessCode() throws SQLException {
+        flywayFor("classpath:db/migration-v3", "9").migrate();
+
+        try (Connection conn = DriverManager.getConnection(container.getJdbcUrl(), OWNER_USER, PASSWORD);
+             var st = conn.createStatement()) {
+            st.execute("INSERT INTO survey.surveys (id, name, display_order, title) "
+                    + "VALUES (9001, 'AccessCodeUpgradeSurvey', 9001, 'Access code upgrade survey')");
+            st.execute("INSERT INTO survey.respondents (id, survey_id, token) "
+                    + "VALUES (nextval('survey.respondents_seq'), 9001, 'legacy-code-1')");
+        }
+
+        flywayFor("classpath:db/migration-v3", null).migrate();
+        flywayFor("classpath:db/migration", null).repair();
+        assertDoesNotThrow(() -> flywayFor("classpath:db/migration", null).validate());
+
+        try (Connection conn = DriverManager.getConnection(container.getJdbcUrl(), OWNER_USER, PASSWORD);
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT COUNT(*) FROM survey.respondents WHERE survey_id = 9001 AND access_code = 'legacy-code-1'");
+             ResultSet rs = ps.executeQuery()) {
+            rs.next();
+            assertEquals(1, rs.getLong(1), "A pre-upgrade respondent must keep its value under access_code");
+        }
+    }
+
+    /**
+     * UC-008 BR-014 (FR-036): the reporting role may read the two columns a report service needs
+     * to find a survey's reporting schema, on the greenfield track, and nothing else of
+     * {@code survey.surveys}.
+     */
+    @Test
+    void greenfieldTrack_reportingRole_readsOnlyTheSchemaColumns() throws SQLException {
+        flywayFor("classpath:db/migration", null).migrate();
+        assertReportingRoleFindsTheSchemaOnly();
+    }
+
+    /** UC-008 BR-014: the same grant reaches a V2 database through the upgrade track. */
+    @Test
+    void upgradeTrack_reportingRole_readsOnlyTheSchemaColumns() throws SQLException {
+        flywayFor("classpath:db/migration-v3", "9").migrate();
+        flywayFor("classpath:db/migration-v3", null).migrate();
+        assertReportingRoleFindsTheSchemaOnly();
+    }
+
+    private void assertReportingRoleFindsTheSchemaOnly() throws SQLException {
+        try (Connection conn = DriverManager.getConnection(container.getJdbcUrl(), "surveyreport_user", PASSWORD);
+             var st = conn.createStatement()) {
+            assertDoesNotThrow(() -> st.executeQuery("SELECT survey_key, report_schema FROM survey.surveys").close(),
+                    "The reporting role must be able to find a survey's reporting schema by its key");
+            SQLException denied = assertThrows(SQLException.class,
+                    () -> st.executeQuery("SELECT name FROM survey.surveys").close(),
+                    "The reporting role must read no other column of survey.surveys");
+            assertEquals("42501", denied.getSQLState(), "insufficient_privilege");
+        }
+    }
+
+    private Flyway flywayFor(String location, String targetVersion) {
+        Map<String, String> placeholders = Map.of(
+                "survey_user", "survey_user",
+                "surveyadmin_user", "surveyadmin_user",
+                "surveyreport_user", "surveyreport_user");
+
+        var configuration = Flyway.configure()
+                .dataSource(container.getJdbcUrl(), OWNER_USER, PASSWORD)
+                .schemas("survey")
+                .table("flyway_history")
+                .locations(location)
+                .baselineOnMigrate(true)
+                .baselineVersion("0")
+                .baselineDescription("Empty Database")
+                .validateOnMigrate(true)
+                .connectRetries(10)
+                .placeholders(placeholders);
+
+        if (targetVersion != null) {
+            configuration = configuration.target(targetVersion);
+        }
+        return configuration.load();
+    }
+
+    private void assertKimballSchemaPresent() throws SQLException {
+        try (Connection conn = DriverManager.getConnection(container.getJdbcUrl(), OWNER_USER, PASSWORD)) {
+            assertHasColumns(conn, "questions", "question_id", "version", "effective_from", "effective_to",
+                    "published_by", "published_comment", "select_group_version");
+            // V015: Type 1 element keys present, is_draft gone from the structural tables.
+            assertHasColumns(conn, "reports", "report_key");
+            assertHasColumns(conn, "post_survey_actions", "post_survey_action_key");
+            assertHasColumns(conn, "dimensions", "dimension_key");
+            assertHasColumns(conn, "ontology", "ontology_key");
+            assertHasColumns(conn, "metadata", "metadata_key");
+            assertLacksColumn(conn, "questions", "is_draft");
+            assertLacksColumn(conn, "steps", "is_draft");
+            assertHasColumns(conn, "select_groups", "select_group_id", "version", "effective_from", "effective_to");
+            assertHasColumns(conn, "select_items", "select_item_id", "select_group_id", "select_group_version");
+            assertHasColumns(conn, "sections", "section_id", "version", "effective_from", "effective_to");
+            assertHasColumns(conn, "steps", "step_id", "version", "effective_from", "effective_to");
+            assertHasColumns(conn, "sections_questions", "sections_question_id", "question_id", "section_id",
+                    "question_version", "section_version");
+            assertHasColumns(conn, "steps_sections", "steps_sections_id", "step_id", "section_id",
+                    "step_version", "section_version");
+            assertHasColumns(conn, "relationships", "relationship_id", "upstream_step_id", "upstream_sq_id",
+                    "downstream_step_id", "downstream_ss_id", "downstream_sq_id");
+            assertHasColumns(conn, "answers", "question_version");
+            assertAccessCodeSchema(conn);
+            assertMetadataSurrogateColumnsDropped(conn);
+
+            // V021: the single site-wide star is dropped (the next startup regenerates one
+            // schema per survey, UC-008 BR-006); the conformed dimensions stay; the triggers go.
+            assertEquals(0, countColumn(conn, "surveyreport", "dim_step", "step_id"),
+                    "surveyreport.dim_step must be dropped by V021");
+            assertEquals(0, countColumn(conn, "surveyreport", "fact_sections", "id"),
+                    "surveyreport.fact_sections must be dropped by V021");
+            assertEquals(0, countColumn(conn, "surveyreport", "fact_respondents", "id"),
+                    "surveyreport.fact_respondents must be dropped by V021");
+            assertEquals(1, countColumn(conn, "surveyreport", "dim_date", "datekey"),
+                    "surveyreport.dim_date is the common schema's and stays");
+            assertEquals(1, countColumn(conn, "surveyreport", "dim_status", "value"),
+                    "surveyreport.dim_status is the common schema's and stays");
+            assertHasColumns(conn, "surveys", "report_schema");
+            try (var st = conn.createStatement();
+                 var rs = st.executeQuery("SELECT COUNT(*) FROM pg_trigger WHERE tgname IN ('fact_respondent_insert', 'fact_update')")) {
+                rs.next();
+                assertEquals(0, rs.getInt(1), "V021 drops the fact_respondents triggers");
+            }
+        }
+    }
+
+    /**
+     * UC-001: after V014 the respondent credential is {@code access_code}, its unique constraint
+     * and three lookup indexes carry access-code names, and the unrelated question-text
+     * placeholder column {@code relationships.token} is untouched.
+     */
+    private void assertAccessCodeSchema(Connection conn) throws SQLException {
+        assertEquals(1, countColumn(conn, "survey", "respondents", "access_code"),
+                "survey.respondents must have access_code after the upgrade path runs");
+        assertEquals(0, countColumn(conn, "survey", "respondents", "token"),
+                "survey.respondents must no longer have a token column");
+        assertEquals(1, countColumn(conn, "survey", "relationships", "token"),
+                "survey.relationships.token is the question-text placeholder and must not be renamed");
+        assertEquals(1, countRows(conn,
+                        "SELECT COUNT(*) FROM pg_constraint WHERE conname = 'respondents_access_code_un'"),
+                "the respondents unique constraint must be renamed");
+        for (String index : new String[]{"idx_respondents_access_code", "idx_respondents_access_code_active",
+                "idx_respondents_survey_access_code"}) {
+            assertEquals(1, countRows(conn,
+                            "SELECT COUNT(*) FROM pg_indexes WHERE schemaname = 'survey' AND indexname = '" + index + "'"),
+                    "index " + index + " must exist");
+        }
+        assertEquals(0, countRows(conn,
+                        "SELECT COUNT(*) FROM pg_indexes WHERE schemaname = 'survey' AND tablename = 'respondents' "
+                                + "AND indexname LIKE '%token%'"),
+                "no respondents index may still be named after token");
+    }
+
+    /**
+     * Issue #111: V010 drops metadata's three surrogate FK columns and the indexes V001 created on
+     * them, leaving metadata as db/migration's V001 creates it on a fresh database.
+     */
+    private void assertMetadataSurrogateColumnsDropped(Connection conn) throws SQLException {
+        for (String column : new String[]{"question_id_surrogate", "section_question_id_surrogate",
+                "step_section_id_surrogate"}) {
+            assertLacksColumn(conn, "metadata", column);
+        }
+        assertEquals(0, countRows(conn,
+                        "SELECT COUNT(*) FROM pg_indexes WHERE schemaname = 'survey' AND indexname IN "
+                                + "('metadata_question_index', 'metadata_section_question_index', 'metadata_step_section_index')"),
+                "the indexes on the *_surrogate columns must be dropped with them");
+        for (String index : new String[]{"metadata_question_id_index", "metadata_sections_question_id_idx",
+                "metadata_steps_sections_id_idx"}) {
+            assertEquals(1, countRows(conn,
+                            "SELECT COUNT(*) FROM pg_indexes WHERE schemaname = 'survey' AND indexname = '" + index + "'"),
+                    "the durable-column index " + index + " must remain");
+        }
+    }
+
+    private long countRows(Connection conn, String sql) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            rs.next();
+            return rs.getLong(1);
+        }
+    }
+
+    private void assertMetadataElementCheckReferencesDurableColumns() throws SQLException {
+        assertMetadataElementCheckDefinition(
+                "CHECK ((((steps_sections_id + question_id) + sections_question_id) > 0))",
+                "metadata_element_ck must enforce against the durable columns, matching what "
+                        + "db/migration's V001 creates directly on a fresh database");
+    }
+
+    private void assertMetadataElementCheckDefinition(String expectedDefinition, String message) throws SQLException {
+        try (Connection conn = DriverManager.getConnection(container.getJdbcUrl(), OWNER_USER, PASSWORD);
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'metadata_element_ck'");
+             ResultSet rs = ps.executeQuery()) {
+            assertTrue(rs.next(), "metadata_element_ck must exist");
+            assertEquals(expectedDefinition, rs.getString(1), message);
+        }
+    }
+
+    private void assertHasColumns(Connection conn, String table, String... columns) throws SQLException {
+        for (String column : columns) {
+            assertEquals(1, countColumn(conn, "survey", table, column),
+                    "survey." + table + " must have column " + column + " after the upgrade path runs");
+        }
+    }
+
+    private void assertLacksColumn(Connection conn, String table, String column) throws SQLException {
+        assertEquals(0, countColumn(conn, "survey", table, column),
+                "survey." + table + " must no longer have column " + column + " after the upgrade path runs");
+    }
+
+    private long countColumn(Connection conn, String schema, String table, String column) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = ? AND table_name = ? AND column_name = ?")) {
+            ps.setString(1, schema);
+            ps.setString(2, table);
+            ps.setString(3, column);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getLong(1);
+            }
+        }
+    }
+}

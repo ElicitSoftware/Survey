@@ -22,8 +22,8 @@ import java.util.Random;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * UC-001: Enter Survey via Token — RandomStringGenerator is the token-generation
- * primitive underlying TokenService.addToken()/putToken().
+ * UC-001: Enter Survey via Access Code — RandomStringGenerator is the access-code generation
+ * primitive underlying AccessCodeService.addAccessCode()/putAccessCode().
  */
 @QuarkusTest
 @QuarkusTestResource(PostgresTestResource.class)

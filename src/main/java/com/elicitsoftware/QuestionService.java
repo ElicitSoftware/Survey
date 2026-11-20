@@ -12,10 +12,9 @@ package com.elicitsoftware;
  */
 
 import com.elicitsoftware.etl.ETLRespondentService;
+import com.elicitsoftware.i18n.ContentTranslator;
 import com.elicitsoftware.model.Answer;
-import com.elicitsoftware.model.PostSurveyAction;
 import com.elicitsoftware.model.Respondent;
-import com.elicitsoftware.model.RespondentPSA;
 import com.elicitsoftware.response.NavResponse;
 import com.elicitsoftware.response.ReviewItem;
 import com.elicitsoftware.response.ReviewResponse;
@@ -57,6 +56,7 @@ import java.util.List;
 @NormalUIScoped
 public class QuestionService {
 
+
     /**
      * SQL query used to retrieve and consolidate survey answers for a specific respondent.
      * <p>
@@ -64,10 +64,10 @@ public class QuestionService {
      * with the `survey.questions` table to enrich the results with question metadata.
      * It performs the following operations:
      * <ul>
-     *   - Retrieves answers linked to specific questions and sections, ensuring only non-deleted and valid entries are included.
-     *   - Handles missing `short_text` fields by falling back to `display_text`.
-     *   - Provides a default value of "not reported" for empty `text_value` fields.
-     *   - Merges results from different sections and unlinked entries using a union operation.
+     *   <li>Retrieves answers linked to specific questions and sections, ensuring only non-deleted and valid entries are included.</li>
+     *   <li>Handles missing {@code short_text} fields by falling back to {@code display_text}.</li>
+     *   <li>Provides a default value of "not reported" for empty {@code text_value} fields.</li>
+     *   <li>Merges results from different sections and unlinked entries using a union operation.</li>
      * </ul>
      * <p>
      * Results are ordered by `display_key` to ensure a predictable output sequence.
@@ -79,16 +79,23 @@ public class QuestionService {
              from (SELECT a.id,
              a.respondent_id,
                 a.display_key,
-                a.display_text,
-                q.short_text,
-                COALESCE(NULLIF(q.short_text::text, ''::text), a.display_text::text) AS short_display_text,
-                COALESCE(i.display_text, a.text_value) AS display_value,
+                CASE WHEN a.display_language = :language THEN a.display_text_local ELSE a.display_text END AS display_text,
+                COALESCE(ts.value, q.short_text) AS short_text,
+                COALESCE(NULLIF(COALESCE(ts.value, q.short_text)::text, ''::text),
+                         CASE WHEN a.display_language = :language THEN a.display_text_local ELSE a.display_text END::text) AS short_display_text,
+                COALESCE(ti.value, i.display_text, a.text_value) AS display_value,
                 t.name AS question_type
              FROM survey.answers a
              JOIN survey.questions q ON a.question_id = q.id
              LEFT JOIN survey.question_types t ON q.type_id = t.id
-             LEFT JOIN survey.select_groups g ON q.select_group_id = g.id
-             LEFT JOIN survey.select_items i ON g.id = i.group_id AND a.text_value::text = i.coded_value::text
+             LEFT JOIN survey.select_groups g ON q.select_group_id = g.select_group_id
+             LEFT JOIN survey.select_items i ON g.select_group_id = i.select_group_id AND a.text_value::text = i.coded_value::text
+             LEFT JOIN survey.translations ts ON ts.element_key = q.question_key AND ts.field = 'short_text'
+                AND ts.language = :language AND ts.effective_from <= :asOf AND ts.effective_to > :asOf
+                AND ts.source_hash = encode(sha256(convert_to(q.short_text, 'UTF8')), 'hex')
+             LEFT JOIN survey.translations ti ON ti.element_key = i.select_item_key AND ti.field = 'display_text'
+                AND ti.language = :language AND ti.effective_from <= :asOf AND ti.effective_to > :asOf
+                AND ti.source_hash = encode(sha256(convert_to(i.display_text, 'UTF8')), 'hex')
              WHERE a.respondent_id = :respondentId
                 AND a.deleted = false
                 AND a.text_value IS NOT NULL
@@ -96,18 +103,44 @@ public class QuestionService {
              SELECT a1.id,
                 a1.respondent_id,
                 a1.display_key,
-                a1.display_text,
-                q1.short_text,
-                COALESCE(NULLIF(q1.short_text::text, ''::text), a1.display_text::text) AS short_display_text,
+                CASE WHEN a1.display_language = :language THEN a1.display_text_local ELSE a1.display_text END AS display_text,
+                COALESCE(ts1.value, q1.short_text) AS short_text,
+                COALESCE(NULLIF(COALESCE(ts1.value, q1.short_text)::text, ''::text),
+                         CASE WHEN a1.display_language = :language THEN a1.display_text_local ELSE a1.display_text END::text) AS short_display_text,
                 null AS display_value,
                 null AS question_type
              FROM survey.answers a1
              LEFT JOIN survey.questions q1 ON a1.question_id = q1.id
+             LEFT JOIN survey.translations ts1 ON ts1.element_key = q1.question_key AND ts1.field = 'short_text'
+                AND ts1.language = :language AND ts1.effective_from <= :asOf AND ts1.effective_to > :asOf
+                AND ts1.source_hash = encode(sha256(convert_to(q1.short_text, 'UTF8')), 'hex')
              WHERE a1.respondent_id = :respondentId
                 AND a1.deleted = false
                 AND a1.section_question_id IS NULL) c
              order by c.display_key;
             """;
+
+    /**
+     * What the review page shows for the answer to a {@code PASSWORD} question (UC-003 BR-016):
+     * a fixed number of bullets, so neither the value nor its length is displayed.
+     */
+    public static final String PASSWORD_MASK = "\u2022".repeat(8);
+
+    /**
+     * The value the review page shows for an answer (UC-003 BR-016): the answer itself, or the
+     * mask when the question is of type {@code PASSWORD}. A section row and an unanswered
+     * question have no value and keep none.
+     *
+     * @param questionType the question's type name, or null for a section row
+     * @param value        the stored answer, or the selected item's text
+     * @return the value to display
+     */
+    public static String reviewValue(String questionType, String value) {
+        return value != null && "PASSWORD".equals(questionType) ? PASSWORD_MASK : value;
+    }
+
+    @Inject
+    com.elicitsoftware.psa.PostSurveyActionDelivery postSurveyActionDelivery;
 
     @Inject
     EntityManager entityManager;
@@ -124,6 +157,9 @@ public class QuestionService {
     @Inject
     QuestionService self;
 
+    @Inject
+    ContentTranslator translator;
+
     /**
      * Initializes the respondent's survey by generating initial answers for all sections
      * and navigating to the step associated with the specified display key.
@@ -134,8 +170,34 @@ public class QuestionService {
      * and step information for the specified display key
      */
     @Timed(value = "survey.init", description = "Time to initialize survey for respondent", histogram = true)
-    @Transactional(Transactional.TxType.REQUIRES_NEW)
     public NavResponse init(int respondentId, String displaykey) {
+        // Two transactions on purpose (UC-012 BR-004): the activity stamp joins the caller's
+        // transaction when there is one (session restore has just logged the respondent in and
+        // holds their row), while the page render keeps its own, as it always has. Stamping the
+        // row from inside the nested transaction would wait on the outer one until it timed out.
+        self.recordActivity(respondentId);
+        return self.renderPage(respondentId, displaykey);
+    }
+
+    /**
+     * Records the respondent's activity in the caller's transaction, or one of its own.
+     *
+     * @param respondentId the respondent who is active
+     */
+    @Transactional
+    public void recordActivity(int respondentId) {
+        questionManager.recordActivity(respondentId);
+    }
+
+    /**
+     * Builds the respondent's missing rows and renders the page, in a transaction of its own.
+     *
+     * @param respondentId the respondent whose page is rendered
+     * @param displaykey   the display key of the section to render
+     * @return the step, navigation items and answers for that section
+     */
+    @Transactional(Transactional.TxType.REQUIRES_NEW)
+    public NavResponse renderPage(int respondentId, String displaykey) {
         questionManager.init(respondentId, displaykey);
         return questionManager.navigate(respondentId, displaykey);
     }
@@ -148,11 +210,23 @@ public class QuestionService {
      * @return an instance of {@code NavResponse}, which includes navigation details, answers,
      * and step information for the specified display key
      */
-    @Transactional(Transactional.TxType.REQUIRES_NEW)
     public NavResponse init(String displaykey) {
         Respondent respondent = sessionDataService.getRespondent();
         return init(respondent.id, displaykey);
     }
+
+    /**
+     * Re-renders a respondent's in-progress answer labels in the language now in force
+     * (UC-009 BR-005). Called from {@code LocaleSelection.apply} when a respondent switches
+     * language mid-survey.
+     *
+     * @param respondentId the respondent whose labels should be rebuilt
+     */
+    @Transactional(Transactional.TxType.REQUIRES_NEW)
+    public void relocalize(int respondentId) {
+        questionManager.relocalize(respondentId);
+    }
+
     /**
      * Generates a review response containing sections and items based on the respondent's data.
      * Each section represents a logical grouping of items, and items include display labels and values.
@@ -167,8 +241,17 @@ public class QuestionService {
         List<ReviewItem> items = new ArrayList<>();
         List<ReviewSection> sections = new ArrayList<>();
 
+        Respondent respondent = Respondent.findById(respondent_id);
+        String language = respondent == null ? null : translator.language(respondent.survey);
+
         Query query = entityManager.createNativeQuery(reviewSQL);
         query.setParameter("respondentId", respondent_id);
+        // Empty rather than null: a null :language would make every comparison null, not false,
+        // and the CASE would fall through for a respondent who has no content language at all.
+        query.setParameter("language", language == null ? "" : language);
+        // The same instant the structural finders are pinned to, so the review page shows the
+        // wording the respondent answered under rather than the newest one (UC-009 BR-010).
+        query.setParameter("asOf", Respondent.snapshotAnchor(respondent_id));
         @SuppressWarnings("unchecked")
         List<Object[]> results = query.getResultList();
         String sectionTitle = "";
@@ -183,7 +266,7 @@ public class QuestionService {
             displayKey = (String) result[2];
             displayText = (String) result[3];
             shortDisplayText = (String) result[5];
-            displayValue = (String) result[6];
+            displayValue = reviewValue((String) result[7], (String) result[6]);
 
             if (displayValue == null) {
                 if (!sectionTitle.equals(displayText)) {
@@ -283,169 +366,21 @@ public class QuestionService {
             // Build Downstream questions and sections
             questionManager.buildDownstreamQuestions(a);
         }
+        questionManager.recordActivity(a.respondentId);
 
         // Now build a new set of Answers and return it.
         return questionManager.navigate(a.respondentId, a.getDisplayKey());
     }
 
-    @Timed(value = "survey.post.actions", description = "Time to execute post-survey actions", histogram = true)
-    @Transactional(Transactional.TxType.REQUIRES_NEW)
-    public void PostSurveyActions(int respondentId) {
-        Respondent respondent = Respondent.findById(respondentId);
-        if (respondent != null) {
-            if (respondent.survey.postSurveyActions != null && !respondent.survey.postSurveyActions.isEmpty()) {
-                for (PostSurveyAction psa : respondent.survey.postSurveyActions) {
-                    RespondentPSA respondentPSA = RespondentPSA.find("respondentId=?1 and psaId = ?2", respondentId, psa.id).firstResult();
-                    final RespondentPSA finalRespondentPSA;
-                    if (respondentPSA == null) {
-                        finalRespondentPSA = new RespondentPSA();
-                        finalRespondentPSA.psaId = psa.id;
-                        finalRespondentPSA.respondentId = respondentId;
-                        finalRespondentPSA.status = "PENDING";
-                    } else {
-                        finalRespondentPSA = respondentPSA;
-                        finalRespondentPSA.status = "RESENDING";
-                        finalRespondentPSA.error = "";
-                        finalRespondentPSA.uploadedDt = null;
-                    }
-                    try {
-                        CallPostSurveyAction(psa, respondentId);
-                        DatabaseRetryUtil.executeWithRetry(
-                            () -> finalRespondentPSA.persist(),
-                            "saving successful post-survey action for respondent " + respondentId
-                        );
-                        Log.debug("Post survey action " + psa.name + " completed successfully for respondent " + respondentId);
-                    }
-                    catch (Exception e) {
-                        finalRespondentPSA.status = "FAILED";
-                        finalRespondentPSA.error = e.getMessage();
-                        DatabaseRetryUtil.executeWithRetry(
-                            () -> finalRespondentPSA.persist(),
-                            "saving failed post-survey action for respondent " + respondentId
-                        );
-                        Log.error("Post survey action " + psa.name + " failed for respondent " + respondentId + ": " + e.getMessage(), e);
-                    }
-                }
-            }
-        }
-    }
-
     /**
-     * Executes a post-survey action by calling the specified URL with the respondent ID.
-     * <p>
-     * This method performs an HTTP POST request to the post-survey action URL with a JSON payload
-     * containing the respondent ID. It includes comprehensive error handling to provide meaningful
-     * error messages for various failure scenarios.
-     * <p>
-     * Error handling includes:
-     * - URL validation to ensure the action URL is properly configured
-     * - HTTP status code validation with specific error messages
-     * - Network and communication error handling
-     * - Detailed error message extraction from response bodies
-     * - License validation error detection for service-specific failures
+     * UC-004 step 4: delivers the survey's post-survey actions for the respondent (UC-015). Each
+     * write of the delivery commits on its own and no call runs inside a transaction, so this
+     * method opens none.
      *
-     * @param psa the PostSurveyAction containing the URL and configuration
-     * @param respondentId the ID of the respondent for whom the action is being executed
-     * @return the response body from the post-survey action service
-     * @throws Exception if the action fails due to configuration, network, or service errors
+     * @param respondentId the respondent who finished the survey
      */
-    // Package-private (not private) so QuestionServiceCallPostSurveyActionTest can exercise
-    // it directly against a local HttpServer fixture, without a full Respondent/Survey/DB
-    // round trip through PostSurveyActions(). Same visibility-for-testability precedent as
-    // PDFService.request.
-    String CallPostSurveyAction(PostSurveyAction psa, int respondentId) throws Exception {
-        if (psa.url == null || psa.url.trim().isEmpty()) {
-            throw new Exception("Post Survey Action '" + psa.name + "' Error: URL is null or empty - please check the action configuration");
-        }
-
-        if (respondentId <= 0) {
-            throw new Exception("Post Survey Action '" + psa.name + "' Error: Invalid respondent ID (" + respondentId + ") - ID must be a positive number");
-        }
-
-        try {
-            // Create a simple HTTP client using Java 11+ HttpClient
-            java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
-            
-            // Create the JSON payload
-            String jsonPayload = "{\"id\":" + respondentId + "}";
-            
-            // Build the HTTP request
-            java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
-                    .uri(java.net.URI.create(psa.url))
-                    .header("Content-Type", "application/json")
-                    .POST(java.net.http.HttpRequest.BodyPublishers.ofString(jsonPayload))
-                    .build();
-            
-            // Send the request and get response
-            java.net.http.HttpResponse<String> response = client.send(request, 
-                    java.net.http.HttpResponse.BodyHandlers.ofString());
-            
-            // Check if the response was successful (2xx status codes)
-            if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                return response.body();
-            } else {
-                // Handle different error status codes with appropriate messages
-                String errorMessage;
-                String responseBody = response.body();
-                
-                // Try to extract meaningful error message from response body
-                if (responseBody != null && !responseBody.trim().isEmpty()) {
-                    // Check for license-related errors
-                    if (response.statusCode() == 403 || responseBody.toLowerCase().contains("license")) {
-                        errorMessage = "Post Survey Action '" + psa.name + "' Error: License validation failed - " + responseBody;
-                        if (!errorMessage.toLowerCase().contains("premm5") && psa.url.toLowerCase().contains("premm5")) {
-                            errorMessage += " - Please ensure your PREMM5 license is valid and properly configured.";
-                        }
-                    } else {
-                        errorMessage = "Post Survey Action '" + psa.name + "' Error: HTTP " + response.statusCode() + " - " + responseBody;
-                    }
-                } else {
-                    // No response body, provide status-based error message
-                    switch (response.statusCode()) {
-                        case 400:
-                            errorMessage = "Post Survey Action '" + psa.name + "' Error: Bad Request (400) - Invalid request data for respondent ID " + respondentId;
-                            break;
-                        case 401:
-                            errorMessage = "Post Survey Action '" + psa.name + "' Error: Unauthorized (401) - Authentication required";
-                            break;
-                        case 403:
-                            errorMessage = "Post Survey Action '" + psa.name + "' Error: Forbidden (403) - License validation may have failed. Please check your license configuration.";
-                            break;
-                        case 404:
-                            errorMessage = "Post Survey Action '" + psa.name + "' Error: Not Found (404) - Service endpoint not available at " + psa.url;
-                            break;
-                        case 500:
-                            errorMessage = "Post Survey Action '" + psa.name + "' Error: Internal Server Error (500) - The service encountered an internal error";
-                            break;
-                        case 502:
-                            errorMessage = "Post Survey Action '" + psa.name + "' Error: Bad Gateway (502) - Service is temporarily unavailable";
-                            break;
-                        case 503:
-                            errorMessage = "Post Survey Action '" + psa.name + "' Error: Service Unavailable (503) - Service is temporarily down for maintenance";
-                            break;
-                        default:
-                            errorMessage = "Post Survey Action '" + psa.name + "' Error: HTTP " + response.statusCode() + " - Service returned an error status";
-                            break;
-                    }
-                }
-                
-                throw new Exception(errorMessage);
-            }
-            
-        } catch (java.net.URISyntaxException e) {
-            throw new Exception("Post Survey Action '" + psa.name + "' Error: Invalid URL format '" + psa.url + "' - " + e.getMessage(), e);
-        } catch (java.io.IOException e) {
-            throw new Exception("Post Survey Action '" + psa.name + "' Error: Network communication failed when calling " + psa.url + " - " + e.getMessage(), e);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt(); // Restore interrupted status
-            throw new Exception("Post Survey Action '" + psa.name + "' Error: Request was interrupted - " + e.getMessage(), e);
-        } catch (Exception e) {
-            // Re-throw our own exceptions, wrap others
-            if (e.getMessage() != null && e.getMessage().startsWith("Post Survey Action")) {
-                throw e;
-            } else {
-                throw new Exception("Post Survey Action '" + psa.name + "' Error: Unexpected error - " + e.getMessage(), e);
-            }
-        }
+    @Timed(value = "survey.post.actions", description = "Time to execute post-survey actions", histogram = true)
+    public void PostSurveyActions(int respondentId) {
+        postSurveyActionDelivery.deliverAll(respondentId);
     }
 }

@@ -12,6 +12,7 @@ package com.elicitsoftware.survey;
  */
 
 import com.elicitsoftware.QuestionManager;
+import com.elicitsoftware.QuestionService;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Respondent;
 import com.elicitsoftware.model.Survey;
@@ -54,21 +55,28 @@ public class QuestionServiceReviewTest {
     private static final String WELCOME_SECTION = "0001-0001-0000-0001-0000-0000-0000";
 
     // Mirrors QuestionService.reviewSQL — kept identical so this test tracks the real query.
-    private static final String REVIEW_SQL = """
+    private static final String REVIEW_SQL = """ 
             select c.*
              from (SELECT a.id,
              a.respondent_id,
                 a.display_key,
-                a.display_text,
-                q.short_text,
-                COALESCE(NULLIF(q.short_text::text, ''::text), a.display_text::text) AS short_display_text,
-                COALESCE(i.display_text, a.text_value) AS display_value,
+                CASE WHEN a.display_language = :language THEN a.display_text_local ELSE a.display_text END AS display_text,
+                COALESCE(ts.value, q.short_text) AS short_text,
+                COALESCE(NULLIF(COALESCE(ts.value, q.short_text)::text, ''::text),
+                         CASE WHEN a.display_language = :language THEN a.display_text_local ELSE a.display_text END::text) AS short_display_text,
+                COALESCE(ti.value, i.display_text, a.text_value) AS display_value,
                 t.name AS question_type
              FROM survey.answers a
              JOIN survey.questions q ON a.question_id = q.id
              LEFT JOIN survey.question_types t ON q.type_id = t.id
-             LEFT JOIN survey.select_groups g ON q.select_group_id = g.id
-             LEFT JOIN survey.select_items i ON g.id = i.group_id AND a.text_value::text = i.coded_value::text
+             LEFT JOIN survey.select_groups g ON q.select_group_id = g.select_group_id
+             LEFT JOIN survey.select_items i ON g.select_group_id = i.select_group_id AND a.text_value::text = i.coded_value::text
+             LEFT JOIN survey.translations ts ON ts.element_key = q.question_key AND ts.field = 'short_text'
+                AND ts.language = :language AND ts.effective_from <= :asOf AND ts.effective_to > :asOf
+                AND ts.source_hash = encode(sha256(convert_to(q.short_text, 'UTF8')), 'hex')
+             LEFT JOIN survey.translations ti ON ti.element_key = i.select_item_key AND ti.field = 'display_text'
+                AND ti.language = :language AND ti.effective_from <= :asOf AND ti.effective_to > :asOf
+                AND ti.source_hash = encode(sha256(convert_to(i.display_text, 'UTF8')), 'hex')
              WHERE a.respondent_id = :respondentId
                 AND a.deleted = false
                 AND a.text_value IS NOT NULL
@@ -76,13 +84,17 @@ public class QuestionServiceReviewTest {
              SELECT a1.id,
                 a1.respondent_id,
                 a1.display_key,
-                a1.display_text,
-                q1.short_text,
-                COALESCE(NULLIF(q1.short_text::text, ''::text), a1.display_text::text) AS short_display_text,
+                CASE WHEN a1.display_language = :language THEN a1.display_text_local ELSE a1.display_text END AS display_text,
+                COALESCE(ts1.value, q1.short_text) AS short_text,
+                COALESCE(NULLIF(COALESCE(ts1.value, q1.short_text)::text, ''::text),
+                         CASE WHEN a1.display_language = :language THEN a1.display_text_local ELSE a1.display_text END::text) AS short_display_text,
                 null AS display_value,
                 null AS question_type
              FROM survey.answers a1
              LEFT JOIN survey.questions q1 ON a1.question_id = q1.id
+             LEFT JOIN survey.translations ts1 ON ts1.element_key = q1.question_key AND ts1.field = 'short_text'
+                AND ts1.language = :language AND ts1.effective_from <= :asOf AND ts1.effective_to > :asOf
+                AND ts1.source_hash = encode(sha256(convert_to(q1.short_text, 'UTF8')), 'hex')
              WHERE a1.respondent_id = :respondentId
                 AND a1.deleted = false
                 AND a1.section_question_id IS NULL) c
@@ -96,6 +108,10 @@ public class QuestionServiceReviewTest {
 
         Query query = em.createNativeQuery(REVIEW_SQL);
         query.setParameter("respondentId", respondentId);
+        // The base-language case: no content language in force, and every respondent resolves
+        // against the current definition. ContentTranslatorTest covers the translated case.
+        query.setParameter("language", "");
+        query.setParameter("asOf", java.time.OffsetDateTime.now());
         @SuppressWarnings("unchecked")
         List<Object[]> results = query.getResultList();
 
@@ -106,7 +122,7 @@ public class QuestionServiceReviewTest {
             String displayKey = (String) result[2];
             String displayText = (String) result[3];
             String shortDisplayText = (String) result[5];
-            String displayValue = (String) result[6];
+            String displayValue = QuestionService.reviewValue((String) result[7], (String) result[6]);
 
             if (displayValue == null) {
                 if (!sectionTitle.equals(displayText)) {
@@ -194,10 +210,50 @@ public class QuestionServiceReviewTest {
         assertFalse(anyNullValueItem, "Unanswered questions (null text_value) must not produce review items");
     }
 
+    @Test
+    // UC-003 BR-016: the answer to a PASSWORD question is shown as a fixed mask, other answers as given
+    @TestTransaction
+    void given_passwordAnswer_when_review_then_shownAsMask() {
+        Respondent r = createFreshRespondent();
+        questionManager.init(r.id.intValue(), WELCOME_SECTION);
+
+        Answer terms = Answer.findByDisplayKeyActive(r.id.intValue(), "0001-0001-0000-0001-0000-0002-0000");
+        assertNotNull(terms, "Terms answer must exist after init()");
+        terms.setTextValue("hunter2-secret");
+        terms.persist();
+        em.flush();
+
+        List<String> asGiven = review(r.id.intValue()).getSections().stream()
+                .flatMap(s -> s.getItems().stream()).map(ReviewItem::value).toList();
+        assertTrue(asGiven.contains("hunter2-secret"), "Any other question type shows the answer as given");
+
+        // The fixture has no PASSWORD question; make this one a PASSWORD question for the test.
+        em.createNativeQuery("UPDATE survey.questions SET type_id = "
+                        + "(SELECT id FROM survey.question_types WHERE name = 'PASSWORD') WHERE id = :id")
+                .setParameter("id", terms.question.id)
+                .executeUpdate();
+
+        List<String> masked = review(r.id.intValue()).getSections().stream()
+                .flatMap(s -> s.getItems().stream()).map(ReviewItem::value).toList();
+        assertFalse(masked.contains("hunter2-secret"), "A PASSWORD answer must not be shown (BR-016)");
+        assertTrue(masked.contains(QuestionService.PASSWORD_MASK), "A PASSWORD answer is shown as the mask");
+        assertEquals(asGiven.size(), masked.size(), "Masking neither adds nor removes an item");
+    }
+
+    @Test
+    // UC-003 BR-016: the mask has one length whatever the answer, and nothing unanswered is masked
+    void reviewValue_masksOnlyAnsweredPasswordQuestions() {
+        assertEquals(QuestionService.PASSWORD_MASK, QuestionService.reviewValue("PASSWORD", "a"));
+        assertEquals(QuestionService.PASSWORD_MASK, QuestionService.reviewValue("PASSWORD", "a much longer answer"));
+        assertNull(QuestionService.reviewValue("PASSWORD", null));
+        assertEquals("Tess", QuestionService.reviewValue("TEXT", "Tess"));
+        assertEquals("Tess", QuestionService.reviewValue(null, "Tess"));
+    }
+
     private Respondent createFreshRespondent() {
         Respondent r = new Respondent();
         r.survey = Survey.findById(SURVEY_ID);
-        r.token = "test_" + System.nanoTime();
+        r.accessCode = "test_" + System.nanoTime();
         r.active = true;
         r.logins = 0;
         r.persist();

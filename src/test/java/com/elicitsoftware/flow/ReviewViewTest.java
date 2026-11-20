@@ -113,7 +113,7 @@ class ReviewViewTest extends QuarkusBrowserlessTest {
                 .firstResult();
         Respondent r = new Respondent();
         r.survey = survey;
-        r.token = "test_" + System.nanoTime();
+        r.accessCode = "test_" + System.nanoTime();
         r.active = true;
         r.logins = 0;
         r.persist();

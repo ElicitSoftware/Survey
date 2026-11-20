@@ -11,13 +11,16 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
 import com.elicitsoftware.model.SelectItem;
 import com.vaadin.flow.component.checkbox.CheckboxGroup;
 import com.vaadin.flow.component.checkbox.CheckboxGroupVariant;
 
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Set;
 
 /**
  * The ElicitCheckboxGroup class is a concrete implementation of ElicitComponent that encapsulates
@@ -62,11 +65,13 @@ public class ElicitCheckboxGroup extends ElicitComponent<CheckboxGroup<SelectIte
      * </ul>
      *
      * @param answer The {@link Answer} object containing the data to initialize the checkbox group.
+     * @param texts  the content language of this page draw, which also labels the options;
+     *               must not be null
      */
-    public ElicitCheckboxGroup(Answer answer) {
-        super(new CheckboxGroup<SelectItem>(answer.displayText), answer);
-        component.setItems(answer.question.selectGroup.selectItems);
-        component.setItemLabelGenerator(item -> item.displayText);
+    public ElicitCheckboxGroup(Answer answer, ContentTexts texts) {
+        super(new CheckboxGroup<SelectItem>(answer.label()), answer, texts);
+        component.setItems(answer.getSelectItems());
+        component.setItemLabelGenerator(texts::option);
         if (answer.getTextValue() != null && !answer.getTextValue().isEmpty()) {
             setValue(answer);
         }
@@ -88,7 +93,7 @@ public class ElicitCheckboxGroup extends ElicitComponent<CheckboxGroup<SelectIte
             component.setRequired(answer.question.required);
             component.setRequiredIndicatorVisible(answer.question.required);
             this.binder.forField(component)
-                    .asRequired(answer.question.validationText)
+                    .asRequired(requiredMessage(answer))
                     .bind(Answer::getSelectedItems, Answer::setSelectedItems);
         }
         // There is no definition for min max on a checkbox
@@ -108,8 +113,11 @@ public class ElicitCheckboxGroup extends ElicitComponent<CheckboxGroup<SelectIte
         HashSet<SelectItem> selected = new HashSet<SelectItem>();
 
         if (answer.getTextValue() != null) {
-            for (SelectItem item : answer.question.selectGroup.selectItems) {
-                if (answer.getTextValue().contains(item.codedValue)) {
+            // The stored value is the selected coded values joined with commas, so an item is
+            // selected by its whole code: "10" must not select the item coded "1".
+            Set<String> codes = new HashSet<>(Arrays.asList(answer.getTextValue().split(",")));
+            for (SelectItem item : answer.getSelectItems()) {
+                if (codes.contains(item.codedValue)) {
                     selected.add(item);
                 }
             }

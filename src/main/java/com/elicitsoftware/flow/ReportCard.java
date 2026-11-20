@@ -36,7 +36,7 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
  * - The report content is displayed below the header in a vertical layout.
  * <p>
  * Constructor:
- * - Accepts a String title for the header and a String html for the report content.
+ * - Accepts a String title for the header and the ReportResponse whose innerHTML is the report content.
  * <p>
  * Extends:
  * - com.vaadin.flow.component.html.Div
@@ -46,11 +46,18 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
  */
 public class ReportCard extends Div {
 
+    /**
+     * Builds the card. A report whose HTML contains an SVG has the SVG centered and scaled to
+     * the card's width.
+     *
+     * @param title  the heading shown above the report
+     * @param report the report whose {@code innerHTML} fills the card; it must not be null
+     */
     public ReportCard(String title, ReportResponse report) {
         super();
         this.setClassName("reviewCard");
         this.setWidth("60%");
-
+        getElement().setAttribute("data-i18n-content", ""); // report title and body come from the report service
 
         VerticalLayout layout = new VerticalLayout();
         HorizontalLayout header = new HorizontalLayout();
@@ -64,10 +71,11 @@ public class ReportCard extends Div {
 
         Div reportDiv = new Div();
         reportDiv.setWidthFull(); // Set reportDiv to full width
-        reportDiv.getElement().setProperty("innerHTML", report.innerHTML);
+        String html = ReportHtml.sanitize(report.innerHTML); // UC-005 BR-021
+        reportDiv.getElement().setProperty("innerHTML", html);
 
         // Center content if it contains SVG
-        if (report.innerHTML != null && report.innerHTML.toLowerCase().contains("<svg")) {
+        if (html.toLowerCase().contains("<svg")) {
             // Use CSS to center only the SVG while keeping text left-aligned
             reportDiv.getStyle().set("text-align", "center");
             reportDiv.getStyle().set("align", "center");

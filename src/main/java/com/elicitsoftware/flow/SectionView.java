@@ -17,12 +17,13 @@ import com.elicitsoftware.flow.input.*;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Respondent;
 import com.elicitsoftware.model.SelectItem;
+import com.elicitsoftware.i18n.ContentTexts;
+import com.elicitsoftware.i18n.ContentTranslator;
 import com.elicitsoftware.response.NavResponse;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
-import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.data.binder.Binder;
@@ -38,6 +39,7 @@ import jakarta.inject.Inject;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 
 
 /**
@@ -68,8 +70,9 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
     @Inject
     UISessionDataService sessionDataService;
 
-    // TODO make a HasMap that holds the ElicitComponents and HTML
-    // Then you can replace some of these and only generate new components.
+    @Inject
+    ContentTranslator translator;
+
     LinkedHashMap<String, Component> displayMap = new LinkedHashMap<>();
     LinkedHashMap<String, Component> oldDisplayMap = new LinkedHashMap<>();
     LinkedHashMap<String, Binder<?>> binders = new LinkedHashMap<>();
@@ -88,6 +91,10 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
     // Track pending save operations
     private int pendingSaveOperations = 0;
 
+    /**
+     * Creates the view; the components are built by {@link #init()} once CDI has injected the
+     * services.
+     */
     public SectionView() {
     }
 
@@ -124,7 +131,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
 
         // Add null checks and handle missing data gracefully
         if (respondent == null) {
-            Notification.show("Session expired. Please login again.", 3000, Notification.Position.MIDDLE);
+            Notification.show(getTranslation("common.error.sessionExpired"), 3000, Notification.Position.MIDDLE);
             UI.getCurrent().navigate("");
             return;
         }
@@ -135,7 +142,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                 navResponse = service.init(respondent.id, respondent.survey.initialDisplayKey);
                 sessionDataService.setNavResponse(navResponse);
             } catch (Exception e) {
-                Notification.show("Error loading survey. Please try again.", 3000, Notification.Position.MIDDLE);
+                Notification.show(getTranslation("sectionView.error.loadSurvey"), 3000, Notification.Position.MIDDLE);
                 UI.getCurrent().navigate("");
                 return;
             }
@@ -162,6 +169,12 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
     private void buildQuestions() {
         Log.debug("Starting buildQuestions() method");
 
+        // Resolved once per draw and handed to every widget: the strings they read off the live
+        // Question and SelectItem (tooltip, validation message, placeholder, option labels) are
+        // not part of the answer's stored label, so they are translated here.
+        ContentTexts texts = respondent == null ? ContentTexts.base()
+                : new ContentTexts(translator, respondent.survey, Respondent.snapshotAnchor(respondent.id.intValue()));
+
         //Save a copy of the display map
         oldDisplayMap = getDisplayComponents();
 
@@ -171,15 +184,20 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         if (navResponse != null) {
             Log.debug("Processing " + navResponse.getAnswers().size() + " answers in navResponse");
             for (Answer answer : navResponse.getAnswers()) {
-                if (answer.question == null && answer.sectionInstance == 0) {
-                    // this is a section title.
-                    pageTitle = answer.displayText;
+                if (answer.question == null) {
+                    // A section title: the one row of a section that carries no question. The
+                    // instance number is not part of that test -- a REPEATed section's instances
+                    // have sectionInstance 1, 2, ... and a title row each, and testing for 0 as
+                    // well sent them down the question branch to dereference a null question
+                    // (samples/FINDINGS.md 5: "navigation stalls after a section REPEAT" was this
+                    // NPE, caught by nextSection() and shown as a navigation error).
+                    pageTitle = answer.label();
                 } else {
                     switch (answer.question.questionType.name) {
                         case GlobalStrings.QUESTION_TYPE_CHECKBOX:
-                            ElicitCheckbox checkbox = new ElicitCheckbox(answer);
+                            ElicitCheckbox checkbox = new ElicitCheckbox(answer, texts);
                             checkbox.component.addValueChangeListener(e -> {
-                                saveAnswer(answer, e.getValue().toString());
+                                saveAnswer(answer, answerText(e.getValue()));
                             });
                             displayMap.put(answer.getDisplayKey(), checkbox.component);
                             if (!binders.containsKey(answer.getDisplayKey())) {
@@ -188,9 +206,9 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
 
                             break;
                         case GlobalStrings.QUESTION_TYPE_DATE_PICKER:
-                            ElcitDatePicker datePicker = new ElcitDatePicker(answer);
+                            ElicitDatePicker datePicker = new ElicitDatePicker(answer, texts);
                             datePicker.component.addValueChangeListener(e -> {
-                                saveAnswer(answer, e.getValue().toString());
+                                saveAnswer(answer, answerText(e.getValue()));
                             });
                             displayMap.put(answer.getDisplayKey(), datePicker.component);
                             if (!binders.containsKey(answer.getDisplayKey())) {
@@ -198,9 +216,13 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTION_TYPE_COMBOBOX:
-                            ElicitComboBox comboBox = new ElicitComboBox(answer);
+                            ElicitComboBox comboBox = new ElicitComboBox(answer, texts);
                             comboBox.component.addValueChangeListener(e -> {
-                                saveAnswer(answer, e.getValue().toString());
+                                // codedValue, as RADIO does: SelectItem declares no toString(), so
+                                // the value itself would persist an identity hash that no rule can
+                                // match, no report can read and ElicitComboBox.setValue cannot find
+                                // again on the next visit.
+                                saveAnswer(answer, e.getValue() == null ? null : e.getValue().codedValue);
                             });
                             displayMap.put(answer.getDisplayKey(), comboBox.component);
                             if (!binders.containsKey(answer.getDisplayKey())) {
@@ -208,15 +230,14 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTION_TYPE_HTML:
-                            displayMap.put(answer.getDisplayKey(), new ElicitHtml(answer));
+                            displayMap.put(answer.getDisplayKey(), new ElicitHtml(answer, texts));
                             break;
                         case GlobalStrings.QUESTION_TYPE_INTEGER:
-                            ElicitIntegerField integerField = new ElicitIntegerField(answer);
+                            ElicitIntegerField integerField = new ElicitIntegerField(answer, texts);
                             integerField.component.setValueChangeMode(ValueChangeMode.LAZY);
                             integerField.component.setValueChangeTimeout(300);
                             integerField.component.addValueChangeListener(e -> {
-                                Integer newValue = e.getValue();
-                                saveAnswer(answer, String.valueOf(newValue));
+                                saveAnswer(answer, answerText(e.getValue()));
                             });
                             displayMap.put(answer.getDisplayKey(), integerField.component);
                             if (!binders.containsKey(answer.getDisplayKey())) {
@@ -224,15 +245,14 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTION_TYPE_MODAL:
-                            //TODO
-                            displayMap.put(answer.getDisplayKey(), new Paragraph(GlobalStrings.QUESTION_TYPE_MODAL));
+                            displayMap.put(answer.getDisplayKey(), new ElicitModal(answer, texts));
                             break;
                         case GlobalStrings.QUESTION_TYPE_DOUBLE:
-                            ElicitDoubleField numberField = new ElicitDoubleField(answer);
+                            ElicitDoubleField numberField = new ElicitDoubleField(answer, texts);
                             numberField.component.setValueChangeMode(ValueChangeMode.LAZY);
                             numberField.component.setValueChangeTimeout(300);
                             numberField.component.addValueChangeListener(e -> {
-                                saveAnswer(answer, e.getValue().toString());
+                                saveAnswer(answer, answerText(e.getValue()));
                             });
                             displayMap.put(answer.getDisplayKey(), numberField.component);
                             if (!binders.containsKey(answer.getDisplayKey())) {
@@ -240,9 +260,9 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTION_TYPE_RADIO:
-                            ElicitRadioButtonGroup radio = new ElicitRadioButtonGroup(answer);
+                            ElicitRadioButtonGroup radio = new ElicitRadioButtonGroup(answer, texts);
                             radio.component.addValueChangeListener(e -> {
-                                saveAnswer(answer, e.getValue().codedValue);
+                                saveAnswer(answer, e.getValue() == null ? null : e.getValue().codedValue);
                             });
                             displayMap.put(answer.getDisplayKey(), radio.component);
                             if (!binders.containsKey(answer.getDisplayKey())) {
@@ -250,7 +270,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTION_TYPE_TEXT:
-                            ElicitTextField text = new ElicitTextField(answer);
+                            ElicitTextField text = new ElicitTextField(answer, texts);
                             text.component.setValueChangeMode(ValueChangeMode.LAZY);
                             text.component.setValueChangeTimeout(valueChangeTimeout);
                             text.component.addValueChangeListener(e -> {
@@ -263,7 +283,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTION_TYPE_TEXTAREA:
-                            ElicitTextArea textArea = new ElicitTextArea(answer);
+                            ElicitTextArea textArea = new ElicitTextArea(answer, texts);
                             textArea.component.setValueChangeMode(ValueChangeMode.LAZY);
                             textArea.component.setValueChangeTimeout(valueChangeTimeout);
                             textArea.component.addValueChangeListener(e -> {
@@ -275,16 +295,9 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTION_TYPE_MULTI_SELECT:
-                            ElicitMultiSelectComboBox multiSelect = new ElicitMultiSelectComboBox(answer);
+                            ElicitMultiSelectComboBox multiSelect = new ElicitMultiSelectComboBox(answer, texts);
                             multiSelect.component.addValueChangeListener(e -> {
-                                StringBuilder val = new StringBuilder();
-                                for (SelectItem item : e.getValue()) {
-                                    val.append(item.codedValue).append(",");
-                                }
-                                if (val.toString().contains(",")) {
-                                    val = new StringBuilder(val.substring(0, val.length() - 1));
-                                }
-                                saveAnswer(answer, val.toString());
+                                saveAnswer(answer, Answer.codedValues(e.getValue()));
                             });
                             displayMap.put(answer.getDisplayKey(), multiSelect.component);
                             if (!binders.containsKey(answer.getDisplayKey())) {
@@ -292,16 +305,9 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTIION_TYPE_CHECKBOX_GROUP:
-                            ElicitCheckboxGroup checkboxGroup = new ElicitCheckboxGroup(answer);
+                            ElicitCheckboxGroup checkboxGroup = new ElicitCheckboxGroup(answer, texts);
                             checkboxGroup.component.addValueChangeListener(e -> {
-                                StringBuilder val = new StringBuilder();
-                                for (SelectItem item : e.getValue()) {
-                                    val.append(item.codedValue).append(",");
-                                }
-                                if (val.toString().contains(",")) {
-                                    val = new StringBuilder(val.substring(0, val.length() - 1));
-                                }
-                                saveAnswer(answer, val.toString());
+                                saveAnswer(answer, Answer.codedValues(e.getValue()));
                             });
                             displayMap.put(answer.getDisplayKey(), checkboxGroup.component);
                             if (!binders.containsKey(answer.getDisplayKey())) {
@@ -309,9 +315,9 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTIION_TYPE_DATE_TIME_PICKER:
-                            ElicitDateTimePicker dateTimePicker = new ElicitDateTimePicker(answer);
+                            ElicitDateTimePicker dateTimePicker = new ElicitDateTimePicker(answer, texts);
                             dateTimePicker.component.addValueChangeListener(e -> {
-                                saveAnswer(answer, e.getValue().toString());
+                                saveAnswer(answer, answerText(e.getValue()));
                             });
                             displayMap.put(answer.getDisplayKey(), dateTimePicker.component);
                             if (!binders.containsKey(answer.getDisplayKey())) {
@@ -319,7 +325,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTIION_TYPE_EMAIL:
-                            ElicitEmailField email = new ElicitEmailField(answer);
+                            ElicitEmailField email = new ElicitEmailField(answer, texts);
                             email.component.setValueChangeMode(ValueChangeMode.LAZY);
                             email.component.setValueChangeTimeout(valueChangeTimeout);
                             email.component.addValueChangeListener(e -> {
@@ -331,9 +337,11 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTIION_TYPE_MULTI_SELECT_COMBOBOX:
-                            ElicitMultiSelectComboBox multiSelectComboBox = new ElicitMultiSelectComboBox(answer);
+                            ElicitMultiSelectComboBox multiSelectComboBox = new ElicitMultiSelectComboBox(answer, texts);
                             multiSelectComboBox.component.addValueChangeListener(e -> {
-                                saveAnswer(answer, e.getValue().toString());
+                                // The coded values, as MULTI_SELECT and CHECKBOX_GROUP store them:
+                                // the Set's own toString() would store object identities (#173).
+                                saveAnswer(answer, Answer.codedValues(e.getValue()));
                             });
                             displayMap.put(answer.getDisplayKey(), multiSelectComboBox.component);
                             if (!binders.containsKey(answer.getDisplayKey())) {
@@ -341,7 +349,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTIION_TYPE_PASSWORD:
-                            ElicitPasswordField password = new ElicitPasswordField(answer);
+                            ElicitPasswordField password = new ElicitPasswordField(answer, texts);
                             password.component.addValueChangeListener(e -> {
                                 saveAnswer(answer, e.getValue());
                             });
@@ -351,9 +359,9 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                             }
                             break;
                         case GlobalStrings.QUESTIION_TYPE_TIME_PICKER:
-                            ElicitTimePicker timePicker = new ElicitTimePicker(answer);
+                            ElicitTimePicker timePicker = new ElicitTimePicker(answer, texts);
                             timePicker.component.addValueChangeListener(e -> {
-                                saveAnswer(answer, e.getValue().toString());
+                                saveAnswer(answer, answerText(e.getValue()));
                             });
                             displayMap.put(answer.getDisplayKey(), timePicker.component);
                             if (!binders.containsKey(answer.getDisplayKey())) {
@@ -425,7 +433,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
             return;
         }
 
-        Button btnNewPrevious = new Button("Previous");
+        Button btnNewPrevious = new Button(getTranslation("sectionView.btnPrevious"));
         btnNewPrevious.setId("section-previous-button");
         btnNewPrevious.setDisableOnClick(true);
         btnNewPrevious.setEnabled(navResponse.getCurrentNavItem() != null && navResponse.getCurrentNavItem().getPrevious() != null);
@@ -445,7 +453,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         Button btnNewNext = new Button();
         btnNewNext.setId("section-next-button");
         if (navResponse.getCurrentNavItem() != null && navResponse.getCurrentNavItem().getNext() != null) {
-            btnNewNext.setText("Next");
+            btnNewNext.setText(getTranslation("sectionView.btnNext"));
             btnNewNext.setDisableOnClick(true);
             btnNewNext.setEnabled(navResponse.getCurrentNavItem().getNext() != null);
             btnNewNext.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
@@ -462,7 +470,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                     }
             );
         } else if (navResponse.getCurrentNavItem() != null && navResponse.getCurrentNavItem().getNext() == null) {
-            btnNewNext.setText("Review");
+            btnNewNext.setText(getTranslation("sectionView.btnReview"));
             btnNewNext.setDisableOnClick(true);
             btnNewNext.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
             btnNewNext.addClickListener(e -> {
@@ -525,18 +533,50 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                     "setTimeout(() => { " +
                     "const element = document.getElementById($0); " +
                     "if (element) { " +
-                    "console.log('Scrolling to validation error element:', element.id); " +
                     "element.scrollIntoView({behavior: 'smooth', block: 'start', inline: 'nearest'}); " +
-                    "} else { " +
-                    "console.log('Element not found for scrolling:', $0); " +
                     "} " +
                     "}, 200);", 
                     componentToScrollTo.getId().orElse("unknown")
                 );
             }
-            Notification.show("Please fix validation errors", 3000, Notification.Position.MIDDLE);
+            Notification.show(getTranslation("sectionView.error.fixValidation"), 3000, Notification.Position.MIDDLE);
         }
         return valid;
+    }
+
+    /**
+     * The text a field's value is saved as (UC-002 BR-017): {@code null} for a cleared field,
+     * whose value is {@code null}, and the value's own text otherwise.
+     *
+     * @param value the field's new value, {@code null} when the respondent cleared it
+     * @return the value's text, or {@code null}
+     */
+    static String answerText(Object value) {
+        return value == null ? null : value.toString();
+    }
+
+    /**
+     * The value an answer is stored with (UC-002 BR-017): an empty text, which an emptied text
+     * field or an emptied multi-select gives, is unanswered and stored as {@code null}, like a
+     * question that was never answered.
+     *
+     * @param value the text from the field, possibly {@code null} or empty
+     * @return {@code null} for no answer, otherwise the text unchanged
+     */
+    static String storedValue(String value) {
+        return value == null || value.isEmpty() ? null : value;
+    }
+
+    /**
+     * Whether a field's value changes the stored answer and must be saved (UC-002 BR-017): a clear
+     * of an answered question does, a clear of an unanswered one does not.
+     *
+     * @param stored the answer's stored text, {@code null} when unanswered
+     * @param value  the text from the field, possibly {@code null} or empty
+     * @return {@code true} when the stored answer differs from what the field now holds
+     */
+    static boolean changesAnswer(String stored, String value) {
+        return !Objects.equals(storedValue(value), stored);
     }
 
     /**
@@ -551,11 +591,10 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
      */
     private void saveAnswer(Answer answer, String value) {
         flash = true;
-        //check if this is the first time and textValue is null
-        // Or if it has changed.
-        if ((value != null && answer.getTextValue() == null) ||
-                (value != null && !answer.getTextValue().equals(value))) {
-            answer.setTextValue(value);
+        // UC-002 BR-017: an emptied field is unanswered (null), never "", and a clear is a change
+        // to save like any other; saving the value already stored does nothing.
+        if (changesAnswer(answer.getTextValue(), value)) {
+            answer.setTextValue(storedValue(value));
             
             // Increment pending operations counter
             pendingSaveOperations++;
@@ -568,7 +607,12 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                     buildQuestions();
                 }
             } catch (Exception e) {
-                Notification.show("Error saving answer. Please try again.", 3000, Notification.Position.MIDDLE);
+                // The notification is all the respondent sees; without this line the failure
+                // (a NullPointerException from a mis-shaped branching rule, say) left no trace
+                // anywhere an operator could find it.
+                Log.error("Saving answer " + answer.getDisplayKey() + " for respondent "
+                        + answer.respondentId + " failed", e);
+                Notification.show(getTranslation("sectionView.error.saveAnswer"), 3000, Notification.Position.MIDDLE);
             } finally {
                 // Decrement pending operations counter
                 pendingSaveOperations--;
@@ -582,7 +626,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
      */
     private void waitForPendingSaveOperations() {
         if (pendingSaveOperations > 0) {
-            Notification.show("Saving changes...", 1000, Notification.Position.MIDDLE);
+            Notification.show(getTranslation("sectionView.savingChanges"), 1000, Notification.Position.MIDDLE);
             
             // Simple polling approach - wait for saves to complete
             int maxWaitTime = 5000; // Maximum 5 seconds wait
@@ -618,19 +662,19 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         
         // Add null checks before accessing navigation data
         if (navResponse == null || navResponse.getCurrentNavItem() == null) {
-            Notification.show("Navigation data not available. Please refresh the page.", 3000, Notification.Position.MIDDLE);
+            Notification.show(getTranslation("common.error.navigationUnavailable"), 3000, Notification.Position.MIDDLE);
             return;
         }
 
         if (respondent == null) {
-            Notification.show("Session expired. Please login again.", 3000, Notification.Position.MIDDLE);
+            Notification.show(getTranslation("common.error.sessionExpired"), 3000, Notification.Position.MIDDLE);
             UI.getCurrent().navigate("");
             return;
         }
 
         String nextKey = navResponse.getCurrentNavItem().getNext();
         if (nextKey == null) {
-            Notification.show("No next section available.", 3000, Notification.Position.MIDDLE);
+            Notification.show(getTranslation("sectionView.error.noNext"), 3000, Notification.Position.MIDDLE);
             return;
         }
 
@@ -645,14 +689,14 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                 buildQuestions();
             } else {
                 Log.warn("Navigation service returned null response for key: " + nextKey);
-                Notification.show("Error loading next section data.", 3000, Notification.Position.MIDDLE);
+                Notification.show(getTranslation("sectionView.error.loadNext"), 3000, Notification.Position.MIDDLE);
                 if (btnNext != null) {
                     btnNext.setEnabled(true);
                 }
             }
         } catch (Exception e) {
             Log.error("Exception during navigation to next section: " + e.getMessage(), e);
-            Notification.show("Error navigating to next section. Please try again.", 3000, Notification.Position.MIDDLE);
+            Notification.show(getTranslation("sectionView.error.navigateNext"), 3000, Notification.Position.MIDDLE);
             // Re-enable the button if navigation fails
             if (btnNext != null) {
                 btnNext.setEnabled(true);
@@ -673,19 +717,19 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         
         // Add null checks before accessing navigation data
         if (navResponse == null || navResponse.getCurrentNavItem() == null) {
-            Notification.show("Navigation data not available. Please refresh the page.", 3000, Notification.Position.MIDDLE);
+            Notification.show(getTranslation("common.error.navigationUnavailable"), 3000, Notification.Position.MIDDLE);
             return;
         }
 
         if (respondent == null) {
-            Notification.show("Session expired. Please login again.", 3000, Notification.Position.MIDDLE);
+            Notification.show(getTranslation("common.error.sessionExpired"), 3000, Notification.Position.MIDDLE);
             UI.getCurrent().navigate("");
             return;
         }
 
         String previousKey = navResponse.getCurrentNavItem().getPrevious();
         if (previousKey == null) {
-            Notification.show("No previous section available.", 3000, Notification.Position.MIDDLE);
+            Notification.show(getTranslation("sectionView.error.noPrevious"), 3000, Notification.Position.MIDDLE);
             return;
         }
 
@@ -700,14 +744,14 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                 buildQuestions();
             } else {
                 Log.warn("Navigation service returned null response for key: " + previousKey);
-                Notification.show("Error loading previous section data.", 3000, Notification.Position.MIDDLE);
+                Notification.show(getTranslation("sectionView.error.loadPrevious"), 3000, Notification.Position.MIDDLE);
                 if (btnPrevious != null) {
                     btnPrevious.setEnabled(true);
                 }
             }
         } catch (Exception e) {
             Log.error("Exception during navigation to previous section: " + e.getMessage(), e);
-            Notification.show("Error navigating to previous section. Please try again.", 3000, Notification.Position.MIDDLE);
+            Notification.show(getTranslation("sectionView.error.navigatePrevious"), 3000, Notification.Position.MIDDLE);
             // Re-enable the button if navigation fails
             if (btnPrevious != null) {
                 btnPrevious.setEnabled(true);

@@ -11,12 +11,15 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
 import com.vaadin.flow.component.datetimepicker.DateTimePicker;
 import com.vaadin.flow.component.datetimepicker.DateTimePickerVariant;
+import com.vaadin.flow.data.binder.Binder;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 
@@ -31,66 +34,60 @@ import java.time.LocalTime;
  */
 public class ElicitDateTimePicker extends ElicitComponent<DateTimePicker> {
 
+    /** The last moment the picker can show on a day: a maximum day ends here (BR-016). */
+    private static final LocalTime END_OF_DAY = LocalTime.of(23, 59, 59);
+
     /**
      * Constructs a new ElicitDateTimePicker for the given answer.
      *
      * @param answer the answer object to bind to this date-time picker
+     * @param texts  the content language of this page draw; null means the survey's base text
      */
-    public ElicitDateTimePicker(Answer answer) {
-        super(new DateTimePicker(answer.displayText), answer);
+    public ElicitDateTimePicker(Answer answer, ContentTexts texts) {
+        super(new DateTimePicker(answer.label()), answer, texts);
+        component.setDatePickerI18n(PickerTexts.datePicker());
+        // The bounds' messages name days, as the bounds are days (BR-016); the picker's own check,
+        // which the binder runs, reads them.
+        DateTimePicker.DateTimePickerI18n i18n = new DateTimePicker.DateTimePickerI18n();
+        if (component.getMin() != null) {
+            i18n.setMinErrorMessage(dateMinMessage(answer, component.getMin().toLocalDate()));
+        }
+        if (component.getMax() != null) {
+            i18n.setMaxErrorMessage(dateMaxMessage(answer, component.getMax().toLocalDate()));
+        }
+        component.setI18n(i18n);
         if (answer.getTextValue() != null && !answer.getTextValue().isEmpty()) {
             setValue(answer);
         }
     }
 
     /**
-     * Sets up the bindings and validation rules for the date-time picker component
-     * based on the provided answer's question properties.
+     * Binds the picker and sets its bounds (UC-002 BR-016).
      *
-     * @param answer The {@link Answer} object containing the question and its properties.
-     *               This is used to configure the component's behavior and validation.
+     * <p>The picker is always bound, so the binder runs the picker's own check -- its minimum,
+     * its maximum and incomplete or unreadable input -- on the server whether or not the question
+     * is required; an empty optional answer passes. A question's minimum and maximum are
+     * integers, for a date-time the days since 1970-01-01, as for a date: any time of day is
+     * accepted from the start of the minimum day to the end of the maximum day, whatever day the
+     * question is answered on. Either may be set alone.</p>
      *
-     *               <p>Behavior:</p>
-     *               <ul>
-     *                 <li>If the question is required, the component will display a required indicator
-     *                     and enforce a validation rule to ensure a value is provided.</li>
-     *                 <li>Validation rules are bound to the {@link Answer#getLocalDateTime()} and
-     *                     {@link Answer#setLocalDateTime(LocalDateTime)} methods.</li>
-     *                 <li>If the question specifies a minimum value, the component will enforce
-     *                     that the selected date-time is not earlier than the specified minimum.</li>
-     *                 <li>If the question specifies a maximum value, the component will enforce
-     *                     that the selected date-time is not later than the specified maximum.</li>
-     *               </ul>
-     *
-     *               <p>Notes:</p>
-     *               <ul>
-     *                 <li>The minimum and maximum values are expected to be integers representing
-     *                     24-hour time in the format HHMM (e.g., 830 for 8:30 AM).</li>
-     *                 <li>Additional validators need to be implemented for both required and non-required cases.</li>
-     *               </ul>
+     * @param answer the answer whose question supplies the required flag and the bounds
      */
     @Override
     void setBindings(Answer answer) {
+        // One binding carries every rule: Binder keeps one binding per field (UC-002).
+        Binder.BindingBuilder<Answer, LocalDateTime> binding = binder.forField(component);
         if (answer.question.required) {
             component.setRequiredIndicatorVisible(answer.question.required);
-            this.binder.forField(component)
-                    .asRequired(answer.question.validationText)
-                    .bind(Answer::getLocalDateTime, Answer::setLocalDateTime);
-            //Need to add a validator.
-        } else {
-            //Need to add a validator.
+            binding = binding.asRequired(requiredMessage(answer));
         }
-
-        //TODO Min and Max are integers.
-        // we will assume these are 24 hour click in the form of hour minute.
-        // e.g. 830 would be 8:30 AM
+        binding.bind(Answer::getLocalDateTime, Answer::setLocalDateTime);
 
         if (answer.question.minValue != null) {
-            component.setMin(createLocalDateTimeFromHHMM(answer.question.minValue));
+            component.setMin(LocalDate.ofEpochDay(answer.question.minValue).atStartOfDay());
         }
-
         if (answer.question.maxValue != null) {
-            component.setMax(createLocalDateTimeFromHHMM(answer.question.maxValue));
+            component.setMax(LocalDate.ofEpochDay(answer.question.maxValue).atTime(END_OF_DAY));
         }
     }
 
@@ -148,15 +145,14 @@ public class ElicitDateTimePicker extends ElicitComponent<DateTimePicker> {
     }
 
     /**
-     * Creates a {@link LocalDateTime} instance from a given time in HHMM format.
+     * Reads a time stored as HHMM, the form {@code questions.min_value} and {@code max_value} take
+     * for time questions (830 is 08:30; UC-002 BR-016).
      *
-     * @param hhmm the time in HHMM format (e.g., 0930 for 9:30 AM, 1530 for 3:30 PM).
-     *             The value must be between 0000 and 2359.
-     * @return a {@link LocalDateTime} instance representing the current date with the specified time.
-     * @throws IllegalArgumentException if the provided time is not between 0000 and 2359,
-     *                                  or if the hours or minutes are invalid.
+     * @param hhmm the time as HHMM, 0 to 2359
+     * @return the time of day
+     * @throws IllegalArgumentException if the value is not a time of day
      */
-    private static LocalDateTime createLocalDateTimeFromHHMM(int hhmm) {
+    static LocalTime timeFromHHMM(int hhmm) {
         if (hhmm < 0 || hhmm > 2359) {
             throw new IllegalArgumentException("The time must be between 0000 and 2359");
         }
@@ -164,13 +160,12 @@ public class ElicitDateTimePicker extends ElicitComponent<DateTimePicker> {
         int hours = hhmm / 100;
         int minutes = hhmm % 100;
 
-        if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+        // hhmm is 0..2359 by the check above, so hours is 0..23 and minutes is 0..99: the only
+        // value left to reject is a minute field past 59, e.g. 1170.
+        if (minutes > 59) {
             throw new IllegalArgumentException("Invalid time specified");
         }
 
-        LocalDate currentDate = LocalDate.now(); // Get the current date
-        LocalTime time = LocalTime.of(hours, minutes);
-
-        return LocalDateTime.of(currentDate, time);
+        return LocalTime.of(hours, minutes);
     }
 }

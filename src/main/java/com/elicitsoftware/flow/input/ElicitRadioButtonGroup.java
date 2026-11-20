@@ -11,6 +11,7 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
 import com.elicitsoftware.model.SelectItem;
@@ -64,11 +65,13 @@ public class ElicitRadioButtonGroup extends ElicitComponent<RadioButtonGroup<Sel
      *                 <li>Configures the item label generator to display the text of each {@link SelectItem}.</li>
      *                 <li>Pre-selects a value if the {@link Answer} already has a non-empty text value.</li>
      *               </ul>
+     * @param texts  the content language of this page draw, which also labels the options;
+     *               must not be null
      */
-    public ElicitRadioButtonGroup(Answer answer) {
-        super(new RadioButtonGroup<SelectItem>(answer.displayText), answer);
-        this.component.setItems(answer.question.selectGroup.selectItems);
-        this.component.setItemLabelGenerator(item -> item.displayText);
+    public ElicitRadioButtonGroup(Answer answer, ContentTexts texts) {
+        super(new RadioButtonGroup<SelectItem>(answer.label()), answer, texts);
+        this.component.setItems(answer.getSelectItems());
+        this.component.setItemLabelGenerator(texts::option);
         if (answer.getTextValue() != null && !answer.getTextValue().isEmpty()) {
             setValue(answer);
         }
@@ -89,7 +92,7 @@ public class ElicitRadioButtonGroup extends ElicitComponent<RadioButtonGroup<Sel
             component.setRequired(answer.question.required);
             component.setRequiredIndicatorVisible(answer.question.required);
             this.binder.forField(component)
-                    .asRequired(answer.question.validationText)
+                    .asRequired(requiredMessage(answer))
                     .bind(Answer::getSelectedItem, Answer::setSelectedItem);
             //No min or max for Radio Buttions
         }
@@ -108,7 +111,7 @@ public class ElicitRadioButtonGroup extends ElicitComponent<RadioButtonGroup<Sel
     @Override
     void setValue(Answer answer) {
         if (answer.getTextValue() != null) {
-            for (SelectItem item : answer.question.selectGroup.selectItems) {
+            for (SelectItem item : answer.getSelectItems()) {
                 if (answer.getTextValue().equalsIgnoreCase(item.codedValue)) {
                     this.component.setValue(item);
                     break;
