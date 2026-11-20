@@ -90,6 +90,10 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
     // Track pending save operations
     private int pendingSaveOperations = 0;
 
+    /**
+     * Creates the view; the components are built by {@link #init()} once CDI has injected the
+     * services.
+     */
     public SectionView() {
     }
 

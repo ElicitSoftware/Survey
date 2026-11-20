@@ -43,6 +43,15 @@ public class ETLSchemaResource {
     @Inject
     ETLService etlService;
 
+    /**
+     * Renames the survey's reporting schema (UC-010).
+     *
+     * @param surveyKey the survey's key, a UUID
+     * @param name      the new schema name, trimmed before it is checked
+     * @return {@code 200 ok} with the new name in {@code schema}, {@code 400 invalid} for a key
+     *         that is not a UUID or a name that is not allowed, {@code 404 unknown},
+     *         {@code 409 taken} or {@code 409 unbuilt}, or {@code 500 failed}
+     */
     @POST
     @Path("/rename")
     @Produces(MediaType.APPLICATION_JSON)
@@ -65,6 +74,14 @@ public class ETLSchemaResource {
         return Response.status(http).type(MediaType.APPLICATION_JSON).entity(body).build();
     }
 
+    /**
+     * Drops the survey's reporting schema with everything in it (UC-011), when
+     * {@code elicit.etl.drop.enabled=true}.
+     *
+     * @param surveyKey the survey's key, a UUID
+     * @return {@code 200 ok} (also when there was nothing to drop), {@code 400 invalid} for a key
+     *         that is not a UUID, {@code 403 disabled}, {@code 404 unknown} or {@code 500 failed}
+     */
     @DELETE
     @Produces(MediaType.APPLICATION_JSON)
     public Response drop(@PathParam("surveyKey") String surveyKey) {

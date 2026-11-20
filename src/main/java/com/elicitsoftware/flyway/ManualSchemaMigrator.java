@@ -31,47 +31,53 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-// TEMPORARY — DO NOT CARRY THIS FORWARD INDEFINITELY.
-// This class exists solely to support upgrading existing pre-Kimball ("V2.x") Survey
-// deployments to V3.0.0 (Kimball Type 2 SCD) via db/migration-v3. Once every real Survey
-// deployment has been upgraded to V3 (confirmed by every environment's flyway_history having
-// converged onto db/migration — see the repair() call below), this class, db/migration-v3/,
-// ManualSchemaMigratorUpgradeTest.java, and ManualSchemaMigratorScaleTest.java (which only
-// times db/migration-v3's ALTER migration — see its own header) should ALL be deleted, and
-// quarkus.flyway.owner.migrate-at-start should revert to the plain Quarkus-managed
-// auto-migration this class replaced (see application.properties). Tracked in the
-// repo-root DeploymentScript.md — check it before removing, and update it when this class
-// is actually deleted.
-//
-// Runs Flyway manually against a database-detected brownfield/greenfield/converged location,
-// replacing Quarkus's migrate-at-start (deliberately disabled — see the comment on
-// quarkus.flyway.owner.migrate-at-start in application.properties for why a
-// FlywayConfigurationCustomizer cannot do this: Quarkus resolves classpath: migration locations
-// at BUILD time, so mutating FluentConfiguration.locations() at runtime has no effect on which
-// files actually get executed — confirmed by testing against a real pre-Kimball database).
-//
-// Tries db/migration (the greenfield v3 schema) first. If it validates cleanly there — either a
-// genuinely fresh database, or a v2.x database that has already been through the upgrade-and-repair
-// cycle below on a prior boot — it stays there permanently. Note that "stays there" describes
-// where an ALREADY-CONVERGED database reads from; it does NOT mean a new migration can be added
-// to db/migration alone. Every version must exist in BOTH locations at the same version number,
-// because a database still on the upgrade path runs db/migration-v3 and is then repaired against
-// db/migration: any version present only in db/migration would be left unapplied, and the
-// post-repair validate() would fail on it as a pending migration. V011 through V016 all follow
-// this rule — same version number in both, with track-specific wording in each. Adding one to
-// only db/migration breaks ManualSchemaMigratorUpgradeTest, which exists to catch exactly that.
-// (src/test/resources/db/test/'s test-only data
-// fixtures live in a separate Flyway location layered on top of this one only under the
-// %test profile, numbered from V9xxx specifically so they never collide with a real
-// migration version here.) If db/migration's checksums DON'T match (a v2.x
-// database that hasn't been upgraded yet), it migrates via db/migration-v3 (the ALTER-based
-// upgrade path) instead, then immediately repairs its history against db/migration so the NEXT
-// boot's validate() against db/migration succeeds and this database converges onto it for good.
-// The two locations are siblings, not nested — Flyway's classpath location scanning is recursive,
-// so db/migration-v3 must NOT live under db/migration.
-// The strategy: an already-deployed V2.x database is upgraded in place by db/migration-v3
-// (ALTER-based) and its history then repaired against db/migration, so every database
-// converges on the greenfield track; see the README in db/migration-v3 and DeploymentScript.md.
+/**
+ * Migrates the {@code owner} datasource's schema at startup, choosing between the greenfield and
+ * the upgrade migration location by what the database already holds.
+ * <p>
+ * TEMPORARY — DO NOT CARRY THIS FORWARD INDEFINITELY.
+ * This class exists solely to support upgrading existing pre-Kimball ("V2.x") Survey
+ * deployments to V3.0.0 (Kimball Type 2 SCD) via db/migration-v3. Once every real Survey
+ * deployment has been upgraded to V3 (confirmed by every environment's flyway_history having
+ * converged onto db/migration — see the repair() call below), this class, db/migration-v3/,
+ * ManualSchemaMigratorUpgradeTest.java, and ManualSchemaMigratorScaleTest.java (which only
+ * times db/migration-v3's ALTER migration — see its own header) should ALL be deleted, and
+ * quarkus.flyway.owner.migrate-at-start should revert to the plain Quarkus-managed
+ * auto-migration this class replaced (see application.properties). Tracked in the
+ * repo-root DeploymentScript.md — check it before removing, and update it when this class
+ * is actually deleted.
+ * <p>
+ * Runs Flyway manually against a database-detected brownfield/greenfield/converged location,
+ * replacing Quarkus's migrate-at-start (deliberately disabled — see the comment on
+ * quarkus.flyway.owner.migrate-at-start in application.properties for why a
+ * FlywayConfigurationCustomizer cannot do this: Quarkus resolves classpath: migration locations
+ * at BUILD time, so mutating FluentConfiguration.locations() at runtime has no effect on which
+ * files actually get executed — confirmed by testing against a real pre-Kimball database).
+ * <p>
+ * Tries db/migration (the greenfield v3 schema) first. If it validates cleanly there — either a
+ * genuinely fresh database, or a v2.x database that has already been through the upgrade-and-repair
+ * cycle below on a prior boot — it stays there permanently. Note that "stays there" describes
+ * where an ALREADY-CONVERGED database reads from; it does NOT mean a new migration can be added
+ * to db/migration alone. Every version must exist in BOTH locations at the same version number,
+ * because a database still on the upgrade path runs db/migration-v3 and is then repaired against
+ * db/migration: any version present only in db/migration would be left unapplied, and the
+ * post-repair validate() would fail on it as a pending migration. V011 through V016 all follow
+ * this rule — same version number in both, with track-specific wording in each. Adding one to
+ * only db/migration breaks ManualSchemaMigratorUpgradeTest, which exists to catch exactly that.
+ * (src/test/resources/db/test/'s test-only data
+ * fixtures live in a separate Flyway location layered on top of this one only under the
+ * %test profile, numbered from V9xxx specifically so they never collide with a real
+ * migration version here.) If db/migration's checksums DON'T match (a v2.x
+ * database that hasn't been upgraded yet), it migrates via db/migration-v3 (the ALTER-based
+ * upgrade path) instead, then immediately repairs its history against db/migration so the NEXT
+ * boot's validate() against db/migration succeeds and this database converges onto it for good.
+ * The two locations are siblings, not nested — Flyway's classpath location scanning is recursive,
+ * so db/migration-v3 must NOT live under db/migration.
+ * <p>
+ * The strategy: an already-deployed V2.x database is upgraded in place by db/migration-v3
+ * (ALTER-based) and its history then repaired against db/migration, so every database
+ * converges on the greenfield track; see the README in db/migration-v3 and DeploymentScript.md.
+ */
 @ApplicationScoped
 public class ManualSchemaMigrator {
 

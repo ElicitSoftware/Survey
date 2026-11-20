@@ -61,7 +61,11 @@ public class PostSurveyActionDelivery {
     @ConfigProperty(name = "elicit.post-survey-action.retry.max-attempts", defaultValue = "24")
     int maxAttempts;
 
-    /** UC-015 BR-005: the attempts a delivery gets; a method, so a caller through the proxy reads it. */
+    /**
+     * UC-015 BR-005: the attempts a delivery gets; a method, so a caller through the proxy reads it.
+     *
+     * @return the configured maximum number of attempts, the first call included
+     */
     public int maxAttempts() {
         return maxAttempts;
     }
@@ -69,7 +73,13 @@ public class PostSurveyActionDelivery {
     // Package-private so a test can point it at a short timeout.
     PostSurveyActionCaller caller = new PostSurveyActionCaller();
 
-    /** UC-015 main scenario: every action of the respondent's survey, in execution order (BR-006). */
+    /**
+     * UC-015 main scenario: every action of the respondent's survey, in execution order (BR-006).
+     * Each action gets its delivery record committed before the call, and an exception from one
+     * action is logged and does not stop the next.
+     *
+     * @param respondentId the id of the respondent whose survey's actions are delivered
+     */
     public void deliverAll(int respondentId) {
         List<Integer> actionIds = QuarkusTransaction.requiringNew().call(() -> ids(em.createNativeQuery("""
                         SELECT a.id FROM survey.post_survey_actions a
@@ -182,7 +192,9 @@ public class PostSurveyActionDelivery {
     /**
      * UC-015 A3, BR-005: calls again every delivery that failed by the call, whose action still
      * exists and that has had fewer than {@code max-attempts} attempts. Each is claimed first, so
-     * instances sharing the database never call it twice. Returns how many were called.
+     * instances sharing the database never call it twice.
+     *
+     * @return how many deliveries were called again
      */
     public int retryFailedCalls() {
         @SuppressWarnings("unchecked")

@@ -30,6 +30,14 @@ public class LanguageSwitcher extends Select<Locale> implements LocaleChangeObse
 
     private final transient LocaleSelection selection;
 
+    /**
+     * Builds the selector over the locales the provider offers, without the pseudo-locale. It
+     * is hidden when only one locale is offered, and preselects the offered locale that matches
+     * the current UI's locale.
+     *
+     * @param selection remembers the chosen locale for the session
+     * @param provider  supplies the offered locales
+     */
     public LanguageSwitcher(LocaleSelection selection, ElicitI18NProvider provider) {
         this.selection = selection;
         setId(ID);

@@ -187,6 +187,18 @@ public class PDFService {
         return rowHeights;
     }
 
+    /**
+     * Breaks a text into lines no wider than the given width, at single spaces. A word wider than
+     * the width is not broken; it gets a line of its own, preceded by an empty line when it is the
+     * text's first word.
+     *
+     * @param text     the text, or null
+     * @param font     the font the text is measured in
+     * @param fontSize the font size in points
+     * @param maxWidth the widest a line may be, in points
+     * @return the lines, empty for a null or empty text
+     * @throws IOException the font cannot measure the text
+     */
     public static List<String> wrapText(String text, PDFont font, float fontSize, float maxWidth) throws IOException {
         List<String> lines = new ArrayList<>();
         String[] words = new String[0];
@@ -213,7 +225,12 @@ public class PDFService {
         return lines;
     }
 
-    /** Renders the report in English with no survey title in the page header. */
+    /**
+     * Renders the report in English with no survey title in the page header.
+     *
+     * @param reportResponses the report sections to render
+     * @return the PDF document's bytes
+     */
     public byte[] generatePDF(ArrayList<ReportResponse> reportResponses) {
         return generatePDF(reportResponses, null, Locale.ENGLISH);
     }
@@ -223,7 +240,11 @@ public class PDFService {
      *
      * @param reportResponses the report sections to render
      * @param surveyTitle     the survey title shown in the page header, or null for none
-     * @param locale          the respondent's locale for texts and the footer date
+     * @param locale          the respondent's locale for texts and the footer date, or null for
+     *                        English
+     * @return the PDF document's bytes; a null section is skipped, and one with no PDF payload is
+     *         rendered as an error block
+     * @throws RuntimeException wrapping the {@link IOException} when the document cannot be built
      */
     public byte[] generatePDF(ArrayList<ReportResponse> reportResponses, String surveyTitle, Locale locale) {
         this.surveyTitle = surveyTitle;
@@ -313,6 +334,13 @@ public class PDFService {
         }
     }
 
+    /**
+     * Writes a title below the content on the current page, starting a new page when too little
+     * room is left. A null or empty title writes nothing.
+     *
+     * @param title the title, or null
+     * @throws IOException the title cannot be written to the page
+     */
     public void addTitleBlock(String title) throws IOException {
         if (title != null && !title.isEmpty()) {
             //Add some space between the last item and the new title.
@@ -590,7 +618,13 @@ public class PDFService {
         }
     }
 
-    // Configures basic setup for the table and draws it page by page
+    /**
+     * Draws a table from the current position, continuing on as many new pages as its rows need.
+     * A table with no rows draws nothing.
+     *
+     * @param table the table to draw
+     * @throws IOException the table cannot be written to the document
+     */
     public void drawTable(Table table) throws IOException {
         int totalRows = table.getNumberOfRows();
         if (totalRows == 0) {

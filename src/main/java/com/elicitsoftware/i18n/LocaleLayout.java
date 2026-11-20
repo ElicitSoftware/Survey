@@ -42,6 +42,13 @@ public class LocaleLayout {
     @Inject
     LocaleConfig localeConfig;
 
+    /**
+     * Sets the locale's text direction, language and font scale on the UI and, through
+     * JavaScript, on the browser's document element. Does nothing when either argument is null.
+     *
+     * @param ui     the UI to lay out
+     * @param locale the locale whose layout to apply
+     */
     public void apply(UI ui, Locale locale) {
         if (ui == null || locale == null) {
             return;
@@ -58,10 +65,22 @@ public class LocaleLayout {
                 locale.toLanguageTag(), direction.getClientName(), FONT_SCALE_PROPERTY, fontScale);
     }
 
+    /**
+     * The text direction of a locale.
+     *
+     * @param locale the locale; null is left to right
+     * @return right to left for a right-to-left language, otherwise left to right
+     */
     public Direction directionFor(Locale locale) {
         return localeConfig.isRightToLeft(locale) ? Direction.RIGHT_TO_LEFT : Direction.LEFT_TO_RIGHT;
     }
 
+    /**
+     * The root font-size multiplier of a locale.
+     *
+     * @param locale the locale; null gets the default scale
+     * @return the configured scale, or the default when none is declared
+     */
     public double fontScaleFor(Locale locale) {
         return localeConfig.fontScale(locale);
     }

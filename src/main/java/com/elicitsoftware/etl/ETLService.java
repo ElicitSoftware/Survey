@@ -76,7 +76,14 @@ public class ETLService {
     /** Serializes builds, renames and drops; the DDL steps are not safe to interleave (BR-005). */
     private final ReentrantLock rebuildLock = new ReentrantLock();
 
-    /** A survey as the ETL sees it: its id, portable key, name and schema (null until built). */
+    /**
+     * A survey as the ETL sees it: its id, portable key, name and schema (null until built).
+     *
+     * @param id     the survey's database id
+     * @param key    the survey's portable key ({@code survey_key})
+     * @param name   the survey's name
+     * @param schema the survey's reporting schema, or {@code null} until one is assigned
+     */
     public record SurveyRef(int id, UUID key, String name, String schema) {
     }
 
@@ -106,6 +113,14 @@ public class ETLService {
         OK, INVALID, TAKEN, UNBUILT, UNKNOWN, FAILED
     }
 
+    /**
+     * What {@link #renameReportingSchema(UUID, String)} did.
+     *
+     * @param status  whether the rename succeeded or why it was refused or failed
+     * @param message a summary line fit for an operator
+     * @param schema  the survey's schema name afterwards: the new name on success, the unchanged
+     *                name on refusal or failure, {@code null} for an unknown or unbuilt survey
+     */
     public record RenameResult(RenameStatus status, String message, String schema) {
     }
 
@@ -114,6 +129,13 @@ public class ETLService {
         OK, DISABLED, UNKNOWN, FAILED
     }
 
+    /**
+     * What {@link #dropReportingSchema(UUID)} did.
+     *
+     * @param status  whether the drop succeeded (or had nothing to drop), was disabled, found no
+     *                such survey, or failed
+     * @param message a summary line, the disabled reason, or the failure's root cause
+     */
     public record DropResult(DropStatus status, String message) {
     }
 
@@ -156,7 +178,11 @@ public class ETLService {
 
     // ── build on request (UC-008) ────────────────────────────────────────────────────────────
 
-    /** Every survey, as {@code POST /api/etl/build} without {@code survey} asks (A5). */
+    /**
+     * Every survey, as {@code POST /api/etl/build} without {@code survey} asks (A5).
+     *
+     * @return what happened, as {@link #rebuildReportingSchema(Optional)} reports it
+     */
     public RebuildResult rebuildReportingSchema() {
         return rebuildReportingSchema(Optional.empty());
     }
@@ -255,7 +281,11 @@ public class ETLService {
 
     // ── surveys and their schemas ────────────────────────────────────────────────────────────
 
-    /** Every installed survey, in display order. */
+    /**
+     * Every installed survey, in display order.
+     *
+     * @return the surveys, ordered by {@code display_order} then id; empty when none is installed
+     */
     @SuppressWarnings("unchecked")
     public List<SurveyRef> listSurveys() {
         List<Object[]> rows = entityManager.createNativeQuery(
@@ -267,7 +297,12 @@ public class ETLService {
         return surveys;
     }
 
-    /** The survey with that portable key, or {@code null}. */
+    /**
+     * The survey with that portable key.
+     *
+     * @param key the survey's portable key; must not be null
+     * @return the survey, or {@code null} when no survey has that key
+     */
     @SuppressWarnings("unchecked")
     public SurveyRef findSurvey(UUID key) {
         List<Object[]> rows = entityManager.createNativeQuery(
@@ -305,6 +340,7 @@ public class ETLService {
      * UC-008 step 3: the survey's schema, named on first contact (BR-006) and created with its
      * grants and fixed tables (BR-007). Idempotent: an existing schema is left as it is.
      *
+     * @param survey the survey; when its schema is null a name is assigned and stored first
      * @return the schema name
      */
     public String ensureSchema(SurveyRef survey) {
@@ -316,7 +352,12 @@ public class ETLService {
         return schema;
     }
 
-    /** Derives and stores the survey's schema name (BR-006), in its own transaction. */
+    /**
+     * Derives and stores the survey's schema name (BR-006), in its own transaction.
+     *
+     * @param survey the survey to name a schema for
+     * @return the name written to the survey's {@code report_schema}
+     */
     @Transactional
     public String assignSchemaName(SurveyRef survey) {
         String name = ReportSchemaNames.derive(survey.name(), this::schemaNameTaken);
@@ -339,7 +380,12 @@ public class ETLService {
         return schemas > 0;
     }
 
-    /** Creates the schema, its grants and its fixed tables; every statement is IF NOT EXISTS. */
+    /**
+     * Creates the schema, its grants and its fixed tables; every statement is IF NOT EXISTS.
+     *
+     * @param schema the schema name, which must obey BR-006
+     * @throws IllegalArgumentException when the name is not an acceptable schema name
+     */
     @Transactional
     public void createSchemaObjects(String schema) {
         DatabaseRetryUtil.executeWithRetry(() -> {
@@ -356,6 +402,10 @@ public class ETLService {
     /**
      * Renames a survey's reporting schema (UC-010): the schema and the survey's
      * {@code report_schema} change together or not at all (BR-001). Never throws.
+     *
+     * @param surveyKey the survey whose schema to rename
+     * @param newName   the schema's new name
+     * @return the outcome; renaming to the current name is {@code OK} and changes nothing
      */
     public RenameResult renameReportingSchema(UUID surveyKey, String newName) {
         rebuildLock.lock();
@@ -392,6 +442,14 @@ public class ETLService {
         }
     }
 
+    /**
+     * Renames the survey's schema and stores the new name on the survey, in one transaction.
+     * Checks only that both names are acceptable schema names; the caller checks the rest.
+     *
+     * @param survey  the survey, whose schema must not be null
+     * @param newName the schema's new name
+     * @throws IllegalArgumentException when either name is not an acceptable schema name
+     */
     @Transactional
     public void renameSchema(SurveyRef survey, String newName) {
         String sql = Sql.RENAME_SCHEMA_SQL
@@ -406,6 +464,9 @@ public class ETLService {
      * Drops a survey's reporting schema with everything in it and clears the survey's
      * {@code report_schema} (UC-011), when this instance allows it (BR-001). Independent of
      * {@code elicit.etl.enabled} (BR-004). Never throws.
+     *
+     * @param surveyKey the survey whose schema to drop
+     * @return the outcome; a survey with no schema is {@code OK} with nothing dropped
      */
     public DropResult dropReportingSchema(UUID surveyKey) {
         if (!dropEnabled) {
@@ -435,6 +496,13 @@ public class ETLService {
         }
     }
 
+    /**
+     * Drops the survey's schema with everything in it and clears its {@code report_schema}, in
+     * one transaction.
+     *
+     * @param survey the survey, whose schema must not be null
+     * @throws IllegalArgumentException when the schema name is not an acceptable schema name
+     */
     @Transactional
     public void dropSchema(SurveyRef survey) {
         entityManager.createNativeQuery(Sql.in(survey.schema(), Sql.DROP_SCHEMA_SQL)).executeUpdate();
@@ -444,7 +512,13 @@ public class ETLService {
 
     // ── the build steps ──────────────────────────────────────────────────────────────────────
 
-    /** UC-008 step 4: upserts the survey's current steps into its {@code dim_step}. */
+    /**
+     * UC-008 step 4: upserts the survey's current steps into its {@code dim_step}.
+     *
+     * @param schema   the survey's reporting schema
+     * @param surveyId the survey's database id
+     * @return the number of rows inserted or updated
+     */
     @Transactional
     public int updateStepDimensionTable(String schema, int surveyId) {
         return DatabaseRetryUtil.executeWithRetry(() -> {
@@ -454,7 +528,13 @@ public class ETLService {
         }, "updating step dimension table");
     }
 
-    /** UC-008 step 4: upserts the survey's current sections into its {@code dim_section}. */
+    /**
+     * UC-008 step 4: upserts the survey's current sections into its {@code dim_section}.
+     *
+     * @param schema   the survey's reporting schema
+     * @param surveyId the survey's database id
+     * @return the number of rows inserted or updated
+     */
     @Transactional
     public int updateSectionDimensionTable(String schema, int surveyId) {
         return DatabaseRetryUtil.executeWithRetry(() -> {
@@ -483,6 +563,8 @@ public class ETLService {
      * UC-008 step 5: creates a {@code dim_<name>} table in the survey's schema for every
      * dimension its metadata names that has no table yet.
      *
+     * @param schema   the survey's reporting schema
+     * @param surveyId the survey's database id
      * @return "new dimension tables = [dimension1, dimension2, ...]"
      */
     @Transactional
@@ -563,7 +645,13 @@ public class ETLService {
         return facts + System.lineSeparator() + dim + System.lineSeparator();
     }
 
-    /** Inserts the respondent's answer values into the survey's {@code dim_<tag>} tables. */
+    /**
+     * Inserts the respondent's answer values into the survey's {@code dim_<tag>} tables.
+     *
+     * @param schema       the survey's reporting schema
+     * @param respondentId the respondent
+     * @return "Populated dimension tables = " followed by the number of values found
+     */
     @Transactional
     public String populateDimensionTables(String schema, Integer respondentId) {
         return DatabaseRetryUtil.executeWithRetry(() -> {
@@ -591,6 +679,8 @@ public class ETLService {
      * Inserts the respondent's fact rows (BR-011), resolves every tag key on them, and names the
      * question and item of each per-item section instance (BR-012).
      *
+     * @param schema       the survey's reporting schema
+     * @param respondentId the respondent
      * @return the number of tag keys written, plus one
      */
     @Transactional
@@ -660,6 +750,8 @@ public class ETLService {
      * UC-008 step 5: adds a {@code <tag>_key} column to the survey's {@code fact_sections} for
      * every dimension of the survey that has none yet.
      *
+     * @param schema   the survey's reporting schema
+     * @param surveyId the survey's database id
      * @return "new fact_sections columns = " followed by the columns added, one per line
      */
     @Transactional
@@ -692,6 +784,8 @@ public class ETLService {
      * UC-008 step 5: drops and recreates the survey's {@code fact_sections_view} over every
      * dimension its fact table has a key for.
      *
+     * @param schema   the survey's reporting schema
+     * @param surveyId the survey's database id
      * @return the SQL used, or a message when a dependency an operator created by hand blocks
      * the drop (see UC-008 Notes)
      */
@@ -736,6 +830,8 @@ public class ETLService {
      * UC-008 step 5, BR-010: (re)creates the survey's {@code fact_respondents} view and
      * {@code fact_respondents_view}.
      *
+     * @param schema   the survey's reporting schema
+     * @param surveyId the survey's database id
      * @return a status message, or the root cause when the create failed
      */
     @Transactional

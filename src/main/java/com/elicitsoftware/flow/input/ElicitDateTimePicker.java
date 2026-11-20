@@ -37,6 +37,7 @@ public class ElicitDateTimePicker extends ElicitComponent<DateTimePicker> {
      * Constructs a new ElicitDateTimePicker for the given answer.
      *
      * @param answer the answer object to bind to this date-time picker
+     * @param texts  the content language of this page draw; null means the survey's base text
      */
     public ElicitDateTimePicker(Answer answer, ContentTexts texts) {
         super(new DateTimePicker(answer.label()), answer, texts);

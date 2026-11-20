@@ -129,6 +129,7 @@ public class ReportView extends VerticalLayout implements BeforeEnterObserver {
     @Inject
     ServiceToken serviceToken;
 
+    /** The answers of the survey's reports as this page last rendered them, which the PDF prints. */
     ArrayList<ReportResponse> reportResponses = new ArrayList<>();
 
     /** How much of a report service's own words one log line holds (UC-005 A1). */
@@ -137,6 +138,7 @@ public class ReportView extends VerticalLayout implements BeforeEnterObserver {
     /** The key of the PDF this page generated last, which the next one replaces (UC-005 BR-018). */
     String lastPdfKey;
 
+    /** Creates the view; its content is built after injection, by {@link #init()}. */
     public ReportView() {
         super();
     }

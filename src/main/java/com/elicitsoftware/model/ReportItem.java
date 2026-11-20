@@ -68,6 +68,12 @@ public class ReportItem extends PanacheEntityBase {
     @Column(name = "display_order", nullable = false)
     public Integer displayOrder;
 
+    /**
+     * Which element column this mark uses, checked in the order steps-sections, question,
+     * sections-question (UC-013 BR-001).
+     *
+     * @return the first column that is set, or {@code null} when none is
+     */
     public ElementRef elementRef() {
         if (stepsSectionsId != null) {
             return ElementRef.STEPS_SECTIONS;

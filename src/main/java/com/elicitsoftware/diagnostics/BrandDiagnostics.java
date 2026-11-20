@@ -76,13 +76,27 @@ public class BrandDiagnostics {
     public record BrandReport(String configuredPath, String localPath, boolean externalExists, boolean localExists,
                               String brandName, List<AssetReport> assets, List<String> warnings) {
 
-        /** A report with no logo warnings. */
+        /**
+         * A report with no logo warnings.
+         *
+         * @param configuredPath {@code brand.file.system.path}
+         * @param localPath      {@code brand.local.path}
+         * @param externalExists whether the configured directory exists
+         * @param localExists    whether the local directory exists
+         * @param brandName      the display name of the brand the application resolved
+         * @param assets         every expected asset and its source
+         */
         public BrandReport(String configuredPath, String localPath, boolean externalExists, boolean localExists,
                            String brandName, List<AssetReport> assets) {
             this(configuredPath, localPath, externalExists, localExists, brandName, assets, List.of());
         }
 
-        /** A one-line summary. */
+        /**
+         * A one-line summary.
+         *
+         * @return which brand resolved and from where: the mounted directory, the local one,
+         *         or the embedded default
+         */
         public String summary() {
             if (externalExists) {
                 return "mounted brand \"" + brandName + "\" at " + configuredPath;
@@ -93,7 +107,12 @@ public class BrandDiagnostics {
             return "embedded default brand; no brand directory at " + configuredPath;
         }
 
-        /** Whether any asset is missing or unreadable, or the brand gets its logos wrong. */
+        /**
+         * Whether any asset is missing or unreadable, or the brand gets its logos wrong.
+         *
+         * @return {@code true} if an asset is {@link Source#ABSENT} or {@link Source#UNREADABLE},
+         *         or there is a warning
+         */
         public boolean hasProblem() {
             return !warnings.isEmpty()
                     || assets.stream().anyMatch(a -> a.source() == Source.ABSENT || a.source() == Source.UNREADABLE);
@@ -152,10 +171,17 @@ public class BrandDiagnostics {
     @Inject
     BrandUtil brandUtil;
 
+    /** Creates the bean; CDI injects its configuration and {@link BrandUtil}. */
     public BrandDiagnostics() {
         // CDI managed bean
     }
 
+    /**
+     * Resolves every expected asset through the mounted, local and embedded brand in turn, and
+     * collects the logo warnings (UC-007 step 4).
+     *
+     * @return the brand report
+     */
     public BrandReport report() {
         Path external = Paths.get(brandFileSystemPath);
         Path local = Paths.get(brandLocalPath);

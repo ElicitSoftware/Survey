@@ -47,6 +47,7 @@ public class ElicitDatePicker extends ElicitComponent<DatePicker> {
      * and if the answer has a text value, it's parsed and set as the initial value.
      *
      * @param answer the answer object containing the data for this date picker
+     * @param texts  the content language of this page draw; null means the survey's base text
      */
     public ElicitDatePicker(Answer answer, ContentTexts texts) {
         super(new DatePicker(answer.label()), answer, texts);

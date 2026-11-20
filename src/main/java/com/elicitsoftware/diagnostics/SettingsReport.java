@@ -45,10 +45,17 @@ public class SettingsReport {
 
     private static final Pattern URL_PASSWORD = Pattern.compile("(?i)(password=)[^&;]*");
 
+    /** Creates the bean. */
     public SettingsReport() {
         // CDI managed bean
     }
 
+    /**
+     * The settings the report shows, read from the running application's configuration, in
+     * report order.
+     *
+     * @return the settings, each with its warning or null
+     */
     public List<Setting> settings() {
         return settings(ConfigProvider.getConfig());
     }

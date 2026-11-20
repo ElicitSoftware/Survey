@@ -37,6 +37,13 @@ public class RespondentSummaryResource {
     @Inject
     RespondentSummaryService service;
 
+    /**
+     * Renders the respondent summary for the respondent the request names.
+     *
+     * @param request the report request: the respondent's id and, optionally, the language
+     * @return 200 with the {@code ReportResponse}, 400 when the body is missing, or 404 when the
+     *         respondent does not exist or has no survey
+     */
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
