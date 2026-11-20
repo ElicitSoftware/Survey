@@ -121,17 +121,16 @@ class ElicitDateTimeFieldsTest {
     }
 
     @Test
-    void dateTimePicker_minMax_areInterpretedAsHHMMOnTodaysDate() {
-        // minValue=830 / maxValue=1730 mean 8:30 AM / 5:30 PM on whatever day the component
-        // is constructed (see ElicitDateTimePicker.createLocalDateTimeFromHHMM).
-        Question question = question(false, 830, 1730, null, null);
+    void dateTimePicker_minMax_areInterpretedAsEpochDays() {
+        // UC-002 BR-016: minValue=0 / maxValue=365 mean 1970-01-01 from midnight to 1971-01-01
+        // at its last second, whatever day the component is constructed.
+        Question question = question(false, 0, 365, null, null);
         Answer answer = answer("1.1.1.1.4.2.3", "Appointment", question, null);
 
         DateTimePicker picker = new ElicitDateTimePicker(answer, ContentTexts.base()).component;
 
-        LocalDate today = LocalDate.now();
-        assertEquals(LocalDateTime.of(today, LocalTime.of(8, 30)), picker.getMin());
-        assertEquals(LocalDateTime.of(today, LocalTime.of(17, 30)), picker.getMax());
+        assertEquals(LocalDateTime.of(1970, 1, 1, 0, 0), picker.getMin());
+        assertEquals(LocalDateTime.of(1971, 1, 1, 23, 59, 59), picker.getMax());
     }
 
     @Test

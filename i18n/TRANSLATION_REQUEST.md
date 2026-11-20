@@ -134,6 +134,8 @@ Every row is one key in `translations.properties`. Return a file `translations_<
 | `validation.required` | This question requires an answer. | Any question · field error when a required question is empty | 60 |  |
 | `validation.length` | Enter between {0} and {1} characters. | Any text question · field error | 60 | params: {0} = minimum, {1} = maximum length |
 | `validation.range` | Enter a value between {0} and {1}. | Any numeric question · field error | 60 | params: {0} = minimum, {1} = maximum value |
+| `validation.dateMin` | Enter a date on or after {0}. | Date or date-time question · field error when the date is before the earliest allowed | 60 | params: {0} = the earliest allowed date, already formatted for the language |
+| `validation.dateMax` | Enter a date on or before {0}. | Date or date-time question · field error when the date is after the latest allowed | 60 | params: {0} = the latest allowed date, already formatted for the language |
 | `validation.email` | Enter a valid email address. | Email question · field error | 60 |  |
 | `pdf.error.title` | Report Generation Error | PDF report · error block title | 60 |  |
 | `pdf.error.content` | Failed to generate report content. | PDF report · error block text | 80 |  |
@@ -212,6 +214,8 @@ versionView.imageCreatedUnavailable=Image creation date not available.
 validation.required=This question requires an answer.
 validation.length=Enter between {0} and {1} characters.
 validation.range=Enter a value between {0} and {1}.
+validation.dateMin=Enter a date on or after {0}.
+validation.dateMax=Enter a date on or before {0}.
 validation.email=Enter a valid email address.
 pdf.error.title=Report Generation Error
 pdf.error.content=Failed to generate report content.

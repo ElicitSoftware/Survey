@@ -15,6 +15,9 @@ import com.elicitsoftware.i18n.Translations;
 import com.vaadin.flow.component.datepicker.DatePicker;
 
 import java.text.DateFormatSymbols;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.FormatStyle;
 import java.time.temporal.WeekFields;
 import java.util.Arrays;
 import java.util.List;
@@ -31,6 +34,17 @@ import java.util.Locale;
 final class PickerTexts {
 
     private PickerTexts() {
+    }
+
+    /**
+     * A date as the respondent's language writes it, for a message that names a bound
+     * (UC-002 BR-016).
+     *
+     * @param date the date
+     * @return the date in the medium style of the current locale
+     */
+    static String formatDate(LocalDate date) {
+        return date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(Translations.currentLocale()));
     }
 
     static DatePicker.DatePickerI18n datePicker() {

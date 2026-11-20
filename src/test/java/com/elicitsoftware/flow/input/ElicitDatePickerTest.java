@@ -87,6 +87,41 @@ class ElicitDatePickerTest {
     }
 
     @Test
+    void given_optionalBoundedQuestion_when_validated_then_onlyADateOutsideTheBoundsFails() {
+        LocalDate first = LocalDate.ofEpochDay(20_000);
+        LocalDate last = LocalDate.ofEpochDay(20_010);
+        ElicitDatePicker wrapper = new ElicitDatePicker(answer(question(false, 20_000, 20_010, null, null), null),
+                ContentTexts.base());
+
+        // UC-002 BR-016: an empty optional answer passes; a bounded one is checked on the server.
+        assertTrue(wrapper.getBinder().validate().isOk());
+
+        wrapper.component.setValue(first);
+        assertTrue(wrapper.getBinder().validate().isOk());
+        wrapper.component.setValue(last);
+        assertTrue(wrapper.getBinder().validate().isOk());
+
+        wrapper.component.setValue(last.plusDays(1));
+        assertEquals(List.of(Translations.get("validation.dateMax", PickerTexts.formatDate(last))),
+                errors(wrapper.getBinder()));
+
+        wrapper.component.setValue(first.minusDays(1));
+        assertEquals(List.of(Translations.get("validation.dateMin", PickerTexts.formatDate(first))),
+                errors(wrapper.getBinder()));
+    }
+
+    @Test
+    void given_authoredValidationText_when_outOfBounds_then_itIsTheMessage() {
+        ElicitDatePicker wrapper = new ElicitDatePicker(
+                answer(question(false, null, 20_010, null, "Pick a day in the study window."), null),
+                ContentTexts.base());
+
+        wrapper.component.setValue(LocalDate.ofEpochDay(20_011));
+
+        assertEquals(List.of("Pick a day in the study window."), errors(wrapper.getBinder()));
+    }
+
+    @Test
     void given_noBounds_when_constructed_then_minAndMaxAreUnset() {
         DatePicker picker = new ElicitDatePicker(answer(InputFieldSupport.plain(), null), ContentTexts.base()).component;
 

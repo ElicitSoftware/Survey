@@ -19,6 +19,7 @@ import com.vaadin.flow.component.*;
 import com.vaadin.flow.component.shared.HasAllowedCharPattern;
 import com.vaadin.flow.component.shared.HasTooltip;
 import com.vaadin.flow.data.binder.Binder;
+import java.time.LocalDate;
 
 /**
  * The ElicitComponent class serves as an abstract base class for creating custom UI components
@@ -192,6 +193,30 @@ public abstract class ElicitComponent<T extends Component> {
         String rangeMessage(Answer answer) {
             return validationMessage(answer, Translations.get("validation.range",
                     answer.question.minValue, answer.question.maxValue));
+        }
+
+        /**
+         * Returns the message for a date earlier than a date or date-time question's minimum
+         * (UC-002 BR-016).
+         *
+         * @param answer the answer whose question supplies the authored message
+         * @param min    the earliest allowed date
+         * @return the authored validation text, or a message naming the date in the respondent's language
+         */
+        String dateMinMessage(Answer answer, LocalDate min) {
+            return validationMessage(answer, Translations.get("validation.dateMin", PickerTexts.formatDate(min)));
+        }
+
+        /**
+         * Returns the message for a date later than a date or date-time question's maximum
+         * (UC-002 BR-016).
+         *
+         * @param answer the answer whose question supplies the authored message
+         * @param max    the latest allowed date
+         * @return the authored validation text, or a message naming the date in the respondent's language
+         */
+        String dateMaxMessage(Answer answer, LocalDate max) {
+            return validationMessage(answer, Translations.get("validation.dateMax", PickerTexts.formatDate(max)));
         }
 
         /**

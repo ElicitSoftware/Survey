@@ -16,6 +16,7 @@ import com.elicitsoftware.model.Answer;
 import com.elicitsoftware.model.Question;
 import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.datepicker.DatePickerVariant;
+import com.vaadin.flow.data.binder.Binder;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
@@ -51,7 +52,15 @@ public class ElicitDatePicker extends ElicitComponent<DatePicker> {
      */
     public ElicitDatePicker(Answer answer, ContentTexts texts) {
         super(new DatePicker(answer.label()), answer, texts);
-        component.setI18n(PickerTexts.datePicker());
+        DatePicker.DatePickerI18n i18n = PickerTexts.datePicker();
+        // The bounds' messages, read by the picker's own check, which the binder runs (BR-016).
+        if (component.getMin() != null) {
+            i18n.setMinErrorMessage(dateMinMessage(answer, component.getMin()));
+        }
+        if (component.getMax() != null) {
+            i18n.setMaxErrorMessage(dateMaxMessage(answer, component.getMax()));
+        }
+        component.setI18n(i18n);
         if (answer.getTextValue() != null && !answer.getTextValue().isEmpty()) {
             setValue(answer);
         }
@@ -71,37 +80,26 @@ public class ElicitDatePicker extends ElicitComponent<DatePicker> {
     }
 
     /**
-     * Sets the bindings for the date picker component based on the provided answer.
-     * This method configures the component's required status, validation, and
-     * minimum/maximum date constraints.
+     * Binds the picker and sets its bounds (UC-002 BR-016).
      *
-     * @param answer The {@link Answer} object containing the question and its associated
-     *               properties such as required status, validation text, and min/max values.
+     * <p>The picker is always bound, so the binder runs the picker's own check -- its minimum,
+     * its maximum and input it cannot read -- on the server whether or not the question is
+     * required; an empty optional answer passes. A question's minimum and maximum are integers,
+     * for a date the days since 1970-01-01, and either may be set alone.</p>
      *
-     *               <p><b>Behavior:</b></p>
-     *               <ul>
-     *                 <li>If the question is marked as required, the component is set to required and
-     *                     displays a required indicator. Validation is also applied using the provided
-     *                     validation text.</li>
-     *                 <li>If minimum and maximum values are specified, they are interpreted as epoch
-     *                     days and converted to {@link LocalDate} to set the component's min and max
-     *                     constraints.</li>
-     *               </ul>
-     *
-     *               <p><b>Note:</b> The minValue and maxValue are currently treated as integers representing
-     *               epoch days. This may need to be updated to support other formats like actual date values.</p>
+     * @param answer the answer whose question supplies the required flag and the bounds
      */
     @Override
     void setBindings(Answer answer) {
+        // One binding carries every rule: Binder keeps one binding per field (UC-002).
+        Binder.BindingBuilder<Answer, LocalDate> binding = binder.forField(component);
         if (answer.question.required) {
             component.setRequired(answer.question.required);
             component.setRequiredIndicatorVisible(answer.question.required);
-            this.binder.forField(component)
-                    .asRequired(requiredMessage(answer))
-                    .bind(Answer::getLocalDate, Answer::setLocalDate);
+            binding = binding.asRequired(requiredMessage(answer));
         }
+        binding.bind(Answer::getLocalDate, Answer::setLocalDate);
 
-        // A question's minimum and maximum are integers; for a date they are days since 1970-01-01.
         if (answer.question.minValue != null) {
             component.setMin(LocalDate.ofEpochDay(answer.question.minValue));
         }
