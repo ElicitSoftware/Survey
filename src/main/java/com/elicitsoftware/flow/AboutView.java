@@ -72,7 +72,9 @@ public class AboutView extends VerticalLayout {
             OffsetDateTime asOf = OffsetDateTime.now();
             String heading = translator.title(survey, asOf);
             String body = translator.description(survey, asOf);
-            aboutSurvey.getElement().setProperty("innerHTML", ("<h4>" + heading + "</h4>" + body));
+            // The title is text and the description is cleaned content (UC-002 BR-015).
+            aboutSurvey.getElement().setProperty("innerHTML",
+                    "<h4>" + SafeHtml.text(heading) + "</h4>" + SafeHtml.content(body));
             aboutSurvey.getElement().setAttribute("data-i18n-content", ""); // authored survey text (UC-009 BR-005)
             add(aboutSurvey);
         }

@@ -1,0 +1,16 @@
+# The HTML and MODAL question texts and survey descriptions of the Family History Survey
+# (FHHS/family-history-survey.elicit) and the census sample (samples/census-household-survey.elicit),
+# one per line, as the definitions carry them. UC-002 BR-015: each must render unchanged.
+This survey is designed to help you and your healthcare provider better understand your hereditary risk for cancer. By collecting information about your own health and the cancer history of your blood relatives - parents, siblings, children, grandparents, aunts, and uncles - this tool can support decisions about additional testing, personalize treatment, and ultimately improve care for you and your family.
+<h1>Welcome to the Family Cancer History Survey!</h1><br/><p>Knowing your family history can help healthcare providers figure out if you might benefit from additional testing, inform treatment decisions, and ultimately help take better care of you and your family.</p><p>Please fill out what you can, even if you don’t know all the details. This risk assessment tool asks you questions about yourself and your blood-related family members, including:<ul><li>Parents</li><li>Siblings</li><li>Children</li><li>Grandparents</li><li>Aunts and Uncles</li></ul></p><p>The questions are about:<ul><li>your relatives' current ages (if alive), or ages at death</li><li>cancer diagnoses and ages at diagnoses, for those family members with cancer.</li></ul></p><p>The amount of time needed to fill out this tool varies based on the size of your family, but the tool takes most people about 15 minutes. If you cannot finish in one sitting, you can stop at any time and your responses will save automatically.</p><p>Thank you for completing this survey which can help your clinician improve your cancer care.</p>
+{<CS2>'s|Your} PRIMARY cancers:<br/>Please select all primary cancer(s) - both current and past. <br/>A <b>primary cancer</b> is where the cancer originates.<br/>Please do NOT include metastases or secondary tumors (that is, cancers that spread from the original cancer).</br><b>If you have been diagnosed with this cancer type more than once</b>, please specify the <b>YOUNGEST</b> age of diagnosis.
+Which blood-related relatives do you have at least some information about? Check all that apply.
+Please tell us about {<S1>'s|your} mother.
+Please tell us about {<S1>'s|your} father.
+Please tell us about {<S1>'s|your} mother's mother.
+Please tell us about {<S1>'s|your} mother's father.
+Please tell us about {<S1>'s|your} father's mother.
+Please tell us about {<S1>'s|your} father's father.
+A demonstration survey about census household data. It uses every question type and every rule the Elicit engine supports, exactly once where practical.
+<h1>Census Household Survey</h1><p>This short survey asks about the people living in your home, the home itself, and how to reach you. It is a demonstration survey: it exercises every question type and every rule the Elicit engine supports.</p><p>Your answers save as you go, so you can stop and come back at any time.</p>
+<p>Thank you for completing the Census Household Survey.</p><p>Your answers have been saved. You may close this window.</p>

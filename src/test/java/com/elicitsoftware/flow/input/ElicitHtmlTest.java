@@ -43,4 +43,13 @@ class ElicitHtmlTest {
 
         assertEquals("<p>Hola</p>", new ElicitHtml(answer, ContentTexts.base()).getElement().getProperty("innerHTML"));
     }
+
+    /** UC-002 BR-015: markup that could run script never reaches the page. */
+    @Test
+    void given_labelWithScript_when_constructed_then_onlyTheFormattingIsRendered() {
+        Answer answer = ElicitAnswerFixtures.answer("3.1.1.1.1.1.3",
+                "<p>Hello<img src=x onerror=steal()></p><script>steal()</script>", InputFieldSupport.plain(), null);
+
+        assertEquals("<p>Hello<img></p>", new ElicitHtml(answer, ContentTexts.base()).getElement().getProperty("innerHTML"));
+    }
 }
