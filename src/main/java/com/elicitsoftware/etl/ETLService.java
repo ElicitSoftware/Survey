@@ -725,9 +725,10 @@ public class ETLService {
 
             return createSQL;
         } catch (Exception e) {
-            Log.info("There may be a dependency that can't be worked arround. You may have to delete and recreate the dependency.");
-            Log.info(e.getMessage());
-            return "There may be a dependency that can't be worked arround. You may have to delete and recreate the dependency.";
+            String message = "There may be a dependency that can't be worked around. You may have to delete and"
+                    + " recreate the dependency. Cause: " + rootMessage(e);
+            Log.warnf("fact_sections_view of %s (survey %d) was not rebuilt. %s", schema, surveyId, message);
+            return message;
         }
     }
 
