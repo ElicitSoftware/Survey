@@ -11,14 +11,15 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.flow.SafeHtml;
 import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.vaadin.flow.component.html.Div;
 
 /**
  * Represents a custom HTML component that is derived from the Div class.
- * This class sets an initial innerHTML property and stores a display key
- * based on the provided Answer object.
+ * This class sets an initial innerHTML property, cleaned of anything that could run script
+ * (UC-002 BR-015), and stores a display key based on the provided Answer object.
  */
 public class ElicitHtml extends Div {
 
@@ -35,6 +36,6 @@ public class ElicitHtml extends Div {
         super();
             getElement().setAttribute("data-i18n-content", "");
         this.setId(answer.getDisplayKey());
-        getElement().setProperty("innerHTML", answer.label());
+        getElement().setProperty("innerHTML", SafeHtml.content(answer.label())); // UC-002 BR-015
     }
 }

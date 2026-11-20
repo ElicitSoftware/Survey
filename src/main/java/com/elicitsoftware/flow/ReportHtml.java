@@ -11,10 +11,8 @@ package com.elicitsoftware.flow;
  * ***LICENSE_END***
  */
 
-import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
-import org.jsoup.safety.Cleaner;
 import org.jsoup.safety.Safelist;
 
 /**
@@ -72,8 +70,7 @@ final class ReportHtml {
         if (html == null) {
             return "";
         }
-        Document dirty = Jsoup.parseBodyFragment(html);
-        Document clean = new Cleaner(REPORT).clean(dirty);
+        Document clean = SafeHtml.clean(html, REPORT);
         // A use element may only point into the drawing it is part of (#id), never at another document.
         for (Element use : clean.select("use")) {
             for (String key : new String[]{"href", "xlink:href"}) {

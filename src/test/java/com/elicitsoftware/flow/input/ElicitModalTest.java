@@ -62,6 +62,17 @@ class ElicitModalTest {
         assertTrue(modal.isCloseOnOutsideClick());
     }
 
+    /** UC-002 BR-015: markup that could run script never reaches the dialog. */
+    @Test
+    void given_labelWithScript_when_constructed_then_onlyTheFormattingIsRendered() {
+        Answer answer = ElicitAnswerFixtures.answer("2.1.1.1.1.1.2",
+                "<b onmouseover=steal()>Read me</b><iframe src=https://evil.example></iframe>",
+                InputFieldSupport.plain(), null);
+
+        Div body = (Div) new ElicitModal(answer, ContentTexts.base()).getChildren().findFirst().orElseThrow();
+        assertEquals("<b>Read me</b>", body.getElement().getProperty("innerHTML"));
+    }
+
     @Test
     void given_translatedTexts_when_constructed_then_headerIsTranslated() {
         ElicitModal modal = new ElicitModal(modalAnswer("Notice"), InputFieldSupport.translated());

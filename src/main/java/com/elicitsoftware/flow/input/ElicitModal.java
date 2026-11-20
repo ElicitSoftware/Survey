@@ -11,6 +11,7 @@ package com.elicitsoftware.flow.input;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.flow.SafeHtml;
 import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.model.Answer;
 import com.vaadin.flow.component.button.Button;
@@ -22,7 +23,7 @@ import com.vaadin.flow.component.html.Div;
  * Represents an informational modal dialog driven by a MODAL question.
  * <p>
  * Like {@link ElicitHtml} this is a display-only element: it renders
- * {@code answer.label()} as HTML, collects no value, and never saves an
+ * {@code answer.label()} as cleaned HTML (UC-002 BR-015), collects no value, and never saves an
  * answer. It differs only in presentation — the content is shown in a modal
  * dialog that opens as soon as the section is displayed, rather than inline.
  * <p>
@@ -68,7 +69,7 @@ public class ElicitModal extends Dialog {
 
         Div content = new Div();
         content.getElement().setAttribute("data-i18n-content", "");
-        content.getElement().setProperty("innerHTML", answer.label());
+        content.getElement().setProperty("innerHTML", SafeHtml.content(answer.label())); // UC-002 BR-015
         add(content);
 
         Button close = new Button(getTranslation("common.close"));
