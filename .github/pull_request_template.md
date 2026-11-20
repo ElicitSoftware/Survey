@@ -1,5 +1,5 @@
 <!--
-  One pull request per issue, from a branch named <type>/<issue>-<slug> off V3.
+  One pull request per issue, from a branch named <type>/<issue>-<slug> off main.
   Title: what the change does, in the imperative, without the issue number.
   Tick every line that applies; strike one through (~~like this~~) with a reason when it does not.
   An unticked, unstruck line is a question the reviewer will ask.
