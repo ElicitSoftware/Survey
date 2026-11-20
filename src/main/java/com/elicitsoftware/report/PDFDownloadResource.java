@@ -60,9 +60,11 @@ public class PDFDownloadResource {
         byte[] content;
         long timestamp;
         final long sequence = SEQUENCE.incrementAndGet();
+        final String fileName;
 
-        PDFCacheEntry(byte[] content) {
+        PDFCacheEntry(byte[] content, String fileName) {
             this.content = content;
+            this.fileName = fileName;
             this.timestamp = System.currentTimeMillis();
         }
 
@@ -86,17 +88,49 @@ public class PDFDownloadResource {
      * @return the key the new PDF is downloaded with
      */
     public static String cachePDF(byte[] pdfContent, String replacesKey) {
-        return cachePDF(pdfContent, replacesKey, MAX_ENTRIES, MAX_BYTES);
+        return cachePDF(pdfContent, replacesKey, null);
+    }
+
+    /**
+     * Stores a PDF under the name of the survey it was generated from (UC-005 BR-022), and
+     * discards the one it replaces (UC-005 BR-018).
+     *
+     * @param pdfContent  the PDF
+     * @param replacesKey the key of the PDF this one supersedes, or null when there is none
+     * @param surveyName  the survey's name; null offers the PDF as {@code report.pdf}
+     * @return the key the new PDF is downloaded with
+     */
+    public static String cachePDF(byte[] pdfContent, String replacesKey, String surveyName) {
+        return cachePDF(pdfContent, replacesKey, fileName(surveyName), MAX_ENTRIES, MAX_BYTES);
+    }
+
+    /**
+     * The name a survey's PDF is offered under (UC-005 BR-022): {@code <name>-report.pdf}, the name
+     * in lower case with every run of characters other than {@code a}-{@code z} and the digits made
+     * one hyphen and none at either end.
+     *
+     * @param surveyName the survey's name; may be null
+     * @return the file name; {@code report.pdf} when the name leaves nothing
+     */
+    static String fileName(String surveyName) {
+        String slug = surveyName == null ? ""
+                : surveyName.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-").replaceAll("^-+|-+$", "");
+        return slug.isEmpty() ? "report.pdf" : slug + "-report.pdf";
     }
 
     /** As {@link #cachePDF(byte[], String)}, with the ceilings given so a test can reach them. */
-    static synchronized String cachePDF(byte[] pdfContent, String replacesKey, int maxEntries, long maxBytes) {
+    static String cachePDF(byte[] pdfContent, String replacesKey, int maxEntries, long maxBytes) {
+        return cachePDF(pdfContent, replacesKey, fileName(null), maxEntries, maxBytes);
+    }
+
+    private static synchronized String cachePDF(byte[] pdfContent, String replacesKey, String fileName,
+                                                int maxEntries, long maxBytes) {
         if (replacesKey != null) {
             PDF_CACHE.remove(replacesKey);
         }
         sweep();
         String key = "pdf_" + new RandomStringGenerator(32).nextString();
-        PDF_CACHE.put(key, new PDFCacheEntry(pdfContent));
+        PDF_CACHE.put(key, new PDFCacheEntry(pdfContent, fileName));
         // Oldest first, and never the PDF just stored: its respondent is about to open it.
         while (PDF_CACHE.size() > maxEntries || (PDF_CACHE.size() > 1 && cachedBytes() > maxBytes)) {
             String oldest = PDF_CACHE.entrySet().stream()
@@ -170,7 +204,7 @@ public class PDFDownloadResource {
         // Return the PDF content with appropriate headers
         return Response.ok(pdfContent)
                 .header("Content-Type", "application/pdf")
-                .header("Content-Disposition", "inline; filename=\"family_history_report.pdf\"")
+                .header("Content-Disposition", "inline; filename=\"" + entry.fileName + "\"")
                 .header("Cache-Control", "no-cache, no-store, must-revalidate")
                 .header("Pragma", "no-cache")
                 .header("Expires", "0")

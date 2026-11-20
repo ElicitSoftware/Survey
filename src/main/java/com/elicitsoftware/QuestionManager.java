@@ -696,7 +696,6 @@ public class QuestionManager {
                 + "order by S.DISPLAY_ORDER";
 
 
-        //entityManager.joinTransaction();
         Query q = entityManager.createNativeQuery(sql);
         q.setParameter("surveyId", key.getSurvey());
         q.setParameter("respondentId", respondentId);
@@ -1007,7 +1006,6 @@ public class QuestionManager {
                 + " AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf"
                 + " ORDER BY A.DISPLAY_KEY";
 
-        //entityManager.joinTransaction();
         Query q = entityManager.createNativeQuery(sql);
         q.setParameter("surveyId", relationship.surveyId);
         q.setParameter("respondentId", respondentId);
@@ -1048,7 +1046,6 @@ public class QuestionManager {
         String questionSQL = "SELECT A.ID,  A.SECTION, A.SECTION_QUESTION_ID FROM survey.RELATIONSHIPS R JOIN survey.SECTIONS_QUESTIONS SQ ON R.DOWNSTREAM_SQ_ID = SQ.SECTIONS_QUESTION_ID JOIN survey.ANSWERS A ON SQ.ID = A.SECTION_QUESTION_ID WHERE A.DELETED = false AND R.ID = :rid AND A.RESPONDENT_ID = :respondentId AND SQ.EFFECTIVE_FROM <= :asOf AND SQ.EFFECTIVE_TO > :asOf AND R.EFFECTIVE_FROM <= :asOf AND R.EFFECTIVE_TO > :asOf ORDER BY A.DISPLAY_KEY";
 
         Query q;
-        //entityManager.joinTransaction();
         if (relationship.downstreamSqId != null) {
             q = entityManager.createNativeQuery(questionSQL);
 
@@ -1233,7 +1230,6 @@ public class QuestionManager {
                 + "SELECT ss.STEP_ID FROM survey.STEPS_SECTIONS ss WHERE ss.SURVEY_ID = r.SURVEY_ID "
                 + "and ss.STEP_DISPLAY_ORDER = :stepDisplayOrder and ss.EFFECTIVE_FROM <= :asOf and ss.EFFECTIVE_TO > :asOf)) "
                 + "and r.EFFECTIVE_FROM <= :asOf and r.EFFECTIVE_TO > :asOf order by r.ID";
-        // entityManager.joinTransaction();
         Query q = entityManager.createNativeQuery(sql);
         q.setParameter("surveyId", upstreamAnswer.surveyId);
         q.setParameter("upstream_sq_id", upstreamAnswer.section_question_id);
@@ -2166,7 +2162,6 @@ public class QuestionManager {
             List<Relationship> relationships = stepId == null ? List.of()
                     : Relationship.findByDownstream_Step_ID(relationship.surveyId, relationship.downstreamStepId, stepId, resolveAsOf(answer.respondentId));
             for (Relationship r : relationships) {
-                // Answer upstreamAnswer = getUpstreamAnswer(r, answer);
                 if (!r.evaluateOperator(answer)) {
                     Log.info("relationships " + r.id + " not satisfied.");
                     return false;
@@ -2174,7 +2169,7 @@ public class QuestionManager {
                 dependents.put(r.id, new Dependent(answer.respondentId, answer, null, r));
             }
         }
-        Log.info("All relationships satisfide = true");
+        Log.info("All relationships satisfied = true");
         return true;
     }
 
@@ -2208,16 +2203,15 @@ public class QuestionManager {
         // the resolution to this respondent's firstAccessDt.
         String sql = "SELECT a.ID FROM survey.RELATIONSHIPS r join survey.SECTIONS_QUESTIONS sq on r.UPSTREAM_SQ_ID = sq.SECTIONS_QUESTION_ID "
                 + "join survey.QUESTIONS q on sq.QUESTION_ID = q.QUESTION_ID left join survey.ANSWERS a on q.ID = a.QUESTION_ID  "
-                + "WHERE a.deleted = false and a.RESPONDENT_ID = :respondentId and r.id = :relationshioId "
+                + "WHERE a.deleted = false and a.RESPONDENT_ID = :respondentId and r.id = :relationshipId "
                 + "and a.step = :stepId and a.STEP_INSTANCE = :stepInstance and a.section = :sectionId "
                 + "and a.SECTION_INSTANCE = :sectionInstance "
                 + "and sq.EFFECTIVE_FROM <= :asOf and sq.EFFECTIVE_TO > :asOf "
                 + "and q.EFFECTIVE_FROM <= :asOf and q.EFFECTIVE_TO > :asOf "
                 + "and r.EFFECTIVE_FROM <= :asOf and r.EFFECTIVE_TO > :asOf "
                 + "order by a.display_key";
-        //entityManager.joinTransaction();
         Query q = entityManager.createNativeQuery(sql);
-        q.setParameter("relationshioId", r.id);
+        q.setParameter("relationshipId", r.id);
         q.setParameter("respondentId", a.respondentId);
         q.setParameter("stepId", a.stepId);
         q.setParameter("stepInstance", a.stepInstance);
@@ -2401,7 +2395,6 @@ public class QuestionManager {
 
         ArrayList<NavigationItem> paths = new ArrayList<>();
 
-        //entityManager.joinTransaction();
         Query q = entityManager.createNativeQuery(pathSQL);
         q.setParameter("respondentId", respondentId);
         q.setParameter("language", currentContentLanguage(respondentId));

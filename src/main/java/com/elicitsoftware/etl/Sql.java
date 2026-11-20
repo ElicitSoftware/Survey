@@ -314,7 +314,7 @@ public final class Sql {
 
     // ── dimension values (per respondent; reads survey only) ─────────────────────────────────
 
-    public static final String FIND_DIMENSTION_VALUES_SQL = """
+    public static final String FIND_DIMENSION_VALUES_SQL = """
                     select DISTINCT x.dim, x.val, x.respondent_id from (
                      --Question Tags from Dimension table
                              SELECT DISTINCT 'dim_' || LOWER(d1.name) as dim,

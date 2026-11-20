@@ -85,11 +85,11 @@ class ETLServiceStubbedDatabaseTest {
 
     /** Scripts the load of respondent 5: one dimension value, one tag key and one per-item fact row. */
     private void scriptRespondent() {
-        db.list(Sql.FIND_DIMENSTION_VALUES_SQL, List.<Object[]>of(new Object[]{"color", "red"}))
+        db.list(Sql.FIND_DIMENSION_VALUES_SQL, List.<Object[]>of(new Object[]{"color", "red"}))
                 .list(in(Sql.FIND_MISSING_FACT_SECTION_DIMENSIONS_SQL), List.<Object[]>of(new Object[]{"color_key", "dim_color", "red", 11L}))
                 .list(in(Sql.FIND_REPEATED_ITEM_FACTS_SQL), List.<Object[]>of(
-                        new Object[]{12L, QUESTION_KEY, "Which colour?", ITEM_KEY, "R", "Red", "colours", 2.5},
-                        new Object[]{13L, QUESTION_KEY, "Which colour?", ITEM_KEY, "B", "Blue", "colours", null}))
+                        new Object[]{12L, QUESTION_KEY, "Which color?", ITEM_KEY, "R", "Red", "colors", 2.5},
+                        new Object[]{13L, QUESTION_KEY, "Which color?", ITEM_KEY, "B", "Blue", "colors", null}))
                 .single(in(Sql.UPSERT_DIM_QUESTION_SQL), 7L)
                 .single(in(Sql.UPSERT_DIM_ITEM_SQL), 8);
     }
@@ -194,8 +194,8 @@ class ETLServiceStubbedDatabaseTest {
         String summary = service().build(new ETLService.SurveyRef(3, KEY, "Demo", SCHEMA));
 
         assertEquals("Demo [report_demo]: step dimensions upserted: 3; section dimensions upserted: 4; "
-                + "new Dimesions tables = [color]; fact_respondents_view: Created report_demo.fact_respondents_view; "
-                + "fact_sections columns: new Dimesions tables = color_key; fact_sections_view: recreated; "
+                + "new dimension tables = [color]; fact_respondents_view: Created report_demo.fact_respondents_view; "
+                + "fact_sections columns: new fact_sections columns = color_key; fact_sections_view: recreated; "
                 + "respondents back-filled into fact_sections: 1", summary);
     }
 
@@ -531,11 +531,11 @@ class ETLServiceStubbedDatabaseTest {
 
         String result = service().populateFactSectionTable(5);
 
-        assertEquals("Added respondent 5 to fact_sections:" + NL + "5: 2 keys" + NL + "Populated Dimesions tables = 1" + NL, result);
+        assertEquals("Added respondent 5 to fact_sections:" + NL + "5: 2 keys" + NL + "Populated dimension tables = 1" + NL, result);
 
         ScriptedEntityManager.Executed value = db.runs(in(Sql.INSERT_INTO_DIMENSION).replace("<DIM>", "color")).get(0);
         assertEquals(Map.of("val", "red"), value.params());
-        assertEquals(Map.of("respondentId", 5), db.runs(Sql.FIND_DIMENSTION_VALUES_SQL).get(0).params());
+        assertEquals(Map.of("respondentId", 5), db.runs(Sql.FIND_DIMENSION_VALUES_SQL).get(0).params());
         assertEquals(Map.of("respondent_id", 5), db.runs(in(Sql.INSERT_MISSING_FACT_SECTION_SQL)).get(0).params());
         assertEquals("update", db.runs(in(Sql.INSERT_MISSING_FACT_SECTION_SQL)).get(0).how());
         assertEquals(Map.of("respondent_id", 5), db.runs(in(Sql.FIND_MISSING_FACT_SECTION_DIMENSIONS_SQL)).get(0).params());
@@ -547,10 +547,10 @@ class ETLServiceStubbedDatabaseTest {
 
         List<ScriptedEntityManager.Executed> questions = db.runs(in(Sql.UPSERT_DIM_QUESTION_SQL));
         assertEquals(2, questions.size(), "one upsert per per-item fact row");
-        assertEquals(Map.of("key", QUESTION_KEY.toString(), "value", "Which colour?"), questions.get(0).params());
+        assertEquals(Map.of("key", QUESTION_KEY.toString(), "value", "Which color?"), questions.get(0).params());
 
         List<ScriptedEntityManager.Executed> items = db.runs(in(Sql.UPSERT_DIM_ITEM_SQL));
-        assertEquals(Map.of("key", ITEM_KEY.toString(), "value", "R", "displayText", "Red", "listName", "colours",
+        assertEquals(Map.of("key", ITEM_KEY.toString(), "value", "R", "displayText", "Red", "listName", "colors",
                 "displayOrder", new BigDecimal("2.5")), items.get(0).params());
         assertTrue(items.get(1).params().containsKey("displayOrder"));
         assertNull(items.get(1).params().get("displayOrder"), "a missing display order stays null");
@@ -568,7 +568,7 @@ class ETLServiceStubbedDatabaseTest {
 
     @Test
     void given_aDimensionNameThatIsNotAnIdentifier_when_populateDimensionTables_then_refusedBeforeAnyInsert() {
-        db.list(Sql.FIND_DIMENSTION_VALUES_SQL, List.<Object[]>of(new Object[]{"color; drop table x", "red"}));
+        db.list(Sql.FIND_DIMENSION_VALUES_SQL, List.<Object[]>of(new Object[]{"color; drop table x", "red"}));
 
         RuntimeException thrown = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
                 () -> service().populateDimensionTables(SCHEMA, 5));

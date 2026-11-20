@@ -72,8 +72,6 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
     @Inject
     ContentTranslator translator;
 
-    // TODO make a HasMap that holds the ElicitComponents and HTML
-    // Then you can replace some of these and only generate new components.
     LinkedHashMap<String, Component> displayMap = new LinkedHashMap<>();
     LinkedHashMap<String, Component> oldDisplayMap = new LinkedHashMap<>();
     LinkedHashMap<String, Binder<?>> binders = new LinkedHashMap<>();
@@ -531,10 +529,7 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                     "setTimeout(() => { " +
                     "const element = document.getElementById($0); " +
                     "if (element) { " +
-                    "console.log('Scrolling to validation error element:', element.id); " +
                     "element.scrollIntoView({behavior: 'smooth', block: 'start', inline: 'nearest'}); " +
-                    "} else { " +
-                    "console.log('Element not found for scrolling:', $0); " +
                     "} " +
                     "}, 200);", 
                     componentToScrollTo.getId().orElse("unknown")

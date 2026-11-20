@@ -9,6 +9,9 @@ existing, already-deployed pre-Kimball ("V2.x") Survey database to V3.0.0 (Kimba
 - **`V010`–`V012` are the real ALTER-based Kimball upgrade** (durable keys, `metadata_element_ck`
   fix, `dimensions_seq` grant) — the only place this logic lives. Bug fixes here are legitimate
   (see `V011`'s and `V012`'s own history) as long as unupgraded V2.x databases still exist.
+- **`V013`–`V026` are the migrations V3 added since**, each also in `db/migration` at the same
+  version number, written for this track (an upgraded database) where the two differ. Every new
+  migration goes in both places; `ManualSchemaMigratorUpgradeTest` fails when one is missing here.
 
 **Delete this entire directory once every real Survey deployment has upgraded to V3** (i.e.
 once every environment's `flyway_history` has converged onto `db/migration` —

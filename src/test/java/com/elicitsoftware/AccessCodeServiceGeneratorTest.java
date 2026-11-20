@@ -85,4 +85,14 @@ class AccessCodeServiceGeneratorTest {
         service.autoRegister = true;
         assertTrue(service.isAutoRegister());
     }
+
+    /** Admin UC-015 BR-050: Survey draws from Admin's 46 characters, each once, so each is equally likely. */
+    @Test
+    void given_theAlphabet_when_inspected_then_itIsAdminsWithEveryCharacterOnce() {
+        String alphabet = AccessCodeService.ACCESS_CODE_ALPHABET;
+
+        assertEquals(46, alphabet.length());
+        assertEquals(46, alphabet.chars().distinct().count(), "no character is weighted by appearing twice");
+        assertEquals(ALPHABET.chars().sorted().boxed().toList(), alphabet.chars().sorted().boxed().toList());
+    }
 }

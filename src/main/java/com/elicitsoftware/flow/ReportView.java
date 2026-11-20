@@ -185,8 +185,9 @@ public class ReportView extends VerticalLayout implements BeforeEnterObserver {
                 byte[] pdfContent = pdfService.generatePDF(this.reportResponses, this.respondent.survey.title, getLocale());
 
                 // Cache the PDF and get a key; it replaces the one this page generated before
-                // (UC-005 BR-018).
-                String pdfKey = com.elicitsoftware.report.PDFDownloadResource.cachePDF(pdfContent, lastPdfKey);
+                // (UC-005 BR-018) and is named after the survey (BR-022).
+                String pdfKey = com.elicitsoftware.report.PDFDownloadResource.cachePDF(pdfContent, lastPdfKey,
+                        this.respondent.survey.name);
                 lastPdfKey = pdfKey;
 
                 // Create URL for the PDF download endpoint
