@@ -46,7 +46,7 @@
 - Each instance belongs to one item. A rule that reads the same upstream question and carries a token fills it, in that instance, with the text of that item, so a section named `{<GAME>|this game}` is titled with the game it asks about (BR-013).
 - When the respondent changes the selection, the instance of every item no longer selected is removed and an instance is added for every item newly selected. The instances of items that stay selected are untouched, with their answers. An item that is unselected and selected again gets its instance back with the answers it had.
 - Clearing the selection removes every instance.
-- The target is a question or a section, as in A3; a Repeat rule on a step builds nothing, whatever it reads.
+- The target is a question or a section, as in A3; a Repeat rule on a step builds nothing, whatever it reads. Author refuses such a rule, so one can only arrive in an older `.elicit` file; whenever its condition holds the system logs a warning naming the rule, so the site can see that the step it names is never repeated.
 
 **A4: Respondent revisits the survey after a browser refresh or reconnect**
 - **Trigger:** The browser session was interrupted and later reconnects.

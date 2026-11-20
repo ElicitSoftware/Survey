@@ -17,12 +17,10 @@ import com.elicitsoftware.model.Dependent;
 import com.elicitsoftware.model.Question;
 import com.elicitsoftware.model.QuestionType;
 import com.elicitsoftware.model.Relationship;
-import com.elicitsoftware.model.Step;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.HashMap;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -34,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Repeat and rule handling that are decided before any structural row is read: the instances a
  * count asks for, that a count has no item list, that an instance is only ever tied to an item
  * when the rule reads a multi-select, the sibling-rule step key when the rule names its own
- * upstream step, and the not-yet-implemented step repeat.
+ * upstream step, and the warning for a Repeat rule on a step, which builds nothing (A3b).
  * <p>
  * The helpers are private and reached by reflection. The per-item branches resolve the select
  * list as of the respondent's snapshot anchor (a Panache finder) and are out of reach here.
@@ -144,19 +142,17 @@ class QuestionManagerRepeatGuardTest {
                 new Class<?>[]{Relationship.class, Answer.class}, rule, answer));
     }
 
-    // ---- buildRepeatedStep ---------------------------------------------------------------------
+    // ---- warnStepRepeatIgnored (UC-002 A3b) -----------------------------------------------------
 
     @Test
-    void given_aStepRepeat_when_buildRepeatedStep_then_itIsLoggedAsNotImplementedAndBuildsNothing()
+    void given_aRepeatRuleOnAStep_when_itsConditionHolds_then_aWarningNamesTheRuleAndTheStep()
             throws Exception {
-        HashMap<Integer, Dependent> dependents = new HashMap<>();
         try (LogCapture log = LogCapture.of(QuestionManager.class)) {
-            invoke("buildRepeatedStep", new Class<?>[]{Answer.class, Step.class, Integer.class, HashMap.class},
-                    answer(question("INTEGER", null), "2"), new Step(), 3, dependents);
+            invoke("warnStepRepeatIgnored", new Class<?>[]{Integer.class, Integer.class}, 3, 7);
 
-            assertTrue(log.contains(LogCapture.INFO, "buildRepeatedStep not yet implemented"));
+            assertTrue(log.contains(LogCapture.WARN,
+                    "Repeat rule 3 targets step 7; a Repeat rule on a step builds nothing (UC-002 A3b)"));
         }
-        assertTrue(dependents.isEmpty());
     }
 
     // ---- escapeHtml ----------------------------------------------------------------------------
