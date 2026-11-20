@@ -71,10 +71,11 @@ public class ReportCard extends Div {
 
         Div reportDiv = new Div();
         reportDiv.setWidthFull(); // Set reportDiv to full width
-        reportDiv.getElement().setProperty("innerHTML", report.innerHTML);
+        String html = ReportHtml.sanitize(report.innerHTML); // UC-005 BR-021
+        reportDiv.getElement().setProperty("innerHTML", html);
 
         // Center content if it contains SVG
-        if (report.innerHTML != null && report.innerHTML.toLowerCase().contains("<svg")) {
+        if (html.toLowerCase().contains("<svg")) {
             // Use CSS to center only the SVG while keeping text left-aligned
             reportDiv.getStyle().set("text-align", "center");
             reportDiv.getStyle().set("align", "center");

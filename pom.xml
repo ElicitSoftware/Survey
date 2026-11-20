@@ -75,6 +75,11 @@
             <artifactId>vaadin-quarkus-extension</artifactId>
             <version>${vaadin.version}</version>
         </dependency>
+        <!-- Cleans report HTML before it reaches the page (UC-005 BR-021); version from the Vaadin BOM. -->
+        <dependency>
+            <groupId>org.jsoup</groupId>
+            <artifactId>jsoup</artifactId>
+        </dependency>
         <!-- setup and build -->
         <dependency>
             <groupId>io.quarkus</groupId>
