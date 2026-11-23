@@ -21,11 +21,14 @@ import com.elicitsoftware.i18n.ContentTexts;
 import com.elicitsoftware.i18n.ContentTranslator;
 import com.elicitsoftware.response.NavResponse;
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.HasLabel;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.component.Unit;
 import com.vaadin.flow.data.binder.Binder;
 import com.vaadin.flow.data.binder.BinderValidationStatus;
 import com.vaadin.flow.data.value.ValueChangeMode;
@@ -36,6 +39,7 @@ import io.quarkus.logging.Log;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -76,6 +80,8 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
     LinkedHashMap<String, Component> displayMap = new LinkedHashMap<>();
     LinkedHashMap<String, Component> oldDisplayMap = new LinkedHashMap<>();
     LinkedHashMap<String, Binder<?>> binders = new LinkedHashMap<>();
+    /** The text each question on the page was last drawn with, by display key (UC-002 A2). */
+    HashMap<String, String> shownLabels = new HashMap<>();
 
     Button btnPrevious = null;
     Button btnNext = null;
@@ -372,6 +378,31 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
                 }
             }
         }
+        // UC-002 A2: a question that stays on the page keeps its component, so the field the
+        // respondent is in is not swapped under them -- but its text may have been rewritten by
+        // the answer just saved (a token it reads, #243). Give it the new text.
+        HashMap<String, String> labels = new HashMap<>();
+        if (navResponse != null) {
+            for (Answer answer : navResponse.getAnswers()) {
+                if (answer.question != null) {
+                    labels.put(answer.getDisplayKey(), answer.label());
+                }
+            }
+        }
+        for (Map.Entry<String, Component> shown : new ArrayList<>(oldDisplayMap.entrySet())) {
+            String key = shown.getKey();
+            if (!displayMap.containsKey(key) || Objects.equals(labels.get(key), shownLabels.get(key))) {
+                continue;
+            }
+            if (!relabel(shown.getValue(), labels.get(key))) {
+                // Its text is its content (HTML, MODAL): put the newly built one in its place.
+                this.remove(shown.getValue());
+                oldDisplayMap.remove(key);
+                binders.remove(key);
+            }
+        }
+        shownLabels = labels;
+
         //find the removed items
         HashMap<String, Component> removedMap = map1MinusMap2(oldDisplayMap, displayMap);
         for (Component component : removedMap.values()) {
@@ -396,6 +427,27 @@ public class SectionView extends VerticalLayout implements HasDynamicTitle {
         }
         addButtons();
         Log.debug("Completed buildQuestions() method successfully");
+    }
+
+    /**
+     * Gives a question already on the page its rewritten text without replacing it (UC-002 A2),
+     * so its value, focus and validation state stay as they are.
+     *
+     * @param component the component on the page
+     * @param label     the question's text as of the answer just saved
+     * @return {@code true} when the component took the label; {@code false} when its text is not
+     *         a label (an HTML or MODAL question) and the component has to be replaced
+     */
+    static boolean relabel(Component component, String label) {
+        if (!(component instanceof HasLabel labelled)) {
+            return false;
+        }
+        labelled.setLabel(label);
+        if (component instanceof TextField text && label != null) {
+            // A text field is as wide as its question (see ElicitTextField).
+            text.setWidth(label.length(), Unit.CH);
+        }
+        return true;
     }
 
     /**
