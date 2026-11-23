@@ -33,6 +33,7 @@
 **A2: Respondent changes a previously given answer**
 - **Trigger:** Respondent edits an answer that had already triggered downstream questions/sections/steps to appear.
 - System recalculates the branching rules for the changed answer. Any downstream question, section, or step whose triggering condition no longer holds is removed (soft-deleted) from the respondent's path; anything that now qualifies is added.
+- A question that stays on the page and whose text reads the changed answer through a token (BR-010) is shown with its rewritten text at once, without a reload. It is not replaced on the page, so its own answer, the keyboard focus and any validation message stay where they are; a display-only question (`HTML`, `MODAL`), whose text is its content, is redrawn.
 - Special case: for a checkbox question, unchecking it (a "false" value) is treated the same as giving no answer at all — the underlying saved value is cleared rather than stored as "false".
 - Clearing an answer, whatever the question type, is a change like any other: the question is stored as unanswered and the branching rules are recalculated (BR-017).
 
