@@ -1,4 +1,6 @@
-Copyright © 2025 The Regents of the University of Michigan
+Required Notice: Copyright © 2025-2026 Elicit Software LLC (https://elicit.software)
+
+Required Notice: Portions contributed by The Regents of the University of Michigan.
 
 # PolyForm Noncommercial License 1.0.0
 

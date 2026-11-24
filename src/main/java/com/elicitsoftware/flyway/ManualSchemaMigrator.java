@@ -4,7 +4,7 @@ package com.elicitsoftware.flyway;
  * ***LICENSE_START***
  * Elicit Survey
  * %%
- * Copyright (C) 2025 The Regents of the University of Michigan - Rogel Cancer Center
+ * Copyright (C) 2025 - 2026 Elicit Software LLC
  * %%
  * PolyForm Noncommercial License 1.0.0
  * <https://polyformproject.org/licenses/noncommercial/1.0.0>
@@ -140,6 +140,12 @@ public class ManualSchemaMigrator {
         Log.infof("db/migration checksum mismatch (unupgraded v2.x history) — routing Flyway to %s",
                 UPGRADE_LOCATION_SUFFIX);
         List<String> upgradeLocations = greenfieldLocations.stream().map(this::toUpgradeLocation).toList();
+        // The V2-era files in db/migration-v3 are the ones this history recorded, but their
+        // copyright header was rewritten for 3.0.0 and a header is part of a migration's
+        // checksum. repair() realigns the recorded checksums of the applied versions with the
+        // files as they are now; without it migrate() would fail validation on every V2 database.
+        // It applies nothing.
+        buildFlyway(upgradeLocations).repair();
         buildFlyway(upgradeLocations).migrate();
 
         Log.infof("Upgrade complete — realigning history against %s so future boots use it directly",

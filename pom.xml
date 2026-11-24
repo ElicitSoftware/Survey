@@ -6,6 +6,17 @@
     <version>3.0.0-rc.2</version>
     <packaging>quarkus</packaging>
 
+    <licenses>
+        <license>
+            <name>PolyForm Noncommercial License 1.0.0</name>
+            <url>https://polyformproject.org/licenses/noncommercial/1.0.0</url>
+        </license>
+    </licenses>
+    <organization>
+        <name>Elicit Software LLC</name>
+        <url>https://elicit.software</url>
+    </organization>
+
     <properties>
         <compiler-plugin.version>3.15.0</compiler-plugin.version>
         <maven.compiler.release>25</maven.compiler.release>
@@ -555,7 +566,7 @@
                     <skip>${license.skip}</skip>
                     <inceptionYear>2025</inceptionYear>
                     <licenseName>polyform</licenseName>
-                    <organizationName>The Regents of the University of Michigan - Rogel Cancer Center</organizationName>
+                    <organizationName>Elicit Software LLC</organizationName>
                     <projectName>Elicit Survey</projectName>
                     <emptyLineAfterHeader>true</emptyLineAfterHeader>
                     <excludes>
