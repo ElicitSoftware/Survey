@@ -115,4 +115,15 @@ class QuestionManagerTokenTest {
         String result = QuestionManager.replaceTokens("<b>Hello {NAME|friend}</b>", values, true);
         assertEquals("<b>Hello &lt;img src=x onerror=alert(1)&gt;Leon&#39;s</b>", result);
     }
+
+    // The FHHS shape: a rule's default value is itself a template holding the apostrophe
+    // ("{G1's|your} mother"), spliced into a plain-text label through another token.
+    @Test
+    void given_apostropheInNestedDefault_when_replaceTokensForPlainText_then_notEscaped() {
+        TreeMap<String, String> values = new TreeMap<>();
+        values.put("G1", "Bob");
+        values.put("S1", "{G1's|your} mother");
+        String result = QuestionManager.replaceTokens("Please indicate if {S1} is still living.", values);
+        assertEquals("Please indicate if Bob's mother is still living.", result);
+    }
 }
