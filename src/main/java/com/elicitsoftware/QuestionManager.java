@@ -11,6 +11,7 @@ package com.elicitsoftware;
  * ***LICENSE_END***
  */
 
+import com.elicitsoftware.flow.GlobalStrings;
 import com.elicitsoftware.model.*;
 import com.elicitsoftware.response.NavResponse;
 import com.elicitsoftware.response.NavigationItem;
@@ -56,6 +57,23 @@ public class QuestionManager {
      * @return the resulting string after replacing all specified tokens and applying formatting adjustments
      */
     static String replaceTokens(String text, TreeMap<String, String> values) {
+        return replaceTokens(text, values, false);
+    }
+
+    /**
+     * Replaces tokens as {@link #replaceTokens(String, TreeMap)} does, HTML-escaping the substituted
+     * values only when the text is rendered as HTML.
+     * <p>
+     * Only an HTML question ({@code ElicitHtml}) puts its text into the page as markup, so only there
+     * does a respondent's answer need escaping. Every other component shows its text as a plain-text
+     * label, where an escaped value would be displayed literally, e.g. "Leon&amp;#39;s".
+     *
+     * @param text   the input string containing tokens to be replaced
+     * @param values a {@code TreeMap} of token keys to their replacement values
+     * @param html   whether the text is rendered as HTML; if so the values are HTML-escaped
+     * @return the resulting string after replacing all specified tokens and applying formatting adjustments
+     */
+    static String replaceTokens(String text, TreeMap<String, String> values, boolean html) {
 
         // Split the string into parts
         String[] displayText = text.split("}");
@@ -68,11 +86,12 @@ public class QuestionManager {
                     if (string.contains(key)) {
                         string = string.replaceFirst("\\{", "");
                         string = string.replaceFirst("\\|.*", "");
+                        String value = values.get(key);
                         string = string.replaceFirst(key,
-                                java.util.regex.Matcher.quoteReplacement(escapeHtml(values.get(key))));
+                                java.util.regex.Matcher.quoteReplacement(html ? escapeHtml(value) : value == null ? "" : value));
                     }
                     if (string.contains("}")) {
-                        string = replaceTokens(string, values);
+                        string = replaceTokens(string, values, html);
                     }
                     displayText[i] = string;
                 }
@@ -1099,7 +1118,23 @@ public class QuestionManager {
 
         values = getValuesMap(answer);
 
-        answer.displayText = replaceTokens(text, values);
+        answer.displayText = replaceTokens(text, values, rendersAsHtml(answer));
+    }
+
+    /**
+     * Whether the answer's display text is put into the page as HTML markup rather than as a
+     * plain-text label. Section and step names, and every question type other than HTML and
+     * MODAL, are shown as plain text.
+     *
+     * @param answer the answer whose display text is being built
+     * @return {@code true} if the text is rendered as HTML
+     */
+    private static boolean rendersAsHtml(Answer answer) {
+        if (answer.question == null || answer.question.questionType == null) {
+            return false;
+        }
+        String type = answer.question.questionType.name;
+        return GlobalStrings.QUESTION_TYPE_HTML.equals(type) || GlobalStrings.QUESTION_TYPE_MODAL.equals(type);
     }
 
 

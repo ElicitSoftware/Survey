@@ -88,4 +88,31 @@ class QuestionManagerTokenTest {
         String result = QuestionManager.replaceTokens("Hello {NAME|friend}", values);
         assertEquals("Hello friend", result);
     }
+
+    // An apostrophe in a respondent's answer must read as typed in a plain-text label:
+    // escaping it there displayed "Leon&#39;s mother".
+    @Test
+    void given_apostropheInValue_when_replaceTokensForPlainText_then_notEscaped() {
+        TreeMap<String, String> values = new TreeMap<>();
+        values.put("NAME", "Leon's");
+        String result = QuestionManager.replaceTokens("Please indicate if {NAME|your} mother is still living.", values);
+        assertEquals("Please indicate if Leon's mother is still living.", result);
+    }
+
+    @Test
+    void given_markupInValue_when_replaceTokensForPlainText_then_notEscaped() {
+        TreeMap<String, String> values = new TreeMap<>();
+        values.put("NAME", "A & B <c>");
+        String result = QuestionManager.replaceTokens("Hello {NAME|friend}", values, false);
+        assertEquals("Hello A & B <c>", result);
+    }
+
+    // An HTML question's text goes into the page as markup, so the answer is still escaped there.
+    @Test
+    void given_markupInValue_when_replaceTokensForHtml_then_escaped() {
+        TreeMap<String, String> values = new TreeMap<>();
+        values.put("NAME", "<img src=x onerror=alert(1)>Leon's");
+        String result = QuestionManager.replaceTokens("<b>Hello {NAME|friend}</b>", values, true);
+        assertEquals("<b>Hello &lt;img src=x onerror=alert(1)&gt;Leon&#39;s</b>", result);
+    }
 }
