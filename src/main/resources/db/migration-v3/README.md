@@ -5,7 +5,9 @@ existing, already-deployed pre-Kimball ("V2.x") Survey database to V3.0.0 (Kimba
 
 - **`V001`–`V009` are frozen, byte-for-byte copies** of the original pre-Kimball migrations —
   real deployments already have these exact files' checksums recorded in `flyway_history`.
-  **Never edit them.**
+  **Never edit them.** The one edit they have had is the copyright header, rewritten for 3.0.0
+  with every other file's; `ManualSchemaMigrator` repairs the recorded checksums against this
+  directory before it migrates, which is what makes a header change safe and nothing else.
 - **`V010`–`V012` are the real ALTER-based Kimball upgrade** (durable keys, `metadata_element_ck`
   fix, `dimensions_seq` grant) — the only place this logic lives. Bug fixes here are legitimate
   (see `V011`'s and `V012`'s own history) as long as unupgraded V2.x databases still exist.

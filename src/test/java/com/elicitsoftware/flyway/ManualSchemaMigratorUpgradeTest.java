@@ -4,7 +4,7 @@ package com.elicitsoftware.flyway;
  * ***LICENSE_START***
  * Elicit Survey
  * %%
- * Copyright (C) 2025 The Regents of the University of Michigan - Rogel Cancer Center
+ * Copyright (C) 2025 - 2026 Elicit Software LLC
  * %%
  * PolyForm Noncommercial License 1.0.0
  * <https://polyformproject.org/licenses/noncommercial/1.0.0>
@@ -106,6 +106,44 @@ class ManualSchemaMigratorUpgradeTest {
         // A database that upgrades AFTER V011 exists in db/migration-v3 must get the correct
         // constraint in the very same boot -- no second reboot needed.
         assertMetadataElementCheckReferencesDurableColumns();
+    }
+
+    /**
+     * The V2-to-V3 upgrade (DeploymentScript.md) on a database whose history was recorded before
+     * 3.0.0 rewrote the copyright header of every migration. The header is part of a migration's
+     * checksum, so a real V2 database disagrees with db/migration-v3's V001-V009 although their
+     * SQL is unchanged. {@link ManualSchemaMigrator} repairs against db/migration-v3 before it
+     * migrates there; without that repair the upgrade stops at validation.
+     */
+    @Test
+    void upgradeTrack_historyRecordedBeforeTheHeaderChange_isRepairedThenUpgrades() throws SQLException {
+        flywayFor("classpath:db/migration-v3", "9").migrate();
+        makeRecordedChecksumsStale();
+
+        assertThrows(FlywayValidateException.class,
+                () -> flywayFor("classpath:db/migration-v3", null).migrate(),
+                "A history with the old headers' checksums must not pass validation unrepaired -- "
+                        + "otherwise this test proves nothing about the repair");
+
+        // ManualSchemaMigrator's upgrade branch, in its order.
+        flywayFor("classpath:db/migration-v3", null).repair();
+        flywayFor("classpath:db/migration-v3", null).migrate();
+        flywayFor("classpath:db/migration", null).repair();
+
+        assertDoesNotThrow(() -> flywayFor("classpath:db/migration", null).validate(),
+                "The repaired and upgraded database must converge on db/migration");
+        assertKimballSchemaPresent();
+    }
+
+    // What a V2 database looks like to 3.0.0: every applied version's recorded checksum differs
+    // from the file's, as it does once the file's header has changed.
+    private void makeRecordedChecksumsStale() throws SQLException {
+        try (Connection conn = DriverManager.getConnection(container.getJdbcUrl(), OWNER_USER, PASSWORD);
+             var st = conn.createStatement()) {
+            int rows = st.executeUpdate(
+                    "UPDATE survey.flyway_history SET checksum = checksum + 1 WHERE checksum IS NOT NULL");
+            assertTrue(rows > 0, "the seeded history must hold applied migrations");
+        }
     }
 
     /**

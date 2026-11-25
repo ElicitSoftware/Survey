@@ -78,7 +78,7 @@
 
 | ID    | Title                            | Constraint                                                                                                                                          | Category    | Priority | Status      |
 |-------|-----------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|-------------|----------|-------------|
-| C-001 | License                          | The project must be licensed under PolyForm Noncommercial 1.0.0.                                                                                     | Regulatory  | High     | Implemented |
+| C-001 | License                          | The project must be licensed under PolyForm Noncommercial 1.0.0, copyright Elicit Software LLC.                                                                                     | Regulatory  | High     | Implemented |
 | C-002 | Runtime Platform                 | Backend must run on Java 25.                                                                                                                          | Technical   | High     | Implemented |
 | C-003 | Application Framework            | Must use Quarkus 3.40.x (LTS).                                                                                                                        | Technical   | High     | Implemented |
 | C-004 | UI Framework                     | Must use Vaadin 25.3.x Flow (server-side UI); no client-side rewrite (e.g., Hilla/React) without explicit approval.                                  | Technical   | High     | Implemented |

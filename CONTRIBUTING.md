@@ -122,14 +122,14 @@ Every source file carries a license header block managed by `license-maven-plugi
  * ***LICENSE_START***
  * Elicit Survey
  * %%
- * Copyright (C) 2025 The Regents of the University of Michigan - Rogel Cancer Center
+ * Copyright (C) 2025 - 2026 Elicit Software LLC
  * %%
  * PolyForm Noncommercial License 1.0.0
  * <https://polyformproject.org/licenses/noncommercial/1.0.0>
  * ***LICENSE_END***
  */
 ```
-New files should include it. To have Maven insert/refresh it automatically, run `./mvnw package -Dlicense`.
+It names Elicit Software LLC. Let the build write the header of a new file (`./mvnw package -Dlicense` adds it to any file that has none and never rewrites one that exists); never paste one from another file.
 
 ### Entity/Model Classes
 

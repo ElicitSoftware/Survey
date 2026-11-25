@@ -22,7 +22,7 @@
     <img src="images/stacked.png" alt="Logo" width="15%" >
   </a>
 <h3 align="center">Elicit Survey</h3>
-  <p>Copyright © 2025 The Regents of the University of Michigan</p>
+  <p>Copyright © 2025-2026 Elicit Software LLC</p>
 </div>
 <!-- TABLE OF CONTENTS -->
 <details>
@@ -152,7 +152,6 @@ Project Link: [https://github.com/ElicitSoftware/Survey](https://github.com/Elic
 <!-- ACKNOWLEDGMENTS -->
 ## Acknowledgments
 
-<!-- <a href="https://www.michiganmedicine.org"><img src="images/Rogel-Cancer_Logo-Horizontal-CMYK.png" height="30"></a><br/> -->
 <br/>
 <a href="https://info.mightstudy.org"><img src="images/MiGHT-shortlogo.png" height="50"></a><br/>
 <br/>
